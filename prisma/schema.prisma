@@ -1,0 +1,282 @@
+// GBSW 통합관리시스템 — 데이터 모델
+//
+// 뼈대 단계 범위: 인증 코어 + 신원(프로필/학급) + 감사로그.
+// 상벌점(AcademicYear / MeritRule / MeritAward)은 다음 단계에서 추가한다.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  // Prisma 7부터 url은 prisma.config.ts에서 주입한다.
+}
+
+// ─────────────────────────────────────────────────────────────
+// 1. 인증 코어 — Better Auth가 소유하는 테이블
+//    스키마를 손으로 고치기 전에 `npm run auth:generate`로 대조할 것.
+// ─────────────────────────────────────────────────────────────
+
+model User {
+  id            String   @id
+  name          String
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // ── 플랫폼 확장 필드
+  /// ADMIN | STUDENT | PARENT — src/core/authz/roles.ts와 일치해야 한다.
+  role String?
+
+  phone String?
+
+  /// ACTIVE | INACTIVE
+  status String? @default("ACTIVE")
+
+  /// 관리자가 비밀번호를 초기화하면 true. (app) 레이아웃에서 가로채 /change-password로 보낸다.
+  mustChangePassword Boolean? @default(false)
+
+  // ── Better Auth admin 플러그인
+  banned     Boolean?  @default(false)
+  banReason  String?
+  banExpires DateTime?
+
+  sessions Session[]
+  accounts Account[]
+
+  studentProfile StudentProfile?
+  auditLogs      AuditLog[]
+
+  /// 학부모로서 연결된 학생들
+  parentLinks ParentStudent[]
+
+  invitesCreated Invite[] @relation("InviteCreatedBy")
+  inviteUsed     Invite?  @relation("InviteUsedBy")
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// admin 플러그인 — 관리자가 대리 로그인한 경우 원 관리자 User.id
+  impersonatedBy String?
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  /// 해시된 비밀번호 (providerId = "credential"인 경우)
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+// ─────────────────────────────────────────────────────────────
+// 2. 신원 / 조직
+// ─────────────────────────────────────────────────────────────
+
+/// 학생 신원.
+///
+/// **이 모델의 id가 학생을 추적하는 불변 식별자다.** 상벌점·외출 등 모든 기록이 이걸 참조한다.
+/// 학년·반·번호는 매년 갱신되는 "현재 소속"이므로 식별자로 쓰지 않는다.
+model StudentProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// 가입 시 초대코드의 사전등록 값과 대조하는 2차 요소.
+  birthDate DateTime
+
+  /// 학급 내 번호 (현재 소속)
+  number Int?
+
+  classId     String?
+  schoolClass SchoolClass? @relation(fields: [classId], references: [id], onDelete: SetNull)
+
+  /// 이 학생에게 연결된 학부모들
+  parents ParentStudent[]
+
+  /// 이 학생이 발급한 학부모 초대코드들
+  parentInvites Invite[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([classId])
+}
+
+/// 학부모 ↔ 학생 연결. 학부모가 초대코드로 가입할 때 만들어진다.
+/// 코드 자체에 학생이 귀속되어 있으므로 학부모가 대상을 고를 여지가 없다.
+model ParentStudent {
+  id String @id @default(cuid())
+
+  parentUserId String
+  parentUser   User   @relation(fields: [parentUserId], references: [id], onDelete: Cascade)
+
+  studentId String
+  student   StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([parentUserId, studentId])
+  @@index([studentId])
+}
+
+/// 학년/반. v1은 "현재 소속"만 다루고 학년도별 이력은 두지 않는다.
+model SchoolClass {
+  id        String   @id @default(cuid())
+  grade     Int
+  classNo   Int
+  createdAt DateTime @default(now())
+
+  students StudentProfile[]
+
+  @@unique([grade, classNo])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 3. 초대코드 — 계정 생성의 유일한 경로 (부트스트랩 제외)
+// ─────────────────────────────────────────────────────────────
+
+model Invite {
+  id   String @id @default(cuid())
+  code String @unique
+
+  /// ADMIN | STUDENT | PARENT
+  /// 가입 시 역할은 항상 이 값에서 읽는다. 클라이언트가 주장할 수 없다.
+  role String
+
+  /// PENDING | USED | REVOKED
+  status String @default("PENDING")
+
+  /// null이면 무기한
+  expiresAt DateTime?
+
+  /// 사전등록 신원. 가입 시 2차 요소로 대조한다.
+  ///   STUDENT       { name, birthDate, grade, classNo, number }
+  ///   ADMIN·PARENT  { name }
+  metadata Json?
+
+  /// PARENT 코드 전용 — 이 코드로 가입한 학부모가 연결될 학생.
+  /// 학생 본인이 코드를 만들 때 서버가 세션에서 채운다.
+  studentId String?
+  student   StudentProfile? @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  /// 2차 요소 대조 실패 횟수. 5회 도달 시 코드를 폐기한다.
+  failedAttempts Int @default(0)
+
+  createdById String
+  createdBy   User   @relation("InviteCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  /// 코드 하나는 계정 하나만 만든다.
+  usedById String?   @unique
+  usedBy   User?     @relation("InviteUsedBy", fields: [usedById], references: [id], onDelete: SetNull)
+  usedAt   DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([status])
+  @@index([createdById])
+  @@index([studentId])
+}
+
+/// 가입 시 이메일·전화번호 확인용 일회성 코드.
+///
+/// 가입은 여러 요청에 걸쳐 일어나므로 메모리가 아니라 DB에 둔다.
+/// 계정이 만들어지면 consumedAt이 찍혀 재사용되지 않는다.
+model VerificationCode {
+  id String @id @default(cuid())
+
+  /// EMAIL | PHONE
+  channel String
+
+  /// 정규화된 이메일 주소 또는 휴대폰 번호
+  target String
+
+  /// 코드 원본은 저장하지 않는다 (SHA-256).
+  codeHash String
+
+  expiresAt DateTime
+
+  /// 코드 대조 실패 횟수. 한계에 닿으면 만료시킨다.
+  attempts Int @default(0)
+
+  /// 대조에 성공한 시각. 가입 시 이 값이 있어야 통과한다.
+  verifiedAt DateTime?
+
+  /// 가입에 실제로 쓰인 시각. 찍히면 더는 못 쓴다.
+  consumedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([channel, target])
+  @@index([expiresAt])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 4. 감사로그 — 모든 변경 작업이 여기로 남는다 (append-only)
+// ─────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id String @id @default(cuid())
+
+  actorUserId String
+  actor       User   @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  /// core/authz/can.ts의 Action 문자열과 같은 형식. 예) "merit:award"
+  action     String
+  targetType String
+  targetId   String?
+  metadata   Json?
+
+  /// 요청 접속 정보. 요청 밖(부팅 훅·스크립트)에서 남긴 기록은 비어 있다.
+  ip        String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  @@index([actorUserId])
+  @@index([action])
+  @@index([createdAt])
+}

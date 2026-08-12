@@ -1,0 +1,81 @@
+name: gbsw-platform
+
+# 로컬 개발:  docker compose up -d db      (DB만 띄우고 앱은 npm run dev)
+# 전체 스택:  docker compose up -d --build
+
+x-db-env: &db-env
+  POSTGRES_USER: ${POSTGRES_USER:-gbsw}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gbsw_dev_password}
+  POSTGRES_DB: ${POSTGRES_DB:-gbsw}
+
+services:
+  db:
+    image: postgres:18
+    container_name: gbsw-db
+    restart: unless-stopped
+    environment: *db-env
+    ports:
+      # 호스트 5433 — 로컬에 이미 도는 Postgres(5432)와 겹치지 않게.
+      - "5433:5432"
+    volumes:
+      # Postgres 18부터는 /var/lib/postgresql 하나만 마운트한다.
+      # (하위에 메이저 버전별 디렉터리를 만들어 pg_upgrade --link를 가능하게 함)
+      - gbsw-db-data:/var/lib/postgresql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-gbsw} -d ${POSTGRES_DB:-gbsw}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # 마이그레이션 전용 1회성 작업.
+  # 런타임 이미지에 Prisma CLI(수십 MB)를 넣지 않으려고 builder 스테이지를 재사용한다.
+  # app은 이 작업이 성공적으로 끝난 뒤에만 뜬다.
+  migrate:
+    build:
+      context: .
+      target: builder
+    container_name: gbsw-migrate
+    restart: "no"
+    command: ["npx", "prisma", "migrate", "deploy"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-gbsw}:${POSTGRES_PASSWORD:-gbsw_dev_password}@db:5432/${POSTGRES_DB:-gbsw}
+
+  app:
+    build:
+      context: .
+      target: runner
+    container_name: gbsw-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-gbsw}:${POSTGRES_PASSWORD:-gbsw_dev_password}@db:5432/${POSTGRES_DB:-gbsw}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET를 .env에 설정해야 합니다}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  gbsw-db-data:
