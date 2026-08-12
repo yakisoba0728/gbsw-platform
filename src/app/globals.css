@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+/*
+ * 디자인 토큰 — "UI 디자인 재개발" 시안(GBSW 통합관리시스템.dc.html)의
+ * CSS 변수를 Tailwind v4 @theme으로 옮긴 것. 시안의 이름을 그대로 유지해서
+ * 시안 ↔ 코드 대조가 1:1로 되도록 했다.
+ *
+ * @theme의 --color-XXX 는 bg-XXX, text-XXX, border-XXX 유틸리티를 자동 생성한다.
+ * 예) --color-pri  →  bg-pri, text-pri, border-pri
+ */
+@theme {
+  /* ── 표면 / 중립 ─────────────────────────────── */
+  --color-bg: #f5f6f8; /* 페이지 배경 */
+  --color-surface: #ffffff; /* 카드·패널 */
+  --color-line: #eaecf0; /* 기본 테두리 */
+  --color-line2: #f1f2f5; /* 옅은 구분선 */
+  --color-soft: #fafbfc; /* secondary 버튼 hover */
+  --color-ink: #1b2030; /* 본문 텍스트 */
+  --color-mut: #737b89; /* 보조 텍스트 */
+  --color-mut2: #9aa0ab; /* 더 옅은 보조 (읽음 배지) */
+  --color-mut-soft: #eef0f2; /* 취소·읽음 배지 배경 */
+  --color-placeholder: #a6abb5;
+  --color-scrollbar: #d4d7dd;
+
+  /* ── 브랜드 (학교 그린) ───────────────────────── */
+  --color-pri: #00876c;
+  --color-pri-soft: #e2f2ec;
+  --color-pri-press: #00705a;
+
+  /* ── 상점 ────────────────────────────────────── */
+  --color-blue: #2563eb;
+  --color-blue-soft: #eaf1fe;
+
+  /* ── 벌점 · 반려 ─────────────────────────────── */
+  --color-rose: #e11d48;
+  --color-rose-soft: #fdebef;
+  --color-rose-line: #f7c9d5;
+  --color-rose-press: #c2143c;
+
+  /* ── 승인 ────────────────────────────────────── */
+  --color-green: #0e9f6e;
+  --color-green-soft: #e3f6ee;
+  --color-green-press: #0b8a5f;
+
+  /* ── 대기 ────────────────────────────────────── */
+  --color-amber-soft: #fff6e6;
+  --color-amber-ink: #b6791b;
+
+  /* ── 타이포 ──────────────────────────────────── */
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system,
+    BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, sans-serif;
+
+  /* ── 모양 ────────────────────────────────────── */
+  --radius-btn: 10px;
+  --radius-btn-lg: 11px;
+  --radius-field: 11px;
+  --radius-card: 14px;
+
+  /* ── 모션 ────────────────────────────────────── */
+  --animate-auth-in: auth-in 0.4s ease;
+
+  @keyframes auth-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+@layer base {
+  html {
+    /* Tailwind preflight가 font-sans를 자동 적용하지 않으므로 명시 */
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background: var(--color-bg);
+    color: var(--color-ink);
+  }
+
+  /*
+   * 시안의 helmet <style> 블록에 있던 전역 규칙들.
+   * 인라인 style로는 표현이 불가능해서 원래부터 CSS로 빠져 있던 부분이다.
+   */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-scrollbar);
+    border-radius: 8px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+
+  ::placeholder {
+    color: var(--color-placeholder);
+  }
+
+  /* 폼 컨트롤 공통 포커스 링 — 컴포넌트마다 반복하지 않도록 base에 둔다. */
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: none;
+    border-color: var(--color-pri);
+    box-shadow: 0 0 0 3px --alpha(var(--color-pri) / 15%);
+  }
+}
