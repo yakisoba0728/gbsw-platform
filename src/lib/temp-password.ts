@@ -1,0 +1,36 @@
+import { randomInt } from "node:crypto";
+
+/**
+ * 관리자가 대면·구두로 전달할 임시 비밀번호.
+ *
+ * 혼동하기 쉬운 글자(0/O, 1/I/l)를 뺀 알파벳을 쓴다. 불러주다 틀리면 소용없다.
+ * 대문자·소문자·숫자를 각각 최소 하나 포함시켜, 나중에 비밀번호 규칙이 강해져도
+ * 임시 비밀번호가 그 규칙에 걸리지 않게 한다.
+ */
+const UPPER = "ABCDEFGHJKMNPQRSTUVWXYZ";
+const LOWER = "abcdefghijkmnpqrstuvwxyz";
+const DIGIT = "23456789";
+export const TEMP_PASSWORD_ALPHABET = UPPER + LOWER + DIGIT;
+const ALL = TEMP_PASSWORD_ALPHABET;
+
+export const TEMP_PASSWORD_LENGTH = 14;
+
+function pick(alphabet: string): string {
+  return alphabet[randomInt(alphabet.length)]!;
+}
+
+export function generateTempPassword(
+  length: number = TEMP_PASSWORD_LENGTH,
+): string {
+  const chars = [pick(UPPER), pick(LOWER), pick(DIGIT)];
+
+  while (chars.length < length) chars.push(pick(ALL));
+
+  // 앞 세 자리가 항상 대/소/숫자 순으로 나오지 않게 섞는다 (Fisher-Yates).
+  for (let i = chars.length - 1; i > 0; i -= 1) {
+    const j = randomInt(i + 1);
+    [chars[i], chars[j]] = [chars[j]!, chars[i]!];
+  }
+
+  return chars.join("");
+}
