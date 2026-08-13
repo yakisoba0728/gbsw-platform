@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeRows, parseCsv } from "@/modules/enrollment/roster.parse";
+import { fileNotices, normalizeRows, parseCsv } from "@/modules/enrollment/roster.parse";
 
 const HEADER = ["이름", "생년월일", "학년", "반", "번호", "학적"];
 
@@ -206,6 +206,28 @@ describe("normalizeRows() — 학적·학년·반·번호가 빈 줄 (Critical �
 
     expect(rows[0]!.errors).toEqual([]);
     expect(rows[0]!.status).toBe("GRADUATED");
+  });
+});
+
+describe("fileNotices() — 파일 단위 안내 (Important 결함 회귀)", () => {
+  it("학생코드 열이 없으면 전 줄을 신규로 처리한다는 안내를 돌려준다", () => {
+    const notices = fileNotices([HEADER, ["김동혁", "2010-07-28", "1", "3", "3", "재학"]]);
+
+    expect(notices).toHaveLength(1);
+    expect(notices[0]).toContain("학생코드 열이 없어");
+  });
+
+  it("학생코드 열이 있으면 안내가 없다", () => {
+    const notices = fileNotices([
+      ["학생코드", ...HEADER],
+      ["ABCD2345", "김동혁", "2010-07-28", "1", "3", "3", "재학"],
+    ]);
+
+    expect(notices).toHaveLength(0);
+  });
+
+  it("빈 파일은 안내도 없다", () => {
+    expect(fileNotices([])).toHaveLength(0);
   });
 });
 

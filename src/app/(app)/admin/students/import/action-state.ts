@@ -10,6 +10,8 @@ export type PreviewState = {
   year: number | null;
   rows: RosterRow[];
   plan: RosterPlan | null;
+  /** 줄 단위가 아니라 파일 전체에 해당하는 안내 (예: 학생코드 열 없음). */
+  notices: string[];
 };
 
 export const PREVIEW_INITIAL: PreviewState = {
@@ -17,6 +19,7 @@ export const PREVIEW_INITIAL: PreviewState = {
   year: null,
   rows: [],
   plan: null,
+  notices: [],
 };
 
 export type ApplyState = {

@@ -37,22 +37,22 @@ export async function previewRosterAction(
   const file = formData.get("file");
 
   if (!(file instanceof File) || file.size === 0) {
-    return { error: "파일을 선택해 주세요.", year: null, rows: [], plan: null };
+    return { error: "파일을 선택해 주세요.", year: null, rows: [], plan: null, notices: [] };
   }
   if (file.size > MAX_BYTES) {
-    return { error: "파일이 너무 큽니다.", year: null, rows: [], plan: null };
+    return { error: "파일이 너무 큽니다.", year: null, rows: [], plan: null, notices: [] };
   }
 
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
-    const { year, rows, plan } = await previewRoster(actor, {
+    const { year, rows, plan, notices } = await previewRoster(actor, {
       filename: file.name,
       buffer,
     });
-    return { error: null, year, rows, plan };
+    return { error: null, year, rows, plan, notices };
   } catch (error) {
     if (error instanceof AcademicYearError) {
-      return { error: NO_CURRENT_YEAR_MESSAGE, year: null, rows: [], plan: null };
+      return { error: NO_CURRENT_YEAR_MESSAGE, year: null, rows: [], plan: null, notices: [] };
     }
     if (error instanceof RosterError) {
       return {
@@ -60,9 +60,10 @@ export async function previewRosterAction(
         year: null,
         rows: [],
         plan: null,
+        notices: [],
       };
     }
-    return { error: "파일을 읽지 못했습니다.", year: null, rows: [], plan: null };
+    return { error: "파일을 읽지 못했습니다.", year: null, rows: [], plan: null, notices: [] };
   }
 }
 

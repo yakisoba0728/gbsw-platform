@@ -25,15 +25,15 @@ function assertMayImport(actor: SessionUser) {
 export async function previewRoster(
   actor: SessionUser,
   file: { filename: string; buffer: Buffer },
-): Promise<{ year: number; rows: RosterRow[]; plan: RosterPlan }> {
+): Promise<{ year: number; rows: RosterRow[]; plan: RosterPlan; notices: string[] }> {
   assertMayImport(actor);
 
   const year = await getCurrentYear();
-  const rows = await parseRoster(file);
+  const { rows, notices } = await parseRoster(file);
   if (rows.length === 0) throw new RosterError("EMPTY");
 
   const plan = planRoster(rows, await repo.listExisting(year));
-  return { year, rows, plan };
+  return { year, rows, plan, notices };
 }
 
 /**

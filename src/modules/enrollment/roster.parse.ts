@@ -232,13 +232,42 @@ export function normalizeRows(table: string[][]): RosterRow[] {
   });
 }
 
+/**
+ * 파일 단위 안내. 줄마다 반복해 알릴 오류가 아니라 파일 전체에 한 번만 해당하는
+ * 사실이라 normalizeRows(줄 단위 오류를 만드는 곳)가 아니라 따로 둔다.
+ *
+ * 학생코드 열이 아예 없는 파일은 normalizeRows가 오류로 잡지 않는다(예전 서식·손으로
+ * 만든 파일을 계속 받기 위해서다) — 그 대신 왜 전 줄이 신규로 뜨는지 여기서 알려준다.
+ * missingFromFile 경고(앰버, 뚜렷한 문구)는 이미 있는데 "왜 그렇게 됐는지"가 어디에도
+ * 없어서, 관리자가 원인을 모른 채 전교 배정 초기화를 확정 버튼 한 번으로 실행할 수
+ * 있었다 — 그 원인을 미리보기 최상단에 놓기 위한 안내다.
+ */
+export function fileNotices(table: string[][]): string[] {
+  if (table.length === 0) return [];
+
+  const header = table[0]!.map((h) => h.trim());
+  const notices: string[] = [];
+
+  if (!header.includes("학생코드")) {
+    notices.push(
+      "학생코드 열이 없어 전 줄을 신규로 처리합니다. 기존 학생이 있다면 " +
+        "\"전체 명단 내려받기\"로 받은 파일에 고쳐 올려야 배정이 이어집니다.",
+    );
+  }
+
+  return notices;
+}
+
 export async function parseRoster(input: {
   filename: string;
   buffer: Buffer;
-}): Promise<RosterRow[]> {
+}): Promise<{ rows: RosterRow[]; notices: string[] }> {
   const isXlsx = /\.xlsx$/i.test(input.filename);
 
-  if (!isXlsx) return normalizeRows(parseCsv(input.buffer.toString("utf8")));
+  if (!isXlsx) {
+    const table = parseCsv(input.buffer.toString("utf8"));
+    return { rows: normalizeRows(table), notices: fileNotices(table) };
+  }
 
   // 기본 export는 시트를 전부 돌려준다. 첫 시트만 필요하므로 readSheet를 쓴다.
   const rows = await readSheet(input.buffer);
@@ -254,5 +283,5 @@ export async function parseRoster(input: {
       return String(c);
     }),
   );
-  return normalizeRows(table);
+  return { rows: normalizeRows(table), notices: fileNotices(table) };
 }

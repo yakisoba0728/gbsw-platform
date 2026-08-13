@@ -108,6 +108,7 @@ export function ImportForm() {
           year={previewState.year}
           rows={previewState.rows}
           plan={previewState.plan}
+          notices={previewState.notices}
         />
       )}
     </>
@@ -218,10 +219,12 @@ function PreviewCard({
   year,
   rows,
   plan,
+  notices,
 }: {
   year: number;
   rows: RosterRow[];
   plan: RosterPlan;
+  notices: string[];
 }) {
   const [applyState, applyAction, applying] = useActionState(
     applyRosterAction,
@@ -236,6 +239,15 @@ function PreviewCard({
       <header className="border-b border-line px-5 py-4">
         <h2 className="text-base font-extrabold text-ink">미리보기</h2>
         <p className="mt-0.5 text-[12px] text-mut">{year}학년도 기준입니다.</p>
+        {notices.map((notice) => (
+          <p
+            key={notice}
+            role="alert"
+            className="mt-2 rounded-btn bg-amber-soft px-3 py-2.5 text-[12.5px] font-semibold text-amber-ink"
+          >
+            {notice}
+          </p>
+        ))}
       </header>
 
       <div className="divide-y divide-line2">

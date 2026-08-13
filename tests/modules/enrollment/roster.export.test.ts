@@ -98,7 +98,7 @@ describe("왕복: 내보내기 → xlsx 바이트 → 파서 → 분류", () => 
       stickyRowsCount: 1,
     }).toBuffer();
 
-    const parsed = await parseRoster({ filename: "roundtrip.xlsx", buffer });
+    const { rows: parsed } = await parseRoster({ filename: "roundtrip.xlsx", buffer });
     return planRoster(parsed, existing);
   }
 
@@ -200,7 +200,7 @@ describe("왕복: 내보내기 → xlsx 바이트 → 파서 → 분류", () => 
       stickyRowsCount: 1,
     }).toBuffer();
 
-    const parsed = await parseRoster({ filename: "roundtrip.xlsx", buffer });
+    const { rows: parsed } = await parseRoster({ filename: "roundtrip.xlsx", buffer });
     const plan = planRoster(parsed, [재학생]);
 
     expect(plan.reassign).toHaveLength(1);
@@ -222,7 +222,7 @@ describe("왕복: 내보내기 → xlsx 바이트 → 파서 → 분류", () => 
       stickyRowsCount: 1,
     }).toBuffer();
 
-    const parsed = await parseRoster({ filename: "roundtrip.xlsx", buffer });
+    const { rows: parsed } = await parseRoster({ filename: "roundtrip.xlsx", buffer });
     const plan = planRoster(parsed, [재학생]);
 
     expect(plan.newStudents).toHaveLength(0);
