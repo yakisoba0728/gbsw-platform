@@ -7,6 +7,7 @@ import {
   MAX_INVITE_ATTEMPTS,
   normalizeInviteCode,
 } from "@/lib/invite-code";
+import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
 import {
   namedInviteMetaSchema,
   studentInviteMetaSchema,
@@ -101,12 +102,18 @@ export async function completeRegistration(
   try {
     if (role === "STUDENT") {
       const meta = student!;
-      await repo.completeStudentRegistration(invite.id, account, {
-        birthDate: new Date(`${meta.birthDate}T00:00:00Z`),
-        grade: meta.grade,
-        classNo: meta.classNo,
-        number: meta.number,
-      });
+      const year = await getCurrentYear();
+      await repo.completeStudentRegistration(
+        invite.id,
+        account,
+        {
+          birthDate: new Date(`${meta.birthDate}T00:00:00Z`),
+          grade: meta.grade,
+          classNo: meta.classNo,
+          number: meta.number,
+        },
+        year,
+      );
     } else if (role === "ADMIN") {
       await repo.completeAdminRegistration(invite.id, account);
     } else {

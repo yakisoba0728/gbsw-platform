@@ -101,6 +101,7 @@ export async function completeStudentRegistration(
   inviteId: string,
   account: RegistrationAccount,
   student: { birthDate: Date; grade: number; classNo: number; number: number },
+  year: number,
 ): Promise<void> {
   await prisma.$transaction(async (tx) => {
     await createUserWithCredential(tx, account, "STUDENT");
@@ -108,18 +109,31 @@ export async function completeStudentRegistration(
     // 학급은 없으면 만든다 — 관리자가 미리 등록해 둘 필요가 없게.
     const schoolClass = await tx.schoolClass.upsert({
       where: {
-        grade_classNo: { grade: student.grade, classNo: student.classNo },
+        year_grade_classNo: {
+          year,
+          grade: student.grade,
+          classNo: student.classNo,
+        },
       },
-      create: { grade: student.grade, classNo: student.classNo },
+      create: { year, grade: student.grade, classNo: student.classNo },
       update: {},
     });
 
-    await tx.studentProfile.create({
+    const profile = await tx.studentProfile.create({
       data: {
         userId: account.userId,
         birthDate: student.birthDate,
-        number: student.number,
+      },
+    });
+
+    // 소속은 학년도별로 쌓인다. 가입은 현재 학년도 배정을 만든다.
+    await tx.enrollment.create({
+      data: {
+        studentProfileId: profile.id,
+        year,
         classId: schoolClass.id,
+        number: student.number,
+        status: "ENROLLED",
       },
     });
 

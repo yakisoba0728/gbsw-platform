@@ -26,6 +26,9 @@ vi.mock("@/modules/verification/verification.service", () => ({
   requireVerified,
   consumeVerifications,
 }));
+vi.mock("@/modules/academic-year/academic-year.service", () => ({
+  getCurrentYear: vi.fn().mockResolvedValue(2026),
+}));
 
 const { checkInvite, completeRegistration } = await import(
   "@/modules/registration/registration.service"
