@@ -37,7 +37,8 @@ export default async function UserDetailPage({
 
   const { user, audit } = detail;
   const profile = user.studentProfile;
-  const cls = profile?.schoolClass;
+  const enrollment = profile?.enrollments[0];
+  const cls = enrollment?.schoolClass;
   const active = user.status === "ACTIVE";
 
   const editable: EditableUser = {
@@ -49,7 +50,7 @@ export default async function UserDetailPage({
     birthDate: profile ? formatDateInput(profile.birthDate) : "",
     grade: cls ? String(cls.grade) : "",
     classNo: cls ? String(cls.classNo) : "",
-    number: profile?.number == null ? "" : String(profile.number),
+    number: enrollment?.number == null ? "" : String(enrollment.number),
     active,
     isSelf: user.id === actor.id,
   };
@@ -90,7 +91,9 @@ export default async function UserDetailPage({
                   <Field label="소속">
                     {cls
                       ? `${cls.grade}학년 ${cls.classNo}반${
-                          profile.number == null ? "" : ` ${profile.number}번`
+                          enrollment?.number == null
+                            ? ""
+                            : ` ${enrollment.number}번`
                         }`
                       : "미배정"}
                   </Field>
@@ -104,12 +107,11 @@ export default async function UserDetailPage({
                 <Field label="자녀">
                   {user.parentLinks
                     .map((link) => {
-                      const c = link.student.schoolClass;
+                      const e = link.student.enrollments[0];
+                      const c = e?.schoolClass;
                       const where = c
                         ? `${c.grade}-${c.classNo}${
-                            link.student.number == null
-                              ? ""
-                              : ` ${link.student.number}번`
+                            e?.number == null ? "" : ` ${e.number}번`
                           }`
                         : "미배정";
                       return `${link.student.user.name} (${where})`;

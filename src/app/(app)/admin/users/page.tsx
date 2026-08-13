@@ -12,7 +12,8 @@ export default async function UsersPage() {
   const users = await listUsers(actor);
 
   const rows: UserRow[] = users.map((u) => {
-    const cls = u.studentProfile?.schoolClass;
+    const enrollment = u.studentProfile?.enrollments[0];
+    const cls = enrollment?.schoolClass;
     return {
       id: u.id,
       name: u.name,
@@ -24,7 +25,7 @@ export default async function UsersPage() {
       mustChangePassword: u.mustChangePassword ?? false,
       classLabel: cls
         ? `${cls.grade}학년 ${cls.classNo}반${
-            u.studentProfile?.number == null ? "" : ` ${u.studentProfile.number}번`
+            enrollment?.number == null ? "" : ` ${enrollment.number}번`
           }`
         : null,
       createdAt: formatDate(u.createdAt),

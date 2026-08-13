@@ -53,13 +53,14 @@ function toRow(invite: Listed): InviteRow {
   if (invite.role === "PARENT") {
     const meta = invite.metadata as { name?: string } | null;
     const child = invite.student;
+    const childEnrollment = child?.enrollments[0];
     return {
       ...base,
       name: meta?.name ?? "—",
       classLabel: classLabel(
-        child?.schoolClass?.grade,
-        child?.schoolClass?.classNo,
-        child?.number,
+        childEnrollment?.schoolClass?.grade,
+        childEnrollment?.schoolClass?.classNo,
+        childEnrollment?.number,
       ),
       birthDate: null,
       childName: child?.user.name ?? null,
@@ -84,7 +85,12 @@ export default async function InvitesPage() {
   ]);
 
   const options: StudentOption[] = students.map((s) => {
-    const where = classLabel(s.schoolClass?.grade, s.schoolClass?.classNo, s.number);
+    const enrollment = s.enrollments[0];
+    const where = classLabel(
+      enrollment?.schoolClass?.grade,
+      enrollment?.schoolClass?.classNo,
+      enrollment?.number,
+    );
     const label = `${where ?? "미배정"} ${s.user.name}`;
     return { id: s.id, label, search: label.toLowerCase() };
   });

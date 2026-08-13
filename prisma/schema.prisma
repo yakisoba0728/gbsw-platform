@@ -1,7 +1,7 @@
 // GBSW 통합관리시스템 — 데이터 모델
 //
 // 뼈대 단계 범위: 인증 코어 + 신원(프로필/학급) + 감사로그.
-// 상벌점(AcademicYear / MeritRule / MeritAward)은 다음 단계에서 추가한다.
+// 상벌점(MeritRule / MeritAward)은 다음 단계에서 추가한다.
 
 generator client {
   provider = "prisma-client"
