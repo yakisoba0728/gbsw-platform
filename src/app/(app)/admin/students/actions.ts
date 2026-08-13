@@ -7,6 +7,7 @@ import {
   createYear,
   setCurrentYear,
 } from "@/modules/academic-year/academic-year.service";
+import { yearFormSchema } from "@/modules/academic-year/academic-year.schema";
 import {
   EnrollmentError,
   saveEnrollments,
@@ -18,6 +19,8 @@ const MESSAGES: Record<string, string> = {
   UNKNOWN_STUDENT: "목록에 없는 학생이 포함됐습니다. 새로고침 후 다시 시도하세요.",
   INCOMPLETE_ENROLLED: "재학인 학생은 학년·반·번호를 모두 채워야 합니다.",
   NUMBER_TAKEN: "같은 반에 같은 번호의 학생이 있습니다.",
+  YEAR_MISMATCH: "학년도가 바뀌었습니다. 새로고침 후 다시 시도하세요.",
+  CANNOT_DEACTIVATE_SELF: "자기 계정은 비활성화할 수 없습니다.",
 };
 
 export async function saveEnrollmentsAction(
@@ -33,7 +36,10 @@ export async function saveEnrollmentsAction(
     return { error: "저장할 내용을 읽지 못했습니다.", saved: null };
   }
 
-  const parsed = saveEnrollmentsSchema.safeParse({ changes: parsedJson });
+  const parsed = saveEnrollmentsSchema.safeParse({
+    changes: parsedJson,
+    year: formData.get("year"),
+  });
   if (!parsed.success) {
     return {
       error: parsed.error.issues[0]?.message ?? "입력값을 확인해 주세요.",
@@ -42,12 +48,21 @@ export async function saveEnrollmentsAction(
   }
 
   try {
-    const { saved } = await saveEnrollments(actor, parsed.data.changes);
+    const { saved } = await saveEnrollments(
+      actor,
+      parsed.data.changes,
+      parsed.data.year,
+    );
     revalidatePath("/admin/students");
     return { error: null, saved };
   } catch (error) {
     if (error instanceof EnrollmentError) {
-      return { error: MESSAGES[error.message] ?? "저장하지 못했습니다.", saved: null };
+      // 학생 이름처럼 코드로 미리 정할 수 없는 오류는 detail을 그대로 보여준다
+      // (예: 반·번호 충돌). 없으면 코드별 고정 문구를 쓴다.
+      return {
+        error: error.detail ?? MESSAGES[error.message] ?? "저장하지 못했습니다.",
+        saved: null,
+      };
     }
     return { error: "저장하지 못했습니다.", saved: null };
   }
@@ -58,16 +73,17 @@ export async function setCurrentYearAction(
   formData: FormData,
 ): Promise<YearState> {
   const actor = await requireAuth();
-  const year = Number(formData.get("year"));
+
+  const parsed = yearFormSchema.safeParse({ year: formData.get("year") });
+  if (!parsed.success) {
+    return { error: "학년도가 올바르지 않습니다.", ok: false };
+  }
 
   try {
-    await setCurrentYear(actor, year);
+    await setCurrentYear(actor, parsed.data.year);
     revalidatePath("/admin/students");
     return { error: null, ok: true };
-  } catch (error) {
-    if (error instanceof AcademicYearError) {
-      return { error: "학년도를 바꾸지 못했습니다.", ok: false };
-    }
+  } catch {
     return { error: "학년도를 바꾸지 못했습니다.", ok: false };
   }
 }
@@ -77,17 +93,25 @@ export async function createYearAction(
   formData: FormData,
 ): Promise<YearState> {
   const actor = await requireAuth();
-  const year = Number(formData.get("year"));
+
+  const parsed = yearFormSchema.safeParse({ year: formData.get("year") });
+  if (!parsed.success) {
+    return { error: "학년도가 올바르지 않습니다.", ok: false };
+  }
 
   try {
-    await createYear(actor, year);
+    await createYear(actor, parsed.data.year);
     revalidatePath("/admin/students");
     return { error: null, ok: true };
   } catch (error) {
-    if (error instanceof AcademicYearError && error.message === "INVALID_YEAR") {
+    if (error instanceof AcademicYearError) {
+      if (error.message === "YEAR_TAKEN") {
+        return { error: "이미 있는 학년도입니다.", ok: false };
+      }
+      // INVALID_YEAR — 스키마가 걸러내므로 실제로는 거의 닿지 않는다.
       return { error: "학년도가 올바르지 않습니다.", ok: false };
     }
-    // 유일 제약 위반 — 이미 있는 학년도다.
-    return { error: "이미 있는 학년도이거나 만들지 못했습니다.", ok: false };
+    // 권한 오류·DB 장애 등. 중복인 것처럼 보이면 안 된다 (M3).
+    return { error: "학년도를 만들지 못했습니다.", ok: false };
   }
 }

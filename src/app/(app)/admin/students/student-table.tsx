@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -50,10 +50,32 @@ function sameAsRow(row: StudentRow, d: Draft): boolean {
   );
 }
 
-export function StudentTable({ rows }: { rows: StudentRow[] }) {
-  const [drafts, setDrafts] = useState<Record<string, Draft>>(() =>
-    Object.fromEntries(rows.map((r) => [r.studentProfileId, toDraft(r)])),
-  );
+/**
+ * 사용자가 실제로 건드린 필드만 들고 있는 override.
+ *
+ * 이전엔 마운트 시점에 `rows` 전체를 한 번 복사해 두고 그 사본만 읽었다.
+ * 그래서 저장 후 rows가 새로 내려와도(초대코드 가입으로 새 학생이 생기거나,
+ * 졸업 저장으로 서버가 반·번호를 비우거나) 화면은 옛 사본을 계속 보여줬다 —
+ * 마운트 뒤에 늘어난 studentProfileId는 아예 없어서 크래시까지 났다 (I4).
+ *
+ * 필드 단위 override + 미지정 필드는 항상 rows에서 읽는 이 구조는 그 둘의
+ * 뿌리를 같이 없앤다: 편집하지 않은 값은 늘 최신 rows를 그대로 반영한다.
+ */
+function draftFor(
+  row: StudentRow,
+  overrides: Record<string, Partial<Draft>>,
+): Draft {
+  return { ...toDraft(row), ...overrides[row.studentProfileId] };
+}
+
+export function StudentTable({
+  rows,
+  year,
+}: {
+  rows: StudentRow[];
+  year: number;
+}) {
+  const [drafts, setDrafts] = useState<Record<string, Partial<Draft>>>({});
   const [query, setQuery] = useState("");
   const [gradeFilter, setGradeFilter] = useState<string>("ALL");
   const [state, formAction, pending] = useActionState(
@@ -61,18 +83,37 @@ export function StudentTable({ rows }: { rows: StudentRow[] }) {
     SAVE_INITIAL,
   );
 
-  const dirtyIds = useMemo(
-    () =>
-      rows
-        .filter((r) => !sameAsRow(r, drafts[r.studentProfileId]!))
-        .map((r) => r.studentProfileId),
+  const dirtyRows = useMemo(
+    () => rows.filter((r) => !sameAsRow(r, draftFor(r, drafts))),
     [rows, drafts],
   );
+  const dirtyIds = useMemo(
+    () => dirtyRows.map((r) => r.studentProfileId),
+    [dirtyRows],
+  );
+
+  // 지금 폼을 제출하면 실제로 서버로 나가는 id들. 클릭 시점 값을 그대로 붙잡아 둔다 —
+  // 저장이 진행되는 동안 사용자가 다른 줄을 마저 고칠 수 있어서, 응답이 온 시점의
+  // dirtyIds를 그대로 쓰면 그 사이에 새로 생긴(아직 서버에 보내지 않은) 편집까지
+  // "저장됐다"고 착각해 지워버릴 수 있다.
+  const submittedIdsRef = useRef<string[]>([]);
+
+  // 저장이 성공하면 이번에 보낸 줄들의 override를 지운다 — 다음 렌더의 draftFor가
+  // 새로 내려온 rows를 그대로 읽으면서 서버 값과 다시 맞아떨어진다. 실패하면
+  // 사용자가 입력 중이던 값을 잃으면 안 되므로 건드리지 않는다.
+  useEffect(() => {
+    if (state.saved === null || state.error) return;
+    setDrafts((prev) => {
+      const next = { ...prev };
+      for (const id of submittedIdsRef.current) delete next[id];
+      return next;
+    });
+  }, [state]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return rows.filter((r) => {
-      const d = drafts[r.studentProfileId]!;
+      const d = draftFor(r, drafts);
       if (gradeFilter !== "ALL" && d.grade !== gradeFilter) return false;
       if (!q) return true;
       return [r.name, r.email].some((f) => f.toLowerCase().includes(q));
@@ -80,15 +121,15 @@ export function StudentTable({ rows }: { rows: StudentRow[] }) {
   }, [rows, drafts, query, gradeFilter]);
 
   const set = (id: string, patch: Partial<Draft>) =>
-    setDrafts((prev) => ({ ...prev, [id]: { ...prev[id]!, ...patch } }));
+    setDrafts((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
 
   // 바뀐 줄만 보낸다. 서버가 다시 대조하므로 여기가 최종 방어선은 아니다.
   const payload = JSON.stringify(
-    dirtyIds.map((id) => {
-      const d = drafts[id]!;
+    dirtyRows.map((row) => {
+      const d = draftFor(row, drafts);
       const num = (v: string) => (v === "" ? null : Number(v));
       return {
-        studentProfileId: id,
+        studentProfileId: row.studentProfileId,
         grade: num(d.grade),
         classNo: num(d.classNo),
         number: num(d.number),
@@ -98,8 +139,14 @@ export function StudentTable({ rows }: { rows: StudentRow[] }) {
   );
 
   return (
-    <form action={formAction}>
+    <form
+      action={formAction}
+      onSubmit={() => {
+        submittedIdsRef.current = dirtyIds;
+      }}
+    >
       <input type="hidden" name="changes" value={payload} />
+      <input type="hidden" name="year" value={year} />
 
       <section className="rounded-card border border-line bg-surface">
         <header className="border-b border-line px-5 py-4">
@@ -140,6 +187,10 @@ export function StudentTable({ rows }: { rows: StudentRow[] }) {
             dense
             value={query}
             onChange={(e) => setQuery(e.currentTarget.value)}
+            // Enter가 이 폼 전체를 제출시키지 않게 막는다 — 검색은 저장이 아니다 (M1).
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.preventDefault();
+            }}
             placeholder="이름 · 이메일 검색"
             className="mt-2.5"
           />
@@ -180,7 +231,7 @@ export function StudentTable({ rows }: { rows: StudentRow[] }) {
               </thead>
               <tbody>
                 {filtered.map((row) => {
-                  const d = drafts[row.studentProfileId]!;
+                  const d = draftFor(row, drafts);
                   const dirty = !sameAsRow(row, d);
                   const enrolled = d.status === "ENROLLED";
 
