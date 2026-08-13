@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionUser } from "@/core/auth/session";
+import { ROSTER_COLUMNS, ROSTER_INFO_COLUMNS } from "@/modules/enrollment/roster.export";
 
 const listExisting = vi.fn();
 const applyRoster = vi.fn();
@@ -22,7 +23,7 @@ vi.mock("@/modules/academic-year/academic-year.service", () => ({
 vi.mock("@/modules/invites/invite.service", () => ({ generateUniqueCode, toExpiresAt }));
 
 // RosterError는 이 테스트에서 쓰지 않는다 — 던지는 메시지는 toThrow()로 문자열째 확인한다.
-const { applyRosterPlan } = await import("@/modules/enrollment/roster.service");
+const { applyRosterPlan, exportRoster } = await import("@/modules/enrollment/roster.service");
 
 function user(role: SessionUser["role"], id = "admin-1"): SessionUser {
   return { id, name: "테스트", email: "t@gbsw.hs.kr", role, status: "ACTIVE", mustChangePassword: false };
@@ -282,5 +283,27 @@ describe("applyRosterPlan()", () => {
     await applyRosterPlan(admin, 2026, [newRow]);
 
     expect(generateUniqueCode).toHaveBeenCalled();
+  });
+});
+
+describe("exportRoster()", () => {
+  it("관리자가 아니면 내보내지 못한다", async () => {
+    await expect(exportRoster(student)).rejects.toThrow("FORBIDDEN");
+    expect(listExisting).not.toHaveBeenCalled();
+  });
+
+  it("현재 학년도 명단을 머리글 + 학생 행으로 만든다", async () => {
+    const result = await exportRoster(admin);
+
+    expect(listExisting).toHaveBeenCalledWith(2026);
+    expect(result.year).toBe(2026);
+    expect(result.rows[0]).toEqual([...ROSTER_COLUMNS, ...ROSTER_INFO_COLUMNS]);
+    expect(result.rows[1]![0]).toBe("AAAA1111");
+    expect(result.rows[1]![1]).toBe("김동혁");
+  });
+
+  it("읽기만 한다 — 감사로그를 남기지 않는다 (생성·수정·삭제만 기록한다)", async () => {
+    await exportRoster(admin);
+    expect(recordAudit).not.toHaveBeenCalled();
   });
 });

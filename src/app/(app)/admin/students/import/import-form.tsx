@@ -1,41 +1,60 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState, useTransition } from "react";
+import writeXlsxFile from "write-excel-file/browser";
 import { Button } from "@/components/ui/button";
 import {
   ENROLLMENT_STATUS_LABELS,
   type EnrollmentStatus,
 } from "@/core/authz/enrollment-status";
 import { formatInviteCode } from "@/lib/invite-code";
+import { toStyledSheetData } from "@/lib/xlsx-sheet";
+import {
+  ROSTER_COLUMN_WIDTHS,
+  ROSTER_COLUMNS,
+  ROSTER_INFO_COLUMNS,
+} from "@/modules/enrollment/roster.export";
 import type { RosterRow } from "@/modules/enrollment/roster.parse";
 import type { RosterPlan } from "@/modules/enrollment/roster.plan";
 import { APPLY_INITIAL, PREVIEW_INITIAL } from "./action-state";
-import { applyRosterAction, previewRosterAction } from "./actions";
+import { applyRosterAction, exportRosterAction, previewRosterAction } from "./actions";
 
-const TEMPLATE_ROWS = [
-  ["이름", "생년월일", "학년", "반", "번호", "학적"],
-  ["김example", "2010-03-05", "1", "3", "1", "재학"],
-  ["이example", "2008-11-20", "", "", "", "졸업"],
+/**
+ * 빈 서식 예시 두 줄. 학생코드를 비워 둔다 — 빈 학생코드가 "신규"라는 뜻을
+ * 서식 자체로 보여준다. 이 서식은 학생이 아직 없거나 새로 만들 때만 쓴다;
+ * 기존 학생은 "전체 명단 내려받기"로 받은 파일을 고쳐서 올린다.
+ */
+const TEMPLATE_ROWS: (string | number | null)[][] = [
+  [...ROSTER_COLUMNS],
+  ["", "김example", "2010-03-05", 1, 3, 1, "재학"],
+  ["", "이example", "2008-11-20", null, null, null, "졸업"],
 ];
 
-/** BOM 없이 내려받으면 엑셀이 한글을 깨서 연다. */
-const BOM = "﻿";
-
-function toCsv(rows: string[][]): string {
-  const escape = (cell: string) =>
-    /[",\r\n]/.test(cell) ? `"${cell.replaceAll('"', '""')}"` : cell;
-  return rows.map((r) => r.map(escape).join(",")).join("\r\n");
+async function downloadTemplate() {
+  const sheetData = toStyledSheetData(TEMPLATE_ROWS);
+  await writeXlsxFile(sheetData, {
+    columns: ROSTER_COLUMN_WIDTHS.slice(0, ROSTER_COLUMNS.length).map((width) => ({ width })),
+    stickyRowsCount: 1,
+  }).toFile("학생명단서식.xlsx");
 }
 
-function downloadCsv(rows: string[][], filename: string) {
-  const blob = new Blob([BOM + toCsv(rows)], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+async function downloadInvites(
+  invites: {
+    name: string;
+    code: string;
+    grade: number | null;
+    classNo: number | null;
+    number: number | null;
+  }[],
+  year: number,
+) {
+  const rows: (string | number | null)[][] = [
+    ["이름", "초대코드", "학년", "반", "번호"],
+    ...invites.map((i) => [i.name, formatInviteCode(i.code), i.grade, i.classNo, i.number]),
+  ];
+  const sheetData = toStyledSheetData(rows);
+  await writeXlsxFile(sheetData, { stickyRowsCount: 1 }).toFile(`초대코드목록_${year}학년도.xlsx`);
 }
 
 function seatLabel(row: {
@@ -104,23 +123,66 @@ function UploadCard({
   action: (formData: FormData) => void;
   pending: boolean;
 }) {
+  const [exporting, startExport] = useTransition();
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  function downloadRoster() {
+    setExportError(null);
+    startExport(async () => {
+      const result = await exportRosterAction();
+      if (result.error || result.year === null) {
+        setExportError(result.error ?? "명단을 내려받지 못했습니다.");
+        return;
+      }
+      const sheetData = toStyledSheetData(result.rows, {
+        infoColumnCount: ROSTER_INFO_COLUMNS.length,
+      });
+      await writeXlsxFile(sheetData, {
+        columns: ROSTER_COLUMN_WIDTHS.map((width) => ({ width })),
+        stickyRowsCount: 1,
+      }).toFile(`학생명단_${result.year}학년도.xlsx`);
+    });
+  }
+
   return (
     <section className="rounded-card border border-line bg-surface p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="text-base font-extrabold text-ink">명단 파일 올리기</h2>
           <p className="mt-0.5 text-[12px] text-mut">
-            CSV 또는 xlsx 파일을 올리면 무엇이 바뀔지 먼저 보여줍니다.
+            전체 명단을 내려받아 고친 뒤 그대로 다시 올리세요. 파일이 곧 전교생
+            완성본입니다 — 줄을 지우면 그 학생의 이번 학년도 배정이 사라집니다.
+          </p>
+          <p className="mt-1 text-[12px] font-semibold text-rose">
+            첫 열(학생코드)은 학생을 알아보는 유일한 기준입니다. 지우거나 고치지
+            마세요 — 비워 두면 같은 학생도 새 학생으로 등록됩니다.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => downloadCsv(TEMPLATE_ROWS, "학생명단서식.csv")}
-          className="text-[12.5px] font-semibold text-pri hover:underline"
-        >
-          서식 파일 받기
-        </button>
+
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          <Button type="button" size="sm" onClick={downloadRoster} disabled={exporting}>
+            {exporting ? "받는 중…" : "전체 명단 내려받기"}
+          </Button>
+          <button
+            type="button"
+            onClick={() => {
+              void downloadTemplate();
+            }}
+            className="text-[12px] font-semibold text-pri hover:underline"
+          >
+            빈 서식 내려받기 (신규 등록용)
+          </button>
+        </div>
       </div>
+
+      {exportError && (
+        <p
+          role="alert"
+          className="mt-3 rounded-btn bg-rose-soft px-3 py-2.5 text-[13px] font-semibold text-rose"
+        >
+          {exportError}
+        </p>
+      )}
 
       <form action={action} className="mt-4 flex flex-wrap items-center gap-3">
         <input
@@ -290,7 +352,7 @@ function PreviewCard({
       </div>
 
       {applied && applyState.invites.length > 0 && (
-        <InvitesResult invites={applyState.invites} />
+        <InvitesResult invites={applyState.invites} year={year} />
       )}
 
       {applied && (
@@ -309,6 +371,7 @@ function PreviewCard({
 
 function InvitesResult({
   invites,
+  year,
 }: {
   invites: {
     name: string;
@@ -317,6 +380,7 @@ function InvitesResult({
     classNo: number | null;
     number: number | null;
   }[];
+  year: number;
 }) {
   return (
     <div className="border-t border-line px-5 py-4">
@@ -326,23 +390,11 @@ function InvitesResult({
           type="button"
           variant="secondary"
           size="sm"
-          onClick={() =>
-            downloadCsv(
-              [
-                ["이름", "초대코드", "학년", "반", "번호"],
-                ...invites.map((i) => [
-                  i.name,
-                  formatInviteCode(i.code),
-                  i.grade === null ? "" : String(i.grade),
-                  i.classNo === null ? "" : String(i.classNo),
-                  i.number === null ? "" : String(i.number),
-                ]),
-              ],
-              "초대코드목록.csv",
-            )
-          }
+          onClick={() => {
+            void downloadInvites(invites, year);
+          }}
         >
-          코드 목록 CSV 받기
+          코드 목록 xlsx 받기
         </Button>
       </div>
       <p className="mt-1 text-[12px] text-mut">

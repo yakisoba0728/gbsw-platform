@@ -3,6 +3,7 @@ import type { SessionUser } from "@/core/auth/session";
 import { can } from "@/core/authz/can";
 import { generateUniqueCode, toExpiresAt } from "@/modules/invites/invite.service";
 import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
+import { buildExportRows } from "./roster.export";
 import { parseRoster, type RosterRow } from "./roster.parse";
 import { planRoster, type RosterPlan } from "./roster.plan";
 import * as repo from "./roster.repo";
@@ -33,6 +34,23 @@ export async function previewRoster(
 
   const plan = planRoster(rows, await repo.listExisting(year));
   return { year, rows, plan };
+}
+
+/**
+ * 전체 명단 내보내기. **아무것도 쓰지 않는다** — 읽기만 하므로 recordAudit을 남기지
+ * 않는다 (프로젝트 규칙은 생성·수정·삭제에만 감사로그를 요구한다).
+ *
+ * 페이지가 이미 requirePermission으로 막아도 여기서 can()을 다시 검사한다
+ * (defense-in-depth) — 서버 액션을 직접 호출하는 경로가 생겨도 뚫리지 않도록.
+ */
+export async function exportRoster(
+  actor: SessionUser,
+): Promise<{ year: number; rows: (string | number | null)[][] }> {
+  if (!can(actor, "student:manage")) throw new Error("FORBIDDEN");
+
+  const year = await getCurrentYear();
+  const rows = buildExportRows(await repo.listExisting(year));
+  return { year, rows };
 }
 
 /**

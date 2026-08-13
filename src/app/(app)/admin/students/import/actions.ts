@@ -6,6 +6,7 @@ import { AcademicYearError } from "@/modules/academic-year/academic-year.service
 import { yearFormSchema } from "@/modules/academic-year/academic-year.schema";
 import {
   applyRosterPlan,
+  exportRoster,
   previewRoster,
   RosterError,
 } from "@/modules/enrollment/roster.service";
@@ -62,6 +63,29 @@ export async function previewRosterAction(
       };
     }
     return { error: "파일을 읽지 못했습니다.", year: null, rows: [], plan: null };
+  }
+}
+
+/**
+ * 전체 명단 내려받기. 클라이언트가 write-excel-file(브라우저)로 xlsx를 직접 만들
+ * 수 있도록 행렬만 돌려준다 — 서버는 파일을 만들지 않는다.
+ * <form action>이 아니라 버튼 클릭에서 직접 부르므로 useActionState를 쓰지 않는다.
+ */
+export async function exportRosterAction(): Promise<{
+  error: string | null;
+  year: number | null;
+  rows: (string | number | null)[][];
+}> {
+  const actor = await requireAuth();
+
+  try {
+    const { year, rows } = await exportRoster(actor);
+    return { error: null, year, rows };
+  } catch (error) {
+    if (error instanceof AcademicYearError) {
+      return { error: NO_CURRENT_YEAR_MESSAGE, year: null, rows: [] };
+    }
+    return { error: "명단을 내려받지 못했습니다.", year: null, rows: [] };
   }
 }
 

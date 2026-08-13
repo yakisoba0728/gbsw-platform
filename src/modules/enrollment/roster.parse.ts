@@ -15,6 +15,7 @@ import {
   MIN_NUMBER,
   NUMBER_RANGE_MESSAGE,
 } from "@/modules/enrollment/enrollment.schema";
+import { ROSTER_COLUMNS } from "@/modules/enrollment/roster.export";
 
 /**
  * 명단 파일을 정규화된 행으로 옮긴다.
@@ -22,20 +23,11 @@ import {
  * CSV와 xlsx가 같은 곳으로 모이도록, 형식별 코드는 `string[][]`를 만드는 데까지만 하고
  * 머리글 해석과 값 검사는 normalizeRows 하나가 맡는다.
  * 순수 함수라 DB 없이 테스트한다 — 분류 규칙 다음으로 자주 바뀔 부분이다.
+ *
+ * 머리글 이름(ROSTER_COLUMNS)은 roster.export.ts가 정의한다 — 이 파일이
+ * read-excel-file/node(서버 전용)를 물고 있어, 반대로 두면 내보내기 화면(브라우저)이
+ * 그 의존성을 함께 번들에 끌고 들어간다.
  */
-
-export const ROSTER_COLUMNS = [
-  "학생코드",
-  "이름",
-  "생년월일",
-  "학년",
-  "반",
-  "번호",
-  "학적",
-] as const;
-
-/** 내보낼 때만 붙이는 참고 열. 올릴 때는 무시한다 — 사실은 그 학년도 배정이 정한다. */
-export const ROSTER_INFO_COLUMNS = ["입학반", "입학번호"] as const;
 
 export type RosterRow = {
   /** 파일 기준 줄 번호. 머리글이 1행이므로 첫 학생은 2행이다. */
