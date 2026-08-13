@@ -54,6 +54,13 @@ export const ADMIN_NAV_ITEMS: NavItem[] = [
     roles: ["ADMIN"],
   },
   {
+    href: "/admin/students",
+    label: "학생 관리",
+    shortLabel: "학생",
+    icon: UsersIcon,
+    roles: ["ADMIN"],
+  },
+  {
     href: "/admin/users",
     label: "사용자 관리",
     icon: UsersIcon,

@@ -127,6 +127,9 @@ describe("saveEnrollments()", () => {
   it("재학이면 반·번호가 있어야 한다", async () => {
     await expect(
       saveEnrollments(admin, [{ ...unchanged, classNo: null }]),
+    ).rejects.toThrow(EnrollmentError);
+    await expect(
+      saveEnrollments(admin, [{ ...unchanged, classNo: null }]),
     ).rejects.toThrow("INCOMPLETE_ENROLLED");
     expect(applyChange).not.toHaveBeenCalled();
   });
@@ -161,10 +164,16 @@ describe("saveEnrollments()", () => {
 
     await expect(
       saveEnrollments(admin, [{ ...unchanged, number: 9 }]),
+    ).rejects.toThrow(EnrollmentError);
+    await expect(
+      saveEnrollments(admin, [{ ...unchanged, number: 9 }]),
     ).rejects.toThrow("NUMBER_TAKEN");
   });
 
   it("명단에 없는 학생을 보내면 거부한다 — 클라이언트가 지어낸 id일 수 있다", async () => {
+    await expect(
+      saveEnrollments(admin, [{ ...unchanged, studentProfileId: "없음" }]),
+    ).rejects.toThrow(EnrollmentError);
     await expect(
       saveEnrollments(admin, [{ ...unchanged, studentProfileId: "없음" }]),
     ).rejects.toThrow("UNKNOWN_STUDENT");
