@@ -3,6 +3,7 @@ import {
   DashboardIcon,
   InviteIcon,
   LogIcon,
+  SettingsIcon,
   UsersIcon,
 } from "@/components/icons";
 import type { Role } from "@/core/authz/roles";
@@ -63,7 +64,8 @@ export const ADMIN_NAV_ITEMS: NavItem[] = [
   {
     href: "/admin/users",
     label: "사용자 관리",
-    icon: UsersIcon,
+    // 학생 관리(UsersIcon: 사람)와 구분한다 — 이쪽은 계정 자체(활성/비활성·권한)를 다룬다.
+    icon: SettingsIcon,
     roles: ["ADMIN"],
   },
   {
