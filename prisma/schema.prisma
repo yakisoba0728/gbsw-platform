@@ -129,11 +129,8 @@ model StudentProfile {
   /// 가입 시 초대코드의 사전등록 값과 대조하는 2차 요소.
   birthDate DateTime
 
-  /// 학급 내 번호 (현재 소속)
-  number Int?
-
-  classId     String?
-  schoolClass SchoolClass? @relation(fields: [classId], references: [id], onDelete: SetNull)
+  /// 학년도별 소속·학적
+  enrollments Enrollment[]
 
   /// 이 학생에게 연결된 학부모들
   parents ParentStudent[]
@@ -143,8 +140,6 @@ model StudentProfile {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  @@index([classId])
 }
 
 /// 학부모 ↔ 학생 연결. 학부모가 초대코드로 가입할 때 만들어진다.
@@ -164,16 +159,60 @@ model ParentStudent {
   @@index([studentId])
 }
 
-/// 학년/반. v1은 "현재 소속"만 다루고 학년도별 이력은 두지 않는다.
+/// 학년도. isCurrent는 항상 하나만 true다 (부분 유니크 인덱스로 DB가 막는다).
+model AcademicYear {
+  year      Int      @id
+  isCurrent Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  classes     SchoolClass[]
+  enrollments Enrollment[]
+}
+
+/// 학년/반. 학년도마다 별개의 행이다 — "1학년 3반"이 해마다 새로 생긴다.
 model SchoolClass {
   id        String   @id @default(cuid())
+  year      Int
   grade     Int
   classNo   Int
   createdAt DateTime @default(now())
 
-  students StudentProfile[]
+  academicYear AcademicYear @relation(fields: [year], references: [year], onDelete: Restrict)
+  enrollments  Enrollment[]
 
-  @@unique([grade, classNo])
+  @@unique([year, grade, classNo])
+  @@index([year])
+}
+
+/// 학생의 그 학년도 소속과 학적.
+/// classId·number는 ENROLLED일 때만 채운다 — 졸업·자퇴에 반과 번호는 의미가 없다.
+model Enrollment {
+  id String @id @default(cuid())
+
+  studentProfileId String
+  studentProfile   StudentProfile @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+
+  year         Int
+  academicYear AcademicYear @relation(fields: [year], references: [year], onDelete: Restrict)
+
+  classId     String?
+  schoolClass SchoolClass? @relation(fields: [classId], references: [id], onDelete: SetNull)
+
+  number Int?
+
+  /// src/core/authz/enrollment-status.ts의 EnrollmentStatus와 일치해야 한다.
+  status String @default("ENROLLED")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// 한 학생은 한 학년도에 한 줄. 동시 요청은 애플리케이션 검사로 못 막는다.
+  @@unique([studentProfileId, year])
+  /// 한 반에 같은 번호 둘을 막는다. Postgres는 NULL을 서로 다르게 보므로
+  /// 비재학 행끼리는 걸리지 않는다 — 의도한 동작이다.
+  @@unique([classId, number])
+  @@index([year])
+  @@index([studentProfileId])
 }
 
 // ─────────────────────────────────────────────────────────────
