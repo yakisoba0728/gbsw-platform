@@ -30,3 +30,12 @@ export function isUniqueViolation(error: unknown, field: string): boolean {
   if (Array.isArray(target)) return target.includes(field);
   return target === field;
 }
+
+/**
+ * 한 반에 같은 번호가 이미 있을 때.
+ *
+ * 소속을 쓰는 경로가 셋(사용자 상세·학생 표·명단 반영)이라 여기 둔다.
+ * 모듈마다 같은 이름의 별개 클래스를 두면 instanceof가 모듈을 건너 통하지 않아
+ * 조용히 새는 자리가 된다.
+ */
+export class NumberTakenError extends Error {}

@@ -1,5 +1,5 @@
 import { prisma } from "@/core/db/client";
-import { isUniqueViolation } from "@/core/db/unique-violation";
+import { isUniqueViolation, NumberTakenError } from "@/core/db/unique-violation";
 
 /** Prisma 호출만 둔다. 권한 검사도, 업무 규칙도 여기 두지 않는다. */
 
@@ -102,8 +102,11 @@ export async function updateProfile(
   }
 }
 
-/** 이 반·번호가 이미 다른 학생에게 배정돼 있을 때. (Enrollment_classId_number_key) */
-export class NumberTakenError extends Error {}
+/**
+ * 이 반·번호가 이미 다른 학생에게 배정돼 있을 때. (Enrollment_classId_number_key)
+ * 기존 import 경로를 깨지 않기 위해 re-export한다. 실물은 core/db에 하나뿐이다.
+ */
+export { NumberTakenError };
 
 /**
  * 학생 소속 수정. 학급이 없으면 만든다 — 가입 때와 같은 방식이다.

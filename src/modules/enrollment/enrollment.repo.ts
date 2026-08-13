@@ -1,11 +1,11 @@
 import { prisma } from "@/core/db/client";
-import { isUniqueViolation } from "@/core/db/unique-violation";
+import { isUniqueViolation, NumberTakenError } from "@/core/db/unique-violation";
 import type { EnrollmentChange } from "./enrollment.schema";
 
 /** Prisma 호출만 둔다. 권한 검사도, 업무 규칙도 여기 두지 않는다. */
 
-/** 한 반에 같은 번호가 이미 있을 때. (admin-user.repo의 같은 이름과 짝을 이룬다) */
-export class NumberTakenError extends Error {}
+/** 기존 import 경로를 깨지 않기 위해 re-export한다. 실물은 core/db에 하나뿐이다. */
+export { NumberTakenError };
 
 /**
  * 그 학년도의 학생 전원. 소속이 아직 없는 학생도 포함한다 —
