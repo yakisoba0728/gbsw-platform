@@ -1,4 +1,5 @@
 import { prisma } from "@/core/db/client";
+import { isUniqueViolation } from "@/core/db/unique-violation";
 
 /** Prisma 호출만 둔다. 권한 검사도, 업무 규칙도 여기 두지 않는다. */
 
@@ -101,35 +102,8 @@ export async function updateProfile(
   }
 }
 
-/**
- * P2002(유일 제약 위반)가 어느 컬럼에서 났는지 본다.
- *
- * Prisma 7은 네이티브 엔진 없이 드라이버 어댑터로만 접속하므로 위반 컬럼이
- * 예전처럼 `meta.target`에 오지 않고, 어댑터가 옮겨 준
- * `meta.driverAdapterError.cause.constraint.fields`에 담긴다.
- * 옛 표현도 함께 받아 둔다 — 어댑터 없이 돌 때나 버전이 바뀔 때를 위해서다.
- */
-function isUniqueViolation(error: unknown, field: string): boolean {
-  if (typeof error !== "object" || error === null) return false;
-  const { code, meta } = error as { code?: unknown; meta?: Record<string, unknown> };
-  if (code !== "P2002") return false;
-
-  const constraint = (
-    meta?.driverAdapterError as
-      | { cause?: { constraint?: { fields?: unknown; index?: unknown } } }
-      | undefined
-  )?.cause?.constraint;
-
-  if (Array.isArray(constraint?.fields)) return constraint.fields.includes(field);
-  // 어댑터가 컬럼 목록 대신 인덱스 이름만 주는 경우 (user_email_key).
-  if (typeof constraint?.index === "string") {
-    return constraint.index.includes(field);
-  }
-
-  const target = meta?.target;
-  if (Array.isArray(target)) return target.includes(field);
-  return target === field;
-}
+/** 이 반·번호가 이미 다른 학생에게 배정돼 있을 때. (Enrollment_classId_number_key) */
+export class NumberTakenError extends Error {}
 
 /**
  * 학생 소속 수정. 학급이 없으면 만든다 — 가입 때와 같은 방식이다.
@@ -156,17 +130,23 @@ export async function updateEnrollment(
       update: {},
     });
 
-    await tx.enrollment.upsert({
-      where: { studentProfileId_year: { studentProfileId, year } },
-      create: {
-        studentProfileId,
-        year,
-        classId: schoolClass.id,
-        number: data.number,
-        status: "ENROLLED",
-      },
-      update: { classId: schoolClass.id, number: data.number },
-    });
+    try {
+      await tx.enrollment.upsert({
+        where: { studentProfileId_year: { studentProfileId, year } },
+        create: {
+          studentProfileId,
+          year,
+          classId: schoolClass.id,
+          number: data.number,
+          status: "ENROLLED",
+        },
+        update: { classId: schoolClass.id, number: data.number },
+      });
+    } catch (error) {
+      // updateProfile과 같은 이유 — 미리 조회해 봐야 그 사이에 끼어드는 요청을 못 막는다.
+      if (isUniqueViolation(error, "number")) throw new NumberTakenError();
+      throw error;
+    }
   });
 }
 

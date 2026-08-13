@@ -114,13 +114,20 @@ export async function updateUser(
     if (!input.birthDate || input.grade == null || input.classNo == null) {
       throw new AdminUserError("INCOMPLETE_STUDENT_INPUT");
     }
-    await repo.updateEnrollment(profile.id, year, {
-      // 생년월일은 날짜만 의미가 있다. KST 자정으로 고정해 하루 밀림을 막는다.
-      birthDate: new Date(`${input.birthDate}T00:00:00+09:00`),
-      grade: input.grade,
-      classNo: input.classNo,
-      number: input.number ?? enrollment?.number ?? 1,
-    });
+    try {
+      await repo.updateEnrollment(profile.id, year, {
+        // 생년월일은 날짜만 의미가 있다. KST 자정으로 고정해 하루 밀림을 막는다.
+        birthDate: new Date(`${input.birthDate}T00:00:00+09:00`),
+        grade: input.grade,
+        classNo: input.classNo,
+        number: input.number ?? enrollment?.number ?? 1,
+      });
+    } catch (error) {
+      if (error instanceof repo.NumberTakenError) {
+        throw new AdminUserError("NUMBER_TAKEN");
+      }
+      throw error;
+    }
   }
 
   await recordAudit({

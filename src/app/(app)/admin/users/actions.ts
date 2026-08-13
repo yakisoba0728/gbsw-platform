@@ -112,6 +112,12 @@ export async function updateUserAction(
       if (error.message === "EMAIL_TAKEN") {
         return { error: "이미 사용 중인 이메일입니다.", changed: null };
       }
+      if (error.message === "NUMBER_TAKEN") {
+        return {
+          error: "이미 그 반에 같은 번호의 학생이 있습니다.",
+          changed: null,
+        };
+      }
     }
     return { error: "저장하지 못했습니다.", changed: null };
   }

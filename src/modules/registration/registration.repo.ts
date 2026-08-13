@@ -1,4 +1,5 @@
 import { prisma } from "@/core/db/client";
+import { isUniqueViolation } from "@/core/db/unique-violation";
 import type { Prisma } from "@/generated/prisma/client";
 
 /** Prisma 호출만 둔다. 권한 검사도, 업무 규칙도 여기 두지 않는다. */
@@ -6,6 +7,9 @@ import type { Prisma } from "@/generated/prisma/client";
 type Tx = Prisma.TransactionClient;
 
 export class InviteRaceError extends Error {}
+
+/** 이 반·번호가 이미 다른 학생에게 배정돼 있을 때. (Enrollment_classId_number_key) */
+export class NumberTakenError extends Error {}
 
 export async function findInviteByCode(code: string) {
   return prisma.invite.findUnique({ where: { code } });
@@ -127,15 +131,22 @@ export async function completeStudentRegistration(
     });
 
     // 소속은 학년도별로 쌓인다. 가입은 현재 학년도 배정을 만든다.
-    await tx.enrollment.create({
-      data: {
-        studentProfileId: profile.id,
-        year,
-        classId: schoolClass.id,
-        number: student.number,
-        status: "ENROLLED",
-      },
-    });
+    try {
+      await tx.enrollment.create({
+        data: {
+          studentProfileId: profile.id,
+          year,
+          classId: schoolClass.id,
+          number: student.number,
+          status: "ENROLLED",
+        },
+      });
+    } catch (error) {
+      // 관리자가 발급한 초대코드의 반·번호가 그 사이 다른 학생에게도 쓰였을 수 있다.
+      // 미리 조회해 봐야 그 틈을 못 막으므로 유일 제약 위반을 잡아서 옮긴다.
+      if (isUniqueViolation(error, "number")) throw new NumberTakenError();
+      throw error;
+    }
 
     await consumeInvite(tx, inviteId, account.userId);
   });

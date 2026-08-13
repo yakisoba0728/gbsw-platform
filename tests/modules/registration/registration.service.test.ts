@@ -11,6 +11,7 @@ const requireVerified = vi.fn();
 const consumeVerifications = vi.fn();
 
 class InviteRaceError extends Error {}
+class NumberTakenError extends Error {}
 
 vi.mock("@/modules/registration/registration.repo", () => ({
   findInviteByCode,
@@ -20,6 +21,7 @@ vi.mock("@/modules/registration/registration.repo", () => ({
   completeAdminRegistration,
   completeParentRegistration,
   InviteRaceError,
+  NumberTakenError,
 }));
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
 vi.mock("@/modules/verification/verification.service", () => ({
@@ -250,6 +252,28 @@ describe("completeRegistration() — 공통 방어", () => {
       completeRegistration({ ...base, name: "김학생", birthDate: "2010-03-04" }),
     ).rejects.toThrow("이미 사용된 가입코드입니다.");
 
+    expect(recordAudit).not.toHaveBeenCalled();
+  });
+
+  it("관리자가 이미 쓰인 반·번호로 코드를 발급했으면 우리 문구로 바꾼다 — Prisma 원문이 새면 안 된다", async () => {
+    findInviteByCode.mockResolvedValue(invite());
+    completeStudentRegistration.mockRejectedValue(
+      Object.assign(new NumberTakenError(), {
+        // 저장소가 실제로 던지는 값은 메시지가 없는 NumberTakenError뿐이지만,
+        // 혹시라도 Prisma 원문이 메시지에 섞여 들어와도 새 나가지 않는지 같이 본다.
+        message: "Unique constraint failed on the fields: (`classId`,`number`)",
+      }),
+    );
+
+    // 우리가 정한 문구로 완전히 바뀐다 — Prisma 원문("Unique constraint...")이
+    // 메시지 어디에도 섞여 들어오지 않는다. exact match라 섞였으면 여기서 이미 실패한다.
+    await expect(
+      completeRegistration({ ...base, name: "김학생", birthDate: "2010-03-04" }),
+    ).rejects.toThrow(
+      "이 반·번호에 이미 다른 학생이 있습니다. 관리자에게 문의하세요.",
+    );
+
+    // 실패했으니 코드도 소진되지 않고 감사로그도 남지 않는다.
     expect(recordAudit).not.toHaveBeenCalled();
   });
 

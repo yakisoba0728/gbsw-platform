@@ -13,6 +13,7 @@ import {
 import {
   checkInvite,
   completeRegistration,
+  RegistrationError,
 } from "@/modules/registration/registration.service";
 import {
   confirmCodeSchema,
@@ -112,9 +113,11 @@ export async function completeRegistrationAction(
   try {
     await completeRegistration(parsed.data);
   } catch (error) {
+    // 로그인 이전 화면이라 우리가 직접 만든(문구를 정제해 둔) 오류만 그대로 보여준다.
+    // 그 밖의 오류(Prisma 원문 등)는 일반 문구로 덮어서 내부 정보가 새지 않게 한다.
     return {
       error:
-        error instanceof Error && error.message
+        error instanceof RegistrationError || error instanceof VerificationError
           ? error.message
           : "가입에 실패했습니다.",
     };

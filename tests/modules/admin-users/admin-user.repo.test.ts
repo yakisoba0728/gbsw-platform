@@ -1,11 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const update = vi.fn();
-vi.mock("@/core/db/client", () => ({ prisma: { user: { update } } }));
+const studentProfileUpdate = vi.fn();
+const schoolClassUpsert = vi.fn();
+const enrollmentUpsert = vi.fn();
 
-const { EmailTakenError, updateProfile } = await import(
-  "@/modules/admin-users/admin-user.repo"
-);
+const tx = {
+  studentProfile: { update: studentProfileUpdate },
+  schoolClass: { upsert: schoolClassUpsert },
+  enrollment: { upsert: enrollmentUpsert },
+};
+
+vi.mock("@/core/db/client", () => ({
+  prisma: {
+    user: { update },
+    // updateEnrollment는 트랜잭션 안에서 돈다 — 콜백에 tx를 그대로 넘겨 흉내 낸다.
+    $transaction: (fn: (tx: unknown) => unknown) => fn(tx),
+  },
+}));
+
+const { EmailTakenError, NumberTakenError, updateEnrollment, updateProfile } =
+  await import("@/modules/admin-users/admin-user.repo");
 
 /**
  * P2002의 생김새는 Prisma 버전과 접속 방식에 묶여 있다.
@@ -33,17 +48,43 @@ function realWorldP2002() {
   });
 }
 
+/** updateEnrollment 쪽 실물 P2002 — 위반 컬럼만 (classId, number) 복합 유일키로 바뀐다. */
+function realWorldNumberP2002() {
+  return Object.assign(new Error("Unique constraint failed"), {
+    name: "PrismaClientKnownRequestError",
+    code: "P2002",
+    meta: {
+      modelName: "Enrollment",
+      driverAdapterError: {
+        name: "DriverAdapterError",
+        cause: {
+          originalCode: "23505",
+          originalMessage:
+            'duplicate key value violates unique constraint "Enrollment_classId_number_key"',
+          kind: "UniqueConstraintViolation",
+          constraint: { fields: ["classId", "number"] },
+        },
+      },
+    },
+  });
+}
+
 const data = {
   name: "김학생",
   email: "taken@gbsw.hs.kr",
   phone: "010-1111-2222",
 };
 
+const enrollmentData = { birthDate: new Date("2010-07-27T15:00:00.000Z"), grade: 1, classNo: 2, number: 15 };
+
 // 블록 본문으로 둔다. `() => update.mockReset()`은 목 함수를 반환하는데,
 // vitest는 훅이 돌려준 함수를 teardown으로 보고 매 테스트 뒤에 호출한다.
 // 그러면 목이 한 번 더 실행돼 아무도 받지 않는 rejected promise가 생긴다.
 beforeEach(() => {
   update.mockReset();
+  studentProfileUpdate.mockReset().mockResolvedValue(undefined);
+  schoolClassUpsert.mockReset().mockResolvedValue({ id: "class-1" });
+  enrollmentUpsert.mockReset().mockResolvedValue(undefined);
 });
 
 describe("updateProfile()", () => {
@@ -95,5 +136,53 @@ describe("updateProfile()", () => {
     update.mockRejectedValue(boom);
 
     await expect(updateProfile("u-9", data)).rejects.toBe(boom);
+  });
+});
+
+describe("updateEnrollment()", () => {
+  it("반·번호 중복이면 NumberTakenError로 옮긴다", async () => {
+    enrollmentUpsert.mockRejectedValue(realWorldNumberP2002());
+
+    await expect(
+      updateEnrollment("sp-1", 2026, enrollmentData),
+    ).rejects.toBeInstanceOf(NumberTakenError);
+  });
+
+  it("어댑터가 인덱스 이름만 줘도 알아본다", async () => {
+    const error = realWorldNumberP2002();
+    error.meta.driverAdapterError.cause.constraint = {
+      index: "Enrollment_classId_number_key",
+    } as never;
+    enrollmentUpsert.mockRejectedValue(error);
+
+    await expect(
+      updateEnrollment("sp-1", 2026, enrollmentData),
+    ).rejects.toBeInstanceOf(NumberTakenError);
+  });
+
+  it("(classId, number)와 무관한 유일 제약 위반은 그대로 올려보낸다", async () => {
+    const other = Object.assign(new Error("dup"), {
+      code: "P2002",
+      meta: { target: ["studentProfileId", "year"] },
+    });
+    enrollmentUpsert.mockRejectedValue(other);
+
+    await expect(updateEnrollment("sp-1", 2026, enrollmentData)).rejects.toBe(
+      other,
+    );
+  });
+
+  it("성공하면 학급을 찾아 소속을 갱신한다", async () => {
+    await updateEnrollment("sp-1", 2026, enrollmentData);
+
+    expect(studentProfileUpdate).toHaveBeenCalledWith({
+      where: { id: "sp-1" },
+      data: { birthDate: enrollmentData.birthDate },
+    });
+    expect(enrollmentUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { studentProfileId_year: { studentProfileId: "sp-1", year: 2026 } },
+      }),
+    );
   });
 });

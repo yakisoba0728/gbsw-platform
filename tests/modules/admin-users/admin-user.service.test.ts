@@ -14,9 +14,11 @@ const deleteSessions = vi.fn();
 const recordAudit = vi.fn();
 
 class EmailTakenError extends Error {}
+class NumberTakenError extends Error {}
 
 vi.mock("@/modules/admin-users/admin-user.repo", () => ({
   EmailTakenError,
+  NumberTakenError,
   listUsers: listUsersRepo,
   findById,
   findDetail,
@@ -268,6 +270,16 @@ describe("updateUser()", () => {
     expect(updateProfile).not.toHaveBeenCalled();
     expect(updateEnrollment.mock.calls[0]![1]).toBe(2026);
     expect(updateEnrollment.mock.calls[0]![2].grade).toBe(2);
+  });
+
+  it("이미 그 반·번호를 쓰는 학생이 있으면 NUMBER_TAKEN으로 옮긴다", async () => {
+    updateEnrollment.mockRejectedValue(new NumberTakenError());
+
+    await expect(
+      updateUser(admin, "u-9", { ...sameInput, grade: 2 }),
+    ).rejects.toThrow("NUMBER_TAKEN");
+    // 저장이 실패했으므로 감사로그도 남지 않는다.
+    expect(recordAudit).not.toHaveBeenCalled();
   });
 
   it("생년월일은 KST 자정으로 저장한다 — 하루 밀리면 안 된다", async () => {
