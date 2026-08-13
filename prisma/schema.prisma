@@ -196,7 +196,10 @@ model Enrollment {
   academicYear AcademicYear @relation(fields: [year], references: [year], onDelete: Restrict)
 
   classId     String?
-  schoolClass SchoolClass? @relation(fields: [classId], references: [id], onDelete: SetNull)
+  // 반이 지워져도 지난 학년도 소속 기록은 남아야 한다 ("기록은 지우지 않는다").
+  // academicYear와 같은 이유로 Restrict — SetNull이면 SchoolClass 삭제 한 번에
+  // 그 반을 거쳐간 모든 학년도의 Enrollment에서 반 정보가 조용히 사라진다.
+  schoolClass SchoolClass? @relation(fields: [classId], references: [id], onDelete: Restrict)
 
   number Int?
 
