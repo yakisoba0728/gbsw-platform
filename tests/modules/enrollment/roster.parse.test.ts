@@ -18,8 +18,8 @@ describe("parseCsv()", () => {
     expect(parseCsv('a\n"그는 ""안녕"" 했다"\n')).toEqual([["a"], ['그는 "안녕" 했다']]);
   });
 
-  it("빈 줄은 버린다", () => {
-    expect(parseCsv("a\n\n\nb\n")).toEqual([["a"], ["b"]]);
+  it("빈 줄도 표에 그대로 담는다 — 걸러내면 뒤 줄의 표 안 위치가 파일과 어긋난다", () => {
+    expect(parseCsv("a\n\n\nb\n")).toEqual([["a"], [""], [""], ["b"]]);
   });
 });
 
@@ -83,5 +83,23 @@ describe("normalizeRows()", () => {
     ]);
     expect(rows).toHaveLength(1);
     expect(rows[0]!.errors.join()).toContain("이름");
+  });
+});
+
+describe("parseCsv() + normalizeRows() — 회귀: 빈 줄 뒤 줄 번호", () => {
+  it("CSV 중간에 빈 줄이 있어도 뒤 줄의 line이 파일 기준과 같다", () => {
+    // 파일 기준 줄 번호: 1행 머리글, 2행 김동혁, 3행 빈 줄, 4행 이순신.
+    const csv = [
+      HEADER.join(","),
+      "김동혁,2010-07-28,1,3,3,재학",
+      "",
+      "이순신,1968-04-28,1,3,4,재학",
+      "",
+    ].join("\n");
+
+    const rows = normalizeRows(parseCsv(csv));
+
+    expect(rows.map((r) => r.name)).toEqual(["김동혁", "이순신"]);
+    expect(rows.map((r) => r.line)).toEqual([2, 4]);
   });
 });

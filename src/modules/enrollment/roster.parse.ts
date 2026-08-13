@@ -43,6 +43,12 @@ const STATUS_BY_LABEL = new Map(
  *
  * 라이브러리를 쓰지 않는다 — 필요한 건 따옴표·BOM·CRLF 처리뿐이고,
  * 그건 아래 40줄이면 된다. 의존성을 하나 줄이는 편이 낫다.
+ *
+ * 빈 줄도 표에 그대로 담는다 (버리지 않는다). xlsx 경로(`readSheet`)가 빈 행도
+ * 그대로 돌려주는 것과 맞추기 위해서다 — 여기서 걸러버리면 그 뒤 줄들이 표에서
+ * 한 칸씩 당겨져, normalizeRows가 매기는 `line`(표 안 인덱스 기반)이 실제 파일의
+ * 줄 번호와 어긋난다. "전부 빈 칸인 줄은 버린다"는 처리는 normalizeRows 쪽에
+ * 이미 있으므로(flatMap에서 빈 raw를 걸러냄) 여기서 중복으로 걸러낼 필요가 없다.
  */
 export function parseCsv(text: string): string[][] {
   const src = text.replace(/^﻿/, "");
@@ -57,8 +63,7 @@ export function parseCsv(text: string): string[][] {
   };
   const endRow = () => {
     endField();
-    // 전부 빈 칸인 줄은 버린다 — 엑셀이 끝에 빈 줄을 잘 남긴다.
-    if (row.some((c) => c.trim() !== "")) table.push(row);
+    table.push(row);
     row = [];
   };
 
