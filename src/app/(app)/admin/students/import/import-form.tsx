@@ -230,9 +230,13 @@ function PreviewCard({
     applyRosterAction,
     APPLY_INITIAL,
   );
+  // 삭제 확인 체크박스. 서버가 confirmDeletion으로 다시 강제하지만(applyRosterPlan),
+  // 화면에서도 막아야 관리자가 배너를 안 읽고 실수로 확정을 누르는 걸 줄인다.
+  const [deletionConfirmed, setDeletionConfirmed] = useState(false);
 
   const applied = applyState.saved !== null && !applyState.error;
   const issueCount = plan.errorRows.length + plan.needsAttention.length;
+  const deleteCount = plan.missingFromFile.length;
 
   return (
     <section className="rounded-card border border-line bg-surface">
@@ -249,6 +253,42 @@ function PreviewCard({
           </p>
         ))}
       </header>
+
+      {/* 되돌릴 수 없는 유일한 동작이라 미리보기 맨 위에, 접지 않고 펼친 채로 보여준다.
+          경고색(amber)이 아니라 위험색(rose)을 쓴다 — 그 학년도 배정만이 아니라
+          계정 자체가 사라진다. */}
+      {deleteCount > 0 && (
+        <div className="border-b-4 border-rose bg-rose-soft px-5 py-4">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-extrabold text-rose">삭제될 학생</h3>
+            <span className="rounded-full bg-rose px-2.5 py-1 text-[11px] font-bold text-white">
+              {deleteCount}명
+            </span>
+          </div>
+          <p className="mt-1 text-[12.5px] font-semibold text-rose">
+            명단에 없는 학생입니다. 확정하면 {year}학년도 배정뿐 아니라 계정 자체가
+            지워집니다 — 되돌릴 수 없습니다.
+          </p>
+          <ul className="mt-3 divide-y divide-rose-line">
+            {plan.missingFromFile.map((s) => (
+              <li
+                key={s.studentProfileId}
+                className="flex items-center justify-between py-2 text-[13px]"
+              >
+                <span className="font-semibold text-ink">
+                  {s.name}
+                  <span className="ml-1.5 font-mono text-[11.5px] font-normal text-mut">
+                    {s.studentCode}
+                  </span>
+                </span>
+                <span className="text-mut">
+                  {seatLabel(s)} · {statusLabel(s.status)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="divide-y divide-line2">
         <IssueGroup
@@ -310,35 +350,6 @@ function PreviewCard({
             />
           ))}
         </PlannedGroup>
-
-        <details open={plan.missingFromFile.length > 0} className="group">
-          <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-3 select-none">
-            <span className="text-sm font-bold text-ink">명단에 없는 재학생</span>
-            <span className="rounded-full bg-amber-soft px-2.5 py-1 text-[11px] font-bold text-amber-ink">
-              {plan.missingFromFile.length}건
-            </span>
-          </summary>
-          {plan.missingFromFile.length > 0 && (
-            <div className="px-5 pb-4">
-              <p className="rounded-btn bg-amber-soft px-3 py-2.5 text-[12.5px] font-semibold text-amber-ink">
-                확정하면 이 학생들의 {year}학년도 배정이 사라집니다.
-              </p>
-              <ul className="mt-2 divide-y divide-line2">
-                {plan.missingFromFile.map((s) => (
-                  <li
-                    key={s.studentProfileId}
-                    className="flex items-center justify-between py-2 text-[13px]"
-                  >
-                    <span className="font-semibold text-ink">{s.name}</span>
-                    <span className="text-mut">
-                      {seatLabel(s)} · {statusLabel(s.status)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </details>
       </div>
 
       <div className="border-t border-line px-5 py-4">
@@ -359,16 +370,46 @@ function PreviewCard({
             {applyState.saved}건 반영했습니다.
           </p>
         ) : (
-          <form action={applyAction} className="flex justify-end">
+          <form action={applyAction} className="flex flex-col gap-3">
             <input type="hidden" name="rows" value={JSON.stringify(rows)} />
             <input type="hidden" name="year" value={year} />
-            <Button
-              type="submit"
-              size="sm"
-              disabled={applying || plan.hasBlockingError}
-            >
-              {applying ? "반영하는 중…" : "확정"}
-            </Button>
+            {/* 서버(applyRosterPlan의 confirmDeletion)가 다시 강제하지만, 체크
+                상태를 hidden input으로 실어 보내야 확인 없이는 서버도 거부한다. */}
+            <input
+              type="hidden"
+              name="confirmDeletion"
+              value={deletionConfirmed ? "true" : "false"}
+            />
+            {deleteCount > 0 && (
+              <label className="flex items-start gap-2 text-[13px] font-semibold text-rose">
+                <input
+                  type="checkbox"
+                  checked={deletionConfirmed}
+                  onChange={(e) => setDeletionConfirmed(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-rose"
+                />
+                <span>
+                  위 {deleteCount}명의 계정을 삭제합니다. 되돌릴 수 없습니다.
+                </span>
+              </label>
+            )}
+            <div className="flex justify-end">
+              <Button
+                type="submit"
+                size="sm"
+                disabled={
+                  applying ||
+                  plan.hasBlockingError ||
+                  (deleteCount > 0 && !deletionConfirmed)
+                }
+              >
+                {applying
+                  ? "반영하는 중…"
+                  : deleteCount > 0
+                    ? `확정 (${deleteCount}명 삭제)`
+                    : "확정"}
+              </Button>
+            </div>
           </form>
         )}
       </div>

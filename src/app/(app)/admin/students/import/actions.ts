@@ -19,6 +19,8 @@ const MESSAGES: Record<string, string> = {
   BLOCKED: "오류가 있는 줄이 남아 있습니다.",
   CODE_COLLISION: "초대코드가 겹쳤습니다. 다시 시도해 주세요.",
   CANNOT_DEACTIVATE_SELF: "자기 계정은 비활성화할 수 없습니다.",
+  DELETION_NOT_CONFIRMED: "삭제 확인에 동의해야 반영할 수 있습니다.",
+  CANNOT_DELETE_SELF: "자기 계정은 삭제할 수 없습니다.",
 };
 
 /** getCurrentYear()가 던지는 AcademicYearError는 파일 문제가 아니다 — 따로 알려야
@@ -122,11 +124,17 @@ export async function applyRosterAction(
     return { error: "학년도가 올바르지 않습니다.", saved: null, invites: [] };
   }
 
+  // 화면의 체크박스 상태를 hidden input으로 받는다. 이건 실수를 막는 첫 방어선일
+  // 뿐이다 — 서버 액션을 직접 호출하면 이 필드를 아예 안 보낼 수 있으므로,
+  // 진짜 강제는 applyRosterPlan 안의 confirmDeletion 검사가 한다.
+  const confirmDeletion = formData.get("confirmDeletion") === "true";
+
   try {
     const { saved, invites } = await applyRosterPlan(
       actor,
       yearParsed.data.year,
       rowsParsed.data,
+      confirmDeletion,
     );
     revalidatePath("/admin/students");
     return { error: null, saved, invites };
