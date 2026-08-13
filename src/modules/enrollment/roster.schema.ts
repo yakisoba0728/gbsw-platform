@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ENROLLMENT_STATUSES } from "@/core/authz/enrollment-status";
+import { isStudentCode } from "@/lib/student-code";
 import {
   CLASS_NO_RANGE_MESSAGE,
   GRADE_RANGE_MESSAGE,
@@ -28,6 +29,9 @@ import {
 const rosterRowSchema = z
   .object({
     line: z.number().int(),
+    // 빈 문자열이면 신규 학생이다. 머리글에 학생코드 열이 없는 파일도 받으므로
+    // 필수이되(파서가 항상 채워 보낸다) 빈 값 자체는 정상이다.
+    studentCode: z.string(),
     name: z.string(),
     birthDate: z.string(),
     grade: z
@@ -56,7 +60,10 @@ const rosterRowSchema = z
       row.status !== "ENROLLED" ||
       (row.grade !== null && row.classNo !== null && row.number !== null),
     { message: "재학이면 학년·반·번호가 모두 있어야 합니다." },
-  );
+  )
+  .refine((row) => row.studentCode === "" || isStudentCode(row.studentCode), {
+    message: "학생코드 형식이 올바르지 않습니다.",
+  });
 
 /**
  * 행 수 상한. 전교생 규모(수백 명)를 훌쩍 넘는다 — 정상 사용에서 닿지 않는다.

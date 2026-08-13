@@ -78,6 +78,7 @@ export async function applyRosterPlan(
     )
     .map((s) => ({
       line: 0,
+      studentCode: s.studentCode,
       name: s.name,
       birthDate: s.birthDate,
       grade: s.grade,

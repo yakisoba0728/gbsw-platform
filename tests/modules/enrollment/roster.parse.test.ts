@@ -123,6 +123,46 @@ describe("normalizeRows()", () => {
   });
 });
 
+describe("normalizeRows() — 학생코드", () => {
+  const HEADER_WITH_CODE = ["학생코드", "이름", "생년월일", "학년", "반", "번호", "학적"];
+
+  it("학생코드 열이 없어도 오류로 잡지 않는다 — 예전 서식·손으로 만든 파일을 계속 받는다", () => {
+    const rows = normalizeRows([HEADER, ["김동혁", "2010-07-28", "1", "3", "3", "재학"]]);
+
+    expect(rows[0]!.errors).toEqual([]);
+    expect(rows[0]!.studentCode).toBe("");
+  });
+
+  it("학생코드 열이 있으면 값을 읽는다", () => {
+    const rows = normalizeRows([
+      HEADER_WITH_CODE,
+      ["ABCD2345", "김동혁", "2010-07-28", "1", "3", "3", "재학"],
+    ]);
+
+    expect(rows[0]!.studentCode).toBe("ABCD2345");
+    expect(rows[0]!.errors).toEqual([]);
+  });
+
+  it("비어 있으면 신규로 처리되고 오류가 아니다", () => {
+    const rows = normalizeRows([
+      HEADER_WITH_CODE,
+      ["", "김동혁", "2010-07-28", "1", "3", "3", "재학"],
+    ]);
+
+    expect(rows[0]!.studentCode).toBe("");
+    expect(rows[0]!.errors).toEqual([]);
+  });
+
+  it("형식이 어긋나면 오타로 보고 오류로 잡는다", () => {
+    const rows = normalizeRows([
+      HEADER_WITH_CODE,
+      ["1BCD2345", "김동혁", "2010-07-28", "1", "3", "3", "재학"],
+    ]);
+
+    expect(rows[0]!.errors.join()).toContain("학생코드 형식이 올바르지 않습니다");
+  });
+});
+
 describe("parseCsv() + normalizeRows() — 회귀: 빈 줄 뒤 줄 번호", () => {
   it("CSV 중간에 빈 줄이 있어도 뒤 줄의 line이 파일 기준과 같다", () => {
     // 파일 기준 줄 번호: 1행 머리글, 2행 김동혁, 3행 빈 줄, 4행 이순신.

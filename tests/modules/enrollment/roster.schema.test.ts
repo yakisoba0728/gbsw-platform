@@ -4,6 +4,7 @@ import { rosterRowsSchema } from "@/modules/enrollment/roster.schema";
 function row(over: Record<string, unknown> = {}) {
   return {
     line: 2,
+    studentCode: "",
     name: "김동혁",
     birthDate: "2010-07-28",
     grade: 1,
@@ -63,6 +64,21 @@ describe("rosterRowsSchema", () => {
     );
 
     expect(rosterRowsSchema.safeParse(rows).success).toBe(true);
+  });
+
+  describe("학생코드 — 파서(roster.parse.ts)와 같은 규칙", () => {
+    it("비어 있으면 통과한다 — 신규 학생이다", () => {
+      expect(rosterRowsSchema.safeParse([row({ studentCode: "" })]).success).toBe(true);
+    });
+
+    it("형식이 올바르면 통과한다", () => {
+      expect(rosterRowsSchema.safeParse([row({ studentCode: "ABCD2345" })]).success).toBe(true);
+    });
+
+    it("errors를 지워도 형식이 어긋난 학생코드는 통과하지 못한다", () => {
+      const tampered = row({ studentCode: "1BCD2345", errors: [] });
+      expect(rosterRowsSchema.safeParse([tampered]).success).toBe(false);
+    });
   });
 
   describe("학년·반·번호 범위 — 표 편집 경로(enrollment.schema.ts)와 같은 규칙", () => {

@@ -3,6 +3,7 @@ import {
   ENROLLMENT_STATUS_LABELS,
   type EnrollmentStatus,
 } from "@/core/authz/enrollment-status";
+import { isStudentCode } from "@/lib/student-code";
 import {
   CLASS_NO_RANGE_MESSAGE,
   GRADE_RANGE_MESSAGE,
@@ -24,6 +25,7 @@ import {
  */
 
 export const ROSTER_COLUMNS = [
+  "학생코드",
   "이름",
   "생년월일",
   "학년",
@@ -32,9 +34,15 @@ export const ROSTER_COLUMNS = [
   "학적",
 ] as const;
 
+/** 내보낼 때만 붙이는 참고 열. 올릴 때는 무시한다 — 사실은 그 학년도 배정이 정한다. */
+export const ROSTER_INFO_COLUMNS = ["입학반", "입학번호"] as const;
+
 export type RosterRow = {
   /** 파일 기준 줄 번호. 머리글이 1행이므로 첫 학생은 2행이다. */
   line: number;
+  /** 비어 있으면 신규 학생이다. `학생코드` 열 자체가 머리글에 없는 파일도 있다 —
+   * 예전 서식이나 손으로 만든 파일이 계속 들어온다. 그 경우 전 줄이 신규가 된다. */
+  studentCode: string;
   name: string;
   birthDate: string;
   grade: number | null;
@@ -134,7 +142,9 @@ export function normalizeRows(table: string[][]): RosterRow[] {
 
   const header = table[0]!.map((h) => h.trim());
   const at = (name: string) => header.indexOf(name);
-  const missing = ROSTER_COLUMNS.filter((c) => at(c) === -1);
+  // 학생코드는 없어도 오류가 아니다 — 예전 서식·손으로 만든 파일을 계속 받는다.
+  // 그 경우 뒤에서 studentCode가 항상 빈 문자열이 되어 전 줄이 신규로 분류된다.
+  const missing = ROSTER_COLUMNS.filter((c) => c !== "학생코드" && at(c) === -1);
 
   const idx = Object.fromEntries(
     ROSTER_COLUMNS.map((c) => [c, at(c)]),
@@ -150,6 +160,11 @@ export function normalizeRows(table: string[][]): RosterRow[] {
     const errors: string[] = [];
     if (missing.length > 0) {
       errors.push(`머리글에 ${missing.join("·")} 열이 없습니다.`);
+    }
+
+    const studentCode = cell(raw, "학생코드");
+    if (studentCode && !isStudentCode(studentCode)) {
+      errors.push("학생코드 형식이 올바르지 않습니다. 비워 두면 신규 학생으로 처리됩니다.");
     }
 
     const name = cell(raw, "이름");
@@ -193,6 +208,7 @@ export function normalizeRows(table: string[][]): RosterRow[] {
 
     return [{
       line: i + 2,
+      studentCode,
       name,
       birthDate: birthDate ?? "",
       grade: status === "ENROLLED" ? grade : null,

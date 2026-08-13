@@ -55,6 +55,7 @@ type RosterAssignment = ApplyInput["assignments"][number];
 function assignment(overrides: Partial<RosterAssignment> = {}): RosterAssignment {
   return {
     line: 2,
+    studentCode: "AAAA1111",
     name: "김동혁",
     birthDate: "2010-07-28",
     grade: 1,
@@ -185,6 +186,7 @@ describe("applyRoster()", () => {
           {
             row: {
               line: 2,
+              studentCode: "",
               name: "새학생",
               birthDate: "2011-01-01",
               grade: 1,
@@ -224,6 +226,7 @@ describe("applyRoster()", () => {
             {
               row: {
                 line: 2,
+                studentCode: "",
                 name: "새학생",
                 birthDate: "2011-01-01",
                 grade: 1,

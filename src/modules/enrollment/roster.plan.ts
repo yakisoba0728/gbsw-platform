@@ -10,6 +10,8 @@ import type { RosterRow } from "./roster.parse";
 export type ExistingStudent = {
   studentProfileId: string;
   userId: string;
+  /** 학생을 알아보는 유일한 기준. src/lib/student-code.ts가 만든다. */
+  studentCode: string;
   name: string;
   /** YYYY-MM-DD */
   birthDate: string;
@@ -41,16 +43,14 @@ export type RosterPlan = {
   hasBlockingError: boolean;
 };
 
-const key = (name: string, birthDate: string) => `${name}|${birthDate}`;
-
 export function planRoster(
   rows: RosterRow[],
   existing: ExistingStudent[],
 ): RosterPlan {
-  const byKey = new Map<string, ExistingStudent[]>();
+  // DB 유일 제약(StudentProfile.studentCode) 덕에 studentCode당 기존 학생은 많아야 하나다.
+  const byCode = new Map<string, ExistingStudent>();
   for (const s of existing) {
-    const k = key(s.name, s.birthDate);
-    byKey.set(k, [...(byKey.get(k) ?? []), s]);
+    byCode.set(s.studentCode, s);
   }
 
   const plan: RosterPlan = {
@@ -64,20 +64,22 @@ export function planRoster(
     hasBlockingError: false,
   };
 
-  // 파일 안에서 같은 학생이 두 번 나오거나 한 반에 번호가 겹치는지 먼저 본다.
+  // 파일 안에서 같은 학생코드가 두 번 나오거나 한 반에 번호가 겹치는지 먼저 본다.
   // DB 유일 제약에 닿기 전에 사람이 읽을 수 있는 오류로 돌려주기 위해서다.
-  const seenPerson = new Map<string, number>();
+  const seenCode = new Map<string, number>();
   const seenSeat = new Map<string, number>();
   const dupErrors = new Map<number, string[]>();
 
   for (const r of rows) {
     if (r.errors.length > 0) continue;
 
-    const pk = key(r.name, r.birthDate);
-    const prevPerson = seenPerson.get(pk);
-    if (prevPerson !== undefined) {
-      dupErrors.set(r.line, [`${prevPerson}행과 같은 학생입니다.`]);
-    } else seenPerson.set(pk, r.line);
+    // 빈 학생코드는 전부 "신규"라는 뜻이라 서로 겹쳐도 다른 사람이다 — 여기서 빼야 한다.
+    if (r.studentCode) {
+      const prevCode = seenCode.get(r.studentCode);
+      if (prevCode !== undefined) {
+        dupErrors.set(r.line, [`${prevCode}행과 같은 학생코드입니다.`]);
+      } else seenCode.set(r.studentCode, r.line);
+    }
 
     if (r.status === "ENROLLED") {
       const sk = `${r.grade}-${r.classNo}-${r.number}`;
@@ -100,24 +102,23 @@ export function planRoster(
       continue;
     }
 
-    const candidates = byKey.get(key(r.name, r.birthDate)) ?? [];
-
-    if (candidates.length > 1) {
-      // 잘못 이으면 남의 상벌점이 붙는다. 자동으로 정하지 않는다.
-      plan.needsAttention.push({
-        ...r,
-        studentProfileId: null,
-        reason: "이름과 생년월일이 같은 학생이 여럿입니다. 직접 지정해야 합니다.",
-      });
-      continue;
-    }
-
-    if (candidates.length === 0) {
+    if (!r.studentCode) {
+      // 빈 학생코드 = 신규. 예전 서식(학생코드 열이 아예 없음)에서는 전 줄이 여기로 온다.
       plan.newStudents.push({ ...r, studentProfileId: null });
       continue;
     }
 
-    const before = candidates[0]!;
+    const before = byCode.get(r.studentCode);
+    if (!before) {
+      // 잘못 이으면 남의 상벌점이 붙는다. 자동으로 정하지 않는다.
+      plan.needsAttention.push({
+        ...r,
+        studentProfileId: null,
+        reason: "명단에 없는 학생코드입니다. 오타이거나 다른 학교 파일일 수 있습니다.",
+      });
+      continue;
+    }
+
     matchedIds.add(before.studentProfileId);
     const planned: PlannedRow = { ...r, studentProfileId: before.studentProfileId };
 

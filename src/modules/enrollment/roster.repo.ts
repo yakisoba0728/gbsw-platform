@@ -10,29 +10,35 @@ import type { PlannedRow } from "./roster.plan";
 export class InviteCodeCollisionError extends Error {}
 
 export async function listExisting(year: number) {
-  const profiles = await prisma.studentProfile.findMany({
-    where: { user: { role: "STUDENT" } },
-    select: {
-      id: true,
-      birthDate: true,
-      user: { select: { id: true, name: true, status: true } },
-      enrollments: {
-        where: { year },
-        take: 1,
-        select: {
-          number: true,
-          status: true,
-          schoolClass: { select: { grade: true, classNo: true } },
+  const [profiles, entryByProfile] = await Promise.all([
+    prisma.studentProfile.findMany({
+      where: { user: { role: "STUDENT" } },
+      select: {
+        id: true,
+        studentCode: true,
+        birthDate: true,
+        user: { select: { id: true, name: true, status: true } },
+        enrollments: {
+          where: { year },
+          take: 1,
+          select: {
+            number: true,
+            status: true,
+            schoolClass: { select: { grade: true, classNo: true } },
+          },
         },
       },
-    },
-  });
+    }),
+    entrySeats(),
+  ]);
 
   return profiles.map((p) => {
     const e = p.enrollments[0];
+    const entry = entryByProfile.get(p.id);
     return {
       studentProfileId: p.id,
       userId: p.user.id,
+      studentCode: p.studentCode,
       name: p.user.name,
       // 파일의 표기와 맞대려면 KST 기준 YYYY-MM-DD여야 한다.
       birthDate: new Intl.DateTimeFormat("en-CA", {
@@ -43,8 +49,35 @@ export async function listExisting(year: number) {
       number: e?.number ?? null,
       status: e?.status ?? null,
       accountActive: p.user.status === "ACTIVE",
+      // 참고 열(입학반·입학번호)용. 내보내기가 쓴다 — 올릴 때는 무시한다 (사실은
+      // 그 학년도 배정이 정한다).
+      entryClassNo: entry?.classNo ?? null,
+      entryNumber: entry?.number ?? null,
     };
   });
+}
+
+/** 참고 열용. 학생마다 가장 이른 1학년 배정을 한 번의 조회로 모은다. */
+async function entrySeats(): Promise<Map<string, { classNo: number; number: number }>> {
+  const rows = await prisma.enrollment.findMany({
+    where: { schoolClass: { grade: 1 } },
+    orderBy: { year: "asc" },
+    select: {
+      studentProfileId: true,
+      number: true,
+      schoolClass: { select: { classNo: true } },
+    },
+  });
+
+  const map = new Map<string, { classNo: number; number: number }>();
+  for (const r of rows) {
+    // year 오름차순이라 먼저 만난 것이 가장 이른 1학년이다.
+    if (map.has(r.studentProfileId)) continue;
+    if (r.schoolClass && r.number !== null) {
+      map.set(r.studentProfileId, { classNo: r.schoolClass.classNo, number: r.number });
+    }
+  }
+  return map;
 }
 
 /** applyRoster에 넘기는 한 줄. 계정 상태를 건드릴지는 statusChanged가 결정한다. */

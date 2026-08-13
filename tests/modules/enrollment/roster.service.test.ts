@@ -33,6 +33,7 @@ const student = user("STUDENT", "s-1");
 const 재학생 = {
   studentProfileId: "sp-1",
   userId: "u-1",
+  studentCode: "AAAA1111",
   name: "김동혁",
   birthDate: "2010-07-28",
   grade: 1,
@@ -42,8 +43,11 @@ const 재학생 = {
   accountActive: true,
 };
 
+// 기본값은 재학생과 같은 학생코드다 — listExisting이 기본으로 돌려주는 [재학생]과
+// 이어붙는다. existing을 []로 두는 테스트는 studentCode를 ""로 덮어써 신규로 만든다.
 const row = {
   line: 2,
+  studentCode: "AAAA1111",
   name: "김동혁",
   birthDate: "2010-07-28",
   grade: 1,
@@ -107,7 +111,8 @@ describe("applyRosterPlan()", () => {
       invites: [{ name: "김동혁", code: "GBSWCODE1", grade: 1, classNo: 5, number: 7 }],
     });
 
-    const result = await applyRosterPlan(admin, 2026, [row]);
+    const newRow = { ...row, studentCode: "" };
+    const result = await applyRosterPlan(admin, 2026, [newRow]);
 
     expect(result.invites).toHaveLength(1);
     expect(applyRoster.mock.calls[0]![1].newStudents).toHaveLength(1);
@@ -118,7 +123,8 @@ describe("applyRosterPlan()", () => {
     const expires = new Date("2099-05-01");
     toExpiresAt.mockReturnValue(expires);
 
-    await applyRosterPlan(admin, 2026, [row]);
+    const newRow = { ...row, studentCode: "" };
+    await applyRosterPlan(admin, 2026, [newRow]);
 
     expect(applyRoster.mock.calls[0]![1].inviteExpiresAt).toBe(expires);
     expect(toExpiresAt).toHaveBeenCalledWith(expect.any(Number));
@@ -128,9 +134,10 @@ describe("applyRosterPlan()", () => {
     "충족할 수 없어 가입이 영원히 막힌다 (I1)", async () => {
     listExisting.mockResolvedValue([]);
 
-    const 재학신규 = { ...row, name: "재학이", birthDate: "2011-01-01" };
+    const 재학신규 = { ...row, studentCode: "", name: "재학이", birthDate: "2011-01-01" };
     const 비재학신규 = {
       ...row,
+      studentCode: "",
       name: "유예생",
       birthDate: "2011-02-02",
       status: "DEFERRED" as const,
@@ -147,7 +154,7 @@ describe("applyRosterPlan()", () => {
   });
 
   it("학적이 안 바뀐 학생은 statusChanged=false로 넘어간다 (C1 회귀 방지)", async () => {
-    // row가 재학생과 완전히 같은 값이면 untouched로 분류된다.
+    // row가 재학생과 같은 학생코드·자리면 untouched로 분류된다.
     const 그대로 = { ...row, grade: 1, classNo: 3, number: 3 };
 
     await applyRosterPlan(admin, 2026, [그대로]);
@@ -159,24 +166,45 @@ describe("applyRosterPlan()", () => {
 
   it("분류별로 statusChanged를 다르게 실어 보낸다", async () => {
     const rows = [
-      { ...row, name: "그대로", grade: 1, classNo: 3, number: 3 },
-      { ...row, name: "반바뀜", grade: 2, classNo: 1, number: 9 },
-      { ...row, name: "학적바뀜", status: "GRADUATED" as const, grade: null, classNo: null, number: null },
-      { ...row, name: "새배정", grade: 3, classNo: 2, number: 5 },
+      { ...row, studentCode: "CODE0001", name: "그대로", grade: 1, classNo: 3, number: 3 },
+      { ...row, studentCode: "CODE0002", name: "반바뀜", grade: 2, classNo: 1, number: 9 },
+      {
+        ...row,
+        studentCode: "CODE0003",
+        name: "학적바뀜",
+        status: "GRADUATED" as const,
+        grade: null,
+        classNo: null,
+        number: null,
+      },
+      { ...row, studentCode: "CODE0004", name: "새배정", grade: 3, classNo: 2, number: 5 },
     ].map((r, i) => ({
       ...r,
       birthDate: `2010-0${i + 1}-01`,
     }));
 
-    // 이름·생년월일로 잇는 planRoster 특성상 각 row는 대응하는 existing과
-    // 이름·생년월일이 같아야 한다. existing도 이름을 맞춰 둔다.
+    // 학생코드로 잇는 특성상 각 row는 대응하는 existing과 studentCode가 같아야 한다.
     listExisting.mockResolvedValue([
-      { ...재학생, studentProfileId: "sp-untouched", name: "그대로", birthDate: "2010-01-01" },
-      { ...재학생, studentProfileId: "sp-reassign", userId: "u-2", name: "반바뀜", birthDate: "2010-02-01" },
+      {
+        ...재학생,
+        studentProfileId: "sp-untouched",
+        studentCode: "CODE0001",
+        name: "그대로",
+        birthDate: "2010-01-01",
+      },
+      {
+        ...재학생,
+        studentProfileId: "sp-reassign",
+        userId: "u-2",
+        studentCode: "CODE0002",
+        name: "반바뀜",
+        birthDate: "2010-02-01",
+      },
       {
         ...재학생,
         studentProfileId: "sp-statuschange",
         userId: "u-3",
+        studentCode: "CODE0003",
         name: "학적바뀜",
         birthDate: "2010-03-01",
       },
@@ -184,6 +212,7 @@ describe("applyRosterPlan()", () => {
         ...재학생,
         studentProfileId: "sp-newassign",
         userId: "u-4",
+        studentCode: "CODE0004",
         name: "새배정",
         birthDate: "2010-04-01",
         status: null,
@@ -242,13 +271,15 @@ describe("applyRosterPlan()", () => {
     listExisting.mockResolvedValue([]);
     applyRoster.mockRejectedValue(new InviteCodeCollisionError());
 
-    await expect(applyRosterPlan(admin, 2026, [row])).rejects.toThrow("CODE_COLLISION");
+    const newRow = { ...row, studentCode: "" };
+    await expect(applyRosterPlan(admin, 2026, [newRow])).rejects.toThrow("CODE_COLLISION");
   });
 
   it("발급 코드는 invite.service.ts의 generateUniqueCode()로 만든다 (DB 확인 + 재시도)", async () => {
     listExisting.mockResolvedValue([]);
 
-    await applyRosterPlan(admin, 2026, [row]);
+    const newRow = { ...row, studentCode: "" };
+    await applyRosterPlan(admin, 2026, [newRow]);
 
     expect(generateUniqueCode).toHaveBeenCalled();
   });
