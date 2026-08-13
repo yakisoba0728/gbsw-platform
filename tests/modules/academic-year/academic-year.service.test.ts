@@ -47,6 +47,7 @@ describe("getCurrentYear()", () => {
 
   it("현재 학년도가 없으면 던진다 — 조용히 넘어가면 소속이 통째로 비어 보인다", async () => {
     findCurrent.mockResolvedValue(null);
+    await expect(getCurrentYear()).rejects.toThrow(AcademicYearError);
     await expect(getCurrentYear()).rejects.toThrow("NO_CURRENT_YEAR");
   });
 });
