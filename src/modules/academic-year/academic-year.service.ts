@@ -1,13 +1,10 @@
 import { recordAudit } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
 import { can } from "@/core/authz/can";
+import { MAX_YEAR, MIN_YEAR } from "./academic-year.schema";
 import * as repo from "./academic-year.repo";
 
 export class AcademicYearError extends Error {}
-
-/** 학교가 실제로 존재할 수 있는 범위. 오타로 20226을 넣는 걸 막는다. */
-const MIN_YEAR = 2000;
-const MAX_YEAR = 2100;
 
 /**
  * 현재 학년도.
@@ -32,7 +29,14 @@ export async function createYear(actor: SessionUser, year: number): Promise<void
     throw new AcademicYearError("INVALID_YEAR");
   }
 
-  await repo.createYear(year);
+  try {
+    await repo.createYear(year);
+  } catch (error) {
+    if (error instanceof repo.YearTakenError) {
+      throw new AcademicYearError("YEAR_TAKEN");
+    }
+    throw error;
+  }
 
   await recordAudit({
     actorUserId: actor.id,

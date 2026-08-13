@@ -7,7 +7,10 @@ const createYearRepo = vi.fn();
 const setCurrentRepo = vi.fn();
 const recordAudit = vi.fn();
 
+class YearTakenError extends Error {}
+
 vi.mock("@/modules/academic-year/academic-year.repo", () => ({
+  YearTakenError,
   findCurrent,
   listYears: listYearsRepo,
   createYear: createYearRepo,
@@ -76,6 +79,20 @@ describe("createYear()", () => {
     await expect(createYear(admin, 1999)).rejects.toThrow("INVALID_YEAR");
     await expect(createYear(admin, 2200)).rejects.toThrow("INVALID_YEAR");
     expect(createYearRepo).not.toHaveBeenCalled();
+  });
+
+  it("이미 있는 학년도는 우리 오류로 옮긴다 — DB 장애와 구분해야 한다 (M3)", async () => {
+    createYearRepo.mockRejectedValue(new YearTakenError());
+
+    await expect(createYear(admin, 2027)).rejects.toThrow(AcademicYearError);
+    await expect(createYear(admin, 2027)).rejects.toThrow("YEAR_TAKEN");
+  });
+
+  it("유일 제약과 무관한 오류는 삼키지 않는다", async () => {
+    const boom = new Error("연결이 끊겼습니다");
+    createYearRepo.mockRejectedValue(boom);
+
+    await expect(createYear(admin, 2027)).rejects.toBe(boom);
   });
 });
 
