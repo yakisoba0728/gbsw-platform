@@ -73,6 +73,7 @@ export async function createInitialAdmin(
       accountId: randomUUID(),
       name: input.name,
       email: input.email,
+      phone: input.phone,
       // Better Auth가 로그인 때 쓰는 것과 동일한 해시 함수.
       passwordHash: await hashPassword(input.password),
     });

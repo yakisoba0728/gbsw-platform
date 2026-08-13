@@ -43,7 +43,8 @@ export default async function UserDetailPage({
   const editable: EditableUser = {
     id: user.id,
     name: user.name,
-    phone: user.phone ?? "",
+    email: user.email,
+    phone: user.phone,
     isStudent: profile != null,
     birthDate: profile ? formatDateInput(profile.birthDate) : "",
     grade: cls ? String(cls.grade) : "",

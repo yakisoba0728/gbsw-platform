@@ -13,7 +13,10 @@ const replaceCredentialPassword = vi.fn();
 const deleteSessions = vi.fn();
 const recordAudit = vi.fn();
 
+class EmailTakenError extends Error {}
+
 vi.mock("@/modules/admin-users/admin-user.repo", () => ({
+  EmailTakenError,
   listUsers: listUsersRepo,
   findById,
   findDetail,
@@ -38,6 +41,7 @@ function detail(overrides: Record<string, unknown> = {}) {
   return {
     id: "u-9",
     name: "김학생",
+    email: "student@gbsw.hs.kr",
     phone: "010-1111-2222",
     studentProfile: {
       id: "sp-1",
@@ -51,6 +55,7 @@ function detail(overrides: Record<string, unknown> = {}) {
 
 const sameInput = {
   name: "김학생",
+  email: "student@gbsw.hs.kr",
   phone: "010-1111-2222",
   birthDate: "2010-07-15",
   grade: 1,
@@ -215,13 +220,41 @@ describe("updateUser()", () => {
     expect(JSON.stringify(audit)).not.toContain("9999");
   });
 
-  it("전화번호를 비우면 null로 저장한다", async () => {
-    await updateUser(admin, "u-9", { ...sameInput, phone: "" });
+  it("이름·이메일·전화번호를 함께 저장한다 — 셋 다 필수라 비울 수 없다", async () => {
+    await updateUser(admin, "u-9", { ...sameInput, phone: "010-9999-8888" });
 
     expect(updateProfile).toHaveBeenCalledWith("u-9", {
       name: "김학생",
-      phone: null,
+      email: "student@gbsw.hs.kr",
+      phone: "010-9999-8888",
     });
+  });
+
+  it("이메일이 바뀌면 changed에 잡힌다", async () => {
+    const { changed } = await updateUser(admin, "u-9", {
+      ...sameInput,
+      email: "new@gbsw.hs.kr",
+    });
+
+    expect(changed).toEqual(["email"]);
+  });
+
+  it("이미 쓰이는 이메일이면 EMAIL_TAKEN으로 옮긴다", async () => {
+    updateProfile.mockRejectedValue(new EmailTakenError());
+
+    await expect(
+      updateUser(admin, "u-9", { ...sameInput, email: "taken@gbsw.hs.kr" }),
+    ).rejects.toThrow("EMAIL_TAKEN");
+    // 저장이 실패했으므로 감사로그도 남지 않는다.
+    expect(recordAudit).not.toHaveBeenCalled();
+  });
+
+  it("감사로그에 이메일 값이 아니라 항목 이름만 남긴다", async () => {
+    await updateUser(admin, "u-9", { ...sameInput, email: "new@gbsw.hs.kr" });
+
+    const audit = recordAudit.mock.calls[0]![0];
+    expect(audit.metadata).toEqual({ changed: ["email"] });
+    expect(JSON.stringify(audit)).not.toContain("new@gbsw.hs.kr");
   });
 
   it("소속이 바뀌면 학생 프로필만 갱신한다", async () => {

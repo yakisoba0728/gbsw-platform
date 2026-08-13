@@ -11,6 +11,7 @@ export type CreateAdminUserInput = {
   accountId: string;
   name: string;
   email: string;
+  phone: string;
   passwordHash: string;
 };
 
@@ -23,6 +24,7 @@ export async function createAdminUser(
         id: input.userId,
         name: input.name,
         email: input.email,
+        phone: input.phone,
         emailVerified: true,
         role: "ADMIN",
         status: "ACTIVE",

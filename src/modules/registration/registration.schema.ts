@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { emailField, phoneField } from "@/lib/user-fields";
 
 export const inviteCodeSchema = z
   .string()
@@ -12,27 +13,8 @@ const credentials = {
     .trim()
     .min(1, "이름을 입력하세요.")
     .max(50, "이름이 너무 깁니다."),
-  email: z
-    .string()
-    .trim()
-    .max(200)
-    .refine(
-      (v) => z.email().safeParse(v).success,
-      "이메일 형식이 올바르지 않습니다.",
-    )
-    // 인증 기록과 같은 표기로 맞춘다.
-    .transform((v) => v.toLowerCase()),
-  phone: z
-    .string()
-    .trim()
-    .regex(/^01[016-9][-\s]?\d{3,4}[-\s]?\d{4}$/, "휴대폰 번호 형식이 올바르지 않습니다.")
-    // 저장 표기를 010-0000-0000으로 통일한다.
-    .transform((value) => {
-      const d = value.replaceAll(/\D/g, "");
-      return d.length === 11
-        ? `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`
-        : `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
-    }),
+  email: emailField,
+  phone: phoneField,
   password: z
     .string()
     .min(10, "비밀번호는 10자 이상이어야 합니다.")

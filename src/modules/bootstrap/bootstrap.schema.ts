@@ -1,9 +1,11 @@
 import { z } from "zod";
+import { emailField, phoneField } from "@/lib/user-fields";
 
 export const bootstrapSchema = z
   .object({
     name: z.string().trim().min(1, "이름을 입력하세요.").max(50, "이름이 너무 깁니다."),
-    email: z.email("이메일 형식이 올바르지 않습니다.").max(200),
+    email: emailField,
+    phone: phoneField,
     password: z
       .string()
       .min(10, "비밀번호는 10자 이상이어야 합니다.")

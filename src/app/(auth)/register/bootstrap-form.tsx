@@ -3,6 +3,8 @@
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
+import { MaskedInput } from "@/components/ui/masked-input";
+import { formatPhone } from "@/lib/masks";
 import { createInitialAdminAction, type BootstrapState } from "./actions";
 
 const INITIAL: BootstrapState = { error: null };
@@ -41,6 +43,18 @@ export function BootstrapForm({ token }: { token: string }) {
         type="email"
         autoComplete="username"
         placeholder="name@gbsw.hs.kr"
+        required
+        className="mb-[15px]"
+      />
+
+      <Label htmlFor="phone">전화번호</Label>
+      <MaskedInput
+        id="phone"
+        name="phone"
+        type="tel"
+        autoComplete="tel"
+        placeholder="010-0000-0000"
+        format={formatPhone}
         required
         className="mb-[15px]"
       />

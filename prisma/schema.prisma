@@ -31,7 +31,8 @@ model User {
   /// ADMIN | STUDENT | PARENT — src/core/authz/roles.ts와 일치해야 한다.
   role String?
 
-  phone String?
+  /// 필수. 가입·최초 관리자 생성 모두에서 받고, 관리자가 고칠 수 있다.
+  phone String
 
   /// ACTIVE | INACTIVE
   status String? @default("ACTIVE")

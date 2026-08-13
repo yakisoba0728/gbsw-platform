@@ -35,6 +35,12 @@ export async function getUserDetail(actor: SessionUser, userId: string) {
  * 실제로 달라진 항목만 감사로그에 남긴다 — **값이 아니라 필드 이름만**.
  * 감사로그가 개인정보 사본이 되면 안 된다.
  * 바뀐 게 없으면 저장도 기록도 하지 않는다 (no-op으로 로그가 오염되지 않게).
+ *
+ * 이메일을 바꾸면 다음 로그인부터 새 주소를 쓴다. credential 계정은 accountId가
+ * userId라 로그인 수단 자체는 그대로다. emailVerified도 건드리지 않는다 —
+ * 초대코드가 신뢰 기준이고 이번엔 관리자가 직접 바꾼 것이라 근거가 약해지지 않는다.
+ * 세션도 끊지 않는다. 이메일은 인증 수단이 아니고, 계정을 실제로 뺏는 경로
+ * (비밀번호 초기화·비활성화)는 각자 세션을 끊는다.
  */
 export async function updateUser(
   actor: SessionUser,
@@ -46,11 +52,11 @@ export async function updateUser(
   const current = await repo.findDetail(userId);
   if (!current) throw new AdminUserError("NOT_FOUND");
 
-  const nextPhone = input.phone ? input.phone : null;
   const changed: string[] = [];
 
   if (current.name !== input.name) changed.push("name");
-  if (current.phone !== nextPhone) changed.push("phone");
+  if (current.email !== input.email) changed.push("email");
+  if (current.phone !== input.phone) changed.push("phone");
 
   const profile = current.studentProfile;
   const isStudent = profile !== null && profile !== undefined;
@@ -78,8 +84,19 @@ export async function updateUser(
 
   if (changed.length === 0) return { changed };
 
-  if (changed.includes("name") || changed.includes("phone")) {
-    await repo.updateProfile(userId, { name: input.name, phone: nextPhone });
+  if (["name", "email", "phone"].some((f) => changed.includes(f))) {
+    try {
+      await repo.updateProfile(userId, {
+        name: input.name,
+        email: input.email,
+        phone: input.phone,
+      });
+    } catch (error) {
+      if (error instanceof repo.EmailTakenError) {
+        throw new AdminUserError("EMAIL_TAKEN");
+      }
+      throw error;
+    }
   }
 
   const studentChanged = ["birthDate", "grade", "classNo", "number"].some((f) =>

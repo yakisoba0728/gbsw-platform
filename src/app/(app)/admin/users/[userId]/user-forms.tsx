@@ -24,6 +24,7 @@ import {
 export type EditableUser = {
   id: string;
   name: string;
+  email: string;
   phone: string;
   isStudent: boolean;
   birthDate: string;
@@ -51,6 +52,7 @@ function Note({ tone, children }: { tone: "ok" | "bad"; children: React.ReactNod
 
 const FIELD_LABEL: Record<string, string> = {
   name: "이름",
+  email: "이메일",
   phone: "전화번호",
   birthDate: "생년월일",
   grade: "학년",
@@ -79,14 +81,28 @@ export function EditUserForm({ user }: { user: EditableUser }) {
         className="mb-[13px]"
       />
 
+      <Label htmlFor="email">이메일</Label>
+      <Input
+        id="email"
+        name="email"
+        type="email"
+        dense
+        defaultValue={user.email}
+        maxLength={200}
+        required
+        className="mb-[13px]"
+      />
+
       <Label htmlFor="phone">전화번호</Label>
       <MaskedInput
         id="phone"
         name="phone"
+        type="tel"
         dense
         defaultValue={user.phone}
         placeholder="010-0000-0000"
         format={formatPhone}
+        required
         className="mb-[13px]"
       />
 

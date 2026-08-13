@@ -23,6 +23,7 @@ const { clearToken, matchesToken } = await import(
 const input = {
   name: "홍길동",
   email: "admin@gbsw.hs.kr",
+  phone: "010-1234-5678",
   password: "correct-horse-battery",
   confirmPassword: "correct-horse-battery",
 };
@@ -131,6 +132,8 @@ describe("createInitialAdmin()", () => {
     const created = createAdminUser.mock.calls[0]![0];
     expect(created.name).toBe("홍길동");
     expect(created.email).toBe("admin@gbsw.hs.kr");
+    // 전화번호는 필수다 — 최초 관리자만 예외로 두면 번호 없는 교사 계정이 남는다.
+    expect(created.phone).toBe("010-1234-5678");
     // 평문 비밀번호가 저장 경로로 새어나가면 안 된다.
     expect(created.passwordHash).not.toBe(input.password);
     expect(created.passwordHash.length).toBeGreaterThan(20);

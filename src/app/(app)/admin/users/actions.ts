@@ -82,7 +82,8 @@ export async function updateUserAction(
 
   const parsed = updateUserSchema.safeParse({
     name: formData.get("name"),
-    phone: formData.get("phone") ?? "",
+    email: formData.get("email"),
+    phone: formData.get("phone"),
     birthDate: formData.get("birthDate") ?? "",
     grade: formData.get("grade") || undefined,
     classNo: formData.get("classNo") || undefined,
@@ -107,6 +108,9 @@ export async function updateUserAction(
       }
       if (error.message === "INCOMPLETE_STUDENT_INPUT") {
         return { error: "학년·반·번호·생년월일을 모두 채워 주세요.", changed: null };
+      }
+      if (error.message === "EMAIL_TAKEN") {
+        return { error: "이미 사용 중인 이메일입니다.", changed: null };
       }
     }
     return { error: "저장하지 못했습니다.", changed: null };
