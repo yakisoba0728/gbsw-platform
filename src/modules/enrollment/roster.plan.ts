@@ -17,6 +17,8 @@ export type ExistingStudent = {
   classNo: number | null;
   number: number | null;
   status: string | null;
+  /** 이번 반영 전, 계정이 로그인 가능한 상태였는가 (I4 감사로그의 "이전" 값). */
+  accountActive: boolean;
 };
 
 export type PlannedRow = RosterRow & { studentProfileId: string | null };
@@ -25,6 +27,13 @@ export type RosterPlan = {
   newStudents: PlannedRow[];
   reassign: PlannedRow[];
   statusChange: PlannedRow[];
+  /**
+   * 그 학년도의 첫 배정 (I7). `before.status`가 null이라는 뜻이라 "학적이 바뀐 것"이
+   * 아니라 "처음 생기는 것"이다 — 학년도가 막 넘어간 시점엔 전교생이 여기로 온다.
+   * statusChange와 섞으면 미리보기가 신학년 첫 반영에서 무의미해진다 (전원이
+   * 학적변동으로만 보이고 정작 재배정은 0건으로 나옴).
+   */
+  newAssignment: PlannedRow[];
   needsAttention: (PlannedRow & { reason: string })[];
   errorRows: RosterRow[];
   missingFromFile: ExistingStudent[];
@@ -48,6 +57,7 @@ export function planRoster(
     newStudents: [],
     reassign: [],
     statusChange: [],
+    newAssignment: [],
     needsAttention: [],
     errorRows: [],
     missingFromFile: [],
@@ -111,7 +121,10 @@ export function planRoster(
     matchedIds.add(before.studentProfileId);
     const planned: PlannedRow = { ...r, studentProfileId: before.studentProfileId };
 
-    if (before.status !== r.status) {
+    if (before.status === null) {
+      // 그 학년도 배정이 아예 없었다 (I7) — 학적 "변동"이 아니라 처음 생기는 배정이다.
+      plan.newAssignment.push(planned);
+    } else if (before.status !== r.status) {
       plan.statusChange.push(planned);
     } else if (
       before.grade !== r.grade ||

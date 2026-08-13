@@ -19,7 +19,13 @@ export const MAX_ACTIVE_PARENT_INVITES = 3;
 /** 코드 충돌 시 재시도 횟수. 31^10 공간이라 실제로는 거의 일어나지 않는다. */
 const CODE_RETRIES = 5;
 
-async function generateUniqueCode(): Promise<string> {
+/**
+ * DB에 없는 코드를 뽑을 때까지 재시도한다.
+ *
+ * 코드 발급 경로는 전부 여기를 거쳐야 한다 — roster.service.ts(명단 일괄 발급)도
+ * 이 함수를 그대로 쓴다 (I2). 한 곳만 벗어나면 유일성 재시도가 없는 경로가 생긴다.
+ */
+export async function generateUniqueCode(): Promise<string> {
   for (let i = 0; i < CODE_RETRIES; i += 1) {
     const code = generateInviteCode();
     if (!(await repo.codeExists(code))) return code;
@@ -27,7 +33,8 @@ async function generateUniqueCode(): Promise<string> {
   throw new InviteError("CODE_GENERATION_FAILED");
 }
 
-function toExpiresAt(days: number | undefined): Date | null {
+/** roster.service.ts도 같은 만료 계산을 쓴다 — 계산 방식을 한 곳에 둔다. */
+export function toExpiresAt(days: number | undefined): Date | null {
   if (!days) return null;
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 }

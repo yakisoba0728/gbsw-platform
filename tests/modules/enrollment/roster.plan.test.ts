@@ -25,6 +25,7 @@ const 재학생 = {
   classNo: 3,
   number: 3,
   status: "ENROLLED",
+  accountActive: true,
 };
 
 describe("planRoster()", () => {
@@ -41,6 +42,7 @@ describe("planRoster()", () => {
 
     expect(plan.reassign).toHaveLength(0);
     expect(plan.statusChange).toHaveLength(0);
+    expect(plan.newAssignment).toHaveLength(0);
     expect(plan.newStudents).toHaveLength(0);
   });
 
@@ -55,6 +57,18 @@ describe("planRoster()", () => {
     const plan = planRoster([row({ status: "GRADUATED", grade: null, classNo: null, number: null })], [재학생]);
 
     expect(plan.statusChange).toHaveLength(1);
+    expect(plan.reassign).toHaveLength(0);
+  });
+
+  it("그 학년도 배정이 아예 없던 학생(status===null)은 학적변동이 아니라 새 배정이다 (I7) — " +
+    "학년도가 막 넘어간 시점엔 전교생이 여기로 온다. statusChange로 섞이면 미리보기가 " +
+    "신학년 첫 반영에서 무엇이 바뀌는지 보여주지 못한다.", () => {
+    const 올해배정없음 = { ...재학생, status: null };
+    const plan = planRoster([row()], [올해배정없음]);
+
+    expect(plan.newAssignment).toHaveLength(1);
+    expect(plan.newAssignment[0]!.studentProfileId).toBe("sp-1");
+    expect(plan.statusChange).toHaveLength(0);
     expect(plan.reassign).toHaveLength(0);
   });
 
