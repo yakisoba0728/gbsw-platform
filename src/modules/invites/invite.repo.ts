@@ -33,7 +33,7 @@ export async function findById(id: string) {
   return prisma.invite.findUnique({ where: { id } });
 }
 
-export async function listAll() {
+export async function listAll(year: number) {
   return prisma.invite.findMany({
     orderBy: { createdAt: "desc" },
     include: {
@@ -41,9 +41,15 @@ export async function listAll() {
       usedBy: { select: { name: true, email: true } },
       student: {
         select: {
-          number: true,
           user: { select: { name: true } },
-          schoolClass: { select: { grade: true, classNo: true } },
+          enrollments: {
+            where: { year },
+            take: 1,
+            select: {
+              number: true,
+              schoolClass: { select: { grade: true, classNo: true } },
+            },
+          },
         },
       },
     },
@@ -85,16 +91,30 @@ export async function findStudentById(studentId: string) {
 }
 
 /** 학부모 코드 발급 시 고를 학생 목록. 학년·반·번호 순. */
-export async function listStudents() {
-  return prisma.studentProfile.findMany({
-    include: {
+export async function listStudents(year: number) {
+  const students = await prisma.studentProfile.findMany({
+    select: {
+      id: true,
       user: { select: { name: true } },
-      schoolClass: { select: { grade: true, classNo: true } },
+      enrollments: {
+        where: { year },
+        take: 1,
+        select: {
+          number: true,
+          schoolClass: { select: { grade: true, classNo: true } },
+        },
+      },
     },
-    orderBy: [
-      { schoolClass: { grade: "asc" } },
-      { schoolClass: { classNo: "asc" } },
-      { number: "asc" },
-    ],
+  });
+
+  // 학년→반→번호 순. 관계 배열은 Prisma orderBy로 정렬할 수 없어 여기서 맞춘다.
+  return students.sort((a, b) => {
+    const x = a.enrollments[0];
+    const y = b.enrollments[0];
+    return (
+      (x?.schoolClass?.grade ?? 99) - (y?.schoolClass?.grade ?? 99) ||
+      (x?.schoolClass?.classNo ?? 99) - (y?.schoolClass?.classNo ?? 99) ||
+      (x?.number ?? 99) - (y?.number ?? 99)
+    );
   });
 }

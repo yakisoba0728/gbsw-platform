@@ -2,6 +2,7 @@ import { recordAudit } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
 import { can } from "@/core/authz/can";
 import { generateInviteCode } from "@/lib/invite-code";
+import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
 import * as repo from "./invite.repo";
 import type {
   CreateAdminInviteInput,
@@ -179,12 +180,12 @@ export async function createParentInviteFor(
 /** 학부모 코드 발급 화면에서 고를 학생 목록. */
 export async function listStudentsForInvite(actor: SessionUser) {
   if (!can(actor, "invite:create")) throw new Error("FORBIDDEN");
-  return repo.listStudents();
+  return repo.listStudents(await getCurrentYear());
 }
 
 export async function listInvites(actor: SessionUser) {
   if (!can(actor, "invite:list")) throw new Error("FORBIDDEN");
-  return repo.listAll();
+  return repo.listAll(await getCurrentYear());
 }
 
 /** 학생 본인이 만든 학부모 코드 목록. studentId를 인자로 받지 않는다. */

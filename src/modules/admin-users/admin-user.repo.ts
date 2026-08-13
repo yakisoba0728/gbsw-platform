@@ -2,7 +2,19 @@ import { prisma } from "@/core/db/client";
 
 /** Prisma 호출만 둔다. 권한 검사도, 업무 규칙도 여기 두지 않는다. */
 
-export async function listUsers() {
+/** 현재 학년도 소속만 한 줄 붙인다. 화면은 늘 "지금 몇 반인지"를 묻는다. */
+const currentEnrollment = (year: number) => ({
+  where: { year },
+  take: 1,
+  select: {
+    id: true,
+    number: true,
+    status: true,
+    schoolClass: { select: { grade: true, classNo: true } },
+  },
+});
+
+export async function listUsers(year: number) {
   return prisma.user.findMany({
     orderBy: [{ role: "asc" }, { createdAt: "asc" }],
     select: {
@@ -15,10 +27,7 @@ export async function listUsers() {
       mustChangePassword: true,
       createdAt: true,
       studentProfile: {
-        select: {
-          number: true,
-          schoolClass: { select: { grade: true, classNo: true } },
-        },
+        select: { id: true, enrollments: currentEnrollment(year) },
       },
     },
   });
@@ -32,7 +41,7 @@ export async function findById(userId: string) {
 }
 
 /** 상세 화면이 쓰는 전체 정보. */
-export async function findDetail(userId: string) {
+export async function findDetail(userId: string, year: number) {
   return prisma.user.findUnique({
     where: { id: userId },
     select: {
@@ -48,8 +57,7 @@ export async function findDetail(userId: string) {
         select: {
           id: true,
           birthDate: true,
-          number: true,
-          schoolClass: { select: { grade: true, classNo: true } },
+          enrollments: currentEnrollment(year),
         },
       },
       parentLinks: {
@@ -57,8 +65,7 @@ export async function findDetail(userId: string) {
           student: {
             select: {
               user: { select: { name: true } },
-              number: true,
-              schoolClass: { select: { grade: true, classNo: true } },
+              enrollments: currentEnrollment(year),
             },
           },
         },
@@ -127,25 +134,38 @@ function isUniqueViolation(error: unknown, field: string): boolean {
 /**
  * 학생 소속 수정. 학급이 없으면 만든다 — 가입 때와 같은 방식이다.
  * (registration.repo의 upsert 패턴과 동일)
+ *
+ * 생년월일은 신원이라 StudentProfile에 남아 있고, 반·번호만 Enrollment로 간다.
  */
-export async function updateStudentProfile(
+export async function updateEnrollment(
   studentProfileId: string,
+  year: number,
   data: { birthDate: Date; grade: number; classNo: number; number: number },
 ): Promise<void> {
   await prisma.$transaction(async (tx) => {
+    await tx.studentProfile.update({
+      where: { id: studentProfileId },
+      data: { birthDate: data.birthDate },
+    });
+
     const schoolClass = await tx.schoolClass.upsert({
-      where: { grade_classNo: { grade: data.grade, classNo: data.classNo } },
-      create: { grade: data.grade, classNo: data.classNo },
+      where: {
+        year_grade_classNo: { year, grade: data.grade, classNo: data.classNo },
+      },
+      create: { year, grade: data.grade, classNo: data.classNo },
       update: {},
     });
 
-    await tx.studentProfile.update({
-      where: { id: studentProfileId },
-      data: {
-        birthDate: data.birthDate,
-        number: data.number,
+    await tx.enrollment.upsert({
+      where: { studentProfileId_year: { studentProfileId, year } },
+      create: {
+        studentProfileId,
+        year,
         classId: schoolClass.id,
+        number: data.number,
+        status: "ENROLLED",
       },
+      update: { classId: schoolClass.id, number: data.number },
     });
   });
 }

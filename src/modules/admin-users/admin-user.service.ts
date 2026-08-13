@@ -4,6 +4,7 @@ import type { SessionUser } from "@/core/auth/session";
 import { can } from "@/core/authz/can";
 import { formatDateInput } from "@/lib/datetime";
 import { generateTempPassword } from "@/lib/temp-password";
+import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
 import * as repo from "./admin-user.repo";
 import type { UpdateUserInput } from "./admin-user.schema";
 
@@ -13,7 +14,7 @@ export const USER_STATUS = { ACTIVE: "ACTIVE", INACTIVE: "INACTIVE" } as const;
 
 export async function listUsers(actor: SessionUser) {
   if (!can(actor, "user:manage")) throw new Error("FORBIDDEN");
-  return repo.listUsers();
+  return repo.listUsers(await getCurrentYear());
 }
 
 /** 최근 감사로그 몇 건까지 상세에 붙일지. */
@@ -22,7 +23,8 @@ const RELATED_AUDIT_LIMIT = 20;
 export async function getUserDetail(actor: SessionUser, userId: string) {
   if (!can(actor, "user:manage")) throw new Error("FORBIDDEN");
 
-  const user = await repo.findDetail(userId);
+  const year = await getCurrentYear();
+  const user = await repo.findDetail(userId, year);
   if (!user) throw new AdminUserError("NOT_FOUND");
 
   const audit = await repo.findRelatedAudit(userId, RELATED_AUDIT_LIMIT);
@@ -49,7 +51,8 @@ export async function updateUser(
 ): Promise<{ changed: string[] }> {
   if (!can(actor, "user:manage")) throw new Error("FORBIDDEN");
 
-  const current = await repo.findDetail(userId);
+  const year = await getCurrentYear();
+  const current = await repo.findDetail(userId, year);
   if (!current) throw new AdminUserError("NOT_FOUND");
 
   const changed: string[] = [];
@@ -60,6 +63,7 @@ export async function updateUser(
 
   const profile = current.studentProfile;
   const isStudent = profile !== null && profile !== undefined;
+  const enrollment = profile?.enrollments[0];
 
   if (isStudent) {
     if (
@@ -68,16 +72,19 @@ export async function updateUser(
     ) {
       changed.push("birthDate");
     }
-    if (input.grade !== undefined && profile.schoolClass?.grade !== input.grade) {
+    if (
+      input.grade !== undefined &&
+      enrollment?.schoolClass?.grade !== input.grade
+    ) {
       changed.push("grade");
     }
     if (
       input.classNo !== undefined &&
-      profile.schoolClass?.classNo !== input.classNo
+      enrollment?.schoolClass?.classNo !== input.classNo
     ) {
       changed.push("classNo");
     }
-    if (input.number !== undefined && profile.number !== input.number) {
+    if (input.number !== undefined && enrollment?.number !== input.number) {
       changed.push("number");
     }
   }
@@ -107,12 +114,12 @@ export async function updateUser(
     if (!input.birthDate || input.grade == null || input.classNo == null) {
       throw new AdminUserError("INCOMPLETE_STUDENT_INPUT");
     }
-    await repo.updateStudentProfile(profile.id, {
+    await repo.updateEnrollment(profile.id, year, {
       // 생년월일은 날짜만 의미가 있다. KST 자정으로 고정해 하루 밀림을 막는다.
       birthDate: new Date(`${input.birthDate}T00:00:00+09:00`),
       grade: input.grade,
       classNo: input.classNo,
-      number: input.number ?? profile.number ?? 1,
+      number: input.number ?? enrollment?.number ?? 1,
     });
   }
 

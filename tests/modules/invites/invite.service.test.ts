@@ -26,6 +26,9 @@ vi.mock("@/modules/invites/invite.repo", () => ({
   listStudents,
 }));
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
+vi.mock("@/modules/academic-year/academic-year.service", () => ({
+  getCurrentYear: vi.fn().mockResolvedValue(2026),
+}));
 
 const {
   createAdminInvite,

@@ -6,7 +6,7 @@ const findById = vi.fn();
 const findDetail = vi.fn();
 const findRelatedAudit = vi.fn();
 const updateProfile = vi.fn();
-const updateStudentProfile = vi.fn();
+const updateEnrollment = vi.fn();
 const setStatus = vi.fn();
 const setMustChangePassword = vi.fn();
 const replaceCredentialPassword = vi.fn();
@@ -22,13 +22,16 @@ vi.mock("@/modules/admin-users/admin-user.repo", () => ({
   findDetail,
   findRelatedAudit,
   updateProfile,
-  updateStudentProfile,
+  updateEnrollment,
   setStatus,
   setMustChangePassword,
   replaceCredentialPassword,
   deleteSessions,
 }));
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
+vi.mock("@/modules/academic-year/academic-year.service", () => ({
+  getCurrentYear: vi.fn().mockResolvedValue(2026),
+}));
 
 const { listUsers, resetPassword, setUserActive, updateUser } = await import(
   "@/modules/admin-users/admin-user.service"
@@ -46,8 +49,9 @@ function detail(overrides: Record<string, unknown> = {}) {
     studentProfile: {
       id: "sp-1",
       birthDate: BIRTH,
-      number: 15,
-      schoolClass: { grade: 1, classNo: 2 },
+      enrollments: [
+        { id: "en-1", number: 15, status: "ENROLLED", schoolClass: { grade: 1, classNo: 2 } },
+      ],
     },
     ...overrides,
   };
@@ -83,7 +87,7 @@ beforeEach(() => {
   findDetail.mockReset().mockResolvedValue(detail());
   findRelatedAudit.mockReset().mockResolvedValue([]);
   updateProfile.mockReset();
-  updateStudentProfile.mockReset();
+  updateEnrollment.mockReset();
   setStatus.mockReset();
   setMustChangePassword.mockReset();
   replaceCredentialPassword.mockReset().mockResolvedValue(1);
@@ -196,7 +200,7 @@ describe("updateUser()", () => {
 
     expect(changed).toEqual([]);
     expect(updateProfile).not.toHaveBeenCalled();
-    expect(updateStudentProfile).not.toHaveBeenCalled();
+    expect(updateEnrollment).not.toHaveBeenCalled();
     expect(recordAudit).not.toHaveBeenCalled();
   });
 
@@ -257,18 +261,19 @@ describe("updateUser()", () => {
     expect(JSON.stringify(audit)).not.toContain("new@gbsw.hs.kr");
   });
 
-  it("소속이 바뀌면 학생 프로필만 갱신한다", async () => {
+  it("소속이 바뀌면 학생 소속만 갱신한다", async () => {
     await updateUser(admin, "u-9", { ...sameInput, grade: 2 });
 
-    expect(updateStudentProfile).toHaveBeenCalledTimes(1);
+    expect(updateEnrollment).toHaveBeenCalledTimes(1);
     expect(updateProfile).not.toHaveBeenCalled();
-    expect(updateStudentProfile.mock.calls[0]![1].grade).toBe(2);
+    expect(updateEnrollment.mock.calls[0]![1]).toBe(2026);
+    expect(updateEnrollment.mock.calls[0]![2].grade).toBe(2);
   });
 
   it("생년월일은 KST 자정으로 저장한다 — 하루 밀리면 안 된다", async () => {
     await updateUser(admin, "u-9", { ...sameInput, birthDate: "2011-01-01" });
 
-    const saved: Date = updateStudentProfile.mock.calls[0]![1].birthDate;
+    const saved: Date = updateEnrollment.mock.calls[0]![2].birthDate;
     expect(saved.toISOString()).toBe("2010-12-31T15:00:00.000Z");
   });
 
@@ -281,7 +286,7 @@ describe("updateUser()", () => {
     });
 
     expect(changed).toEqual([]);
-    expect(updateStudentProfile).not.toHaveBeenCalled();
+    expect(updateEnrollment).not.toHaveBeenCalled();
   });
 
   it("없는 계정이면 거부한다", async () => {
