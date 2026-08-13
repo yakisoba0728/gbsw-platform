@@ -140,7 +140,8 @@ export async function updateEnrollment(
           number: data.number,
           status: "ENROLLED",
         },
-        update: { classId: schoolClass.id, number: data.number },
+        // 상세에서 반·번호를 고치는 건 재학 중이라는 뜻이다. 졸업 행에 반만 채워지면 안 된다.
+        update: { classId: schoolClass.id, number: data.number, status: "ENROLLED" },
       });
     } catch (error) {
       // updateProfile과 같은 이유 — 미리 조회해 봐야 그 사이에 끼어드는 요청을 못 막는다.
