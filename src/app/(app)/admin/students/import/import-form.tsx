@@ -95,9 +95,19 @@ export function ImportForm() {
   // 새로 올린 파일마다 지문을 만든다 — 이전 확정 결과(성공 배너·초대코드 표)가
   // 새 미리보기 위에 그대로 남아있지 않도록, 내용이 바뀌면 PreviewCard를 통째로
   // 새로 마운트해 안의 확정 폼 상태(applyState)를 초기화한다.
+  //
+  // 삭제 대상(missingFromFile)의 studentProfileId를 반드시 지문에 넣는다 —
+  // 안 그러면 "행 수·첫줄·끝줄 이름"만 같고 삭제 대상이 다른 두 업로드가 같은
+  // 지문으로 잡혀 PreviewCard가 다시 마운트되지 않는다. 그러면 이전 업로드에서
+  // 체크했던 deletionConfirmed(삭제 확인 체크박스) 상태가 그대로 남아, 관리자가
+  // 다른 학생의 삭제를 다시 확인하지 않고도 확정 버튼이 눌리는 사고로 이어진다.
+  // 전교생 규모에서는 가운데 줄 하나만 바꿔도 행 수·첫/끝 이름이 그대로인 경우가
+  // 흔하다 — 되돌릴 수 없는 동작이라 이 틈을 남겨두면 안 된다.
   const previewFingerprint =
     previewState.plan &&
-    `${previewState.year}:${previewState.rows.length}:${previewState.rows[0]?.name ?? ""}:${previewState.rows.at(-1)?.name ?? ""}`;
+    `${previewState.year}:${previewState.rows.length}:` +
+      `${previewState.rows[0]?.name ?? ""}:${previewState.rows.at(-1)?.name ?? ""}:` +
+      previewState.plan.missingFromFile.map((s) => s.studentProfileId).join(",");
 
   return (
     <>
