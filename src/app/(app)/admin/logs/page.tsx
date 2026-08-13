@@ -54,12 +54,17 @@ export default async function LogsPage({
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[840px] table-fixed text-left text-sm">
+            {/*
+              시각은 `26. 8. 14. 오전 8:30:16`이 통째로 들어가야 한다 —
+              whitespace-nowrap이라 좁으면 넘쳐서 옆 열을 덮는다.
+              상세는 남는 폭을 가져간다 (가장 길고 가장 자주 읽는 열).
+            */}
             <colgroup>
+              <col className="w-[188px]" />
+              <col className="w-[148px]" />
               <col className="w-[132px]" />
-              <col className="w-[160px]" />
+              <col className="w-[76px]" />
               <col className="w-[132px]" />
-              <col className="w-[84px]" />
-              <col className="w-[104px]" />
               <col />
             </colgroup>
             <thead>
