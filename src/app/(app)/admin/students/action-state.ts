@@ -10,3 +10,7 @@ export type SaveState = {
 };
 
 export const SAVE_INITIAL: SaveState = { error: null, saved: null };
+
+export type YearState = { error: string | null; ok: boolean };
+
+export const YEAR_INITIAL: YearState = { error: null, ok: false };

@@ -3,11 +3,16 @@
 import { revalidatePath } from "next/cache";
 import { requireAuth } from "@/core/auth/session";
 import {
+  AcademicYearError,
+  createYear,
+  setCurrentYear,
+} from "@/modules/academic-year/academic-year.service";
+import {
   EnrollmentError,
   saveEnrollments,
 } from "@/modules/enrollment/enrollment.service";
 import { saveEnrollmentsSchema } from "@/modules/enrollment/enrollment.schema";
-import type { SaveState } from "./action-state";
+import type { SaveState, YearState } from "./action-state";
 
 const MESSAGES: Record<string, string> = {
   UNKNOWN_STUDENT: "목록에 없는 학생이 포함됐습니다. 새로고침 후 다시 시도하세요.",
@@ -45,5 +50,44 @@ export async function saveEnrollmentsAction(
       return { error: MESSAGES[error.message] ?? "저장하지 못했습니다.", saved: null };
     }
     return { error: "저장하지 못했습니다.", saved: null };
+  }
+}
+
+export async function setCurrentYearAction(
+  _prev: YearState,
+  formData: FormData,
+): Promise<YearState> {
+  const actor = await requireAuth();
+  const year = Number(formData.get("year"));
+
+  try {
+    await setCurrentYear(actor, year);
+    revalidatePath("/admin/students");
+    return { error: null, ok: true };
+  } catch (error) {
+    if (error instanceof AcademicYearError) {
+      return { error: "학년도를 바꾸지 못했습니다.", ok: false };
+    }
+    return { error: "학년도를 바꾸지 못했습니다.", ok: false };
+  }
+}
+
+export async function createYearAction(
+  _prev: YearState,
+  formData: FormData,
+): Promise<YearState> {
+  const actor = await requireAuth();
+  const year = Number(formData.get("year"));
+
+  try {
+    await createYear(actor, year);
+    revalidatePath("/admin/students");
+    return { error: null, ok: true };
+  } catch (error) {
+    if (error instanceof AcademicYearError && error.message === "INVALID_YEAR") {
+      return { error: "학년도가 올바르지 않습니다.", ok: false };
+    }
+    // 유일 제약 위반 — 이미 있는 학년도다.
+    return { error: "이미 있는 학년도이거나 만들지 못했습니다.", ok: false };
   }
 }
