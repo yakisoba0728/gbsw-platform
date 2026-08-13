@@ -1,0 +1,87 @@
+import { describe, expect, it } from "vitest";
+import { normalizeRows, parseCsv } from "@/modules/enrollment/roster.parse";
+
+const HEADER = ["이름", "생년월일", "학년", "반", "번호", "학적"];
+
+describe("parseCsv()", () => {
+  it("BOM과 CRLF를 걷어낸다 — 엑셀이 CSV UTF-8로 저장하면 둘 다 붙는다", () => {
+    const table = parseCsv('﻿이름,학년\r\n김동혁,1\r\n');
+    expect(table).toEqual([["이름", "학년"], ["김동혁", "1"]]);
+  });
+
+  it("따옴표 안의 쉼표와 줄바꿈을 필드로 지킨다", () => {
+    const table = parseCsv('이름,비고\n"김,동혁","두 줄\n주석"\n');
+    expect(table).toEqual([["이름", "비고"], ["김,동혁", "두 줄\n주석"]]);
+  });
+
+  it('두 겹 따옴표는 따옴표 한 개다', () => {
+    expect(parseCsv('a\n"그는 ""안녕"" 했다"\n')).toEqual([["a"], ['그는 "안녕" 했다']]);
+  });
+
+  it("빈 줄은 버린다", () => {
+    expect(parseCsv("a\n\n\nb\n")).toEqual([["a"], ["b"]]);
+  });
+});
+
+describe("normalizeRows()", () => {
+  it("열 순서가 달라도 머리글로 찾아낸다", () => {
+    const rows = normalizeRows([
+      ["학적", "번호", "반", "학년", "생년월일", "이름"],
+      ["재학", "3", "3", "1", "2010-07-28", "김동혁"],
+    ]);
+    expect(rows[0]).toMatchObject({
+      name: "김동혁",
+      birthDate: "2010-07-28",
+      grade: 1,
+      classNo: 3,
+      number: 3,
+      status: "ENROLLED",
+      errors: [],
+    });
+  });
+
+  it("머리글이 빠지면 그 사실을 첫 줄 오류로 알린다", () => {
+    const rows = normalizeRows([["이름", "학년"], ["김동혁", "1"]]);
+    expect(rows[0]!.errors.join()).toContain("생년월일");
+  });
+
+  it("엑셀이 날짜를 숫자나 슬래시로 바꿔놔도 받아낸다", () => {
+    const rows = normalizeRows([
+      HEADER,
+      ["김동혁", "2010/7/28", "1", "3", "3", "재학"],
+    ]);
+    expect(rows[0]!.birthDate).toBe("2010-07-28");
+    expect(rows[0]!.errors).toEqual([]);
+  });
+
+  it("없는 학적 값은 오류로 잡는다", () => {
+    const rows = normalizeRows([HEADER, ["김동혁", "2010-07-28", "1", "3", "3", "휴학"]]);
+    expect(rows[0]!.errors.join()).toContain("학적");
+  });
+
+  it("재학인데 학년·반·번호가 비면 오류다", () => {
+    const rows = normalizeRows([HEADER, ["김동혁", "2010-07-28", "", "", "", "재학"]]);
+    expect(rows[0]!.errors.length).toBeGreaterThan(0);
+  });
+
+  it("졸업이면 학년·반·번호가 비어도 된다", () => {
+    const rows = normalizeRows([HEADER, ["김동혁", "2010-07-28", "", "", "", "졸업"]]);
+    expect(rows[0]!.errors).toEqual([]);
+    expect(rows[0]!.grade).toBeNull();
+  });
+
+  it("줄 번호는 파일 기준이다 — 머리글이 1행이므로 첫 학생은 2행", () => {
+    const rows = normalizeRows([HEADER, ["김동혁", "2010-07-28", "1", "3", "3", "재학"]]);
+    expect(rows[0]!.line).toBe(2);
+  });
+
+  it("이름이 비면 오류이고, 완전히 빈 줄은 아예 버린다", () => {
+    const rows = normalizeRows([
+      HEADER,
+      ["", "", "", "", "", ""],
+      ["", "2010-07-28", "1", "3", "3", "재학"],
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.errors.join()).toContain("이름");
+  });
+});
