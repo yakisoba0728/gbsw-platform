@@ -122,6 +122,27 @@ export function planRoster(
     matchedIds.add(before.studentProfileId);
     const planned: PlannedRow = { ...r, studentProfileId: before.studentProfileId };
 
+    if (r.status === null) {
+      // 학적·학년·반·번호가 넷 다 빈 줄이다 (normalizeRows가 오류로 잡지 않는다).
+      if (before.status === null) {
+        // 원래도 이 학년도 배정이 없었다 — 무변경. 어느 분류에도 넣지 않는다.
+        // 배정 없는 학생을 내려받아 그대로 올렸을 때 이 경로를 타야 왕복이 0건이 된다.
+        continue;
+      }
+      // 원래는 배정이 있었는데 파일에서 비었다 — 사람이 학적란을 지운 흔적이다.
+      // 자동으로 배정을 지우지 않는다: 확정 저장 경로(applyRosterPlan)는 이 줄을
+      // assignments에 넣지 않고, 그렇다고 missingFromFile도 아니라서 "그대로 둔
+      // 학생"으로 다시 채워 넣힐 뻔한다 — needsAttention으로 막아 사람이 졸업·자퇴
+      // 같은 실제 학적을 입력하거나 파일을 원래대로 되돌리게 한다.
+      plan.needsAttention.push({
+        ...planned,
+        reason:
+          "학적이 비어 있어 확정하면 이 학생의 이번 학년도 배정이 삭제됩니다. " +
+          "졸업·자퇴 등 학적을 입력했는지, 실수로 지운 건 아닌지 확인하세요.",
+      });
+      continue;
+    }
+
     if (before.status === null) {
       // 그 학년도 배정이 아예 없었다 (I7) — 학적 "변동"이 아니라 처음 생기는 배정이다.
       plan.newAssignment.push(planned);

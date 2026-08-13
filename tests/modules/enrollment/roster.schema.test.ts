@@ -41,6 +41,18 @@ describe("rosterRowsSchema", () => {
     expect(rosterRowsSchema.safeParse([graduated]).success).toBe(true);
   });
 
+  it("status:null(그 학년도 배정 없음)도 학년·반·번호가 비면 통과한다 — " +
+    "Critical 결함 회귀: 배정 없는 학생이 섞인 반영이 확정 경계에서 막히면 안 된다", () => {
+    const noAssignment = row({
+      status: null,
+      grade: null,
+      classNo: null,
+      number: null,
+    });
+
+    expect(rosterRowsSchema.safeParse([noAssignment]).success).toBe(true);
+  });
+
   it("status가 목록에 없는 값이면 통과하지 못한다", () => {
     const result = rosterRowsSchema.safeParse([row({ status: "알수없음" })]);
     expect(result.success).toBe(false);

@@ -89,6 +89,38 @@ describe("planRoster()", () => {
     expect(plan.reassign).toHaveLength(0);
   });
 
+  describe("파일의 줄이 status: null(빈 학적)일 때 — Critical 결함 회귀", () => {
+    it("원래도 그 학년도 배정이 없었으면(before.status===null) 무변경이다 — " +
+      "왕복 불변식의 핵심: 배정 없는 학생을 그대로 다시 올려도 아무 분류에도 안 잡힌다", () => {
+      const 올해배정없음 = { ...재학생, status: null, grade: null, classNo: null, number: null };
+      const 빈줄 = row({ status: null, grade: null, classNo: null, number: null });
+
+      const plan = planRoster([빈줄], [올해배정없음]);
+
+      expect(plan.newAssignment).toHaveLength(0);
+      expect(plan.statusChange).toHaveLength(0);
+      expect(plan.reassign).toHaveLength(0);
+      expect(plan.needsAttention).toHaveLength(0);
+      expect(plan.missingFromFile).toHaveLength(0);
+      expect(plan.hasBlockingError).toBe(false);
+    });
+
+    it("원래는 배정이 있었는데(before.status!==null) 파일에서 학적이 비면 " +
+      "확인 필요로 보낸다 — 자동으로 배정을 지우지 않는다", () => {
+      const 빈줄 = row({ status: null, grade: null, classNo: null, number: null });
+
+      const plan = planRoster([빈줄], [재학생]);
+
+      expect(plan.newAssignment).toHaveLength(0);
+      expect(plan.statusChange).toHaveLength(0);
+      expect(plan.reassign).toHaveLength(0);
+      expect(plan.needsAttention).toHaveLength(1);
+      expect(plan.needsAttention[0]!.studentProfileId).toBe("sp-1");
+      expect(plan.needsAttention[0]!.reason).toContain("배정이 삭제됩니다");
+      expect(plan.hasBlockingError).toBe(true);
+    });
+  });
+
   it("학생코드가 같으면 이름이 달라도 같은 학생이다 (개명) — 매칭은 이름을 보지 않는다", () => {
     const plan = planRoster([row({ name: "개명후", classNo: 5 })], [재학생]);
 

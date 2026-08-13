@@ -163,6 +163,52 @@ describe("normalizeRows() — 학생코드", () => {
   });
 });
 
+describe("normalizeRows() — 학적·학년·반·번호가 빈 줄 (Critical 결함 회귀)", () => {
+  const HEADER_WITH_CODE = ["학생코드", "이름", "생년월일", "학년", "반", "번호", "학적"];
+
+  it("학적·학년·반·번호가 넷 다 비면 오류가 아니라 status:null로 통과시킨다 — " +
+    "그 학년도 Enrollment가 없는 학생(졸업 등)을 내보내면 정확히 이 모양이라, " +
+    "여기서 오류로 잡으면 내려받아 그대로 올리는 왕복이 성립하지 않는다", () => {
+    const rows = normalizeRows([
+      HEADER_WITH_CODE,
+      ["ABCD2345", "김동혁", "2010-07-28", "", "", "", ""],
+    ]);
+
+    expect(rows[0]!.errors).toEqual([]);
+    expect(rows[0]!.status).toBeNull();
+    expect(rows[0]!.grade).toBeNull();
+    expect(rows[0]!.classNo).toBeNull();
+    expect(rows[0]!.number).toBeNull();
+  });
+
+  it("학생코드가 없어도(신규 서식) 넷 다 비면 마찬가지로 오류가 아니다", () => {
+    const rows = normalizeRows([HEADER, ["김동혁", "2010-07-28", "", "", "", ""]]);
+
+    expect(rows[0]!.errors).toEqual([]);
+    expect(rows[0]!.status).toBeNull();
+  });
+
+  it("학적만 비고 학년·반·번호는 차 있으면 오류다 — 손댄 흔적이지 진짜 무배정이 아니다", () => {
+    const rows = normalizeRows([HEADER, ["김동혁", "2010-07-28", "1", "3", "3", ""]]);
+
+    expect(rows[0]!.errors.length).toBeGreaterThan(0);
+    expect(rows[0]!.errors.join()).toContain("학적");
+  });
+
+  it("학적은 있는데 학년·반·번호만 비면(재학) 지금처럼 오류다 — 회귀 방지", () => {
+    const rows = normalizeRows([HEADER, ["김동혁", "2010-07-28", "", "", "", "재학"]]);
+
+    expect(rows[0]!.errors.length).toBeGreaterThan(0);
+  });
+
+  it("졸업처럼 학적만 있고 학년·반·번호가 비는 기존 동작은 그대로다", () => {
+    const rows = normalizeRows([HEADER, ["김동혁", "2010-07-28", "", "", "", "졸업"]]);
+
+    expect(rows[0]!.errors).toEqual([]);
+    expect(rows[0]!.status).toBe("GRADUATED");
+  });
+});
+
 describe("parseCsv() + normalizeRows() — 회귀: 빈 줄 뒤 줄 번호", () => {
   it("CSV 중간에 빈 줄이 있어도 뒤 줄의 line이 파일 기준과 같다", () => {
     // 파일 기준 줄 번호: 1행 머리글, 2행 김동혁, 3행 빈 줄, 4행 이순신.

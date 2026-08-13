@@ -115,6 +115,78 @@ describe("왕복: 내보내기 → xlsx 바이트 → 파서 → 분류", () => 
     expect(plan.hasBlockingError).toBe(false);
   });
 
+  /**
+   * 이 브랜치의 대표 불변식이자 Critical 결함의 재현/회귀 테스트다.
+   *
+   * 그 학년도 Enrollment가 없는 학생(졸업 등, status === null)을 내보내면
+   * 학년·반·번호·학적이 전부 빈 칸이 된다 (buildExportRows). 고치지 않고 그대로
+   * 다시 올렸을 때 오류로 잡히면, 그 학생이 한 명이라도 섞인 파일은 영원히
+   * 확정할 수 없다 — 관리자가 막힌 걸 뚫으려 그 줄을 지우면 이번엔 계정 삭제가
+   * 된다(missingFromFile). 실제 xlsx 바이트로 왕복시켜 변경 0건임을 확인한다.
+   */
+  it("배정이 없는 학생(졸업 등)을 내려받아 그대로 올리면 변경 0건이다 — Critical 회귀", async () => {
+    const 배정없는학생: ExistingStudent = {
+      studentProfileId: "sp-2",
+      userId: "u-2",
+      studentCode: "BCDF2345",
+      name: "이순신",
+      birthDate: "1968-04-28",
+      grade: null,
+      classNo: null,
+      number: null,
+      status: null,
+      accountActive: false,
+    };
+
+    const plan = await exportAndReparse([재학생, 배정없는학생]);
+
+    expect(plan.newStudents).toHaveLength(0);
+    expect(plan.reassign).toHaveLength(0);
+    expect(plan.statusChange).toHaveLength(0);
+    expect(plan.newAssignment).toHaveLength(0);
+    expect(plan.needsAttention).toHaveLength(0);
+    expect(plan.errorRows).toHaveLength(0);
+    // status===null인 학생은 애초에 "그 학년도 배정"이 없으니 missingFromFile도
+    // 아니다 — missingFromFile은 status가 ENROLLED였던 학생만 센다.
+    expect(plan.missingFromFile).toHaveLength(0);
+    expect(plan.hasBlockingError).toBe(false);
+  });
+
+  it("여러 학생 중 일부만 배정이 없어도 왕복에서 나머지 반영은 그대로 0건이다", async () => {
+    const 배정없는학생: ExistingStudent = {
+      studentProfileId: "sp-2",
+      userId: "u-2",
+      studentCode: "BCDF2345",
+      name: "이순신",
+      birthDate: "1968-04-28",
+      grade: null,
+      classNo: null,
+      number: null,
+      status: null,
+      accountActive: false,
+    };
+    const 다른재학생: ExistingStudent = {
+      studentProfileId: "sp-3",
+      userId: "u-3",
+      studentCode: "CDEF2345",
+      name: "강감찬",
+      birthDate: "2009-12-01",
+      grade: 3,
+      classNo: 2,
+      number: 15,
+      status: "ENROLLED",
+      accountActive: true,
+    };
+
+    const plan = await exportAndReparse([재학생, 배정없는학생, 다른재학생]);
+
+    expect(plan.newStudents).toHaveLength(0);
+    expect(plan.needsAttention).toHaveLength(0);
+    expect(plan.errorRows).toHaveLength(0);
+    expect(plan.missingFromFile).toHaveLength(0);
+    expect(plan.hasBlockingError).toBe(false);
+  });
+
   it("반을 5로 고쳐 올리면 재배정 1건이다", async () => {
     const exportable: ExportStudent[] = [
       { ...재학생, classNo: 5, entryClassNo: 재학생.classNo, entryNumber: 재학생.number },

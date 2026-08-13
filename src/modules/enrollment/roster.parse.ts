@@ -166,35 +166,55 @@ export function normalizeRows(table: string[][]): RosterRow[] {
     if (!birthDate) errors.push("생년월일을 읽을 수 없습니다.");
 
     const statusLabel = cell(raw, "학적");
-    const status = STATUS_BY_LABEL.get(statusLabel) ?? null;
-    if (!status) {
-      errors.push(
-        `학적이 올바르지 않습니다. (${[...STATUS_BY_LABEL.keys()].join("·")} 중 하나)`,
-      );
-    }
+    const gradeRaw = cell(raw, "학년");
+    const classNoRaw = cell(raw, "반");
+    const numberRaw = cell(raw, "번호");
 
-    const grade = toInt(cell(raw, "학년"));
-    const classNo = toInt(cell(raw, "반"));
-    const number = toInt(cell(raw, "번호"));
+    // 학적·학년·반·번호가 넷 다 비면 "이 학년도 배정 없음"이다 — 오류가 아니다.
+    // roster.export.ts의 buildExportRows가 그 학년도 Enrollment가 없는 학생(졸업 등)을
+    // 정확히 이 모양(넷 다 빈칸)으로 낸다. 여기서 오류로 잡으면 "내려받아 그대로 올리면
+    // 변경 0건"이라는 왕복 불변식이 깨져, 배정 없는 학생이 한 줄이라도 섞인 파일은
+    // 영원히 확정할 수 없게 된다.
+    // 넷 중 일부만 비면(예: 학적만 지움) 얘기가 다르다 — 손댄 흔적이므로 아래에서
+    // 그대로 오류로 잡는다.
+    const noAssignment = !statusLabel && !gradeRaw && !classNoRaw && !numberRaw;
 
-    // 반과 번호는 재학일 때만 의미가 있다. 졸업·자퇴 줄에 비어 있는 건 정상이다.
-    if (status === "ENROLLED" && (grade === null || classNo === null || number === null)) {
-      errors.push("재학이면 학년·반·번호가 모두 있어야 합니다.");
-    }
+    let status: EnrollmentStatus | null = null;
+    let grade: number | null = null;
+    let classNo: number | null = null;
+    let number: number | null = null;
 
-    // 표 편집 경로(enrollment.schema.ts)와 같은 범위를 여기서도 강제한다.
-    // 안 그러면 "학년 11" 같은 오타가 미리보기를 그냥 통과해 SchoolClass에
-    // 그대로 저장된다 — 미리보기가 확정 전에 실수를 잡으라고 있는 것인데
-    // 이 경로만 비어 있으면 그 존재 이유가 사라진다.
-    if (status === "ENROLLED") {
-      if (grade !== null && (grade < MIN_GRADE || grade > MAX_GRADE)) {
-        errors.push(GRADE_RANGE_MESSAGE);
+    if (!noAssignment) {
+      status = STATUS_BY_LABEL.get(statusLabel) ?? null;
+      if (!status) {
+        errors.push(
+          `학적이 올바르지 않습니다. (${[...STATUS_BY_LABEL.keys()].join("·")} 중 하나)`,
+        );
       }
-      if (classNo !== null && (classNo < MIN_CLASS_NO || classNo > MAX_CLASS_NO)) {
-        errors.push(CLASS_NO_RANGE_MESSAGE);
+
+      grade = toInt(gradeRaw);
+      classNo = toInt(classNoRaw);
+      number = toInt(numberRaw);
+
+      // 반과 번호는 재학일 때만 의미가 있다. 졸업·자퇴 줄에 비어 있는 건 정상이다.
+      if (status === "ENROLLED" && (grade === null || classNo === null || number === null)) {
+        errors.push("재학이면 학년·반·번호가 모두 있어야 합니다.");
       }
-      if (number !== null && (number < MIN_NUMBER || number > MAX_NUMBER)) {
-        errors.push(NUMBER_RANGE_MESSAGE);
+
+      // 표 편집 경로(enrollment.schema.ts)와 같은 범위를 여기서도 강제한다.
+      // 안 그러면 "학년 11" 같은 오타가 미리보기를 그냥 통과해 SchoolClass에
+      // 그대로 저장된다 — 미리보기가 확정 전에 실수를 잡으라고 있는 것인데
+      // 이 경로만 비어 있으면 그 존재 이유가 사라진다.
+      if (status === "ENROLLED") {
+        if (grade !== null && (grade < MIN_GRADE || grade > MAX_GRADE)) {
+          errors.push(GRADE_RANGE_MESSAGE);
+        }
+        if (classNo !== null && (classNo < MIN_CLASS_NO || classNo > MAX_CLASS_NO)) {
+          errors.push(CLASS_NO_RANGE_MESSAGE);
+        }
+        if (number !== null && (number < MIN_NUMBER || number > MAX_NUMBER)) {
+          errors.push(NUMBER_RANGE_MESSAGE);
+        }
       }
     }
 
