@@ -52,6 +52,16 @@ function statusLabel(status: string | null): string {
   return ENROLLMENT_STATUS_LABELS[status as EnrollmentStatus] ?? status;
 }
 
+/** 학적변동·신규 배정 줄에 라벨만 보이면 몇 학년 몇 반 몇 번인지 알 수 없다 (I7). */
+function statusWithSeatLabel(row: {
+  status: string | null;
+  grade: number | null;
+  classNo: number | null;
+  number: number | null;
+}): string {
+  return `${statusLabel(row.status)} · ${seatLabel(row)}`;
+}
+
 /*
  * 두 폼(미리보기·확정)은 형제로 둔다 — HTML은 <form> 중첩을 허용하지 않는다.
  * 각 폼이 자기 결과(useActionState)를 직접 렌더한다. 부모가 자식의 성공 여부를
@@ -179,7 +189,11 @@ function PreviewCard({
 
         <PlannedGroup title="신규" count={plan.newStudents.length} defaultOpen={false}>
           {plan.newStudents.map((r) => (
-            <PlannedRowItem key={`new-${r.line}`} name={r.name} detail={seatLabel(r)} />
+            <PlannedRowItem
+              key={`new-${r.line}`}
+              name={r.name}
+              detail={r.status === "ENROLLED" ? seatLabel(r) : "코드 발급 안 함"}
+            />
           ))}
         </PlannedGroup>
 
@@ -189,12 +203,26 @@ function PreviewCard({
           ))}
         </PlannedGroup>
 
+        <PlannedGroup
+          title="새 학년도 배정"
+          count={plan.newAssignment.length}
+          defaultOpen={false}
+        >
+          {plan.newAssignment.map((r) => (
+            <PlannedRowItem
+              key={`newassign-${r.line}`}
+              name={r.name}
+              detail={statusWithSeatLabel(r)}
+            />
+          ))}
+        </PlannedGroup>
+
         <PlannedGroup title="학적변동" count={plan.statusChange.length} defaultOpen={false}>
           {plan.statusChange.map((r) => (
             <PlannedRowItem
               key={`status-${r.line}`}
               name={r.name}
-              detail={statusLabel(r.status)}
+              detail={statusWithSeatLabel(r)}
             />
           ))}
         </PlannedGroup>
@@ -318,7 +346,11 @@ function InvitesResult({
         </Button>
       </div>
       <p className="mt-1 text-[12px] text-mut">
-        이 화면을 벗어나면 코드를 다시 모아볼 수 없습니다. 지금 내려받아 두세요.
+        코드는{" "}
+        <Link href="/admin/invites" className="font-semibold text-pri hover:underline">
+          초대 관리
+        </Link>
+        에서도 다시 확인할 수 있습니다. 한 번에 내려받으려면 지금 받아 두세요.
       </p>
 
       <div className="mt-3 overflow-x-auto">
