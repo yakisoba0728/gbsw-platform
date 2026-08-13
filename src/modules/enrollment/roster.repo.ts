@@ -146,6 +146,10 @@ export async function applyRoster(year: number, input: ApplyInput) {
 
           // 학생이 만든 학부모 코드가 createdById(Restrict)로 삭제를 막는다. 먼저 치운다.
           await tx.invite.deleteMany({ where: { createdById: { in: deleteUserIds } } });
+          // 그 학생을 만든 초대는 usedById가 SetNull이라 행이 남는다 — metadata에 이름·생년월일이
+          // 들어 있으므로 계정을 지우기 전에 함께 정리한다. 지운 뒤에는 usedById가 null이 되어
+          // 어느 초대가 그 학생 것이었는지 특정할 방법이 없다.
+          await tx.invite.deleteMany({ where: { usedById: { in: deleteUserIds } } });
           // user를 지우면 session·account·StudentProfile이 Cascade로 함께 사라지고,
           // StudentProfile에 딸린 Enrollment·ParentStudent도 이어서 정리된다.
           // 연결된 학부모 계정은 ParentStudent 연결만 끊기고 계정 자체는 남는다 —

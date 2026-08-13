@@ -136,6 +136,27 @@ describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
       expect(call).toBeGreaterThan(userDeleteOrder);
     }
   });
+
+  it("그 학생을 만든 초대(usedById)도 계정을 지우기 전에 지운다 (I1) — " +
+    "SetNull이라 행만 남으면 metadata의 이름·생년월일이 삭제된 뒤에도 남는다", async () => {
+    studentProfileFindMany.mockResolvedValue([{ userId: "u-del-1" }, { userId: "u-del-2" }]);
+
+    await applyRoster(2026, input({ deleteStudentProfileIds: ["sp-del-1", "sp-del-2"] }));
+
+    expect(inviteDeleteMany).toHaveBeenCalledWith({
+      where: { usedById: { in: ["u-del-1", "u-del-2"] } },
+    });
+
+    // usedById 정리는 createdById 정리와 마찬가지로 user.deleteMany보다 먼저 끝나야
+    // 한다 — 지운 뒤에는 usedById가 SetNull로 비어 어느 초대가 그 학생 것이었는지
+    // 특정할 방법이 없다.
+    const usedByIdCall = inviteDeleteMany.mock.calls.findIndex(
+      (call) => (call[0] as { where: { usedById?: unknown } }).where.usedById !== undefined,
+    );
+    const usedByIdOrder = inviteDeleteMany.mock.invocationCallOrder[usedByIdCall]!;
+    const userDeleteOrder = userDeleteMany.mock.invocationCallOrder[0]!;
+    expect(userDeleteOrder).toBeGreaterThan(usedByIdOrder);
+  });
 });
 
 describe("applyRoster()", () => {
