@@ -157,6 +157,10 @@ function UploadCard({
             첫 열(학생코드)은 학생을 알아보는 유일한 기준입니다. 지우거나 고치지
             마세요 — 비워 두면 같은 학생도 새 학생으로 등록됩니다.
           </p>
+          <p className="mt-1 text-[12px] text-mut">
+            이름·생년월일은 여기서 고쳐도 반영되지 않습니다 — 학생 상세 화면에서만
+            고칠 수 있습니다. 이 파일에서는 등록된 값과 대조하는 용도로만 씁니다.
+          </p>
         </div>
 
         <div className="flex shrink-0 flex-col items-end gap-1.5">
@@ -261,7 +265,12 @@ function PreviewCard({
 
         <PlannedGroup title="재배정" count={plan.reassign.length} defaultOpen={false}>
           {plan.reassign.map((r) => (
-            <PlannedRowItem key={`reassign-${r.line}`} name={r.name} detail={seatLabel(r)} />
+            <PlannedRowItem
+              key={`reassign-${r.line}`}
+              name={r.name}
+              beforeName={r.beforeName}
+              detail={seatLabel(r)}
+            />
           ))}
         </PlannedGroup>
 
@@ -284,6 +293,7 @@ function PreviewCard({
             <PlannedRowItem
               key={`status-${r.line}`}
               name={r.name}
+              beforeName={r.beforeName}
               detail={statusWithSeatLabel(r)}
             />
           ))}
@@ -490,10 +500,23 @@ function PlannedGroup({
   );
 }
 
-function PlannedRowItem({ name, detail }: { name: string; detail: string }) {
+/** beforeName: 학생코드로 이어진 DB 쪽 이름. 파일의 이름(name)만 보여주면 무엇에
+ * 이어졌는지 화면만으로는 확인할 길이 없다 — 등록명을 나란히 보여준다. */
+function PlannedRowItem({
+  name,
+  beforeName,
+  detail,
+}: {
+  name: string;
+  beforeName?: string | null;
+  detail: string;
+}) {
   return (
     <li className="flex items-center justify-between py-2 text-[13px]">
-      <span className="font-semibold text-ink">{name}</span>
+      <span className="font-semibold text-ink">
+        {name}
+        {beforeName && <span className="ml-1.5 font-normal text-mut">(등록명: {beforeName})</span>}
+      </span>
       <span className="text-mut">{detail}</span>
     </li>
   );

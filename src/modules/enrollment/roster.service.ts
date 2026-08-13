@@ -105,6 +105,7 @@ export async function applyRosterPlan(
       status: s.status as RosterRow["status"],
       errors: [],
       studentProfileId: s.studentProfileId,
+      beforeName: s.name,
     }));
 
   // 기존 Enrollment.status와 다른 항목만 계정 상태를 건드린다 (C1) — enrollment.repo.ts의

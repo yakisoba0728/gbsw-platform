@@ -49,7 +49,13 @@ describe("planRoster()", () => {
   });
 
   it("학생코드가 비면 신규다 — 초대코드가 나갈 대상", () => {
-    const plan = planRoster([row({ studentCode: "" })], [재학생]);
+    // 이름·생년월일을 기존 학생과 다르게 둔다 — 같으면 "코드가 지워진 것 같다"는
+    // needsAttention 상관관계(아래 describe 참고)에 걸려 이 테스트의 의도(순수 신규)와
+    // 섞인다.
+    const plan = planRoster(
+      [row({ studentCode: "", name: "새학생", birthDate: "2012-01-01" })],
+      [재학생],
+    );
 
     expect(plan.newStudents).toHaveLength(1);
     expect(plan.newStudents[0]!.studentProfileId).toBeNull();
@@ -121,13 +127,30 @@ describe("planRoster()", () => {
     });
   });
 
-  it("학생코드가 같으면 이름이 달라도 같은 학생이다 (개명) — 매칭은 이름을 보지 않는다", () => {
+  it("학생코드는 맞는데 이름이 등록된 값과 다르면 확인 필요로 보낸다 — " +
+    "이름 대조를 없앤 대가라 한 열만 밀려도 두 학생이 조용히 맞바뀔 수 있다. " +
+    "매칭 자체는 여전히 코드로만 하되(studentProfileId는 정확히 잇는다), 자동으로 " +
+    "반영하지 않고 사람이 보게 한다. 진짜 개명이면 상세 화면에서 이름을 먼저 고친다.", () => {
     const plan = planRoster([row({ name: "개명후", classNo: 5 })], [재학생]);
 
     expect(plan.newStudents).toHaveLength(0);
-    expect(plan.needsAttention).toHaveLength(0);
-    expect(plan.reassign).toHaveLength(1);
-    expect(plan.reassign[0]!.studentProfileId).toBe("sp-1");
+    expect(plan.reassign).toHaveLength(0);
+    expect(plan.needsAttention).toHaveLength(1);
+    expect(plan.needsAttention[0]!.studentProfileId).toBe("sp-1");
+    expect(plan.needsAttention[0]!.reason).toContain(
+      "파일의 이름/생년월일이 등록된 학생과 다릅니다",
+    );
+    expect(plan.hasBlockingError).toBe(true);
+  });
+
+  it("학생코드는 맞는데 생년월일이 등록된 값과 다르면 확인 필요로 보낸다", () => {
+    const plan = planRoster([row({ birthDate: "1999-09-09" })], [재학생]);
+
+    expect(plan.reassign).toHaveLength(0);
+    expect(plan.needsAttention).toHaveLength(1);
+    expect(plan.needsAttention[0]!.reason).toContain(
+      "파일의 이름/생년월일이 등록된 학생과 다릅니다",
+    );
   });
 
   it("이름·생년월일이 완전히 같아도 학생코드가 다르면 각각 다른 학생이다 — " +
@@ -241,5 +264,51 @@ describe("planRoster() + normalizeRows() — 회귀: 명단 업로드의 학년�
     const plan = planRoster(rows, []);
     expect(plan.newStudents).toHaveLength(1);
     expect(plan.hasBlockingError).toBe(false);
+  });
+
+  describe("학생코드 열이 없는 파일 × 재학생이 있는 학교 — Important 결함 상호작용", () => {
+    it("학년도 전환 직후(모든 재학생이 아직 이번 학년도 배정이 없음)라면 " +
+      "막지 않는다 — 대조할 '명단에 없는 재학생'이 없으므로 신규로 그대로 접수한다. " +
+      "안내 문구(fileNotices)가 유일한 방어선이다", () => {
+        const 배정없는재학생 = {
+          studentProfileId: "sp-1",
+          userId: "u-1",
+          studentCode: "AAAA1111",
+          name: "김동혁",
+          birthDate: "2010-07-28",
+          grade: null,
+          classNo: null,
+          number: null,
+          status: null,
+          accountActive: true,
+        };
+        const rows = normalizeRows([
+          HEADER,
+          ["김동혁", "2010-07-28", "1", "3", "3", "재학"],
+        ]);
+
+        const plan = planRoster(rows, [배정없는재학생]);
+
+        expect(plan.newStudents).toHaveLength(1);
+        expect(plan.needsAttention).toHaveLength(0);
+        expect(plan.hasBlockingError).toBe(false);
+      });
+
+    it("이미 배정된 재학생이 있는 학년도 중간에 이 파일을 올리면 " +
+      "전교 배정 초기화(모두 신규 + 모두 명단에 없는 재학생)를 확정이 막는다 — " +
+      "이름·생년월일이 일치하는 재학생마다 코드가 지워진 것으로 의심해 확인 필요로 보낸다", () => {
+      const rows = normalizeRows([
+        HEADER,
+        ["김동혁", "2010-07-28", "1", "3", "3", "재학"],
+      ]);
+
+      const plan = planRoster(rows, [재학생]);
+
+      expect(plan.newStudents).toHaveLength(0);
+      expect(plan.needsAttention).toHaveLength(1);
+      expect(plan.needsAttention[0]!.reason).toContain("학생코드가 지워진 것 같습니다");
+      expect(plan.missingFromFile).toHaveLength(1);
+      expect(plan.hasBlockingError).toBe(true);
+    });
   });
 });

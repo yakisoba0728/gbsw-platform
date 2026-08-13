@@ -64,6 +64,7 @@ function assignment(overrides: Partial<RosterAssignment> = {}): RosterAssignment
     status: "ENROLLED",
     errors: [],
     studentProfileId: "sp-1",
+    beforeName: "김동혁",
     statusChanged: false,
     ...overrides,
   };
@@ -195,6 +196,7 @@ describe("applyRoster()", () => {
               status: "ENROLLED",
               errors: [],
               studentProfileId: null,
+              beforeName: null,
             },
             code: "GBSWNEW1",
           },
@@ -235,6 +237,7 @@ describe("applyRoster()", () => {
                 status: "ENROLLED",
                 errors: [],
                 studentProfileId: null,
+                beforeName: null,
               },
               code: "GBSWDUP1",
             },

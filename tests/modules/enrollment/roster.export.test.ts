@@ -209,7 +209,8 @@ describe("왕복: 내보내기 → xlsx 바이트 → 파서 → 분류", () => 
     expect(plan.hasBlockingError).toBe(false);
   });
 
-  it("학생코드를 지우고 올리면 같은 사람도 신규 1건으로 잡힌다 (의도된 동작)", async () => {
+  it("학생코드를 지우고 올리면 신규로 잡히지 않고 확인 필요로 간다 — " +
+    "이름·생년월일이 명단에 없는 재학생과 일치하니 코드가 지워진 것으로 의심한다", async () => {
     const rows = buildExportRows([
       { ...재학생, studentCode: "", entryClassNo: 재학생.classNo, entryNumber: 재학생.number },
     ]);
@@ -224,9 +225,13 @@ describe("왕복: 내보내기 → xlsx 바이트 → 파서 → 분류", () => 
     const parsed = await parseRoster({ filename: "roundtrip.xlsx", buffer });
     const plan = planRoster(parsed, [재학생]);
 
-    expect(plan.newStudents).toHaveLength(1);
-    // 기존 학생은 더 이상 파일에서 이어지지 않으니 "명단에 없는 재학생"으로도 잡힌다.
+    expect(plan.newStudents).toHaveLength(0);
+    expect(plan.needsAttention).toHaveLength(1);
+    expect(plan.needsAttention[0]!.reason).toContain("학생코드가 지워진 것 같습니다");
+    // 기존 학생은 더 이상 파일에서 이어지지 않으니 "명단에 없는 재학생"으로도 잡힌다 —
+    // 둘을 나란히 보여줘야 관리자가 "코드가 지워졌다"로 읽을 수 있다.
     expect(plan.missingFromFile).toHaveLength(1);
+    expect(plan.hasBlockingError).toBe(true);
   });
 
   it("엑셀이 학생코드를 수로 바꾸지 않는다 — 문자열로 강제해서 지수 표기가 안 생긴다", async () => {

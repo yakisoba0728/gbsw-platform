@@ -23,7 +23,13 @@ export type ExistingStudent = {
   accountActive: boolean;
 };
 
-export type PlannedRow = RosterRow & { studentProfileId: string | null };
+export type PlannedRow = RosterRow & {
+  studentProfileId: string | null;
+  /** 학생코드로 이어진 DB 쪽 이름. 매칭이 코드로만 되고 화면은 파일의 이름을
+   * 보여주므로, 실제로 무엇에 이어졌는지 사람이 눈으로 다시 확인할 수 있게 둔다.
+   * 코드가 없거나(신규) DB에 없는 코드면 null이다. */
+  beforeName: string | null;
+};
 
 export type RosterPlan = {
   newStudents: PlannedRow[];
@@ -104,7 +110,9 @@ export function planRoster(
 
     if (!r.studentCode) {
       // 빈 학생코드 = 신규. 예전 서식(학생코드 열이 아예 없음)에서는 전 줄이 여기로 온다.
-      plan.newStudents.push({ ...r, studentProfileId: null });
+      // 이름+생년월일이 missingFromFile 학생과 겹치는지는 matchedIds가 다 모인 뒤에야
+      // 판단할 수 있다 — 아래 루프 뒤에서 다시 훑어 needsAttention으로 옮긴다.
+      plan.newStudents.push({ ...r, studentProfileId: null, beforeName: null });
       continue;
     }
 
@@ -114,13 +122,31 @@ export function planRoster(
       plan.needsAttention.push({
         ...r,
         studentProfileId: null,
+        beforeName: null,
         reason: "명단에 없는 학생코드입니다. 오타이거나 다른 학교 파일일 수 있습니다.",
       });
       continue;
     }
 
     matchedIds.add(before.studentProfileId);
-    const planned: PlannedRow = { ...r, studentProfileId: before.studentProfileId };
+    const planned: PlannedRow = {
+      ...r,
+      studentProfileId: before.studentProfileId,
+      beforeName: before.name,
+    };
+
+    // 이름 대조를 없앤 대가다 — 엑셀에서 한 열만 밀리면 학생코드만 어긋난 파일이
+    // 되는데, 코드만 보고 이으면 오류도 확인도 없이 두 학생의 자리가 서로
+    // 바뀐다. 코드는 맞는데 이름·생년월일이 등록된 값과 다르면 사람이 봐야 한다.
+    if (r.name !== before.name || r.birthDate !== before.birthDate) {
+      plan.needsAttention.push({
+        ...planned,
+        reason:
+          `파일의 이름/생년월일이 등록된 학생과 다릅니다. ` +
+          `(등록된 값: ${before.name} · ${before.birthDate})`,
+      });
+      continue;
+    }
 
     if (r.status === null) {
       // 학적·학년·반·번호가 넷 다 빈 줄이다 (normalizeRows가 오류로 잡지 않는다).
@@ -162,6 +188,28 @@ export function planRoster(
   plan.missingFromFile = existing.filter(
     (s) => s.status === "ENROLLED" && !matchedIds.has(s.studentProfileId),
   );
+
+  // 신규 줄인데 이름+생년월일이 "명단에 없는 재학생"과 일치하면 학생코드 칸만 지워진
+  // 것으로 의심한다. 지금까지는 신규 쪽과 missingFromFile 쪽을 따로 보여줘서 둘을
+  // 이어 읽지 않으면 "코드가 지워졌다"로 읽히지 않았다 — 여기서 명시적으로 연결한다.
+  // 자동으로 이어붙이지는 않는다(studentProfileId는 여전히 null) — 잘못 이으면 남의
+  // 학생코드가 그대로 붙어버리는, 이 기능이 막으려는 바로 그 사고가 난다.
+  const stillNew: PlannedRow[] = [];
+  for (const r of plan.newStudents) {
+    const match = plan.missingFromFile.find(
+      (s) => s.name === r.name && s.birthDate === r.birthDate,
+    );
+    if (match) {
+      plan.needsAttention.push({
+        ...r,
+        beforeName: match.name,
+        reason: `학생코드가 지워진 것 같습니다. (일치하는 재학생의 기존 코드: ${match.studentCode})`,
+      });
+    } else {
+      stillNew.push(r);
+    }
+  }
+  plan.newStudents = stillNew;
 
   plan.hasBlockingError =
     plan.errorRows.length > 0 || plan.needsAttention.length > 0;
