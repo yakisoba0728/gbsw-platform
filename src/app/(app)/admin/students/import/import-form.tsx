@@ -16,7 +16,7 @@ import {
   ROSTER_INFO_COLUMNS,
 } from "@/modules/enrollment/roster.export";
 import type { RosterRow } from "@/modules/enrollment/roster.parse";
-import type { RosterPlan } from "@/modules/enrollment/roster.plan";
+import { bulkDeleteThreshold, type RosterPlan } from "@/modules/enrollment/roster.plan";
 import { APPLY_INITIAL, PREVIEW_INITIAL } from "./action-state";
 import { applyRosterAction, exportRosterAction, previewRosterAction } from "./actions";
 
@@ -240,13 +240,23 @@ function PreviewCard({
     applyRosterAction,
     APPLY_INITIAL,
   );
-  // 삭제 확인 체크박스. 서버가 confirmDeletion으로 다시 강제하지만(applyRosterPlan),
-  // 화면에서도 막아야 관리자가 배너를 안 읽고 실수로 확정을 누르는 걸 줄인다.
+  // 삭제 확인 체크박스. 서버가 삭제 대상 id 집합·건수를 다시 대조해 강제하지만
+  // (applyRosterPlan, I-2·I-3), 화면에서도 막아야 관리자가 배너를 안 읽고 실수로
+  // 확정을 누르는 걸 줄인다.
   const [deletionConfirmed, setDeletionConfirmed] = useState(false);
+  // 대량 삭제(I-3) 확인용으로 관리자가 직접 입력하는 건수. 문자열로 들고 있다가
+  // 제출 시에만 숫자와 대조한다 — 입력 중간값("1", "10" 앞자리)도 그대로 보여줘야
+  // 한다.
+  const [typedDeleteCount, setTypedDeleteCount] = useState("");
 
   const applied = applyState.saved !== null && !applyState.error;
   const issueCount = plan.errorRows.length + plan.needsAttention.length;
   const deleteCount = plan.missingFromFile.length;
+  // "10명 또는 전체 학생의 10% 중 큰 쪽" — roster.plan.ts와 정확히 같은 계산이어야
+  // 화면이 입력칸을 보여주는 조건과 서버가 건수를 요구하는 조건이 어긋나지 않는다.
+  const bulkThreshold = bulkDeleteThreshold(plan.totalStudents);
+  const requiresCountConfirmation = deleteCount > bulkThreshold;
+  const countConfirmationMatches = Number(typedDeleteCount) === deleteCount;
 
   return (
     <section className="rounded-card border border-line bg-surface">
@@ -383,13 +393,20 @@ function PreviewCard({
           <form action={applyAction} className="flex flex-col gap-3">
             <input type="hidden" name="rows" value={JSON.stringify(rows)} />
             <input type="hidden" name="year" value={year} />
-            {/* 서버(applyRosterPlan의 confirmDeletion)가 다시 강제하지만, 체크
-                상태를 hidden input으로 실어 보내야 확인 없이는 서버도 거부한다. */}
+            {/* 서버(applyRosterPlan)가 미리보기 이후 다시 세운 삭제 대상 집합과
+                대조하지만(I-2), 체크한 시점에 화면이 본 id 목록을 실어 보내야 그
+                대조가 성립한다. 체크 전에는 빈 배열 — 빈 배열 자체가 "확인 안
+                함"이므로 별도의 boolean 필드는 없다. */}
             <input
               type="hidden"
-              name="confirmDeletion"
-              value={deletionConfirmed ? "true" : "false"}
+              name="confirmedDeletionIds"
+              value={JSON.stringify(
+                deletionConfirmed ? plan.missingFromFile.map((s) => s.studentProfileId) : [],
+              )}
             />
+            {/* 대량 삭제(I-3)에서만 서버가 이 값을 본다 — 임계 이하에서는 빈
+                문자열을 보내고 서버도 무시한다. */}
+            <input type="hidden" name="deletionCount" value={typedDeleteCount} />
             {deleteCount > 0 && (
               <label className="flex items-start gap-2 text-[13px] font-semibold text-rose">
                 <input
@@ -403,6 +420,22 @@ function PreviewCard({
                 </span>
               </label>
             )}
+            {requiresCountConfirmation && (
+              <label className="flex flex-col gap-1 text-[13px] font-semibold text-rose">
+                <span>
+                  {deleteCount}명은 대량 삭제입니다. 잘못된 파일을 올렸을 때 마지막
+                  방어선이 되도록, 삭제할 인원 수를 직접 입력해야 확정할 수 있습니다.
+                </span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={typedDeleteCount}
+                  onChange={(e) => setTypedDeleteCount(e.target.value)}
+                  placeholder="삭제할 인원 수"
+                  className="w-40 rounded-btn border border-rose-line bg-surface px-3 py-2 text-[13px] font-semibold text-ink"
+                />
+              </label>
+            )}
             <div className="flex justify-end">
               <Button
                 type="submit"
@@ -410,7 +443,8 @@ function PreviewCard({
                 disabled={
                   applying ||
                   plan.hasBlockingError ||
-                  (deleteCount > 0 && !deletionConfirmed)
+                  (deleteCount > 0 && !deletionConfirmed) ||
+                  (requiresCountConfirmation && !countConfirmationMatches)
                 }
               >
                 {applying

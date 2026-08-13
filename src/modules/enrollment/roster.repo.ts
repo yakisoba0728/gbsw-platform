@@ -105,8 +105,8 @@ export type ApplyInput = {
    */
   managedStudentProfileIds: string[];
   /**
-   * 명단에서 빠진 학생 — **계정째 지운다.** service의 confirmDeletion 게이트를
-   * 통과한 뒤에만 여기 온다. 되돌릴 수 없다.
+   * 명단에서 빠진 학생 — **계정째 지운다.** service의 삭제 확인 게이트(확인 id
+   * 집합 대조 + 대량 삭제 건수 대조)를 통과한 뒤에만 여기 온다. 되돌릴 수 없다.
    */
   deleteStudentProfileIds: string[];
   createdById: string;

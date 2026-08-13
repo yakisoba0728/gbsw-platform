@@ -5,7 +5,7 @@ import { generateUniqueCode, toExpiresAt } from "@/modules/invites/invite.servic
 import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
 import { buildExportRows } from "./roster.export";
 import { parseRoster, type RosterRow } from "./roster.parse";
-import { planRoster, type RosterPlan } from "./roster.plan";
+import { bulkDeleteThreshold, planRoster, type RosterPlan } from "./roster.plan";
 import * as repo from "./roster.repo";
 
 export class RosterError extends Error {}
@@ -59,16 +59,28 @@ export async function exportRoster(
  * 클라이언트가 돌려보낸 행을 **서버가 다시 분류한다.** 미리보기 결과를 그대로 믿으면
  * 중간에 손댄 값이 그대로 들어가고, 그 사이 DB가 바뀌었을 수도 있다.
  *
- * `confirmDeletion`은 명단에 없는 학생(missingFromFile)이 하나라도 있을 때만 의미가
- * 있다 — 계정 삭제는 이 시스템에서 되돌릴 수 없는 유일한 동작이라, 화면 체크박스만이
- * 아니라 서버가 다시 강제한다. 서버 액션을 직접 호출하면 화면의 체크박스는 건너뛸 수
- * 있기 때문이다.
+ * `confirmedDeletionIds`는 미리보기가 관리자에게 보여준 삭제 대상(missingFromFile)의
+ * studentProfileId 목록이다 — boolean 플래그가 아니라 **집합**을 받는 이유는, 확정
+ * 시점에 서비스가 삭제 대상을 다시 계산하기 때문이다(I-2). 그 사이 DB가 바뀌면(예:
+ * 파일에 없던 학생이 초대코드로 막 가입해 새 StudentProfile이 생기면) boolean만으로는
+ * "삭제에 동의했다"는 사실과 "무엇을 보고 동의했는지"를 구분할 수 없어, 관리자가 본
+ * 적 없는 학생이 조용히 삭제될 수 있다. 서비스가 다시 세운 집합과 이 목록을 대조해
+ * 다르면 거부한다. 빈 배열이 곧 "확인 안 함"이다.
+ *
+ * `deletionCountConfirmation`은 삭제 건수가 임계(bulkDeleteThreshold)를 넘는 대량
+ * 삭제에서만 의미가 있다(I-3) — 잘못된 파일(다른 학년만 담긴 파일, 다른 학교 파일)을
+ * 올렸을 때 체크박스 하나가 마지막 방어선이 되지 않도록, 관리자가 직접 센 건수와
+ * 서버가 다시 계산한 건수를 대조한다.
+ *
+ * 되돌릴 수 없는 유일한 동작이라 화면 체크박스·입력칸만이 아니라 서버가 다시
+ * 강제한다. 서버 액션을 직접 호출하면 화면의 확인 절차는 건너뛸 수 있기 때문이다.
  */
 export async function applyRosterPlan(
   actor: SessionUser,
   expectedYear: number,
   rows: RosterRow[],
-  confirmDeletion: boolean,
+  confirmedDeletionIds: string[],
+  deletionCountConfirmation: number | null,
 ): Promise<{ saved: number; invites: Awaited<ReturnType<typeof repo.applyRoster>>["invites"] }> {
   assertMayImport(actor);
 
@@ -93,10 +105,23 @@ export async function applyRosterPlan(
     throw new RosterError("CANNOT_DELETE_SELF");
   }
 
-  // 되돌릴 수 없는 유일한 동작이라 서버가 확인을 강제한다. 화면 체크박스만으로는
-  // 서버 액션을 직접 부르는 경로를 막지 못한다.
-  if (plan.missingFromFile.length > 0 && !confirmDeletion) {
-    throw new RosterError("DELETION_NOT_CONFIRMED");
+  // I-2: 미리보기가 보여준 삭제 대상과 지금 다시 세운 삭제 대상이 정확히 같은
+  // 집합이어야 한다. 순서·중복은 의미가 없으므로 Set으로 비교한다 — 관리자가
+  // 확인 체크를 하지 않아 빈 배열을 보낸 경우도 여기서 걸린다(빈 배열 ≠ 비어있지
+  // 않은 삭제 대상 집합).
+  const currentDeletionIds = new Set(plan.missingFromFile.map((m) => m.studentProfileId));
+  const confirmedSet = new Set(confirmedDeletionIds);
+  const deletionSetMatches =
+    currentDeletionIds.size === confirmedSet.size &&
+    [...currentDeletionIds].every((id) => confirmedSet.has(id));
+  if (!deletionSetMatches) throw new RosterError("DELETION_SET_CHANGED");
+
+  // I-3: 삭제 건수가 임계를 넘으면 체크박스만으로 부족하다 — 관리자가 직접 입력한
+  // 건수가 서버가 다시 센 건수와 정확히 같아야 한다. 임계 이하에서는
+  // deletionCountConfirmation을 보지 않는다(화면에 입력칸 자체가 없다).
+  const deleteCount = plan.missingFromFile.length;
+  if (deleteCount > bulkDeleteThreshold(plan.totalStudents) && deletionCountConfirmation !== deleteCount) {
+    throw new RosterError("DELETION_COUNT_MISMATCH");
   }
 
   const userIdByProfile = new Map(existing.map((s) => [s.studentProfileId, s.userId]));

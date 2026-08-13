@@ -47,12 +47,39 @@ export type RosterPlan = {
   /**
    * 명단 파일에 없는 학생 = **삭제 대상**. 파일이 전교생 완성본(배정 없는 학생도 빈
    * 줄로 나간다)이므로, 재학·졸업·자퇴 등 학적과 무관하게 명단에 없으면 전부 여기
-   * 온다. 확정하면 계정째 지워진다(applyRosterPlan의 confirmDeletion 게이트를 거친다).
+   * 온다. 확정하면 계정째 지워진다 — applyRosterPlan이 미리보기가 준 삭제 대상
+   * id 집합과 다시 대조하고(I-2), 대량 삭제면 건수 확인도 강제한다(I-3).
    */
   missingFromFile: ExistingStudent[];
   /** 하나라도 있으면 확정 버튼을 막는다. 절반만 반영되는 게 제일 나쁘다. */
   hasBlockingError: boolean;
+  /**
+   * 이번 반영이 관리하는 전체 학생 수 (existing.length). 대량 삭제 임계값
+   * (bulkDeleteThreshold)의 분모다 — 화면과 서비스가 같은 값을 봐야 같은 임계를
+   * 계산하므로, 서버가 다시 세운 plan에 실어 함께 돌려준다.
+   */
+  totalStudents: number;
 };
+
+/** 대량 삭제 확인(건수 직접 입력)을 요구하기 시작하는 절대 하한. */
+export const BULK_DELETE_MIN_COUNT = 10;
+/** 대량 삭제 확인을 요구하기 시작하는 비율 — 전체 학생의 10%. */
+export const BULK_DELETE_PERCENT = 0.1;
+
+/**
+ * 삭제 건수가 이 값을 **넘으면**(`>`, 같으면 아니다) 체크박스만으로 부족하다 —
+ * 화면은 건수 직접 입력을 요구하고, 서비스는 같은 값을 다시 계산해 대조한다
+ * (I-3). "10명 또는 전체 학생의 10% 중 큰 쪽" — 소규모 학교에서 10%가 10명
+ * 미만이어도 최소 10명은 지키고, 대규모 학교에서는 절대 수 10명이 너무 낮아
+ * 정상적인 학기말 정리마다 걸리는 것을 막는다.
+ *
+ * 정수로 반올림하지 않는다 — 삭제 건수는 항상 정수이므로 `deleteCount > threshold`
+ * 비교에는 반올림 방향을 고민할 필요가 없고, 반올림을 넣으면 그 방향(올림/버림)이
+ * 화면과 서비스 사이에서 어긋날 여지만 생긴다.
+ */
+export function bulkDeleteThreshold(totalStudents: number): number {
+  return Math.max(BULK_DELETE_MIN_COUNT, totalStudents * BULK_DELETE_PERCENT);
+}
 
 export function planRoster(
   rows: RosterRow[],
@@ -73,6 +100,7 @@ export function planRoster(
     errorRows: [],
     missingFromFile: [],
     hasBlockingError: false,
+    totalStudents: existing.length,
   };
 
   // 파일 안에서 같은 학생코드가 두 번 나오거나 한 반에 번호가 겹치는지 먼저 본다.

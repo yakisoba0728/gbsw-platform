@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planRoster } from "@/modules/enrollment/roster.plan";
+import { bulkDeleteThreshold, planRoster } from "@/modules/enrollment/roster.plan";
 import { normalizeRows, type RosterRow } from "@/modules/enrollment/roster.parse";
 
 function row(over: Partial<RosterRow> = {}): RosterRow {
@@ -213,8 +213,8 @@ describe("planRoster()", () => {
     const plan = planRoster([], [재학생]);
 
     expect(plan.missingFromFile).toHaveLength(1);
-    // missingFromFile 자체는 확정을 막지 않는다 — 삭제 확인은 서비스 계층
-    // (applyRosterPlan의 confirmDeletion)이 별도로 강제한다.
+    // missingFromFile 자체는 확정을 막지 않는다 — 삭제 대상 집합·건수 대조는
+    // 서비스 계층(applyRosterPlan, I-2·I-3)이 별도로 강제한다.
     expect(plan.hasBlockingError).toBe(false);
   });
 
@@ -245,6 +245,31 @@ describe("planRoster()", () => {
   it("문제가 없으면 확정을 막지 않는다", () => {
     const plan = planRoster([row({ classNo: 5 })], [재학생]);
     expect(plan.hasBlockingError).toBe(false);
+  });
+
+  it("totalStudents는 existing.length다 — 화면(import-form.tsx)과 서비스가 같은 " +
+    "분모로 대량 삭제 임계를 계산해야 한다 (I-3)", () => {
+    const 재학생2 = { ...재학생, studentProfileId: "sp-2", userId: "u-2", studentCode: "BCDF2345" };
+    const plan = planRoster([], [재학생, 재학생2]);
+
+    expect(plan.totalStudents).toBe(2);
+  });
+});
+
+describe("bulkDeleteThreshold() — 대량 삭제 확인이 필요해지는 삭제 건수 (I-3)", () => {
+  it("전체 학생이 적으면 절대 하한 10명을 쓴다 — 10%가 10명 미만이어도 내려가지 않는다", () => {
+    expect(bulkDeleteThreshold(50)).toBe(10);
+    expect(bulkDeleteThreshold(0)).toBe(10);
+  });
+
+  it("전체 학생이 많으면 10% 쪽이 더 크다", () => {
+    expect(bulkDeleteThreshold(300)).toBe(30);
+  });
+
+  it("경계값: 삭제 건수가 임계와 같으면(초과가 아니면) 대량 삭제가 아니다", () => {
+    // 전체 100명 → 임계 10. 정확히 10명 삭제는 초과가 아니다.
+    expect(10 > bulkDeleteThreshold(100)).toBe(false);
+    expect(11 > bulkDeleteThreshold(100)).toBe(true);
   });
 });
 
