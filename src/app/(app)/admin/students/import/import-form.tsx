@@ -387,7 +387,11 @@ function PreviewCard({
 
         {applied ? (
           <p className="rounded-btn bg-green-soft px-3 py-2.5 text-[13px] font-semibold text-green">
-            {applyState.saved}건 반영했습니다.
+            {/* Minor-4: 삭제 건수가 반영 건수 안에 묻히면 몇 명이 지워졌는지 이
+                문구만 보고는 알 수 없다 — 삭제가 있을 때만 따로 덧붙인다. */}
+            {applyState.deleted && applyState.deleted > 0
+              ? `${applyState.saved}건 반영, ${applyState.deleted}명 삭제했습니다.`
+              : `${applyState.saved}건 반영했습니다.`}
           </p>
         ) : (
           <form action={applyAction} className="flex flex-col gap-3">

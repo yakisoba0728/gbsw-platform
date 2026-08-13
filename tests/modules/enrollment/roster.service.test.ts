@@ -373,6 +373,13 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
     expect(summary.metadata).toMatchObject({ deleted: 1 });
   });
 
+  it("결과에 삭제 건수를 함께 돌려준다 (Minor-4) — 성공 문구에 반영 건수만 있으면 " +
+    "몇 명이 지워졌는지 묻힌다", async () => {
+    const result = await applyRosterPlan(admin, 2026, [무관한신규줄], ["sp-1"], null);
+
+    expect(result.deleted).toBe(1);
+  });
+
   it("자기 자신이 삭제 대상에 들어가면 확인 여부와 무관하게 거부한다 — " +
     "listExisting이 role: STUDENT로 걸러 도달하기 어렵지만, 그 필터의 부수효과에 " +
     "기대지 않고 명시적으로 막는다", async () => {

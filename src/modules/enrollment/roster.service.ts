@@ -81,7 +81,11 @@ export async function applyRosterPlan(
   rows: RosterRow[],
   confirmedDeletionIds: string[],
   deletionCountConfirmation: number | null,
-): Promise<{ saved: number; invites: Awaited<ReturnType<typeof repo.applyRoster>>["invites"] }> {
+): Promise<{
+  saved: number;
+  deleted: number;
+  invites: Awaited<ReturnType<typeof repo.applyRoster>>["invites"];
+}> {
   assertMayImport(actor);
 
   // 경계 zod(rosterRowsSchema의 .min(1))가 항상 이 함수 앞에 있다는 보장은 없다 —
@@ -261,5 +265,8 @@ export async function applyRosterPlan(
     });
   }
 
-  return { saved: assignments.length, invites };
+  // deleted도 감사로그 metadata의 deleted와 같은 값(plan.missingFromFile.length)에서
+  // 나온다 — 반영 건수만 보여주면 "250건 반영했습니다" 뒤에 50명이 삭제됐다는 사실이
+  // 묻힌다 (Minor-4).
+  return { saved: assignments.length, deleted: plan.missingFromFile.length, invites };
 }

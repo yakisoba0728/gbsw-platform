@@ -25,7 +25,10 @@ export const PREVIEW_INITIAL: PreviewState = {
 export type ApplyState = {
   error: string | null;
   saved: number | null;
+  /** 반영 건수(saved) 중 계정째 삭제된 학생 수 (Minor-4) — "250건 반영, 50명 삭제"처럼
+   * 성공 문구에 삭제 사실이 묻히지 않게 따로 보여준다. */
+  deleted: number | null;
   invites: { name: string; code: string; grade: number | null; classNo: number | null; number: number | null }[];
 };
 
-export const APPLY_INITIAL: ApplyState = { error: null, saved: null, invites: [] };
+export const APPLY_INITIAL: ApplyState = { error: null, saved: null, deleted: null, invites: [] };
