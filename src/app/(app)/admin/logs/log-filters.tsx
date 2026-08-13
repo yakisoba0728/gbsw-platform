@@ -4,6 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { auditActionLabel } from "@/modules/audit-log/audit-log.labels";
 import { AUDIT_PERIODS, type AuditPeriod } from "@/modules/audit-log/audit-log.schema";
 
 const PERIOD_LABEL: Record<AuditPeriod, string> = {
@@ -78,7 +79,7 @@ export function LogFilters({
             active={action === a}
             onClick={() => apply({ action: a })}
           >
-            {a}
+            {auditActionLabel(a)}
           </Button>
         ))}
       </div>

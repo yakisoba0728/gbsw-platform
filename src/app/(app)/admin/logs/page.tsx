@@ -3,6 +3,13 @@ import Link from "next/link";
 import { requirePermission } from "@/core/auth/session";
 import { formatDateTime } from "@/lib/datetime";
 import { isRole, ROLE_LABELS } from "@/core/authz/roles";
+import { Badge } from "@/components/ui/badge";
+import {
+  auditActionLabel,
+  auditActionTone,
+  auditTargetLabel,
+  formatAuditMetadata,
+} from "@/modules/audit-log/audit-log.labels";
 import { auditQuerySchema } from "@/modules/audit-log/audit-log.schema";
 import { readAuditLog } from "@/modules/audit-log/audit-log.service";
 import { LogFilters } from "./log-filters";
@@ -46,7 +53,15 @@ export default async function LogsPage({
         </p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] text-left text-sm">
+          <table className="w-full min-w-[840px] table-fixed text-left text-sm">
+            <colgroup>
+              <col className="w-[132px]" />
+              <col className="w-[160px]" />
+              <col className="w-[132px]" />
+              <col className="w-[84px]" />
+              <col className="w-[104px]" />
+              <col />
+            </colgroup>
             <thead>
               <tr className="border-b border-line2 text-[12px] text-mut">
                 <th className="px-5 py-2.5 font-semibold">시각</th>
@@ -64,8 +79,8 @@ export default async function LogsPage({
                     {formatDateTime(entry.createdAt)}
                   </td>
                   <td className="px-3 py-3">
-                    <span className="text-ink">{entry.actorName}</span>
-                    <span className="block text-[12px] text-mut">
+                    <span className="block truncate text-ink">{entry.actorName}</span>
+                    <span className="block truncate text-[12px] text-mut">
                       {entry.actor
                         ? isRole(entry.actor.role)
                           ? ROLE_LABELS[entry.actor.role]
@@ -73,23 +88,22 @@ export default async function LogsPage({
                         : "탈퇴한 계정"}
                     </span>
                   </td>
-                  <td className="px-3 py-3 font-semibold text-ink">
-                    {entry.action}
+                  <td className="px-3 py-3">
+                    <Badge tone={auditActionTone(entry.action)}>
+                      {auditActionLabel(entry.action)}
+                    </Badge>
                   </td>
-                  <td className="px-3 py-3 text-mut">{entry.targetType}</td>
                   <td className="px-3 py-3 text-mut">
-                    {entry.ip ?? "—"}
-                    {entry.userAgent && (
-                      <span
-                        className="block max-w-[180px] truncate text-[11.5px] text-mut2"
-                        title={entry.userAgent}
-                      >
-                        {entry.userAgent}
-                      </span>
-                    )}
+                    {auditTargetLabel(entry.targetType)}
                   </td>
-                  <td className="px-5 py-3 text-[12px] text-mut">
-                    <Detail metadata={entry.metadata} />
+                  <td
+                    className="px-3 py-3 text-mut"
+                    title={entry.userAgent ?? undefined}
+                  >
+                    {entry.ip ?? "—"}
+                  </td>
+                  <td className="px-5 py-3 text-[12px] break-words text-mut">
+                    {formatAuditMetadata(entry.action, entry.metadata) ?? "—"}
                   </td>
                 </tr>
               ))}
@@ -112,24 +126,6 @@ export default async function LogsPage({
         </nav>
       )}
     </div>
-  );
-}
-
-/** metadata를 key=value로 눕혀서 보여준다. */
-function Detail({ metadata }: { metadata: unknown }) {
-  if (metadata == null || typeof metadata !== "object") return <span>—</span>;
-
-  const pairs = Object.entries(metadata as Record<string, unknown>);
-  if (pairs.length === 0) return <span>—</span>;
-
-  return (
-    <span>
-      {pairs.map(([key, value]) => (
-        <span key={key} className="mr-2.5 whitespace-nowrap">
-          <span className="text-mut2">{key}</span> {String(value)}
-        </span>
-      ))}
-    </span>
   );
 }
 
