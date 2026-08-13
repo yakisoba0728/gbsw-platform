@@ -70,6 +70,43 @@ describe("normalizeRows()", () => {
     expect(rows[0]!.grade).toBeNull();
   });
 
+  describe("재학 줄의 학년·반·번호 범위 (표 편집 경로와 같은 규칙)", () => {
+    it("학년이 범위(1~3)를 벗어나면 오류다 — 오타로 11을 넣어도 미리보기가 잡아야 한다", () => {
+      const rows = normalizeRows([HEADER, ["김동혁", "2010-07-28", "11", "3", "3", "재학"]]);
+      expect(rows[0]!.errors.join()).toContain("학년은 1~3");
+    });
+
+    it("학년이 0이어도 범위 밖이다", () => {
+      const rows = normalizeRows([HEADER, ["김동혁", "2010-07-28", "0", "3", "3", "재학"]]);
+      expect(rows[0]!.errors.join()).toContain("학년은 1~3");
+    });
+
+    it("반이 범위(1~20)를 벗어나면 오류다", () => {
+      const rows = normalizeRows([HEADER, ["김동혁", "2010-07-28", "1", "21", "3", "재학"]]);
+      expect(rows[0]!.errors.join()).toContain("반은 1~20");
+    });
+
+    it("번호가 범위(1~50)를 벗어나면 오류다", () => {
+      const rows = normalizeRows([HEADER, ["김동혁", "2010-07-28", "1", "3", "51", "재학"]]);
+      expect(rows[0]!.errors.join()).toContain("번호는 1~50");
+    });
+
+    it("경계값(1·3, 1·20, 1·50)은 통과한다", () => {
+      const low = normalizeRows([HEADER, ["김동혁", "2010-07-28", "1", "1", "1", "재학"]]);
+      const high = normalizeRows([HEADER, ["이순신", "1968-04-28", "3", "20", "50", "재학"]]);
+      expect(low[0]!.errors).toEqual([]);
+      expect(high[0]!.errors).toEqual([]);
+    });
+
+    it("비재학 줄은 범위 검사 대상이 아니다 — grade/classNo/number가 애초에 null이다", () => {
+      const rows = normalizeRows([HEADER, ["김동혁", "2010-07-28", "11", "99", "999", "졸업"]]);
+      expect(rows[0]!.errors).toEqual([]);
+      expect(rows[0]!.grade).toBeNull();
+      expect(rows[0]!.classNo).toBeNull();
+      expect(rows[0]!.number).toBeNull();
+    });
+  });
+
   it("줄 번호는 파일 기준이다 — 머리글이 1행이므로 첫 학생은 2행", () => {
     const rows = normalizeRows([HEADER, ["김동혁", "2010-07-28", "1", "3", "3", "재학"]]);
     expect(rows[0]!.line).toBe(2);

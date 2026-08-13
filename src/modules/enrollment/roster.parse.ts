@@ -3,6 +3,17 @@ import {
   ENROLLMENT_STATUS_LABELS,
   type EnrollmentStatus,
 } from "@/core/authz/enrollment-status";
+import {
+  CLASS_NO_RANGE_MESSAGE,
+  GRADE_RANGE_MESSAGE,
+  MAX_CLASS_NO,
+  MAX_GRADE,
+  MAX_NUMBER,
+  MIN_CLASS_NO,
+  MIN_GRADE,
+  MIN_NUMBER,
+  NUMBER_RANGE_MESSAGE,
+} from "@/modules/enrollment/enrollment.schema";
 
 /**
  * 명단 파일을 정규화된 행으로 옮긴다.
@@ -162,6 +173,22 @@ export function normalizeRows(table: string[][]): RosterRow[] {
     // 반과 번호는 재학일 때만 의미가 있다. 졸업·자퇴 줄에 비어 있는 건 정상이다.
     if (status === "ENROLLED" && (grade === null || classNo === null || number === null)) {
       errors.push("재학이면 학년·반·번호가 모두 있어야 합니다.");
+    }
+
+    // 표 편집 경로(enrollment.schema.ts)와 같은 범위를 여기서도 강제한다.
+    // 안 그러면 "학년 11" 같은 오타가 미리보기를 그냥 통과해 SchoolClass에
+    // 그대로 저장된다 — 미리보기가 확정 전에 실수를 잡으라고 있는 것인데
+    // 이 경로만 비어 있으면 그 존재 이유가 사라진다.
+    if (status === "ENROLLED") {
+      if (grade !== null && (grade < MIN_GRADE || grade > MAX_GRADE)) {
+        errors.push(GRADE_RANGE_MESSAGE);
+      }
+      if (classNo !== null && (classNo < MIN_CLASS_NO || classNo > MAX_CLASS_NO)) {
+        errors.push(CLASS_NO_RANGE_MESSAGE);
+      }
+      if (number !== null && (number < MIN_NUMBER || number > MAX_NUMBER)) {
+        errors.push(NUMBER_RANGE_MESSAGE);
+      }
     }
 
     return [{

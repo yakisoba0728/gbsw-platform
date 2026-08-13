@@ -64,4 +64,30 @@ describe("rosterRowsSchema", () => {
 
     expect(rosterRowsSchema.safeParse(rows).success).toBe(true);
   });
+
+  describe("학년·반·번호 범위 — 표 편집 경로(enrollment.schema.ts)와 같은 규칙", () => {
+    it("errors를 지워도 범위 밖 학년은 통과하지 못한다 — 파서와 이 경계가 어긋나면 안 된다", () => {
+      const tampered = row({ grade: 11, errors: [] });
+      expect(rosterRowsSchema.safeParse([tampered]).success).toBe(false);
+    });
+
+    it("범위 밖 반은 통과하지 못한다", () => {
+      const tampered = row({ classNo: 21, errors: [] });
+      expect(rosterRowsSchema.safeParse([tampered]).success).toBe(false);
+    });
+
+    it("범위 밖 번호는 통과하지 못한다", () => {
+      const tampered = row({ number: 51, errors: [] });
+      expect(rosterRowsSchema.safeParse([tampered]).success).toBe(false);
+    });
+
+    it("경계값(1·3, 1·20, 1·50)은 통과한다", () => {
+      expect(
+        rosterRowsSchema.safeParse([row({ grade: 1, classNo: 1, number: 1 })]).success,
+      ).toBe(true);
+      expect(
+        rosterRowsSchema.safeParse([row({ grade: 3, classNo: 20, number: 50 })]).success,
+      ).toBe(true);
+    });
+  });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { planRoster } from "@/modules/enrollment/roster.plan";
-import type { RosterRow } from "@/modules/enrollment/roster.parse";
+import { normalizeRows, type RosterRow } from "@/modules/enrollment/roster.parse";
 
 function row(over: Partial<RosterRow> = {}): RosterRow {
   return {
@@ -126,6 +126,35 @@ describe("planRoster()", () => {
 
   it("문제가 없으면 확정을 막지 않는다", () => {
     const plan = planRoster([row({ classNo: 5 })], [재학생]);
+    expect(plan.hasBlockingError).toBe(false);
+  });
+});
+
+describe("planRoster() + normalizeRows() — 회귀: 명단 업로드의 학년·반·번호 범위", () => {
+  const HEADER = ["이름", "생년월일", "학년", "반", "번호", "학적"];
+
+  it("엑셀에 학년 11 같은 오타가 있으면 파싱 단계에서 오류로 잡혀 확정이 막힌다", () => {
+    const rows = normalizeRows([
+      HEADER,
+      ["김동혁", "2010-07-28", "11", "3", "3", "재학"],
+    ]);
+
+    const plan = planRoster(rows, []);
+
+    expect(plan.errorRows).toHaveLength(1);
+    expect(plan.errorRows[0]!.errors.join()).toContain("학년은 1~3");
+    expect(plan.hasBlockingError).toBe(true);
+  });
+
+  it("범위 안이면 정상적으로 신규 학생으로 분류되고 확정이 막히지 않는다", () => {
+    const rows = normalizeRows([
+      HEADER,
+      ["김동혁", "2010-07-28", "1", "3", "3", "재학"],
+    ]);
+
+    const plan = planRoster(rows, []);
+
+    expect(plan.newStudents).toHaveLength(1);
     expect(plan.hasBlockingError).toBe(false);
   });
 });

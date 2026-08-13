@@ -1,5 +1,16 @@
 import { z } from "zod";
 import { ENROLLMENT_STATUSES } from "@/core/authz/enrollment-status";
+import {
+  CLASS_NO_RANGE_MESSAGE,
+  GRADE_RANGE_MESSAGE,
+  MAX_CLASS_NO,
+  MAX_GRADE,
+  MAX_NUMBER,
+  MIN_CLASS_NO,
+  MIN_GRADE,
+  MIN_NUMBER,
+  NUMBER_RANGE_MESSAGE,
+} from "@/modules/enrollment/enrollment.schema";
 
 /**
  * 확정 반영 경계에서 검증한다 (I3).
@@ -10,17 +21,33 @@ import { ENROLLMENT_STATUSES } from "@/core/authz/enrollment-status";
  * ENROLLED인데 학년·반·번호가 전부 null인 줄도 그대로 저장됐다. 아래 refine이
  * 그 불변식(재학이면 자리가 있어야 한다)을 서버가 다시 확인한다.
  *
- * grade/classNo/number에 별도 범위를 두지 않는다 — 그건 이 파일 업로드 기능이
- * 원래 갖고 있던 검증 범위 밖이라 여기서 새로 만들지 않는다.
+ * grade/classNo/number 범위는 enrollment.schema.ts의 상수를 그대로 쓴다 — 파서
+ * (roster.parse.ts의 normalizeRows)가 미리보기에서 잡는 규칙과 이 경계가 어긋나면,
+ * 미리보기를 통과한 뒤 이 값만 손봐서 보낸 요청이 여기서는 오히려 통과해버린다.
  */
 const rosterRowSchema = z
   .object({
     line: z.number().int(),
     name: z.string(),
     birthDate: z.string(),
-    grade: z.number().int().nullable(),
-    classNo: z.number().int().nullable(),
-    number: z.number().int().nullable(),
+    grade: z
+      .number()
+      .int()
+      .min(MIN_GRADE, GRADE_RANGE_MESSAGE)
+      .max(MAX_GRADE, GRADE_RANGE_MESSAGE)
+      .nullable(),
+    classNo: z
+      .number()
+      .int()
+      .min(MIN_CLASS_NO, CLASS_NO_RANGE_MESSAGE)
+      .max(MAX_CLASS_NO, CLASS_NO_RANGE_MESSAGE)
+      .nullable(),
+    number: z
+      .number()
+      .int()
+      .min(MIN_NUMBER, NUMBER_RANGE_MESSAGE)
+      .max(MAX_NUMBER, NUMBER_RANGE_MESSAGE)
+      .nullable(),
     status: z.enum(ENROLLMENT_STATUSES).nullable(),
     errors: z.array(z.string()),
   })
