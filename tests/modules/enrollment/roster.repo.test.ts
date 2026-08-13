@@ -5,17 +5,19 @@ const enrollmentCreate = vi.fn();
 const schoolClassUpsert = vi.fn();
 const studentProfileFindMany = vi.fn();
 const userUpdateMany = vi.fn();
+const userDeleteMany = vi.fn();
 const sessionDeleteMany = vi.fn();
 const inviteCreate = vi.fn();
+const inviteDeleteMany = vi.fn();
 const transaction = vi.fn();
 
 const tx = {
   enrollment: { deleteMany: enrollmentDeleteMany, create: enrollmentCreate },
   schoolClass: { upsert: schoolClassUpsert },
   studentProfile: { findMany: studentProfileFindMany },
-  user: { updateMany: userUpdateMany },
+  user: { updateMany: userUpdateMany, deleteMany: userDeleteMany },
   session: { deleteMany: sessionDeleteMany },
-  invite: { create: inviteCreate },
+  invite: { create: inviteCreate, deleteMany: inviteDeleteMany },
 };
 
 vi.mock("@/core/db/client", () => ({
@@ -76,6 +78,7 @@ function input(overrides: Partial<ApplyInput> = {}): ApplyInput {
     newStudents: [],
     inviteExpiresAt: null,
     managedStudentProfileIds: ["sp-1"],
+    deleteStudentProfileIds: [],
     createdById: "admin-1",
     ...overrides,
   };
@@ -87,9 +90,52 @@ beforeEach(() => {
   schoolClassUpsert.mockReset().mockResolvedValue({ id: "class-1" });
   studentProfileFindMany.mockReset().mockResolvedValue([]);
   userUpdateMany.mockReset().mockResolvedValue({ count: 0 });
+  userDeleteMany.mockReset().mockResolvedValue({ count: 0 });
   sessionDeleteMany.mockReset().mockResolvedValue({ count: 0 });
   inviteCreate.mockReset().mockResolvedValue(undefined);
+  inviteDeleteMany.mockReset().mockResolvedValue({ count: 0 });
   transaction.mockReset().mockImplementation(async (fn: (tx: unknown) => unknown) => fn(tx));
+});
+
+describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
+  it("deleteStudentProfileIds가 비어 있으면 삭제 쿼리를 부르지 않는다", async () => {
+    await applyRoster(2026, input({ deleteStudentProfileIds: [] }));
+
+    expect(inviteDeleteMany).not.toHaveBeenCalled();
+    expect(userDeleteMany).not.toHaveBeenCalled();
+  });
+
+  it("삭제 대상의 studentProfileId를 userId로 바꾼 뒤, 학부모 코드를 먼저 지우고 " +
+    "계정을 지운다 — Invite.createdById가 Restrict라 순서가 바뀌면 계정 삭제가 막힌다", async () => {
+    studentProfileFindMany.mockResolvedValue([{ userId: "u-del-1" }, { userId: "u-del-2" }]);
+
+    await applyRoster(2026, input({ deleteStudentProfileIds: ["sp-del-1", "sp-del-2"] }));
+
+    expect(studentProfileFindMany).toHaveBeenCalledWith({
+      where: { id: { in: ["sp-del-1", "sp-del-2"] } },
+      select: { userId: true },
+    });
+    expect(inviteDeleteMany).toHaveBeenCalledWith({
+      where: { createdById: { in: ["u-del-1", "u-del-2"] } },
+    });
+    expect(userDeleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ["u-del-1", "u-del-2"] } },
+    });
+    const inviteDeleteOrder = inviteDeleteMany.mock.invocationCallOrder[0]!;
+    const userDeleteOrder = userDeleteMany.mock.invocationCallOrder[0]!;
+    expect(userDeleteOrder).toBeGreaterThan(inviteDeleteOrder);
+  });
+
+  it("삭제는 재배정(enrollment 재생성)보다 먼저 끝낸다", async () => {
+    studentProfileFindMany.mockResolvedValue([{ userId: "u-del-1" }]);
+
+    await applyRoster(2026, input({ deleteStudentProfileIds: ["sp-del-1"] }));
+
+    const userDeleteOrder = userDeleteMany.mock.invocationCallOrder[0]!;
+    for (const call of enrollmentCreate.mock.invocationCallOrder) {
+      expect(call).toBeGreaterThan(userDeleteOrder);
+    }
+  });
 });
 
 describe("applyRoster()", () => {

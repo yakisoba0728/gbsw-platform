@@ -58,11 +58,17 @@ export async function exportRoster(
  *
  * 클라이언트가 돌려보낸 행을 **서버가 다시 분류한다.** 미리보기 결과를 그대로 믿으면
  * 중간에 손댄 값이 그대로 들어가고, 그 사이 DB가 바뀌었을 수도 있다.
+ *
+ * `confirmDeletion`은 명단에 없는 학생(missingFromFile)이 하나라도 있을 때만 의미가
+ * 있다 — 계정 삭제는 이 시스템에서 되돌릴 수 없는 유일한 동작이라, 화면 체크박스만이
+ * 아니라 서버가 다시 강제한다. 서버 액션을 직접 호출하면 화면의 체크박스는 건너뛸 수
+ * 있기 때문이다.
  */
 export async function applyRosterPlan(
   actor: SessionUser,
   expectedYear: number,
   rows: RosterRow[],
+  confirmDeletion: boolean,
 ): Promise<{ saved: number; invites: Awaited<ReturnType<typeof repo.applyRoster>>["invites"] }> {
   assertMayImport(actor);
 
@@ -72,6 +78,20 @@ export async function applyRosterPlan(
   const existing = await repo.listExisting(year);
   const plan = planRoster(rows, existing);
   if (plan.hasBlockingError) throw new RosterError("BLOCKED");
+
+  // 자기 계정이 삭제 대상에 들어가면 거부한다. listExisting이 role: STUDENT로 걸러서
+  // 관리자 본인 행이 missingFromFile에 섞일 일이 없어 도달하기 어렵지만, 그건 그
+  // 필터의 부수효과일 뿐 이 함수의 불변식이 아니다 — 아래의 CANNOT_DEACTIVATE_SELF와
+  // 같은 이유로 명시적으로 막는다.
+  if (plan.missingFromFile.some((m) => m.userId === actor.id)) {
+    throw new RosterError("CANNOT_DELETE_SELF");
+  }
+
+  // 되돌릴 수 없는 유일한 동작이라 서버가 확인을 강제한다. 화면 체크박스만으로는
+  // 서버 액션을 직접 부르는 경로를 막지 못한다.
+  if (plan.missingFromFile.length > 0 && !confirmDeletion) {
+    throw new RosterError("DELETION_NOT_CONFIRMED");
+  }
 
   const userIdByProfile = new Map(existing.map((s) => [s.studentProfileId, s.userId]));
   const accountActiveByProfile = new Map(
@@ -152,6 +172,7 @@ export async function applyRosterPlan(
       newStudents,
       inviteExpiresAt: toExpiresAt(INVITE_EXPIRES_DAYS),
       managedStudentProfileIds: existing.map((s) => s.studentProfileId),
+      deleteStudentProfileIds: plan.missingFromFile.map((m) => m.studentProfileId),
       createdById: actor.id,
     });
   } catch (error) {
@@ -175,9 +196,21 @@ export async function applyRosterPlan(
       newAssignment: plan.newAssignment.length,
       newStudents: plan.newStudents.length,
       invitesIssued: invites.length,
-      removed: plan.missingFromFile.length,
+      deleted: plan.missingFromFile.length,
     },
   });
+
+  // 삭제된 학생마다 한 줄씩 남긴다. targetId(userId)만 담는다 — 계정이 사라진 뒤라
+  // 이름 없이도 무엇이 지워졌는지는 충분히 특정되고, 이름을 넣으면 감사로그가 삭제된
+  // 개인정보의 사본이 된다. 누가 지웠는지는 actorName이 남긴다.
+  for (const m of plan.missingFromFile) {
+    await recordAudit({
+      actorUserId: actor.id,
+      action: "user:delete",
+      targetType: "User",
+      targetId: m.userId,
+    });
+  }
 
   // 계정 상태가 실제로 뒤집힐 때만 admin-users·enrollment와 같은 형식으로 한 줄 더
   // 남긴다 (I4) — userId만 담으므로 감사로그가 명단 사본이 되지 않는다.

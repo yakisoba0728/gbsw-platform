@@ -213,8 +213,33 @@ describe("planRoster()", () => {
     const plan = planRoster([], [재학생]);
 
     expect(plan.missingFromFile).toHaveLength(1);
-    // 경고일 뿐 확정을 막지는 않는다.
+    // missingFromFile 자체는 확정을 막지 않는다 — 삭제 확인은 서비스 계층
+    // (applyRosterPlan의 confirmDeletion)이 별도로 강제한다.
     expect(plan.hasBlockingError).toBe(false);
+  });
+
+  it("명단에 없으면 학적과 무관하게 missingFromFile에 들어간다 — 재학·졸업 둘 다 " +
+    "(파일이 전교생 완성본이므로 졸업생 줄을 지워도 삭제 대상이어야 한다)", () => {
+    const 졸업생 = { ...재학생, studentProfileId: "sp-2", userId: "u-2", studentCode: "BCDF2345", status: "GRADUATED" };
+
+    const plan = planRoster([], [재학생, 졸업생]);
+
+    expect(plan.missingFromFile).toHaveLength(2);
+    const ids = plan.missingFromFile.map((s) => s.studentProfileId);
+    expect(ids).toContain("sp-1");
+    expect(ids).toContain("sp-2");
+    expect(plan.hasBlockingError).toBe(false);
+  });
+
+  it("배정 자체가 없던 학생(status: null)도 명단에 없으면 missingFromFile에 들어간다 — " +
+    "예전엔 ENROLLED만 걸러서 이 학생은 빠졌지만, 파일이 전교생 완성본이 된 뒤로는 " +
+    "학적 유무와 무관하게 명단에 없다는 사실 자체가 삭제 대상이라는 뜻이다", () => {
+    const 배정없음 = { ...재학생, status: null, grade: null, classNo: null, number: null };
+
+    const plan = planRoster([], [배정없음]);
+
+    expect(plan.missingFromFile).toHaveLength(1);
+    expect(plan.missingFromFile[0]!.studentProfileId).toBe("sp-1");
   });
 
   it("문제가 없으면 확정을 막지 않는다", () => {
@@ -267,9 +292,12 @@ describe("planRoster() + normalizeRows() — 회귀: 명단 업로드의 학년�
   });
 
   describe("학생코드 열이 없는 파일 × 재학생이 있는 학교 — Important 결함 상호작용", () => {
-    it("학년도 전환 직후(모든 재학생이 아직 이번 학년도 배정이 없음)라면 " +
-      "막지 않는다 — 대조할 '명단에 없는 재학생'이 없으므로 신규로 그대로 접수한다. " +
-      "안내 문구(fileNotices)가 유일한 방어선이다", () => {
+    it("학년도 전환 직후(모든 재학생이 아직 이번 학년도 배정이 없음)여도 이름·생년월일이 " +
+      "겹치면 확인 필요로 막는다 — missingFromFile이 학적과 무관하게 명단에 없는 " +
+      "학생 전체로 넓어진 뒤로는(5단계) 이 학생도 거기 걸리므로, '학년도 전환 " +
+      "직후라 대조할 대상이 없다'는 예전 빈틈이 막힌다. 이 빈틈은 " +
+      "docs/superpowers/specs/2026-08-13-academic-year-and-roster-design.md의 " +
+      "'4단계가 남긴 것'에 5단계에서 처리하기로 명시돼 있었다", () => {
         const 배정없는재학생 = {
           studentProfileId: "sp-1",
           userId: "u-1",
@@ -289,9 +317,11 @@ describe("planRoster() + normalizeRows() — 회귀: 명단 업로드의 학년�
 
         const plan = planRoster(rows, [배정없는재학생]);
 
-        expect(plan.newStudents).toHaveLength(1);
-        expect(plan.needsAttention).toHaveLength(0);
-        expect(plan.hasBlockingError).toBe(false);
+        expect(plan.newStudents).toHaveLength(0);
+        expect(plan.needsAttention).toHaveLength(1);
+        expect(plan.needsAttention[0]!.reason).toContain("학생코드가 지워진 것 같습니다");
+        expect(plan.missingFromFile).toHaveLength(1);
+        expect(plan.hasBlockingError).toBe(true);
       });
 
     it("이미 배정된 재학생이 있는 학년도 중간에 이 파일을 올리면 " +

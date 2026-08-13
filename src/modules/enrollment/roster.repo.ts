@@ -104,6 +104,11 @@ export type ApplyInput = {
    * 승격돼 listExisting 밖으로 빠진 계정의 Enrollment가 조용히 삭제되지 않는다 (I5).
    */
   managedStudentProfileIds: string[];
+  /**
+   * 명단에서 빠진 학생 — **계정째 지운다.** service의 confirmDeletion 게이트를
+   * 통과한 뒤에만 여기 온다. 되돌릴 수 없다.
+   */
+  deleteStudentProfileIds: string[];
   createdById: string;
 };
 
@@ -114,9 +119,12 @@ export type ApplyInput = {
  * 갱신으로는 성립하지 않는다 — Postgres 유일 제약은 DEFERRABLE이 아니면 문장 단위로
  * 검사하므로, 한 트랜잭션 안이라도 중간 상태에서 걸린다. 지우고 넣으면 그 창이 없다.
  *
- * 명단에 없던 학생의 그 학년도 배정도 함께 사라진다. 미리보기가 그걸 경고로 보여준 뒤다.
- * 단, 삭제 범위는 managedStudentProfileIds로 한정한다 (I5) — 관리 범위 밖 학생은
- * 애초에 지우지 않는다.
+ * 명단에 없던 학생은 계정째 지운다(deleteStudentProfileIds). 미리보기가 그걸
+ * 가장 눈에 띄게 보여주고 별도 확인을 받은 뒤다 — 되돌릴 수 없는 유일한 동작이다.
+ * 재배정을 다시 넣기 전, 트랜잭션 맨 앞에서 지운다.
+ *
+ * 그 외 명단에 있는 학생의 그 학년도 배정은 managedStudentProfileIds 범위로 한정해
+ * 지우고 새로 넣는다 (I5) — 관리 범위 밖 학생은 애초에 지우지 않는다.
  *
  * 주의: 여기서 새로 만드는 Enrollment.id는 반영할 때마다 다시 생성된다(위의 지우고
  * 넣기 때문에). **다른 테이블이 Enrollment.id를 FK로 참조하면 안 된다** — 상벌점처럼
@@ -128,6 +136,23 @@ export async function applyRoster(year: number, input: ApplyInput) {
   try {
     return await prisma.$transaction(
       async (tx) => {
+        // 되돌릴 수 없는 유일한 동작 — 재배정을 다시 넣기 전에 삭제부터 끝낸다.
+        if (input.deleteStudentProfileIds.length > 0) {
+          const targets = await tx.studentProfile.findMany({
+            where: { id: { in: input.deleteStudentProfileIds } },
+            select: { userId: true },
+          });
+          const deleteUserIds = targets.map((t) => t.userId);
+
+          // 학생이 만든 학부모 코드가 createdById(Restrict)로 삭제를 막는다. 먼저 치운다.
+          await tx.invite.deleteMany({ where: { createdById: { in: deleteUserIds } } });
+          // user를 지우면 session·account·StudentProfile이 Cascade로 함께 사라지고,
+          // StudentProfile에 딸린 Enrollment·ParentStudent도 이어서 정리된다.
+          // 연결된 학부모 계정은 ParentStudent 연결만 끊기고 계정 자체는 남는다 —
+          // 관리자가 요청한 것은 학생 삭제이지 학부모 삭제가 아니다.
+          await tx.user.deleteMany({ where: { id: { in: deleteUserIds } } });
+        }
+
         await tx.enrollment.deleteMany({
           where: { year, studentProfileId: { in: input.managedStudentProfileIds } },
         });

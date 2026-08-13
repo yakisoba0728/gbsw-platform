@@ -71,32 +71,32 @@ beforeEach(() => {
 
 describe("applyRosterPlan()", () => {
   it("관리자가 아니면 반영하지 못한다", async () => {
-    await expect(applyRosterPlan(student, 2026, [row])).rejects.toThrow("FORBIDDEN");
+    await expect(applyRosterPlan(student, 2026, [row], false)).rejects.toThrow("FORBIDDEN");
     expect(applyRoster).not.toHaveBeenCalled();
   });
 
   it("학년도가 그 사이 바뀌었으면 거부한다", async () => {
-    await expect(applyRosterPlan(admin, 2025, [row])).rejects.toThrow("YEAR_CHANGED");
+    await expect(applyRosterPlan(admin, 2025, [row], false)).rejects.toThrow("YEAR_CHANGED");
     expect(applyRoster).not.toHaveBeenCalled();
   });
 
   it("확정을 막아야 하는 명단이면 아무것도 쓰지 않는다", async () => {
     const bad = { ...row, errors: ["생년월일을 읽을 수 없습니다."] };
 
-    await expect(applyRosterPlan(admin, 2026, [bad])).rejects.toThrow("BLOCKED");
+    await expect(applyRosterPlan(admin, 2026, [bad], false)).rejects.toThrow("BLOCKED");
     expect(applyRoster).not.toHaveBeenCalled();
     expect(recordAudit).not.toHaveBeenCalled();
   });
 
   it("클라이언트가 보낸 행을 다시 분류한다 — 미리보기 결과를 믿지 않는다", async () => {
-    await applyRosterPlan(admin, 2026, [row]);
+    await applyRosterPlan(admin, 2026, [row], false);
 
     // 미리보기 때와 같은 현재 상태를 서버가 다시 읽어야 한다.
     expect(listExisting).toHaveBeenCalledWith(2026);
   });
 
   it("반영하고 요약을 감사로그에 남긴다 — 값이 아니라 건수만", async () => {
-    await applyRosterPlan(admin, 2026, [row]);
+    await applyRosterPlan(admin, 2026, [row], false);
 
     expect(applyRoster).toHaveBeenCalledTimes(1);
     const audit = recordAudit.mock.calls[0]![0];
@@ -113,7 +113,7 @@ describe("applyRosterPlan()", () => {
     });
 
     const newRow = { ...row, studentCode: "" };
-    const result = await applyRosterPlan(admin, 2026, [newRow]);
+    const result = await applyRosterPlan(admin, 2026, [newRow], false);
 
     expect(result.invites).toHaveLength(1);
     expect(applyRoster.mock.calls[0]![1].newStudents).toHaveLength(1);
@@ -125,7 +125,7 @@ describe("applyRosterPlan()", () => {
     toExpiresAt.mockReturnValue(expires);
 
     const newRow = { ...row, studentCode: "" };
-    await applyRosterPlan(admin, 2026, [newRow]);
+    await applyRosterPlan(admin, 2026, [newRow], false);
 
     expect(applyRoster.mock.calls[0]![1].inviteExpiresAt).toBe(expires);
     expect(toExpiresAt).toHaveBeenCalledWith(expect.any(Number));
@@ -147,7 +147,7 @@ describe("applyRosterPlan()", () => {
       number: null,
     };
 
-    await applyRosterPlan(admin, 2026, [재학신규, 비재학신규]);
+    await applyRosterPlan(admin, 2026, [재학신규, 비재학신규], false);
 
     const newStudents = applyRoster.mock.calls[0]![1].newStudents;
     expect(newStudents).toHaveLength(1);
@@ -158,7 +158,7 @@ describe("applyRosterPlan()", () => {
     // row가 재학생과 같은 학생코드·자리면 untouched로 분류된다.
     const 그대로 = { ...row, grade: 1, classNo: 3, number: 3 };
 
-    await applyRosterPlan(admin, 2026, [그대로]);
+    await applyRosterPlan(admin, 2026, [그대로], false);
 
     const assignments = applyRoster.mock.calls[0]![1].assignments;
     const mine = assignments.find((a: { studentProfileId: string }) => a.studentProfileId === "sp-1");
@@ -223,7 +223,7 @@ describe("applyRosterPlan()", () => {
       },
     ]);
 
-    await applyRosterPlan(admin, 2026, rows);
+    await applyRosterPlan(admin, 2026, rows, false);
 
     const assignments: { studentProfileId: string; statusChanged: boolean }[] =
       applyRoster.mock.calls[0]![1].assignments;
@@ -239,7 +239,7 @@ describe("applyRosterPlan()", () => {
     listExisting.mockResolvedValue([{ ...재학생, userId: admin.id }]);
     const 자퇴 = { ...row, status: "WITHDRAWN" as const, grade: null, classNo: null, number: null };
 
-    await expect(applyRosterPlan(admin, 2026, [자퇴])).rejects.toThrow(
+    await expect(applyRosterPlan(admin, 2026, [자퇴], false)).rejects.toThrow(
       "CANNOT_DEACTIVATE_SELF",
     );
     expect(applyRoster).not.toHaveBeenCalled();
@@ -249,7 +249,7 @@ describe("applyRosterPlan()", () => {
     listExisting.mockResolvedValue([{ ...재학생, accountActive: false, status: "WITHDRAWN" }]);
     const 재입학 = { ...row, status: "ENROLLED" as const };
 
-    await applyRosterPlan(admin, 2026, [재입학]);
+    await applyRosterPlan(admin, 2026, [재입학], false);
 
     const calls = recordAudit.mock.calls.map((c) => c[0]);
     const flip = calls.find((c) => c.action === "user:activate");
@@ -260,7 +260,7 @@ describe("applyRosterPlan()", () => {
     listExisting.mockResolvedValue([{ ...재학생, accountActive: false, status: "WITHDRAWN" }]);
     const 자퇴그대로 = { ...row, status: "EXPELLED" as const, grade: null, classNo: null, number: null };
 
-    await applyRosterPlan(admin, 2026, [자퇴그대로]);
+    await applyRosterPlan(admin, 2026, [자퇴그대로], false);
 
     const calls = recordAudit.mock.calls.map((c) => c[0]);
     expect(calls.some((c) => c.action === "user:activate" || c.action === "user:deactivate")).toBe(
@@ -273,16 +273,71 @@ describe("applyRosterPlan()", () => {
     applyRoster.mockRejectedValue(new InviteCodeCollisionError());
 
     const newRow = { ...row, studentCode: "" };
-    await expect(applyRosterPlan(admin, 2026, [newRow])).rejects.toThrow("CODE_COLLISION");
+    await expect(applyRosterPlan(admin, 2026, [newRow], false)).rejects.toThrow("CODE_COLLISION");
   });
 
   it("발급 코드는 invite.service.ts의 generateUniqueCode()로 만든다 (DB 확인 + 재시도)", async () => {
     listExisting.mockResolvedValue([]);
 
     const newRow = { ...row, studentCode: "" };
-    await applyRosterPlan(admin, 2026, [newRow]);
+    await applyRosterPlan(admin, 2026, [newRow], false);
 
     expect(generateUniqueCode).toHaveBeenCalled();
+  });
+});
+
+describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () => {
+  it("삭제 대상이 있는데 confirmDeletion이 false면 아무것도 쓰지 않고 거부한다", async () => {
+    // 기본 listExisting은 [재학생]인데 rows에 대응하는 줄이 없으므로 재학생이
+    // missingFromFile에 들어간다.
+    await expect(applyRosterPlan(admin, 2026, [], false)).rejects.toThrow(
+      "DELETION_NOT_CONFIRMED",
+    );
+    expect(applyRoster).not.toHaveBeenCalled();
+    expect(recordAudit).not.toHaveBeenCalled();
+  });
+
+  it("confirmDeletion이 true면 repo에 삭제 대상을 studentProfileId로 넘긴다", async () => {
+    await applyRosterPlan(admin, 2026, [], true);
+
+    expect(applyRoster.mock.calls[0]![1].deleteStudentProfileIds).toEqual(["sp-1"]);
+  });
+
+  it("삭제 대상이 없으면 confirmDeletion이 false여도 막지 않는다", async () => {
+    // row가 재학생과 같은 학생코드라 이어붙어 missingFromFile이 비게 된다.
+    await applyRosterPlan(admin, 2026, [row], false);
+
+    expect(applyRoster).toHaveBeenCalledTimes(1);
+    expect(applyRoster.mock.calls[0]![1].deleteStudentProfileIds).toEqual([]);
+  });
+
+  it("삭제된 학생마다 user:delete 감사로그를 남긴다 — targetId만 담고 이름은 넣지 않는다", async () => {
+    await applyRosterPlan(admin, 2026, [], true);
+
+    const deleteLogs = recordAudit.mock.calls
+      .map((c) => c[0])
+      .filter((c) => c.action === "user:delete");
+    expect(deleteLogs).toHaveLength(1);
+    expect(deleteLogs[0]).toMatchObject({ targetType: "User", targetId: "u-1" });
+    expect(JSON.stringify(deleteLogs[0])).not.toContain("김동혁");
+  });
+
+  it("배치 요약(enrollment:import)의 metadata에 삭제 건수를 남긴다", async () => {
+    await applyRosterPlan(admin, 2026, [], true);
+
+    const summary = recordAudit.mock.calls
+      .map((c) => c[0])
+      .find((c) => c.action === "enrollment:import");
+    expect(summary.metadata).toMatchObject({ deleted: 1 });
+  });
+
+  it("자기 자신이 삭제 대상에 들어가면 confirmDeletion과 무관하게 거부한다 — " +
+    "listExisting이 role: STUDENT로 걸러 도달하기 어렵지만, 그 필터의 부수효과에 " +
+    "기대지 않고 명시적으로 막는다", async () => {
+    listExisting.mockResolvedValue([{ ...재학생, userId: admin.id }]);
+
+    await expect(applyRosterPlan(admin, 2026, [], true)).rejects.toThrow("CANNOT_DELETE_SELF");
+    expect(applyRoster).not.toHaveBeenCalled();
   });
 });
 

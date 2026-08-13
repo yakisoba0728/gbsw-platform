@@ -44,6 +44,11 @@ export type RosterPlan = {
   newAssignment: PlannedRow[];
   needsAttention: (PlannedRow & { reason: string })[];
   errorRows: RosterRow[];
+  /**
+   * 명단 파일에 없는 학생 = **삭제 대상**. 파일이 전교생 완성본(배정 없는 학생도 빈
+   * 줄로 나간다)이므로, 재학·졸업·자퇴 등 학적과 무관하게 명단에 없으면 전부 여기
+   * 온다. 확정하면 계정째 지워진다(applyRosterPlan의 confirmDeletion 게이트를 거친다).
+   */
   missingFromFile: ExistingStudent[];
   /** 하나라도 있으면 확정 버튼을 막는다. 절반만 반영되는 게 제일 나쁘다. */
   hasBlockingError: boolean;
@@ -184,12 +189,14 @@ export function planRoster(
     // 셋 다 같으면 아무 분류에도 넣지 않는다 — 바뀔 게 없다.
   }
 
-  // 명단에 없는 재학생. 졸업인지 전출인지 파일만으로는 모르므로 추측하지 않고 보여준다.
-  plan.missingFromFile = existing.filter(
-    (s) => s.status === "ENROLLED" && !matchedIds.has(s.studentProfileId),
-  );
+  // 명단에 없는 학생은 학적과 무관하게 전부 삭제 대상이다. 예전엔 status === "ENROLLED"
+  // 인 학생만 걸러 "그 학년도 배정이 사라진다"는 경고로만 썼지만, 파일이 이제 전교생
+  // 완성본(배정 없는 학생도 빈 줄로 나간다)이라 명단에 없다는 것 자체가 "지웠다"는
+  // 뜻이다. 필터를 남겨두면 졸업생 줄을 지웠을 때 아무 일도 안 일어나 "지우면 삭제"
+  // 규칙이 깨진다.
+  plan.missingFromFile = existing.filter((s) => !matchedIds.has(s.studentProfileId));
 
-  // 신규 줄인데 이름+생년월일이 "명단에 없는 재학생"과 일치하면 학생코드 칸만 지워진
+  // 신규 줄인데 이름+생년월일이 "명단에 없는 학생"과 일치하면 학생코드 칸만 지워진
   // 것으로 의심한다. 지금까지는 신규 쪽과 missingFromFile 쪽을 따로 보여줘서 둘을
   // 이어 읽지 않으면 "코드가 지워졌다"로 읽히지 않았다 — 여기서 명시적으로 연결한다.
   // 자동으로 이어붙이지는 않는다(studentProfileId는 여전히 null) — 잘못 이으면 남의
@@ -203,7 +210,7 @@ export function planRoster(
       plan.needsAttention.push({
         ...r,
         beforeName: match.name,
-        reason: `학생코드가 지워진 것 같습니다. (일치하는 재학생의 기존 코드: ${match.studentCode})`,
+        reason: `학생코드가 지워진 것 같습니다. (일치하는 기존 학생의 코드: ${match.studentCode})`,
       });
     } else {
       stillNew.push(r);
