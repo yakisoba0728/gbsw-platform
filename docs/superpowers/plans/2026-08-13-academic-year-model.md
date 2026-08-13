@@ -18,6 +18,11 @@
 - 새 액션은 `core/authz/can.ts`의 `Action`·`RULES`와 `tests/core/authz/can.test.ts`의 `EXPECTED`에 **함께** 추가한다. 빠뜨리면 테스트가 깨진다.
 - 마이그레이션은 `npx prisma migrate dev --create-only`로 만들고 데이터 이관 SQL을 손으로 넣은 뒤 적용한다. 데이터가 있는 컬럼에 제약을 거는 마이그레이션은 그냥 `migrate dev`로는 실패한다.
 - 각 태스크 끝에 `npm run verify` (typecheck + lint + test)가 통과해야 한다.
+  **Task 2만 예외다** — 스키마에서 컬럼이 사라지면 그 컬럼을 읽던 코드가 컴파일되지 않고,
+  그 오류 목록이 Task 4~6의 작업 목록이 된다. Task 2의 관문은 "마이그레이션이 적용되고
+  데이터가 이관됐는가"이며, `verify`는 Task 6에서 다시 초록이 된다.
+  Task 1·3은 예외가 아니다 — 새로 만드는 코드라 자기 테스트는 통과해야 한다
+  (`npx vitest run <해당 테스트 파일>`로 확인하고, 전체 `verify`는 Task 6까지 미룬다).
 - 학적 저장값은 영문 상수, 화면 표기는 라벨 맵. 한글은 엑셀 열 표기일 뿐이다.
 - DB 접속은 드라이버 어댑터로만. 스키마를 바꾸면 `npx prisma generate`를 돌려야 타입이 갱신된다.
 
