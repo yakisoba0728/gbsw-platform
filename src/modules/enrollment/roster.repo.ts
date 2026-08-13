@@ -138,8 +138,10 @@ export async function applyRoster(year: number, input: ApplyInput) {
       async (tx) => {
         // 되돌릴 수 없는 유일한 동작 — 재배정을 다시 넣기 전에 삭제부터 끝낸다.
         if (input.deleteStudentProfileIds.length > 0) {
+          // listExisting(role: STUDENT)과 트랜잭션 사이에 승격되면 대상이 더는 학생이
+          // 아니다 — where에 role을 다시 좁혀 ADMIN을 지우는 사고를 막는다 (M-2).
           const targets = await tx.studentProfile.findMany({
-            where: { id: { in: input.deleteStudentProfileIds } },
+            where: { id: { in: input.deleteStudentProfileIds }, user: { role: "STUDENT" } },
             select: { userId: true },
           });
           const deleteUserIds = targets.map((t) => t.userId);

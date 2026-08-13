@@ -112,7 +112,7 @@ describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
     await applyRoster(2026, input({ deleteStudentProfileIds: ["sp-del-1", "sp-del-2"] }));
 
     expect(studentProfileFindMany).toHaveBeenCalledWith({
-      where: { id: { in: ["sp-del-1", "sp-del-2"] } },
+      where: { id: { in: ["sp-del-1", "sp-del-2"] }, user: { role: "STUDENT" } },
       select: { userId: true },
     });
     expect(inviteDeleteMany).toHaveBeenCalledWith({
@@ -124,6 +124,22 @@ describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
     const inviteDeleteOrder = inviteDeleteMany.mock.invocationCallOrder[0]!;
     const userDeleteOrder = userDeleteMany.mock.invocationCallOrder[0]!;
     expect(userDeleteOrder).toBeGreaterThan(inviteDeleteOrder);
+  });
+
+  it("삭제 대상 조회가 role: STUDENT로 다시 좁혀진다 (M2) — listExisting과 트랜잭션 " +
+    "사이에 ADMIN으로 승격된 계정은 이 where 절 덕에 findMany 결과에서 빠져 지워지지 " +
+    "않는다", async () => {
+    studentProfileFindMany.mockResolvedValue([]);
+
+    await applyRoster(2026, input({ deleteStudentProfileIds: ["sp-del-1"] }));
+
+    expect(studentProfileFindMany).toHaveBeenCalledWith({
+      where: { id: { in: ["sp-del-1"] }, user: { role: "STUDENT" } },
+      select: { userId: true },
+    });
+    // findMany가 role 필터에 걸려 빈 배열을 돌려주면 지울 대상이 없다 — 승격된
+    // 계정은 뒤이은 삭제 쿼리의 in절에 아예 등장하지 않는다.
+    expect(userDeleteMany).toHaveBeenCalledWith({ where: { id: { in: [] } } });
   });
 
   it("삭제는 재배정(enrollment 재생성)보다 먼저 끝낸다", async () => {
