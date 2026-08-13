@@ -1,12 +1,20 @@
 import { prisma } from "@/core/db/client";
 import { isUniqueViolation } from "@/core/db/unique-violation";
 import type { Prisma } from "@/generated/prisma/client";
+import { generateStudentCode } from "@/lib/student-code";
 
 /** Prisma 호출만 둔다. 권한 검사도, 업무 규칙도 여기 두지 않는다. */
 
 type Tx = Prisma.TransactionClient;
 
 export class InviteRaceError extends Error {}
+
+/**
+ * 학생코드 유일 제약 충돌 시 트랜잭션째 재시도하는 횟수.
+ * invite.service.ts의 CODE_RETRIES와 같은 규약이다. 31^7 공간이라 실제로는 거의
+ * 일어나지 않는다.
+ */
+const STUDENT_CODE_RETRIES = 5;
 
 /** 이 반·번호가 이미 다른 학생에게 배정돼 있을 때. (Enrollment_classId_number_key) */
 export class NumberTakenError extends Error {}
@@ -107,49 +115,65 @@ export async function completeStudentRegistration(
   student: { birthDate: Date; grade: number; classNo: number; number: number },
   year: number,
 ): Promise<void> {
-  await prisma.$transaction(async (tx) => {
-    await createUserWithCredential(tx, account, "STUDENT");
-
-    // 학급은 없으면 만든다 — 관리자가 미리 등록해 둘 필요가 없게.
-    const schoolClass = await tx.schoolClass.upsert({
-      where: {
-        year_grade_classNo: {
-          year,
-          grade: student.grade,
-          classNo: student.classNo,
-        },
-      },
-      create: { year, grade: student.grade, classNo: student.classNo },
-      update: {},
-    });
-
-    const profile = await tx.studentProfile.create({
-      data: {
-        userId: account.userId,
-        birthDate: student.birthDate,
-      },
-    });
-
-    // 소속은 학년도별로 쌓인다. 가입은 현재 학년도 배정을 만든다.
+  // 학생코드가 겹치면(31^7 공간, 사실상 희박) Postgres가 그 문장부터 트랜잭션을
+  // 중단시킨다 — 같은 트랜잭션 안에서 새 코드로 이어서 재시도할 수 없으므로
+  // 트랜잭션째 다시 돈다. NumberTakenError·InviteRaceError는 학생코드와 무관한
+  // 유일 제약이라 아래 catch에서 바로 다시 던져지고 재시도를 낭비하지 않는다.
+  for (let attempt = 1; attempt <= STUDENT_CODE_RETRIES; attempt += 1) {
     try {
-      await tx.enrollment.create({
-        data: {
-          studentProfileId: profile.id,
-          year,
-          classId: schoolClass.id,
-          number: student.number,
-          status: "ENROLLED",
-        },
+      await prisma.$transaction(async (tx) => {
+        await createUserWithCredential(tx, account, "STUDENT");
+
+        // 학급은 없으면 만든다 — 관리자가 미리 등록해 둘 필요가 없게.
+        const schoolClass = await tx.schoolClass.upsert({
+          where: {
+            year_grade_classNo: {
+              year,
+              grade: student.grade,
+              classNo: student.classNo,
+            },
+          },
+          create: { year, grade: student.grade, classNo: student.classNo },
+          update: {},
+        });
+
+        const profile = await tx.studentProfile.create({
+          data: {
+            userId: account.userId,
+            birthDate: student.birthDate,
+            // 계정을 만들 때 한 번 부여하고 바뀌지 않는다.
+            studentCode: generateStudentCode(),
+          },
+        });
+
+        // 소속은 학년도별로 쌓인다. 가입은 현재 학년도 배정을 만든다.
+        try {
+          await tx.enrollment.create({
+            data: {
+              studentProfileId: profile.id,
+              year,
+              classId: schoolClass.id,
+              number: student.number,
+              status: "ENROLLED",
+            },
+          });
+        } catch (error) {
+          // 관리자가 발급한 초대코드의 반·번호가 그 사이 다른 학생에게도 쓰였을 수 있다.
+          // 미리 조회해 봐야 그 틈을 못 막으므로 유일 제약 위반을 잡아서 옮긴다.
+          if (isUniqueViolation(error, "number")) throw new NumberTakenError();
+          throw error;
+        }
+
+        await consumeInvite(tx, inviteId, account.userId);
       });
+      return;
     } catch (error) {
-      // 관리자가 발급한 초대코드의 반·번호가 그 사이 다른 학생에게도 쓰였을 수 있다.
-      // 미리 조회해 봐야 그 틈을 못 막으므로 유일 제약 위반을 잡아서 옮긴다.
-      if (isUniqueViolation(error, "number")) throw new NumberTakenError();
+      if (isUniqueViolation(error, "studentCode") && attempt < STUDENT_CODE_RETRIES) {
+        continue;
+      }
       throw error;
     }
-
-    await consumeInvite(tx, inviteId, account.userId);
-  });
+  }
 }
 
 export async function completeAdminRegistration(

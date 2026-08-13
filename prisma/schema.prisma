@@ -126,6 +126,10 @@ model StudentProfile {
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  /// 학생 식별자. 명단 파일의 첫 열이며 절대 바뀌지 않는다.
+  /// src/lib/student-code.ts가 만든다.
+  studentCode String @unique
+
   /// 가입 시 초대코드의 사전등록 값과 대조하는 2차 요소.
   birthDate DateTime
 

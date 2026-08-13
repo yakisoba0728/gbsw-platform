@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { isStudentCode } from "@/lib/student-code";
 
 const userCreate = vi.fn();
 const accountCreate = vi.fn();
@@ -47,6 +48,27 @@ function realWorldP2002() {
             'duplicate key value violates unique constraint "Enrollment_classId_number_key"',
           kind: "UniqueConstraintViolation",
           constraint: { fields: ["classId", "number"] },
+        },
+      },
+    },
+  });
+}
+
+/** 위와 같은 모양이지만 위반 컬럼이 StudentProfile.studentCode다. */
+function realWorldStudentCodeP2002() {
+  return Object.assign(new Error("Unique constraint failed"), {
+    name: "PrismaClientKnownRequestError",
+    code: "P2002",
+    meta: {
+      modelName: "StudentProfile",
+      driverAdapterError: {
+        name: "DriverAdapterError",
+        cause: {
+          originalCode: "23505",
+          originalMessage:
+            'duplicate key value violates unique constraint "StudentProfile_studentCode_key"',
+          kind: "UniqueConstraintViolation",
+          constraint: { fields: ["studentCode"] },
         },
       },
     },
@@ -131,5 +153,38 @@ describe("completeStudentRegistration()", () => {
       where: { id: "inv-1", status: "PENDING" },
       data: expect.objectContaining({ status: "USED" }),
     });
+
+    // 학생코드는 여기서 직접 부여한다 — student-code.ts의 형식(8자리, 문자로 시작)을 따른다.
+    const call = studentProfileCreate.mock.calls[0]![0] as {
+      data: { studentCode: string };
+    };
+    expect(isStudentCode(call.data.studentCode)).toBe(true);
+  });
+
+  it("학생코드가 겹치면 트랜잭션째 재시도해 새 코드로 다시 만든다", async () => {
+    studentProfileCreate
+      .mockRejectedValueOnce(realWorldStudentCodeP2002())
+      .mockResolvedValue({ id: "profile-1" });
+
+    await completeStudentRegistration("inv-1", account, student, 2026);
+
+    // 롤백된 시도도 트랜잭션 전체를 다시 돈다 — 계정 생성부터 두 번째로 돈다.
+    expect(studentProfileCreate).toHaveBeenCalledTimes(2);
+    expect(userCreate).toHaveBeenCalledTimes(2);
+    // 최종적으로는 성공한 시도에서만 코드가 한 번 소진된다.
+    expect(inviteUpdateMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("재시도를 다 써도 계속 겹치면 실패를 그대로 올려보낸다", async () => {
+    const error = realWorldStudentCodeP2002();
+    studentProfileCreate.mockRejectedValue(error);
+
+    await expect(
+      completeStudentRegistration("inv-1", account, student, 2026),
+    ).rejects.toBe(error);
+
+    expect(studentProfileCreate).toHaveBeenCalledTimes(5);
+    // 코드가 끝내 없었으니 어떤 시도도 초대코드를 소진하지 못한다.
+    expect(inviteUpdateMany).not.toHaveBeenCalled();
   });
 });
