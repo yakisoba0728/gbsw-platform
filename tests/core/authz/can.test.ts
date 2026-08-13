@@ -9,6 +9,7 @@ import { ROLES, type Role } from "@/core/authz/roles";
 const EXPECTED: Record<Action, Role[]> = {
   "user:manage": ["ADMIN"],
   "student:manage": ["ADMIN"],
+  "academic-year:manage": ["ADMIN"],
   "invite:create": ["ADMIN"],
   "invite:list": ["ADMIN"],
   "invite:revoke": ["ADMIN"],

@@ -9,6 +9,7 @@ import type { Role } from "./roles";
 export type Action =
   | "user:manage"
   | "student:manage"
+  | "academic-year:manage"
   | "invite:create"
   | "invite:list"
   | "invite:revoke"
@@ -25,6 +26,7 @@ export type Action =
 const RULES: Record<Action, Role[]> = {
   "user:manage": [], // 관리자 전용
   "student:manage": [], // 관리자 전용
+  "academic-year:manage": [], // 관리자 전용
   "invite:create": [], // 관리자 전용
   "invite:list": [], // 관리자 전용
   "invite:revoke": [], // 관리자 전용
