@@ -72,6 +72,12 @@ export async function applyRosterPlan(
 ): Promise<{ saved: number; invites: Awaited<ReturnType<typeof repo.applyRoster>>["invites"] }> {
   assertMayImport(actor);
 
+  // 경계 zod(rosterRowsSchema의 .min(1))가 항상 이 함수 앞에 있다는 보장은 없다 —
+  // "서비스만 있으면 진입점을 갈아끼울 수 있다"가 이 저장소의 설계 목표다(CLAUDE.md).
+  // 새 진입점이 zod를 빠뜨리면 rows: [] 한 번에 명단에 있던 전교생이 통째로
+  // missingFromFile로 잡힌다 — 서비스에도 최소 방어를 둔다 (M1).
+  if (rows.length === 0) throw new RosterError("EMPTY_ROWS");
+
   const year = await getCurrentYear();
   if (year !== expectedYear) throw new RosterError("YEAR_CHANGED");
 

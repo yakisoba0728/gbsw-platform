@@ -15,6 +15,10 @@ import type { ApplyState, PreviewState } from "./action-state";
 
 const MESSAGES: Record<string, string> = {
   EMPTY: "읽을 수 있는 줄이 없습니다. 서식 파일을 받아 확인해 주세요.",
+  // previewRoster의 EMPTY와 문구를 맞춘다 — zod(rosterRowsSchema.min(1))가 정상
+  // 경로에서 항상 막아주므로 화면까지 닿을 일은 없지만, 서비스의 방어(M-1)가
+  // 실제로 걸렸을 때 빈 문자열 대신 사람이 읽을 문구가 나가야 한다.
+  EMPTY_ROWS: "반영할 내용이 없습니다.",
   YEAR_CHANGED: "학년도가 바뀌었습니다. 새로고침 후 다시 올려 주세요.",
   BLOCKED: "오류가 있는 줄이 남아 있습니다.",
   CODE_COLLISION: "초대코드가 겹쳤습니다. 다시 시도해 주세요.",
