@@ -104,5 +104,9 @@ tests/                  core/ · modules/ — 구조를 src/와 맞춘다
   접속 URL은 `prisma.config.ts`에 있다. SQL 접속은 드라이버 어댑터(`@prisma/adapter-pg`)로만.
 - **Postgres 18**: 볼륨은 `/var/lib/postgresql`에 마운트한다 (`/data` 아님).
 - 마이그레이션은 compose의 별도 `migrate` 서비스가 돌린다. 런타임 이미지에는 Prisma CLI가 없다.
+- **스키마를 바꿨으면 `next dev`를 반드시 재시작한다** (`.next`도 지우고). 돌던 개발 서버는
+  옛 Prisma 클라이언트를 물고 있어서, 새 필드를 쓰는 화면만 `PrismaClientValidationError`로
+  조용히 실패한다. 타입 검사·테스트·빌드는 디스크의 새 클라이언트를 보므로 전부 통과한다 —
+  화면에서만 터지고, 서버 액션의 catch가 오류를 삼키면 원인이 어디에도 남지 않는다.
 - 역할은 `ADMIN / STUDENT / PARENT` 3개. **교사 = 관리자**이며 교직원 사이에 권한 차등이 없다.
   최상위 계정 개념도 없다 — 관리자끼리 서로를 초대한다.

@@ -86,6 +86,9 @@ export async function exportRosterAction(): Promise<{
     if (error instanceof AcademicYearError) {
       return { error: NO_CURRENT_YEAR_MESSAGE, year: null, rows: [] };
     }
+    // 예상 못 한 오류는 서버에 남긴다. 화면에는 일반 문구만 나가므로
+    // 여기서 흘리면 무엇이 잘못됐는지 아무 데도 남지 않는다.
+    console.error("명단 내보내기 실패:", error);
     return { error: "명단을 내려받지 못했습니다.", year: null, rows: [] };
   }
 }
