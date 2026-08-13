@@ -127,6 +127,11 @@ describe("completeRegistration() — 학생", () => {
     expect(account.passwordHash).not.toBe(base.password);
     // 학반번호는 가입자가 입력하지 않는다 — 코드에 박힌 값이 그대로 쓰인다.
     expect(student).toMatchObject({ grade: 1, classNo: 2, number: 15 });
+    // KST 자정으로 저장한다 — admin-users의 관리자 수정과 같은 기준이어야
+    // 3단계 명단 매칭에서 이름+생년월일 대조가 갈리지 않는다.
+    expect((student as { birthDate: Date }).birthDate.toISOString()).toBe(
+      "2010-03-03T15:00:00.000Z",
+    );
   });
 
   it("생년월일이 틀리면 실패 횟수를 올리고 계정을 만들지 않는다", async () => {

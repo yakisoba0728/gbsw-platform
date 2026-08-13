@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
 import { recordAudit } from "@/core/audit/audit";
 import { isRole, type Role } from "@/core/authz/roles";
+import { parseDateInputKst } from "@/lib/datetime";
 import {
   isInviteUsable,
   MAX_INVITE_ATTEMPTS,
@@ -107,7 +108,9 @@ export async function completeRegistration(
         invite.id,
         account,
         {
-          birthDate: new Date(`${meta.birthDate}T00:00:00Z`),
+          // KST 자정으로 고정한다 (admin-users의 관리자 수정과 같은 기준이어야
+          // 3단계 명단 매칭에서 이름+생년월일 대조가 갈리지 않는다).
+          birthDate: parseDateInputKst(meta.birthDate),
           grade: meta.grade,
           classNo: meta.classNo,
           number: meta.number,

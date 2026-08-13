@@ -2,7 +2,7 @@ import { hashPassword } from "better-auth/crypto";
 import { recordAudit } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
 import { can } from "@/core/authz/can";
-import { formatDateInput } from "@/lib/datetime";
+import { formatDateInput, parseDateInputKst } from "@/lib/datetime";
 import { generateTempPassword } from "@/lib/temp-password";
 import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
 import * as repo from "./admin-user.repo";
@@ -117,7 +117,7 @@ export async function updateUser(
     try {
       await repo.updateEnrollment(profile.id, year, {
         // 생년월일은 날짜만 의미가 있다. KST 자정으로 고정해 하루 밀림을 막는다.
-        birthDate: new Date(`${input.birthDate}T00:00:00+09:00`),
+        birthDate: parseDateInputKst(input.birthDate),
         grade: input.grade,
         classNo: input.classNo,
         number: input.number ?? enrollment?.number ?? 1,
