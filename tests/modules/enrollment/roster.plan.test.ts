@@ -5,7 +5,7 @@ import { normalizeRows, type RosterRow } from "@/modules/enrollment/roster.parse
 function row(over: Partial<RosterRow> = {}): RosterRow {
   return {
     line: 2,
-    studentCode: "AAAA1111",
+    studentCode: "AAAA2345",
     name: "김동혁",
     birthDate: "2010-07-28",
     grade: 1,
@@ -20,7 +20,7 @@ function row(over: Partial<RosterRow> = {}): RosterRow {
 const 재학생 = {
   studentProfileId: "sp-1",
   userId: "u-1",
-  studentCode: "AAAA1111",
+  studentCode: "AAAA2345",
   name: "김동혁",
   birthDate: "2010-07-28",
   grade: 1,
@@ -155,12 +155,12 @@ describe("planRoster()", () => {
 
   it("이름·생년월일이 완전히 같아도 학생코드가 다르면 각각 다른 학생이다 — " +
     "동명이인이 같은 생일인 것이 이제 정상이다", () => {
-    const 동명이인 = { ...재학생, studentProfileId: "sp-2", userId: "u-2", studentCode: "BBBB2222" };
+    const 동명이인 = { ...재학생, studentProfileId: "sp-2", userId: "u-2", studentCode: "BCDF2345" };
 
     const plan = planRoster(
       [
-        row({ studentCode: "AAAA1111", classNo: 5 }),
-        row({ line: 3, studentCode: "BBBB2222", classNo: 6 }),
+        row({ studentCode: "AAAA2345", classNo: 5 }),
+        row({ line: 3, studentCode: "BCDF2345", classNo: 6 }),
       ],
       [재학생, 동명이인],
     );
@@ -192,8 +192,8 @@ describe("planRoster()", () => {
   it("같은 반에 번호가 겹치면 확정을 막는다", () => {
     const plan = planRoster(
       [
-        row({ studentCode: "AAAA1111", name: "가", birthDate: "2010-01-01" }),
-        row({ line: 3, studentCode: "BBBB2222", name: "나", birthDate: "2010-01-02" }),
+        row({ studentCode: "AAAA2345", name: "가", birthDate: "2010-01-01" }),
+        row({ line: 3, studentCode: "BCDF2345", name: "나", birthDate: "2010-01-02" }),
       ],
       [],
     );
@@ -273,7 +273,7 @@ describe("planRoster() + normalizeRows() — 회귀: 명단 업로드의 학년�
         const 배정없는재학생 = {
           studentProfileId: "sp-1",
           userId: "u-1",
-          studentCode: "AAAA1111",
+          studentCode: "AAAA2345",
           name: "김동혁",
           birthDate: "2010-07-28",
           grade: null,

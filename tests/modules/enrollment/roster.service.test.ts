@@ -34,7 +34,7 @@ const student = user("STUDENT", "s-1");
 const 재학생 = {
   studentProfileId: "sp-1",
   userId: "u-1",
-  studentCode: "AAAA1111",
+  studentCode: "AAAA2345",
   name: "김동혁",
   birthDate: "2010-07-28",
   grade: 1,
@@ -48,7 +48,7 @@ const 재학생 = {
 // 이어붙는다. existing을 []로 두는 테스트는 studentCode를 ""로 덮어써 신규로 만든다.
 const row = {
   line: 2,
-  studentCode: "AAAA1111",
+  studentCode: "AAAA2345",
   name: "김동혁",
   birthDate: "2010-07-28",
   grade: 1,
@@ -167,18 +167,18 @@ describe("applyRosterPlan()", () => {
 
   it("분류별로 statusChanged를 다르게 실어 보낸다", async () => {
     const rows = [
-      { ...row, studentCode: "CODE0001", name: "그대로", grade: 1, classNo: 3, number: 3 },
-      { ...row, studentCode: "CODE0002", name: "반바뀜", grade: 2, classNo: 1, number: 9 },
+      { ...row, studentCode: "CDEF2345", name: "그대로", grade: 1, classNo: 3, number: 3 },
+      { ...row, studentCode: "CDEF2346", name: "반바뀜", grade: 2, classNo: 1, number: 9 },
       {
         ...row,
-        studentCode: "CODE0003",
+        studentCode: "CDEF2347",
         name: "학적바뀜",
         status: "GRADUATED" as const,
         grade: null,
         classNo: null,
         number: null,
       },
-      { ...row, studentCode: "CODE0004", name: "새배정", grade: 3, classNo: 2, number: 5 },
+      { ...row, studentCode: "CDEF2348", name: "새배정", grade: 3, classNo: 2, number: 5 },
     ].map((r, i) => ({
       ...r,
       birthDate: `2010-0${i + 1}-01`,
@@ -189,7 +189,7 @@ describe("applyRosterPlan()", () => {
       {
         ...재학생,
         studentProfileId: "sp-untouched",
-        studentCode: "CODE0001",
+        studentCode: "CDEF2345",
         name: "그대로",
         birthDate: "2010-01-01",
       },
@@ -197,7 +197,7 @@ describe("applyRosterPlan()", () => {
         ...재학생,
         studentProfileId: "sp-reassign",
         userId: "u-2",
-        studentCode: "CODE0002",
+        studentCode: "CDEF2346",
         name: "반바뀜",
         birthDate: "2010-02-01",
       },
@@ -205,7 +205,7 @@ describe("applyRosterPlan()", () => {
         ...재학생,
         studentProfileId: "sp-statuschange",
         userId: "u-3",
-        studentCode: "CODE0003",
+        studentCode: "CDEF2347",
         name: "학적바뀜",
         birthDate: "2010-03-01",
       },
@@ -213,7 +213,7 @@ describe("applyRosterPlan()", () => {
         ...재학생,
         studentProfileId: "sp-newassign",
         userId: "u-4",
-        studentCode: "CODE0004",
+        studentCode: "CDEF2348",
         name: "새배정",
         birthDate: "2010-04-01",
         status: null,
@@ -298,7 +298,7 @@ describe("exportRoster()", () => {
     expect(listExisting).toHaveBeenCalledWith(2026);
     expect(result.year).toBe(2026);
     expect(result.rows[0]).toEqual([...ROSTER_COLUMNS, ...ROSTER_INFO_COLUMNS]);
-    expect(result.rows[1]![0]).toBe("AAAA1111");
+    expect(result.rows[1]![0]).toBe("AAAA2345");
     expect(result.rows[1]![1]).toBe("김동혁");
   });
 

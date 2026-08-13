@@ -40,7 +40,7 @@ describe("buildExportRows()", () => {
   it("학적을 한글 라벨로 되돌린다", () => {
     const rows = buildExportRows([
       student({ status: "ENROLLED" }),
-      student({ studentCode: "BBBB2222", status: "GRADUATED", grade: null, classNo: null, number: null }),
+      student({ studentCode: "BCDF2345", status: "GRADUATED", grade: null, classNo: null, number: null }),
     ]);
     expect(rows[1]![6]).toBe("재학");
     expect(rows[2]![6]).toBe("졸업");
