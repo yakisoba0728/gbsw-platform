@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { requirePermission } from "@/core/auth/session";
 import {
   AcademicYearError,
@@ -42,6 +43,14 @@ export default async function StudentsPage() {
 
   return (
     <div className="grid gap-5">
+      <div className="flex justify-end">
+        <Link
+          href="/admin/students/import"
+          className="text-[12.5px] font-semibold text-pri hover:underline"
+        >
+          명단 올리기
+        </Link>
+      </div>
       <YearSwitcher years={years} />
       {rows && currentYear !== undefined && (
         <StudentTable key={currentYear} rows={rows} year={currentYear} />
