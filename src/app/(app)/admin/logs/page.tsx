@@ -64,11 +64,13 @@ export default async function LogsPage({
                     {formatDateTime(entry.createdAt)}
                   </td>
                   <td className="px-3 py-3">
-                    <span className="text-ink">{entry.actor.name}</span>
+                    <span className="text-ink">{entry.actorName}</span>
                     <span className="block text-[12px] text-mut">
-                      {isRole(entry.actor.role)
-                        ? ROLE_LABELS[entry.actor.role]
-                        : entry.actor.email}
+                      {entry.actor
+                        ? isRole(entry.actor.role)
+                          ? ROLE_LABELS[entry.actor.role]
+                          : entry.actor.email
+                        : "탈퇴한 계정"}
                     </span>
                   </td>
                   <td className="px-3 py-3 font-semibold text-ink">

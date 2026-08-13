@@ -152,7 +152,7 @@ export default async function UserDetailPage({
                     <p className="mt-0.5 text-[12px] text-mut">
                       {entry.actorUserId === user.id
                         ? "본인이 실행"
-                        : `${entry.actor.name} 실행`}
+                        : `${entry.actorName} 실행`}
                     </p>
                   </li>
                 ))}

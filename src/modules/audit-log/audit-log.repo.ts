@@ -13,14 +13,15 @@ function toWhere(filter: AuditFilter): Prisma.AuditLogWhereInput {
   return {
     ...(filter.action ? { action: filter.action } : {}),
     ...(filter.since ? { createdAt: { gte: filter.since } } : {}),
+    // actorName은 기록 시점 스냅샷이라 계정이 지워져도 남는다 — 삭제된 행위자도
+    // 이름으로는 검색돼야 하므로 실시간 관계 대신 이 필드로 찾는다. 이메일은
+    // 스냅샷이 없으므로 그대로 관계에서 찾는다 (계정이 지워지면 못 찾는다).
     ...(filter.actor
       ? {
-          actor: {
-            OR: [
-              { name: { contains: filter.actor, mode: "insensitive" } },
-              { email: { contains: filter.actor, mode: "insensitive" } },
-            ],
-          },
+          OR: [
+            { actorName: { contains: filter.actor, mode: "insensitive" } },
+            { actor: { email: { contains: filter.actor, mode: "insensitive" } } },
+          ],
         }
       : {}),
   };
@@ -36,7 +37,9 @@ export async function findPage(
     orderBy: { createdAt: "desc" },
     skip,
     take,
-    include: { actor: { select: { name: true, email: true, role: true } } },
+    // 이름은 actorName 스냅샷을 쓴다 — 계정이 지워져도 남아야 한다.
+    // email·role은 계정이 살아 있을 때만 의미가 있어 관계에서 그대로 읽는다.
+    include: { actor: { select: { email: true, role: true } } },
   });
 }
 

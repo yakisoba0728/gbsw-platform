@@ -81,7 +81,6 @@ export async function findRelatedAudit(userId: string, take: number) {
     where: { OR: [{ actorUserId: userId }, { targetId: userId }] },
     orderBy: { createdAt: "desc" },
     take,
-    include: { actor: { select: { name: true } } },
   });
 }
 

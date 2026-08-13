@@ -308,8 +308,13 @@ model VerificationCode {
 model AuditLog {
   id String @id @default(cuid())
 
-  actorUserId String
-  actor       User   @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+  /// 계정이 지워지면 null이 된다. 기록 자체는 남아야 하므로 Restrict를 쓰지 않는다.
+  actorUserId String?
+  actor       User?  @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  /// 기록 시점의 행위자 이름. 계정이 사라져도 "누가 했는지"가 남아야 한다.
+  /// 과거의 사실이 살아 있는 외래키에 기대면 안 된다.
+  actorName String
 
   /// core/authz/can.ts의 Action 문자열과 같은 형식. 예) "merit:award"
   action     String
