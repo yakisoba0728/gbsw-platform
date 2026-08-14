@@ -51,11 +51,38 @@ npm run dev            # http://localhost:3000
 | `npm run dev` | 개발 서버 |
 | `npm run verify` | 타입체크 + 린트 + 테스트 (작업 종료 전 실행) |
 | `npm run typecheck` | `tsc --noEmit` |
-| `npm test` | Vitest |
+| `npm test` | Vitest 단위 테스트 (`--project unit`) — 실 DB 없이 돈다, CI가 도는 대상 |
+| `npm run test:integration` | repo 계층 통합 테스트 (`--project integration`) — 아래 참고 |
 | `npm run db:up` | Postgres 컨테이너만 기동 |
 | `npm run db:migrate` | `prisma migrate dev` |
+| `npm run db:test:setup` | 통합 테스트 전용 DB(`gbsw_test`) 생성 + 마이그레이션 |
 | `npm run db:studio` | Prisma Studio |
 | `npm run auth:generate` | Better Auth가 기대하는 스키마 생성 (대조용) |
+
+### 통합 테스트 (I7)
+
+repo 계층 대부분은 `vi.mock("@/core/db/client")`로 Prisma를 통째로 대체해 단위
+테스트한다 — 로직은 빠르게 검증되지만, 트랜잭션 롤백이 실제로 도는지·초대코드
+동시 사용 방어가 실제로 하나만 통과시키는지·유일 제약이 실제로 걸리는지는
+목으로는 검증할 수 없다. `tests/integration/`의 소수 테스트만 실 Postgres에
+대고 이걸 확인한다.
+
+**개발 DB(`gbsw`)와 완전히 분리된 별도 데이터베이스(`gbsw_test`)를 쓴다** —
+같은 컨테이너(`gbsw-db`) 안에 두되 데이터베이스 이름 자체가 다르다. 통합
+테스트가 실 계정·감사로그를 건드릴 수 없게 하기 위한 안전장치다.
+
+```bash
+# .env에 TEST_DATABASE_URL을 넣는다 (.env.example 참고, DATABASE_URL과
+# 데이터베이스 이름이 달라야 한다)
+npm run db:test:setup       # gbsw_test 생성 + 마이그레이션 (멱등)
+npm run test:integration
+```
+
+`npm test`/`npm run verify`에는 포함되지 않는다 — CI는 DB 없이 단위 테스트만
+돈다. 각 통합 테스트는 자기가 만든 데이터만 정리하고 끝난다(전역
+`deleteMany()` 금지) — `AcademicYear` 부분 유니크 인덱스를 확인하는 테스트만
+예외로, 마이그레이션이 심어 두는 시드 행(`2026`, `isCurrent: true`)의 값을
+건드렸다가 끝에 원래대로 되돌린다.
 
 ## 전체 스택 실행
 
