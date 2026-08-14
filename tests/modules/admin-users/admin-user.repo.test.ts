@@ -1,26 +1,44 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+import { vi } from "vitest";
 
-const update = vi.fn();
+const userUpdate = vi.fn();
 const studentProfileUpdate = vi.fn();
 const schoolClassUpsert = vi.fn();
 const enrollmentUpsert = vi.fn();
+const sessionDeleteMany = vi.fn();
+const accountUpdateMany = vi.fn();
+const transactionArray = vi.fn();
 
 const tx = {
+  user: { update: userUpdate },
   studentProfile: { update: studentProfileUpdate },
   schoolClass: { upsert: schoolClassUpsert },
   enrollment: { upsert: enrollmentUpsert },
+  session: { deleteMany: sessionDeleteMany },
+  account: { updateMany: accountUpdateMany },
 };
 
 vi.mock("@/core/db/client", () => ({
   prisma: {
-    user: { update },
-    // updateEnrollment는 트랜잭션 안에서 돈다 — 콜백에 tx를 그대로 넘겨 흉내 낸다.
-    $transaction: (fn: (tx: unknown) => unknown) => fn(tx),
+    user: { update: userUpdate },
+    session: { deleteMany: sessionDeleteMany },
+    // updateUserAndEnrollment/resetCredential은 콜백형 트랜잭션 — 콜백에 tx를 넘겨 흉내 낸다.
+    // setActive(비활성화)는 배열형 트랜잭션 — 배열을 그대로 기록해 둔다.
+    $transaction: (arg: unknown) => {
+      if (typeof arg === "function") return (arg as (tx: unknown) => unknown)(tx);
+      transactionArray(arg);
+      return Promise.resolve(arg);
+    },
   },
 }));
 
-const { EmailTakenError, NumberTakenError, updateEnrollment, updateProfile } =
-  await import("@/modules/admin-users/admin-user.repo");
+const {
+  EmailTakenError,
+  NumberTakenError,
+  updateUserAndEnrollment,
+  setActive,
+  resetCredential,
+} = await import("@/modules/admin-users/admin-user.repo");
 
 /**
  * P2002의 생김새는 Prisma 버전과 접속 방식에 묶여 있다.
@@ -48,7 +66,7 @@ function realWorldP2002() {
   });
 }
 
-/** updateEnrollment 쪽 실물 P2002 — 위반 컬럼만 (classId, number) 복합 유일키로 바뀐다. */
+/** enrollment 쪽 실물 P2002 — 위반 컬럼만 (classId, number) 복합 유일키로 바뀐다. */
 function realWorldNumberP2002() {
   return Object.assign(new Error("Unique constraint failed"), {
     name: "PrismaClientKnownRequestError",
@@ -69,31 +87,38 @@ function realWorldNumberP2002() {
   });
 }
 
-const data = {
+const profileData = {
   name: "김학생",
   email: "taken@gbsw.hs.kr",
   phone: "010-1111-2222",
 };
 
-const enrollmentData = { birthDate: new Date("2010-07-27T15:00:00.000Z"), grade: 1, classNo: 2, number: 15 };
+const enrollmentData = {
+  studentProfileId: "sp-1",
+  year: 2026,
+  birthDate: new Date("2010-07-27T15:00:00.000Z"),
+  grade: 1,
+  classNo: 2,
+  number: 15,
+};
 
-// 블록 본문으로 둔다. `() => update.mockReset()`은 목 함수를 반환하는데,
-// vitest는 훅이 돌려준 함수를 teardown으로 보고 매 테스트 뒤에 호출한다.
-// 그러면 목이 한 번 더 실행돼 아무도 받지 않는 rejected promise가 생긴다.
 beforeEach(() => {
-  update.mockReset();
+  userUpdate.mockReset().mockResolvedValue(undefined);
   studentProfileUpdate.mockReset().mockResolvedValue(undefined);
   schoolClassUpsert.mockReset().mockResolvedValue({ id: "class-1" });
   enrollmentUpsert.mockReset().mockResolvedValue(undefined);
+  sessionDeleteMany.mockReset().mockResolvedValue(undefined);
+  accountUpdateMany.mockReset().mockResolvedValue({ count: 1 });
+  transactionArray.mockReset();
 });
 
-describe("updateProfile()", () => {
+describe("updateUserAndEnrollment() — profile", () => {
   it("이메일 중복이면 EmailTakenError로 옮긴다", async () => {
-    update.mockRejectedValue(realWorldP2002());
+    userUpdate.mockRejectedValue(realWorldP2002());
 
-    await expect(updateProfile("u-9", data)).rejects.toBeInstanceOf(
-      EmailTakenError,
-    );
+    await expect(
+      updateUserAndEnrollment("u-9", { profile: profileData, enrollment: null }),
+    ).rejects.toBeInstanceOf(EmailTakenError);
   });
 
   it("어댑터가 인덱스 이름만 줘도 알아본다", async () => {
@@ -101,24 +126,11 @@ describe("updateProfile()", () => {
     error.meta.driverAdapterError.cause.constraint = {
       index: "user_email_key",
     } as never;
-    update.mockRejectedValue(error);
+    userUpdate.mockRejectedValue(error);
 
-    await expect(updateProfile("u-9", data)).rejects.toBeInstanceOf(
-      EmailTakenError,
-    );
-  });
-
-  it("옛 meta.target 표현도 받아 둔다", async () => {
-    update.mockRejectedValue(
-      Object.assign(new Error("dup"), {
-        code: "P2002",
-        meta: { target: ["email"] },
-      }),
-    );
-
-    await expect(updateProfile("u-9", data)).rejects.toBeInstanceOf(
-      EmailTakenError,
-    );
+    await expect(
+      updateUserAndEnrollment("u-9", { profile: profileData, enrollment: null }),
+    ).rejects.toBeInstanceOf(EmailTakenError);
   });
 
   it("이메일이 아닌 제약 위반은 그대로 올려보낸다", async () => {
@@ -126,54 +138,30 @@ describe("updateProfile()", () => {
       code: "P2002",
       meta: { target: ["phone"] },
     });
-    update.mockRejectedValue(other);
+    userUpdate.mockRejectedValue(other);
 
-    await expect(updateProfile("u-9", data)).rejects.toBe(other);
+    await expect(
+      updateUserAndEnrollment("u-9", { profile: profileData, enrollment: null }),
+    ).rejects.toBe(other);
   });
 
-  it("유일 제약과 무관한 오류는 삼키지 않는다", async () => {
-    const boom = new Error("연결이 끊겼습니다");
-    update.mockRejectedValue(boom);
-
-    await expect(updateProfile("u-9", data)).rejects.toBe(boom);
+  it("profile이 null이면 user.update를 부르지 않는다", async () => {
+    await updateUserAndEnrollment("u-9", { profile: null, enrollment: null });
+    expect(userUpdate).not.toHaveBeenCalled();
   });
 });
 
-describe("updateEnrollment()", () => {
+describe("updateUserAndEnrollment() — enrollment", () => {
   it("반·번호 중복이면 NumberTakenError로 옮긴다", async () => {
     enrollmentUpsert.mockRejectedValue(realWorldNumberP2002());
 
     await expect(
-      updateEnrollment("sp-1", 2026, enrollmentData),
+      updateUserAndEnrollment("u-9", { profile: null, enrollment: enrollmentData }),
     ).rejects.toBeInstanceOf(NumberTakenError);
-  });
-
-  it("어댑터가 인덱스 이름만 줘도 알아본다", async () => {
-    const error = realWorldNumberP2002();
-    error.meta.driverAdapterError.cause.constraint = {
-      index: "Enrollment_classId_number_key",
-    } as never;
-    enrollmentUpsert.mockRejectedValue(error);
-
-    await expect(
-      updateEnrollment("sp-1", 2026, enrollmentData),
-    ).rejects.toBeInstanceOf(NumberTakenError);
-  });
-
-  it("(classId, number)와 무관한 유일 제약 위반은 그대로 올려보낸다", async () => {
-    const other = Object.assign(new Error("dup"), {
-      code: "P2002",
-      meta: { target: ["studentProfileId", "year"] },
-    });
-    enrollmentUpsert.mockRejectedValue(other);
-
-    await expect(updateEnrollment("sp-1", 2026, enrollmentData)).rejects.toBe(
-      other,
-    );
   });
 
   it("성공하면 학급을 찾아 소속을 갱신한다", async () => {
-    await updateEnrollment("sp-1", 2026, enrollmentData);
+    await updateUserAndEnrollment("u-9", { profile: null, enrollment: enrollmentData });
 
     expect(studentProfileUpdate).toHaveBeenCalledWith({
       where: { id: "sp-1" },
@@ -184,5 +172,72 @@ describe("updateEnrollment()", () => {
         where: { studentProfileId_year: { studentProfileId: "sp-1", year: 2026 } },
       }),
     );
+  });
+
+  it("enrollment가 null이면 소속 관련 문장을 하나도 안 부른다", async () => {
+    await updateUserAndEnrollment("u-9", { profile: profileData, enrollment: null });
+
+    expect(studentProfileUpdate).not.toHaveBeenCalled();
+    expect(schoolClassUpsert).not.toHaveBeenCalled();
+    expect(enrollmentUpsert).not.toHaveBeenCalled();
+  });
+
+  it("profile과 enrollment를 한 트랜잭션에서 함께 저장한다 (I1)", async () => {
+    await updateUserAndEnrollment("u-9", {
+      profile: profileData,
+      enrollment: enrollmentData,
+    });
+
+    expect(userUpdate).toHaveBeenCalledWith({ where: { id: "u-9" }, data: profileData });
+    expect(enrollmentUpsert).toHaveBeenCalled();
+  });
+});
+
+describe("setActive()", () => {
+  it("활성화는 상태만 바꾸고 세션은 건드리지 않는다", async () => {
+    await setActive("u-9", true);
+
+    expect(userUpdate).toHaveBeenCalledWith({
+      where: { id: "u-9" },
+      data: { status: "ACTIVE" },
+    });
+    expect(sessionDeleteMany).not.toHaveBeenCalled();
+    expect(transactionArray).not.toHaveBeenCalled();
+  });
+
+  it("비활성화는 상태 변경과 세션 삭제를 한 트랜잭션(배열)으로 묶는다 (M11)", async () => {
+    await setActive("u-9", false);
+
+    expect(transactionArray).toHaveBeenCalledTimes(1);
+    const batch = transactionArray.mock.calls[0]![0] as unknown[];
+    expect(batch).toHaveLength(2);
+    expect(userUpdate).toHaveBeenCalledWith({
+      where: { id: "u-9" },
+      data: { status: "INACTIVE" },
+    });
+    expect(sessionDeleteMany).toHaveBeenCalledWith({ where: { userId: "u-9" } });
+  });
+});
+
+describe("resetCredential()", () => {
+  it("비밀번호가 없는 계정이면 아무것도 바꾸지 않고 0을 돌려준다", async () => {
+    accountUpdateMany.mockResolvedValue({ count: 0 });
+
+    const updated = await resetCredential("u-9", "hash");
+
+    expect(updated).toBe(0);
+    expect(userUpdate).not.toHaveBeenCalled();
+    expect(sessionDeleteMany).not.toHaveBeenCalled();
+  });
+
+  it("성공하면 강제 변경 표시와 세션 삭제까지 같은 트랜잭션에서 한다 (M11)", async () => {
+    const updated = await resetCredential("u-9", "hash");
+
+    expect(updated).toBe(1);
+    expect(userUpdate).toHaveBeenCalledWith({
+      where: { id: "u-9" },
+      data: { mustChangePassword: true },
+    });
+    expect(sessionDeleteMany).toHaveBeenCalledWith({ where: { userId: "u-9" } });
   });
 });

@@ -87,68 +87,86 @@ export async function findRelatedAudit(userId: string, take: number) {
 /** 이메일이 이미 다른 계정에 쓰이고 있을 때. (registration.repo의 InviteRaceError와 같은 방식) */
 export class EmailTakenError extends Error {}
 
-export async function updateProfile(
-  userId: string,
-  data: { name: string; email: string; phone: string },
-): Promise<void> {
-  try {
-    await prisma.user.update({ where: { id: userId }, data });
-  } catch (error) {
-    // 미리 조회해서 검사하면 그 사이에 끼어드는 요청을 막지 못한다.
-    // 유일 제약이 진짜 방어선이므로 위반을 잡아서 옮긴다.
-    if (isUniqueViolation(error, "email")) throw new EmailTakenError();
-    throw error;
-  }
-}
-
 /**
  * 이 반·번호가 이미 다른 학생에게 배정돼 있을 때. (Enrollment_classId_number_key)
  * 기존 import 경로를 깨지 않기 위해 re-export한다. 실물은 core/db에 하나뿐이다.
  */
 export { NumberTakenError };
 
+export type UpdateUserAndEnrollmentInput = {
+  /** 이름·이메일·전화번호. 안 바뀌었으면 null — 문장 자체를 안 만든다. */
+  profile: { name: string; email: string; phone: string } | null;
+  /**
+   * 학생 소속 수정. 학급이 없으면 만든다 — 가입 때와 같은 방식이다.
+   * (registration.repo의 upsert 패턴과 동일) 안 바뀌었으면 null.
+   */
+  enrollment: {
+    studentProfileId: string;
+    year: number;
+    birthDate: Date;
+    grade: number;
+    classNo: number;
+    number: number;
+  } | null;
+};
+
 /**
- * 학생 소속 수정. 학급이 없으면 만든다 — 가입 때와 같은 방식이다.
- * (registration.repo의 upsert 패턴과 동일)
+ * 사용자 정보와 학생 소속을 **한 트랜잭션**으로 저장한다 (I1).
  *
- * 생년월일은 신원이라 StudentProfile에 남아 있고, 반·번호만 Enrollment로 간다.
+ * 예전엔 updateProfile()과 updateEnrollment()가 서로 다른 호출이었다.
+ * 이름·이메일·전화번호가 먼저 커밋된 뒤 반·번호 충돌(NumberTakenError)로
+ * 두 번째 호출이 실패하면, 앞선 변경은 이미 저장된 채로 화면엔 "저장 못 함"만
+ * 뜨는 반쪽짜리 저장이 됐다 — 로그인 아이디인 이메일이 흔적 없이 바뀔 수 있다는
+ * 게 특히 나빴다. enrollment.repo.ts의 applyAll과 같은 패턴으로 묶는다.
  */
-export async function updateEnrollment(
-  studentProfileId: string,
-  year: number,
-  data: { birthDate: Date; grade: number; classNo: number; number: number },
+export async function updateUserAndEnrollment(
+  userId: string,
+  input: UpdateUserAndEnrollmentInput,
 ): Promise<void> {
   await prisma.$transaction(async (tx) => {
-    await tx.studentProfile.update({
-      where: { id: studentProfileId },
-      data: { birthDate: data.birthDate },
-    });
+    if (input.profile) {
+      try {
+        await tx.user.update({ where: { id: userId }, data: input.profile });
+      } catch (error) {
+        // 미리 조회해서 검사하면 그 사이에 끼어드는 요청을 막지 못한다.
+        // 유일 제약이 진짜 방어선이므로 위반을 잡아서 옮긴다.
+        if (isUniqueViolation(error, "email")) throw new EmailTakenError();
+        throw error;
+      }
+    }
 
-    const schoolClass = await tx.schoolClass.upsert({
-      where: {
-        year_grade_classNo: { year, grade: data.grade, classNo: data.classNo },
-      },
-      create: { year, grade: data.grade, classNo: data.classNo },
-      update: {},
-    });
+    if (input.enrollment) {
+      const { studentProfileId, year, birthDate, grade, classNo, number } = input.enrollment;
 
-    try {
-      await tx.enrollment.upsert({
-        where: { studentProfileId_year: { studentProfileId, year } },
-        create: {
-          studentProfileId,
-          year,
-          classId: schoolClass.id,
-          number: data.number,
-          status: "ENROLLED",
-        },
-        // 상세에서 반·번호를 고치는 건 재학 중이라는 뜻이다. 졸업 행에 반만 채워지면 안 된다.
-        update: { classId: schoolClass.id, number: data.number, status: "ENROLLED" },
+      await tx.studentProfile.update({
+        where: { id: studentProfileId },
+        data: { birthDate },
       });
-    } catch (error) {
-      // updateProfile과 같은 이유 — 미리 조회해 봐야 그 사이에 끼어드는 요청을 못 막는다.
-      if (isUniqueViolation(error, "number")) throw new NumberTakenError();
-      throw error;
+
+      const schoolClass = await tx.schoolClass.upsert({
+        where: { year_grade_classNo: { year, grade, classNo } },
+        create: { year, grade, classNo },
+        update: {},
+      });
+
+      try {
+        await tx.enrollment.upsert({
+          where: { studentProfileId_year: { studentProfileId, year } },
+          create: {
+            studentProfileId,
+            year,
+            classId: schoolClass.id,
+            number,
+            status: "ENROLLED",
+          },
+          // 상세에서 반·번호를 고치는 건 재학 중이라는 뜻이다. 졸업 행에 반만 채워지면 안 된다.
+          update: { classId: schoolClass.id, number, status: "ENROLLED" },
+        });
+      } catch (error) {
+        // updateProfile과 같은 이유 — 미리 조회해 봐야 그 사이에 끼어드는 요청을 못 막는다.
+        if (isUniqueViolation(error, "number")) throw new NumberTakenError();
+        throw error;
+      }
     }
   });
 }
@@ -157,29 +175,41 @@ export async function setStatus(userId: string, status: string): Promise<void> {
   await prisma.user.update({ where: { id: userId }, data: { status } });
 }
 
-export async function setMustChangePassword(
-  userId: string,
-  value: boolean,
-): Promise<void> {
-  await prisma.user.update({
-    where: { id: userId },
-    data: { mustChangePassword: value },
-  });
+/**
+ * 계정을 활성/비활성으로 바꾼다. 비활성화는 세션 삭제까지 **한 트랜잭션**으로
+ * 묶는다 (M11) — 중간에 실패하면 "비활성인데 세션은 살아있음"이 된다.
+ * 활성화는 되돌릴 세션이 없으므로 단일 문장이면 충분하다.
+ */
+export async function setActive(userId: string, active: boolean): Promise<void> {
+  if (active) {
+    await prisma.user.update({ where: { id: userId }, data: { status: "ACTIVE" } });
+    return;
+  }
+
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: userId }, data: { status: "INACTIVE" } }),
+    prisma.session.deleteMany({ where: { userId } }),
+  ]);
 }
 
-/** credential 계정의 비밀번호를 갈아끼운다. */
-export async function replaceCredentialPassword(
+/**
+ * credential 계정의 비밀번호를 갈아끼우고, 다음 로그인 강제 변경 표시 +
+ * 세션 삭제까지 **한 트랜잭션**으로 묶는다 (M11) — 예전엔 세 호출이 따로였다.
+ * 비밀번호 로그인 수단이 없으면(count 0) 아무 것도 바꾸지 않고 0을 돌려준다.
+ */
+export async function resetCredential(
   userId: string,
   passwordHash: string,
 ): Promise<number> {
-  const { count } = await prisma.account.updateMany({
-    where: { userId, providerId: "credential" },
-    data: { password: passwordHash },
-  });
-  return count;
-}
+  return prisma.$transaction(async (tx) => {
+    const { count } = await tx.account.updateMany({
+      where: { userId, providerId: "credential" },
+      data: { password: passwordHash },
+    });
+    if (count === 0) return 0;
 
-/** 로그인 상태를 끊는다. 비활성화·비밀번호 초기화 시 함께 호출한다. */
-export async function deleteSessions(userId: string): Promise<void> {
-  await prisma.session.deleteMany({ where: { userId } });
+    await tx.user.update({ where: { id: userId }, data: { mustChangePassword: true } });
+    await tx.session.deleteMany({ where: { userId } });
+    return count;
+  });
 }

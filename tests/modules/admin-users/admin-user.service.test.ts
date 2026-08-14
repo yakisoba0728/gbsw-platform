@@ -5,12 +5,9 @@ const listUsersRepo = vi.fn();
 const findById = vi.fn();
 const findDetail = vi.fn();
 const findRelatedAudit = vi.fn();
-const updateProfile = vi.fn();
-const updateEnrollment = vi.fn();
-const setStatus = vi.fn();
-const setMustChangePassword = vi.fn();
-const replaceCredentialPassword = vi.fn();
-const deleteSessions = vi.fn();
+const updateUserAndEnrollment = vi.fn();
+const setActive = vi.fn();
+const resetCredential = vi.fn();
 const recordAudit = vi.fn();
 
 class EmailTakenError extends Error {}
@@ -23,12 +20,9 @@ vi.mock("@/modules/admin-users/admin-user.repo", () => ({
   findById,
   findDetail,
   findRelatedAudit,
-  updateProfile,
-  updateEnrollment,
-  setStatus,
-  setMustChangePassword,
-  replaceCredentialPassword,
-  deleteSessions,
+  updateUserAndEnrollment,
+  setActive,
+  resetCredential,
 }));
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
 vi.mock("@/modules/academic-year/academic-year.service", () => ({
@@ -88,12 +82,9 @@ beforeEach(() => {
   findById.mockReset().mockResolvedValue({ id: "u-9", name: "대상" });
   findDetail.mockReset().mockResolvedValue(detail());
   findRelatedAudit.mockReset().mockResolvedValue([]);
-  updateProfile.mockReset();
-  updateEnrollment.mockReset();
-  setStatus.mockReset();
-  setMustChangePassword.mockReset();
-  replaceCredentialPassword.mockReset().mockResolvedValue(1);
-  deleteSessions.mockReset();
+  updateUserAndEnrollment.mockReset().mockResolvedValue(undefined);
+  setActive.mockReset().mockResolvedValue(undefined);
+  resetCredential.mockReset().mockResolvedValue(1);
   recordAudit.mockReset();
 });
 
@@ -102,27 +93,25 @@ describe("권한", () => {
     await expect(listUsers(student)).rejects.toThrow("FORBIDDEN");
     await expect(setUserActive(student, "u-9", false)).rejects.toThrow("FORBIDDEN");
     await expect(resetPassword(student, "u-9")).rejects.toThrow("FORBIDDEN");
-    expect(setStatus).not.toHaveBeenCalled();
-    expect(replaceCredentialPassword).not.toHaveBeenCalled();
+    expect(setActive).not.toHaveBeenCalled();
+    expect(resetCredential).not.toHaveBeenCalled();
   });
 });
 
 describe("setUserActive()", () => {
-  it("비활성화하면 세션도 끊는다", async () => {
+  it("비활성화하면 세션도 끊는다 (repo.setActive가 트랜잭션으로 처리)", async () => {
     await setUserActive(admin, "u-9", false);
 
-    expect(setStatus).toHaveBeenCalledWith("u-9", "INACTIVE");
-    expect(deleteSessions).toHaveBeenCalledWith("u-9");
+    expect(setActive).toHaveBeenCalledWith("u-9", false);
     expect(recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({ action: "user:deactivate", targetId: "u-9" }),
     );
   });
 
-  it("활성화는 세션을 건드리지 않는다", async () => {
+  it("활성화도 repo.setActive 한 번으로 처리한다", async () => {
     await setUserActive(admin, "u-9", true);
 
-    expect(setStatus).toHaveBeenCalledWith("u-9", "ACTIVE");
-    expect(deleteSessions).not.toHaveBeenCalled();
+    expect(setActive).toHaveBeenCalledWith("u-9", true);
     expect(recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({ action: "user:activate" }),
     );
@@ -132,7 +121,7 @@ describe("setUserActive()", () => {
     await expect(setUserActive(admin, admin.id, false)).rejects.toThrow(
       "CANNOT_DEACTIVATE_SELF",
     );
-    expect(setStatus).not.toHaveBeenCalled();
+    expect(setActive).not.toHaveBeenCalled();
   });
 
   it("자기 계정을 다시 활성화하는 건 막지 않는다", async () => {
@@ -143,7 +132,7 @@ describe("setUserActive()", () => {
     findById.mockResolvedValue(null);
 
     await expect(setUserActive(admin, "없음", false)).rejects.toThrow("NOT_FOUND");
-    expect(setStatus).not.toHaveBeenCalled();
+    expect(setActive).not.toHaveBeenCalled();
   });
 });
 
@@ -153,16 +142,15 @@ describe("resetPassword()", () => {
 
     expect(tempPassword).toHaveLength(14);
 
-    const [, storedHash] = replaceCredentialPassword.mock.calls[0]!;
+    const [, storedHash] = resetCredential.mock.calls[0]!;
     expect(storedHash).not.toBe(tempPassword);
     expect(storedHash.length).toBeGreaterThan(20);
   });
 
-  it("다음 로그인에 변경을 강제하고 기존 세션을 끊는다", async () => {
+  it("강제 변경·세션 삭제는 repo.resetCredential 한 호출(트랜잭션)로 끝낸다 (M11)", async () => {
     await resetPassword(admin, "u-9");
 
-    expect(setMustChangePassword).toHaveBeenCalledWith("u-9", true);
-    expect(deleteSessions).toHaveBeenCalledWith("u-9");
+    expect(resetCredential).toHaveBeenCalledTimes(1);
   });
 
   it("임시 비밀번호를 감사로그에 남기지 않는다", async () => {
@@ -174,7 +162,7 @@ describe("resetPassword()", () => {
   });
 
   it("비밀번호 로그인 수단이 없으면 거부한다", async () => {
-    replaceCredentialPassword.mockResolvedValue(0);
+    resetCredential.mockResolvedValue(0);
 
     await expect(resetPassword(admin, "u-9")).rejects.toThrow(
       "NO_CREDENTIAL_ACCOUNT",
@@ -194,15 +182,14 @@ describe("updateUser()", () => {
     await expect(updateUser(student, "u-9", sameInput)).rejects.toThrow(
       "FORBIDDEN",
     );
-    expect(updateProfile).not.toHaveBeenCalled();
+    expect(updateUserAndEnrollment).not.toHaveBeenCalled();
   });
 
   it("바뀐 게 없으면 저장도 기록도 하지 않는다", async () => {
     const { changed } = await updateUser(admin, "u-9", sameInput);
 
     expect(changed).toEqual([]);
-    expect(updateProfile).not.toHaveBeenCalled();
-    expect(updateEnrollment).not.toHaveBeenCalled();
+    expect(updateUserAndEnrollment).not.toHaveBeenCalled();
     expect(recordAudit).not.toHaveBeenCalled();
   });
 
@@ -226,13 +213,13 @@ describe("updateUser()", () => {
     expect(JSON.stringify(audit)).not.toContain("9999");
   });
 
-  it("이름·이메일·전화번호를 함께 저장한다 — 셋 다 필수라 비울 수 없다", async () => {
+  it("이름·이메일·전화번호와 학생 소속을 한 번의 트랜잭션 호출로 저장한다 (I1)", async () => {
     await updateUser(admin, "u-9", { ...sameInput, phone: "010-9999-8888" });
 
-    expect(updateProfile).toHaveBeenCalledWith("u-9", {
-      name: "김학생",
-      email: "student@gbsw.hs.kr",
-      phone: "010-9999-8888",
+    expect(updateUserAndEnrollment).toHaveBeenCalledTimes(1);
+    expect(updateUserAndEnrollment).toHaveBeenCalledWith("u-9", {
+      profile: { name: "김학생", email: "student@gbsw.hs.kr", phone: "010-9999-8888" },
+      enrollment: null,
     });
   });
 
@@ -246,7 +233,7 @@ describe("updateUser()", () => {
   });
 
   it("이미 쓰이는 이메일이면 EMAIL_TAKEN으로 옮긴다", async () => {
-    updateProfile.mockRejectedValue(new EmailTakenError());
+    updateUserAndEnrollment.mockRejectedValue(new EmailTakenError());
 
     await expect(
       updateUser(admin, "u-9", { ...sameInput, email: "taken@gbsw.hs.kr" }),
@@ -263,17 +250,26 @@ describe("updateUser()", () => {
     expect(JSON.stringify(audit)).not.toContain("new@gbsw.hs.kr");
   });
 
-  it("소속이 바뀌면 학생 소속만 갱신한다", async () => {
+  it("소속이 바뀌면 profile은 null로, enrollment만 채워서 한 번에 저장한다 (I1)", async () => {
     await updateUser(admin, "u-9", { ...sameInput, grade: 2 });
 
-    expect(updateEnrollment).toHaveBeenCalledTimes(1);
-    expect(updateProfile).not.toHaveBeenCalled();
-    expect(updateEnrollment.mock.calls[0]![1]).toBe(2026);
-    expect(updateEnrollment.mock.calls[0]![2].grade).toBe(2);
+    expect(updateUserAndEnrollment).toHaveBeenCalledTimes(1);
+    const [, arg] = updateUserAndEnrollment.mock.calls[0]!;
+    expect(arg.profile).toBeNull();
+    expect(arg.enrollment).toMatchObject({ studentProfileId: "sp-1", year: 2026, grade: 2 });
+  });
+
+  it("이름·소속이 함께 바뀌면 한 번의 호출에 둘 다 담아 보낸다 (I1)", async () => {
+    await updateUser(admin, "u-9", { ...sameInput, name: "새이름", grade: 2 });
+
+    expect(updateUserAndEnrollment).toHaveBeenCalledTimes(1);
+    const [, arg] = updateUserAndEnrollment.mock.calls[0]!;
+    expect(arg.profile).not.toBeNull();
+    expect(arg.enrollment).not.toBeNull();
   });
 
   it("이미 그 반·번호를 쓰는 학생이 있으면 NUMBER_TAKEN으로 옮긴다", async () => {
-    updateEnrollment.mockRejectedValue(new NumberTakenError());
+    updateUserAndEnrollment.mockRejectedValue(new NumberTakenError());
 
     await expect(
       updateUser(admin, "u-9", { ...sameInput, grade: 2 }),
@@ -285,7 +281,8 @@ describe("updateUser()", () => {
   it("생년월일은 KST 자정으로 저장한다 — 하루 밀리면 안 된다", async () => {
     await updateUser(admin, "u-9", { ...sameInput, birthDate: "2011-01-01" });
 
-    const saved: Date = updateEnrollment.mock.calls[0]![2].birthDate;
+    const [, arg] = updateUserAndEnrollment.mock.calls[0]!;
+    const saved: Date = arg.enrollment.birthDate;
     expect(saved.toISOString()).toBe("2010-12-31T15:00:00.000Z");
   });
 
@@ -298,7 +295,7 @@ describe("updateUser()", () => {
     });
 
     expect(changed).toEqual([]);
-    expect(updateEnrollment).not.toHaveBeenCalled();
+    expect(updateUserAndEnrollment).not.toHaveBeenCalled();
   });
 
   it("없는 계정이면 거부한다", async () => {

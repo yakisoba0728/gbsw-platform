@@ -10,8 +10,6 @@ import type { UpdateUserInput } from "./admin-user.schema";
 
 export class AdminUserError extends Error {}
 
-export const USER_STATUS = { ACTIVE: "ACTIVE", INACTIVE: "INACTIVE" } as const;
-
 export async function listUsers(actor: SessionUser) {
   if (!can(actor, "user:manage")) throw new Error("FORBIDDEN");
   return repo.listUsers(await getCurrentYear());
@@ -91,21 +89,7 @@ export async function updateUser(
 
   if (changed.length === 0) return { changed };
 
-  if (["name", "email", "phone"].some((f) => changed.includes(f))) {
-    try {
-      await repo.updateProfile(userId, {
-        name: input.name,
-        email: input.email,
-        phone: input.phone,
-      });
-    } catch (error) {
-      if (error instanceof repo.EmailTakenError) {
-        throw new AdminUserError("EMAIL_TAKEN");
-      }
-      throw error;
-    }
-  }
-
+  const profileChanged = ["name", "email", "phone"].some((f) => changed.includes(f));
   const studentChanged = ["birthDate", "grade", "classNo", "number"].some((f) =>
     changed.includes(f),
   );
@@ -114,20 +98,33 @@ export async function updateUser(
     if (!input.birthDate || input.grade == null || input.classNo == null) {
       throw new AdminUserError("INCOMPLETE_STUDENT_INPUT");
     }
-    try {
-      await repo.updateEnrollment(profile.id, year, {
-        // 생년월일은 날짜만 의미가 있다. KST 자정으로 고정해 하루 밀림을 막는다.
-        birthDate: parseDateInputKst(input.birthDate),
-        grade: input.grade,
-        classNo: input.classNo,
-        number: input.number ?? enrollment?.number ?? 1,
-      });
-    } catch (error) {
-      if (error instanceof repo.NumberTakenError) {
-        throw new AdminUserError("NUMBER_TAKEN");
-      }
-      throw error;
-    }
+  }
+
+  // 이름·이메일·전화번호와 학생 소속을 한 트랜잭션으로 저장한다 (I1) — 절반만
+  // 저장되고 감사로그는 안 남는 상태를 막는다. repo.updateUserAndEnrollment가
+  // enrollment.repo.ts의 applyAll과 같은 패턴으로 묶는다.
+  try {
+    await repo.updateUserAndEnrollment(userId, {
+      profile: profileChanged
+        ? { name: input.name, email: input.email, phone: input.phone }
+        : null,
+      enrollment:
+        isStudent && studentChanged
+          ? {
+              studentProfileId: profile.id,
+              year,
+              // 생년월일은 날짜만 의미가 있다. KST 자정으로 고정해 하루 밀림을 막는다.
+              birthDate: parseDateInputKst(input.birthDate!),
+              grade: input.grade!,
+              classNo: input.classNo!,
+              number: input.number ?? enrollment?.number ?? 1,
+            }
+          : null,
+    });
+  } catch (error) {
+    if (error instanceof repo.EmailTakenError) throw new AdminUserError("EMAIL_TAKEN");
+    if (error instanceof repo.NumberTakenError) throw new AdminUserError("NUMBER_TAKEN");
+    throw error;
   }
 
   await recordAudit({
@@ -145,7 +142,8 @@ export async function updateUser(
 /**
  * 계정 활성/비활성 토글.
  *
- * 비활성화하면 세션도 함께 끊는다. requireAuth()가 상태를 다시 확인하므로
+ * 비활성화하면 세션도 함께 끊는다 — repo.setActive가 상태 변경과 세션 삭제를
+ * 한 트랜잭션으로 묶는다 (M11). requireAuth()가 상태를 다시 확인하므로
  * 남아 있는 쿠키로도 들어올 수 없다.
  */
 export async function setUserActive(
@@ -163,8 +161,7 @@ export async function setUserActive(
   const target = await repo.findById(userId);
   if (!target) throw new AdminUserError("NOT_FOUND");
 
-  await repo.setStatus(userId, active ? USER_STATUS.ACTIVE : USER_STATUS.INACTIVE);
-  if (!active) await repo.deleteSessions(userId);
+  await repo.setActive(userId, active);
 
   await recordAudit({
     actorUserId: actor.id,
@@ -179,6 +176,10 @@ export async function setUserActive(
  *
  * SMTP가 없으므로 임시 비밀번호를 화면에 한 번 띄워 관리자가 직접 전달한다.
  * 평문은 반환값으로만 존재하고 저장·기록되지 않는다.
+ *
+ * 비밀번호 교체 → 다음 로그인 강제 변경 → 세션 삭제를 repo.resetCredential이
+ * 한 트랜잭션으로 묶는다 (M11) — 중간 실패로 "비밀번호는 바뀌었는데 강제 변경이
+ * 안 걸림" 상태가 남는 걸 막는다.
  */
 export async function resetPassword(
   actor: SessionUser,
@@ -190,19 +191,12 @@ export async function resetPassword(
   if (!target) throw new AdminUserError("NOT_FOUND");
 
   const tempPassword = generateTempPassword();
-  const updated = await repo.replaceCredentialPassword(
-    userId,
-    await hashPassword(tempPassword),
-  );
+  const updated = await repo.resetCredential(userId, await hashPassword(tempPassword));
 
   if (updated === 0) {
     // 비밀번호 로그인 수단이 없는 계정 — 초기화할 대상이 없다.
     throw new AdminUserError("NO_CREDENTIAL_ACCOUNT");
   }
-
-  // 다음 로그인에 강제 변경시키고, 기존 세션은 모두 끊는다.
-  await repo.setMustChangePassword(userId, true);
-  await repo.deleteSessions(userId);
 
   await recordAudit({
     actorUserId: actor.id,
