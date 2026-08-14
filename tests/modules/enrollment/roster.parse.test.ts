@@ -59,6 +59,14 @@ describe("normalizeRows()", () => {
     expect(rows[0]!.errors.join()).toContain("학적");
   });
 
+  it("셀 값을 NFC로 정규화한다 (I8) — macOS 도구를 거치면 조합형(NFD)이 섞일 수 있다", () => {
+    const nfdName = "김동혁".normalize("NFD");
+    const rows = normalizeRows([HEADER, [nfdName, "2010-07-28", "1", "3", "3", "재학"]]);
+
+    expect(rows[0]!.name).toBe("김동혁".normalize("NFC"));
+    expect(rows[0]!.name).not.toBe(nfdName);
+  });
+
   it("재학인데 학년·반·번호가 비면 오류다", () => {
     const rows = normalizeRows([HEADER, ["김동혁", "2010-07-28", "", "", "", "재학"]]);
     expect(rows[0]!.errors.length).toBeGreaterThan(0);

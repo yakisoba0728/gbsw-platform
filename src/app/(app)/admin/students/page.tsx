@@ -18,7 +18,8 @@ export default async function StudentsPage() {
 
   // 현재 학년도가 아예 없으면 listStudents(→getCurrentYear)가 던진다. 그렇다고
   // 화면 전체를 에러 페이지로 넘기면 학년도를 지정할 유일한 화면(YearSwitcher)에도
-  // 못 들어간다 — 표 없이 YearSwitcher만이라도 띄운다 (M4).
+  // 못 들어간다 — 표 없이 YearSwitcher만이라도 띄운다. (/admin/invites·
+  // /admin/users도 같은 오류를 같은 방식으로 잡는다 — M7.)
   let rows: StudentRow[] | null = null;
   try {
     const students = await listStudents(actor);
@@ -52,8 +53,13 @@ export default async function StudentsPage() {
         </Link>
       </div>
       <YearSwitcher years={years} />
-      {rows && currentYear !== undefined && (
+      {rows && currentYear !== undefined ? (
         <StudentTable key={currentYear} rows={rows} year={currentYear} />
+      ) : (
+        <div className="rounded-card border border-line bg-surface p-8 text-center text-[12.5px] text-mut">
+          현재 학년도가 없습니다. 위에서 학년도를 만들거나 선택하면 학생
+          목록이 여기 나타납니다.
+        </div>
       )}
     </div>
   );

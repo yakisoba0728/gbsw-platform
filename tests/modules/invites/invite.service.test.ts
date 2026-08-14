@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionUser } from "@/core/auth/session";
 
+// generateUniqueCode()가 generate-invite-code.ts(M15로 분리, node:crypto +
+// "server-only" 마커)를 부른다 — 마커 패키지를 무해하게 만든다.
+vi.mock("server-only", () => ({}));
+
 const insertInvite = vi.fn();
 const codeExists = vi.fn();
 const getStudentProfileByUserId = vi.fn();

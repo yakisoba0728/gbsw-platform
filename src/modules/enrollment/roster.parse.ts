@@ -142,8 +142,12 @@ export function normalizeRows(table: string[][]): RosterRow[] {
     ROSTER_COLUMNS.map((c) => [c, at(c)]),
   ) as Record<(typeof ROSTER_COLUMNS)[number], number>;
 
+  // NFC로 정규화한다 (I8) — 파일이 macOS 도구를 거치면 한글이 조합형(NFD)으로
+  // 섞여 들어올 수 있다. roster.repo.ts의 listExisting()도 DB에서 읽은 이름을
+  // 같은 형식으로 맞춘다 — 안 그러면 두 값이 눈엔 같아 보여도 roster.plan.ts의
+  // `!==` 비교가 다르다고 판단해 needsAttention으로 잘못 밀어낸다.
   const cell = (r: string[], name: (typeof ROSTER_COLUMNS)[number]) =>
-    idx[name] === -1 ? "" : (r[idx[name]] ?? "").trim();
+    idx[name] === -1 ? "" : (r[idx[name]] ?? "").trim().normalize("NFC");
 
   return table.slice(1).flatMap((raw, i) => {
     // 전부 빈 줄은 파일 끝의 잔여물이다. 오류로 세지 않는다.

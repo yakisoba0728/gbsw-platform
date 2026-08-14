@@ -2,14 +2,26 @@ import type { Metadata } from "next";
 import { requirePermission } from "@/core/auth/session";
 import { formatDate } from "@/lib/datetime";
 import { isRole, ROLE_LABELS } from "@/core/authz/roles";
+import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import { listUsers } from "@/modules/admin-users/admin-user.service";
+import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { UserTable, type UserRow } from "./user-table";
 
 export const metadata: Metadata = { title: "사용자 관리" };
 
 export default async function UsersPage() {
   const actor = await requirePermission("user:manage");
-  const users = await listUsers(actor);
+
+  // listUsers도 내부에서 getCurrentYear()를 부른다 — 현재 학년도가 없으면
+  // AcademicYearError를 던진다. /admin/students·/admin/invites와 같은
+  // 방식으로 잡는다 (M7).
+  let users: Awaited<ReturnType<typeof listUsers>>;
+  try {
+    users = await listUsers(actor);
+  } catch (error) {
+    if (error instanceof AcademicYearError) return <NoAcademicYearNotice />;
+    throw error;
+  }
 
   const rows: UserRow[] = users.map((u) => {
     const enrollment = u.studentProfile?.enrollments[0];

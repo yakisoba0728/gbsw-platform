@@ -2,7 +2,7 @@ import { recordAudit } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
 import { can } from "@/core/authz/can";
 import { assertCan, ForbiddenError } from "@/core/authz/errors";
-import { generateInviteCode } from "@/lib/invite-code";
+import { generateInviteCode } from "@/lib/generate-invite-code";
 import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
 import * as repo from "./invite.repo";
 import type {

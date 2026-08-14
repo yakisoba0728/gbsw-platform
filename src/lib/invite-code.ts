@@ -1,28 +1,17 @@
-import { randomInt } from "node:crypto";
-
 /**
  * 초대코드 알파벳 — 31자.
  * 손으로 옮겨 적다 틀리기 쉬운 0/O, 1/I/L 을 뺐다.
+ *
+ * generate-invite-code.ts(생성기, node:crypto를 문다)가 이 값을 가져다 쓴다.
+ * 이 파일 자체는 crypto를 물지 않는다 (M15) — "use client" 파일
+ * (import-form.tsx)이 formatInviteCode를 쓰므로, crypto가 필요한 생성기와
+ * 반드시 분리해 둔다.
  */
-const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+export const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
 /** 시안의 `GBSW-0000-0000` 형식을 따른다. */
-const PREFIX = "GBSW";
-const BODY_LENGTH = 8;
-
-/**
- * 초대코드 생성. 저장 형태는 하이픈 없는 `GBSWXXXXXXXX`다.
- *
- * randomInt는 모듈로 편향 없이 균등하게 뽑는다 (`% ALPHABET.length`를 쓰면 안 된다).
- * 31^8 ≈ 8.5 × 10^11 이고, 여기에 이름·생년월일 대조와 5회 실패 폐기가 더해진다.
- */
-export function generateInviteCode(): string {
-  let body = "";
-  for (let i = 0; i < BODY_LENGTH; i += 1) {
-    body += ALPHABET[randomInt(ALPHABET.length)];
-  }
-  return PREFIX + body;
-}
+export const PREFIX = "GBSW";
+export const BODY_LENGTH = 8;
 
 /** 화면에 보여줄 형태로 끊어준다. `GBSWA3K92M7P` → `GBSW-A3K9-2M7P` */
 export function formatInviteCode(code: string): string {

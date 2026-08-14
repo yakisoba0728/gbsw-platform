@@ -1,34 +1,23 @@
 import { describe, expect, it } from "vitest";
 import {
   formatInviteCode,
-  generateInviteCode,
   isInviteUsable,
   normalizeInviteCode,
 } from "@/lib/invite-code";
 
-describe("generateInviteCode()", () => {
-  it("GBSW + 8자이고 혼동하기 쉬운 문자를 쓰지 않는다", () => {
-    for (let i = 0; i < 200; i += 1) {
-      const code = generateInviteCode();
-      expect(code).toHaveLength(12);
-      // 0/O, 1/I/L 은 손으로 옮겨 적을 때 틀리기 쉬워 제외했다.
-      expect(code).toMatch(/^GBSW[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{8}$/);
-    }
-  });
-
-  it("연달아 뽑아도 겹치지 않는다", () => {
-    const codes = new Set(Array.from({ length: 500 }, generateInviteCode));
-    expect(codes.size).toBe(500);
-  });
-});
+/*
+ * generateInviteCode()는 src/lib/generate-invite-code.ts로 옮겼다 (M15) —
+ * node:crypto를 물지 않는 이 파일이 그걸 다시 끌어오면 분리한 의미가 없다.
+ * 해당 함수 테스트는 tests/lib/generate-invite-code.test.ts에 있다.
+ */
 
 describe("formatInviteCode()", () => {
   it("시안의 GBSW-0000-0000 형태로 끊는다", () => {
     expect(formatInviteCode("GBSWA3K92M7P")).toBe("GBSW-A3K9-2M7P");
   });
 
-  it("방금 뽑은 코드를 정규화하면 원래대로 돌아온다", () => {
-    const code = generateInviteCode();
+  it("정규화하면 원래대로 돌아온다", () => {
+    const code = "GBSWA3K92M7P";
     expect(normalizeInviteCode(formatInviteCode(code))).toBe(code);
   });
 });

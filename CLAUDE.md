@@ -36,6 +36,23 @@ Route / Server Action  →  Service  →  Repo
   세션에서 유도할 수 있는 식별자는 절대 클라이언트 입력으로 받지 않는다.
   (예: `getMyAwards(sessionUser)`는 `studentId`를 인자로 받지 않는다.)
 
+## 오류 규약
+
+두 갈래를 의도적으로 유지한다 — 통일 비용이 통일 이득보다 커서, 대신 경계를 여기 명확히 적는다.
+
+- **로그인 이전 화면**(가입·부트스트랩 — `RegistrationError`, `VerificationError`)은
+  **한글 문구 자체**를 `message`에 담고 액션이 그대로 화면에 보여준다. 이 경로는 애초에
+  "무엇이 틀렸는지 알려주지 않는" 게 설계 목표(코드 대조 실패 사유를 숨긴다)라 코드→문구
+  매핑 계층을 추가로 두는 이득이 없다.
+- **그 밖의 모든 서비스**(`InviteError`·`RosterError`·`AdminUserError`·`AcademicYearError`·
+  `EnrollmentError`·`ForbiddenError` 등)는 **코드**를 `message`에 담고, 화면 문구로 옮기는
+  일은 액션(`app/**/actions.ts`)의 `MESSAGES` 사전이 담당한다. 새 모듈은 이쪽을 기본으로
+  따른다.
+- 권한 거부는 `core/authz/errors.ts`의 `assertCan(actor, action)`을 쓴다 — `can()` 검사와
+  `ForbiddenError` throw, 거부 감사로그(`authz:denied`) 기록을 한 번에 한다. `can()`만으로
+  못 가르는 거부(소유권 검사 등)는 `ForbiddenError`를 직접 던지고 같은 방식으로 감사로그를
+  남긴다 (`invite.service.ts`의 `revokeInvite` 참고).
+
 ## 아키텍처 결정: 단일 Next.js (Nest 분리 안 함)
 
 프론트/백을 Next + NestJS로 쪼개는 안을 검토했고 **하지 않기로 했다.** 전교 200~300명

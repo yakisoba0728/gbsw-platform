@@ -39,7 +39,10 @@ export async function listExisting(year: number) {
       studentProfileId: p.id,
       userId: p.user.id,
       studentCode: p.studentCode,
-      name: p.user.name,
+      // NFC로 정규화한다 (I8) — roster.parse.ts가 파일 쪽 이름을 같은 형식으로
+      // 맞춘다. 안 맞추면 눈엔 같은 이름인데 조합형/완성형이 달라 roster.plan.ts의
+      // `!==` 비교가 다르다고 판단해 needsAttention으로 잘못 밀어낸다.
+      name: p.user.name.normalize("NFC"),
       // 파일의 표기와 맞대려면 KST 기준 YYYY-MM-DD여야 한다.
       birthDate: new Intl.DateTimeFormat("en-CA", {
         timeZone: "Asia/Seoul",

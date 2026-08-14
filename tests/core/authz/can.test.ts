@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { can, type Action } from "@/core/authz/can";
+import { can, RULES, type Action } from "@/core/authz/can";
 import { ROLES, type Role } from "@/core/authz/roles";
 
 /**
@@ -20,6 +20,10 @@ const EXPECTED: Record<Action, Role[]> = {
 const ACTIONS = Object.keys(EXPECTED) as Action[];
 
 describe("can()", () => {
+  it("모든 액션이 표에 있다 (M13) — 여기 EXPECTED에 없는 액션이 RULES에 추가되면 깨진다", () => {
+    expect(Object.keys(RULES).sort()).toEqual(Object.keys(EXPECTED).sort());
+  });
+
   it("로그인하지 않은 사용자는 어떤 액션도 못 한다", () => {
     for (const action of ACTIONS) {
       expect(can(null, action)).toBe(false);

@@ -133,4 +133,68 @@ describe("recordAudit()", () => {
       actorName: "(알 수 없음)",
     });
   });
+
+  it("actorUserId가 null이어도 저장한다 (I9) — 행위자 없는 사건(가입 시도 자동 폐기 등)", async () => {
+    await recordAudit({
+      actorUserId: null,
+      actorName: "(가입 시도자)",
+      action: "invite:auto-revoke",
+      targetType: "Invite",
+      targetId: "inv1",
+    });
+
+    expect(findUnique).not.toHaveBeenCalled();
+    expect(create).toHaveBeenCalledWith({
+      data: {
+        actorUserId: null,
+        actorName: "(가입 시도자)",
+        action: "invite:auto-revoke",
+        targetType: "Invite",
+        targetId: "inv1",
+        metadata: undefined,
+        ip: null,
+        userAgent: null,
+      },
+    });
+  });
+
+  it("actorName을 넘기면 조회를 건너뛴다 (M8) — 배치 호출이 매번 이름을 다시 묻지 않게", async () => {
+    await recordAudit({
+      actorUserId: "u1",
+      actorName: "캐시된 이름",
+      action: "user:delete",
+      targetType: "User",
+    });
+
+    expect(findUnique).not.toHaveBeenCalled();
+    expect(create.mock.calls[0]![0].data).toMatchObject({
+      actorName: "캐시된 이름",
+    });
+  });
+
+  it("actorName을 넘기지 않으면 예전처럼 매번 조회한다", async () => {
+    await recordAudit({
+      actorUserId: "u1",
+      action: "user:manage",
+      targetType: "User",
+    });
+
+    expect(findUnique).toHaveBeenCalledWith({
+      where: { id: "u1" },
+      select: { name: true },
+    });
+  });
+
+  it("actorUserId가 null이고 actorName도 없으면 (알 수 없음)으로 떨어진다", async () => {
+    await recordAudit({
+      actorUserId: null,
+      action: "invite:auto-revoke",
+      targetType: "Invite",
+    });
+
+    expect(findUnique).not.toHaveBeenCalled();
+    expect(create.mock.calls[0]![0].data).toMatchObject({
+      actorName: "(알 수 없음)",
+    });
+  });
 });

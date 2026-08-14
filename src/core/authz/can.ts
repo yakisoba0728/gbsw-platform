@@ -22,8 +22,12 @@ export type Action =
  * ADMIN은 여기 등장하지 않는다 — can()에서 무조건 통과시킨다.
  * 빈 배열은 "관리자 전용"이라는 뜻이며, 나중에 역할이 추가돼도
  * 실수로 열리지 않도록 명시적으로 비워둔다.
+ *
+ * export한다 (M13) — tests/core/authz/can.test.ts가
+ * `Object.keys(RULES)`와 EXPECTED를 대조해 "모든 액션이 표에 있다"는
+ * 주석을 실제 테스트로 확인한다.
  */
-const RULES: Record<Action, Role[]> = {
+export const RULES: Record<Action, Role[]> = {
   "user:manage": [], // 관리자 전용
   "student:manage": [], // 관리자 전용
   "academic-year:manage": [], // 관리자 전용

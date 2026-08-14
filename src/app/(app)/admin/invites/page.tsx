@@ -3,11 +3,13 @@ import { requirePermission } from "@/core/auth/session";
 import { formatDate } from "@/lib/datetime";
 import { isRole, ROLE_LABELS } from "@/core/authz/roles";
 import { formatInviteCode } from "@/lib/invite-code";
+import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import { studentInviteMetaSchema } from "@/modules/invites/invite.schema";
 import {
   listInvites,
   listStudentsForInvite,
 } from "@/modules/invites/invite.service";
+import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { InviteForm, type StudentOption } from "./invite-form";
 import { InviteTable, type InviteRow } from "./invite-table";
 
@@ -79,10 +81,26 @@ function toRow(invite: Listed): InviteRow {
 
 export default async function InvitesPage() {
   const actor = await requirePermission("invite:list");
-  const [invites, students] = await Promise.all([
-    listInvites(actor),
-    listStudentsForInvite(actor),
-  ]);
+
+  // 둘 다 내부에서 getCurrentYear()를 부른다 — 현재 학년도가 없으면
+  // AcademicYearError를 던진다. 잡지 않으면 500으로 떨어진다.
+  // /admin/students·/admin/users와 같은 방식으로 잡는다 (M7).
+  let data: {
+    invites: Awaited<ReturnType<typeof listInvites>>;
+    students: Awaited<ReturnType<typeof listStudentsForInvite>>;
+  } | null = null;
+  try {
+    const [invites, students] = await Promise.all([
+      listInvites(actor),
+      listStudentsForInvite(actor),
+    ]);
+    data = { invites, students };
+  } catch (error) {
+    if (!(error instanceof AcademicYearError)) throw error;
+  }
+
+  if (!data) return <NoAcademicYearNotice />;
+  const { invites, students } = data;
 
   const options: StudentOption[] = students.map((s) => {
     const enrollment = s.enrollments[0];
