@@ -12,12 +12,18 @@ export class InviteCodeCollisionError extends Error {}
 export async function listExisting(year: number) {
   const [profiles, entryByProfile] = await Promise.all([
     prisma.studentProfile.findMany({
+      // 소프트 삭제된 학생을 여기서 WHERE로 빼지 않는다 — 명단에 다시 나타나면
+      // 원래 studentCode로 이어붙어야(byCode 매칭) 되살아날 수 있다. 뺐다면 그
+      // 코드가 "명단에 없는 학생코드"로 보여 영영 못 돌아온다. 대신 아래 매핑에서
+      // deleted 플래그로 표시해 두고, planRoster()가 missingFromFile(재확인 대상)
+      // 에서만 이미 삭제된 학생을 뺀다 — 이미 지운 사람을 매번 다시 삭제 확인시키지
+      // 않기 위해서다. exportRoster()(전체 명단 내려받기)는 이 플래그로 별도 필터한다.
       where: { user: { role: "STUDENT" } },
       select: {
         id: true,
         studentCode: true,
         birthDate: true,
-        user: { select: { id: true, name: true, status: true } },
+        user: { select: { id: true, name: true, status: true, deletedAt: true } },
         enrollments: {
           where: { year },
           take: 1,
@@ -52,6 +58,9 @@ export async function listExisting(year: number) {
       number: e?.number ?? null,
       status: e?.status ?? null,
       accountActive: p.user.status === "ACTIVE",
+      // 명단에서 빠져 소프트 삭제된 학생인가. byCode 매칭에는 그대로 쓰이지만
+      // missingFromFile·명단 내보내기에서는 제외한다 (위 comment 참고).
+      deleted: p.user.deletedAt !== null,
       // 참고 열(입학반·입학번호)용. 내보내기가 쓴다 — 올릴 때는 무시한다 (사실은
       // 그 학년도 배정이 정한다).
       entryClassNo: entry?.classNo ?? null,

@@ -70,6 +70,7 @@ function user(role: SessionUser["role"], id = "admin-1"): SessionUser {
     email: "t@gbsw.hs.kr",
     role,
     status: "ACTIVE",
+    deletedAt: null,
     mustChangePassword: false,
   };
 }

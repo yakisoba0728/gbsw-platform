@@ -48,7 +48,11 @@ export async function exportRoster(
   await assertCan(actor, "student:manage");
 
   const year = await getCurrentYear();
-  const rows = buildExportRows(await repo.listExisting(year));
+  const existing = await repo.listExisting(year);
+  // 명단에서 빠져 소프트 삭제된 학생은 내려받는 파일에도 나오면 안 된다 — 더는
+  // 재적 학생이 아니다. listExisting()이 매칭을 위해 이들을 계속 들고 있으므로
+  // (roster.repo.ts 주석 참고) 여기서 걸러낸다.
+  const rows = buildExportRows(existing.filter((s) => !s.deleted));
   return { year, rows };
 }
 

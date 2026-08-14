@@ -89,6 +89,8 @@ export async function findStudentById(studentId: string) {
 /** 학부모 코드 발급 시 고를 학생 목록. 학년·반·번호 순. */
 export async function listStudents(year: number) {
   const students = await prisma.studentProfile.findMany({
+    // 명단에서 빠져 소프트 삭제된 학생은 고를 수 없어야 한다 — 더는 재학생이 아니다.
+    where: { user: { deletedAt: null } },
     select: {
       id: true,
       user: { select: { name: true } },

@@ -150,11 +150,12 @@ describe("applyAll()", () => {
 });
 
 describe("listByYear()", () => {
-  it("role이 STUDENT인 계정만 조회한다 (I3) — 승격된 관리자는 이 표의 대상이 아니다", async () => {
+  it("role이 STUDENT인 계정만, 명단에서 빠져 소프트 삭제된 학생은 뺀 채로 " +
+    "조회한다 (I3) — 승격된 관리자와 삭제된 학생 둘 다 이 표의 대상이 아니다", async () => {
     await listByYear(2026);
 
     expect(studentProfileFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { user: { role: "STUDENT" } } }),
+      expect.objectContaining({ where: { user: { role: "STUDENT", deletedAt: null } } }),
     );
   });
 });

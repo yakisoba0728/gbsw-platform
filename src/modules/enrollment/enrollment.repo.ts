@@ -17,7 +17,9 @@ export { NumberTakenError };
  */
 export async function listByYear(year: number) {
   const profiles = await prisma.studentProfile.findMany({
-    where: { user: { role: "STUDENT" } },
+    // 학생 표 — 명단에서 빠져 소프트 삭제된 학생은 뺀다. 표 편집은 "지금 다니는
+    // 학생"을 다루는 화면이라, 삭제된 학생이 여기 다시 보이면 안 된다.
+    where: { user: { role: "STUDENT", deletedAt: null } },
     select: {
       id: true,
       birthDate: true,

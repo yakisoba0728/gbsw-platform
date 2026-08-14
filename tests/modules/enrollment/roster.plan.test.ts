@@ -254,6 +254,34 @@ describe("planRoster()", () => {
 
     expect(plan.totalStudents).toBe(2);
   });
+
+  describe("소프트 삭제된 학생 — 명단에 다시 나타나면 되살아난다", () => {
+    it("이미 삭제된 학생은 missingFromFile에 다시 들어가지 않는다 — 매번 삭제 " +
+      "확인시키는 소음을 없앤다", () => {
+      const 이미삭제됨 = { ...재학생, deleted: true };
+      const plan = planRoster([], [이미삭제됨]);
+
+      expect(plan.missingFromFile).toHaveLength(0);
+    });
+
+    it("totalStudents는 이미 삭제된 학생을 뺀다 — 안 빼면 삭제 누적이 쌓일수록 " +
+      "대량 삭제 임계가 실제 재적 인원과 무관하게 계속 올라간다", () => {
+      const 이미삭제됨 = { ...재학생, studentProfileId: "sp-2", userId: "u-2", studentCode: "BCDF2345", deleted: true };
+      const plan = planRoster([], [재학생, 이미삭제됨]);
+
+      expect(plan.totalStudents).toBe(1);
+    });
+
+    it("byCode 매칭은 삭제된 학생에게도 적용된다 — 명단에 원래 학생코드로 다시 " +
+      "나타나면 확인 필요가 아니라 정상적으로 이어붙는다(재삽입 경로의 전제)", () => {
+      const 삭제된학생 = { ...재학생, status: null, grade: null, classNo: null, number: null, deleted: true };
+      const plan = planRoster([row()], [삭제된학생]);
+
+      expect(plan.needsAttention).toHaveLength(0);
+      expect(plan.newAssignment).toHaveLength(1);
+      expect(plan.newAssignment[0]!.studentProfileId).toBe("sp-1");
+    });
+  });
 });
 
 describe("bulkDeleteThreshold() — 대량 삭제 확인이 필요해지는 삭제 건수 (I-3)", () => {

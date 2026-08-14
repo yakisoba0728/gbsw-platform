@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { vi } from "vitest";
 
 const userUpdate = vi.fn();
+const userFindMany = vi.fn();
 const studentProfileUpdate = vi.fn();
 const schoolClassUpsert = vi.fn();
 const enrollmentUpsert = vi.fn();
@@ -20,7 +21,7 @@ const tx = {
 
 vi.mock("@/core/db/client", () => ({
   prisma: {
-    user: { update: userUpdate },
+    user: { update: userUpdate, findMany: userFindMany },
     session: { deleteMany: sessionDeleteMany },
     // updateUserAndEnrollment/resetCredential은 콜백형 트랜잭션 — 콜백에 tx를 넘겨 흉내 낸다.
     // setActive(비활성화)는 배열형 트랜잭션 — 배열을 그대로 기록해 둔다.
@@ -35,6 +36,7 @@ vi.mock("@/core/db/client", () => ({
 const {
   EmailTakenError,
   NumberTakenError,
+  listUsers,
   updateUserAndEnrollment,
   setActive,
   resetCredential,
@@ -108,12 +110,23 @@ const enrollmentData = {
 
 beforeEach(() => {
   userUpdate.mockReset().mockResolvedValue(undefined);
+  userFindMany.mockReset().mockResolvedValue([]);
   studentProfileUpdate.mockReset().mockResolvedValue(undefined);
   schoolClassUpsert.mockReset().mockResolvedValue({ id: "class-1" });
   enrollmentUpsert.mockReset().mockResolvedValue(undefined);
   sessionDeleteMany.mockReset().mockResolvedValue(undefined);
   accountUpdateMany.mockReset().mockResolvedValue({ count: 1 });
   transactionArray.mockReset();
+});
+
+describe("listUsers()", () => {
+  it("명단에서 빠져 소프트 삭제된 계정은 뺀다 — 상세(findDetail)는 여전히 조회할 수 있다", async () => {
+    await listUsers(2026);
+
+    expect(userFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { deletedAt: null } }),
+    );
+  });
 });
 
 describe("updateUserAndEnrollment() — profile", () => {

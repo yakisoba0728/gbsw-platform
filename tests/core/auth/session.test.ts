@@ -27,6 +27,7 @@ function sessionUser(overrides: Record<string, unknown> = {}) {
       email: "t@gbsw.hs.kr",
       role: "ADMIN",
       status: "ACTIVE",
+      deletedAt: null,
       mustChangePassword: false,
       ...overrides,
     },
@@ -49,10 +50,20 @@ describe("requireAuth()", () => {
     await expect(requireAuth()).rejects.toThrow("REDIRECT:/login?disabled=1");
   });
 
+  it("명단에서 빠져 소프트 삭제된 계정은 status가 ACTIVE로 남아 있어도 " +
+    "/login?disabled=1로 보낸다 — 세션 생성 훅을 빠져나온 옛 쿠키가 남아 있는 " +
+    "경우까지 매 요청 다시 막는다 (defense-in-depth)", async () => {
+    getSession.mockResolvedValue(
+      sessionUser({ status: "ACTIVE", deletedAt: new Date() }),
+    );
+    await expect(requireAuth()).rejects.toThrow("REDIRECT:/login?disabled=1");
+  });
+
   it("정상 계정은 그대로 통과한다", async () => {
     getSession.mockResolvedValue(sessionUser());
     const user = await requireAuth();
     expect(user.id).toBe("u1");
+    expect(user.deletedAt).toBeNull();
     expect(redirect).not.toHaveBeenCalled();
   });
 

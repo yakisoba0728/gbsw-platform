@@ -19,6 +19,7 @@ const actor: SessionUser = {
   email: "hong@gbsw.hs.kr",
   role: "ADMIN",
   status: "ACTIVE",
+  deletedAt: null,
   mustChangePassword: true,
 };
 

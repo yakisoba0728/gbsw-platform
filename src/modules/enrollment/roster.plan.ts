@@ -21,6 +21,13 @@ export type ExistingStudent = {
   status: string | null;
   /** 이번 반영 전, 계정이 로그인 가능한 상태였는가 (I4 감사로그의 "이전" 값). */
   accountActive: boolean;
+  /**
+   * 명단에서 빠져 이미 소프트 삭제된 계정인가. optional — repo가 항상 채워 주지만,
+   * 값이 없는 옛 테스트 픽스처는 "삭제 안 됨"으로 취급한다(허위 음성이 안전한 방향).
+   * byCode 매칭에는 그대로 쓰여 되살아날 수 있게 하되, missingFromFile·totalStudents
+   * 에서는 뺀다 — 이미 지운 사람을 매번 다시 삭제 확인시키지 않기 위해서다.
+   */
+  deleted?: boolean;
 };
 
 export type PlannedRow = RosterRow & {
@@ -100,7 +107,10 @@ export function planRoster(
     errorRows: [],
     missingFromFile: [],
     hasBlockingError: false,
-    totalStudents: existing.length,
+    // 이미 소프트 삭제된 학생은 더는 "재적 학생"이 아니므로 분모에서 뺀다 — 안 빼면
+    // 몇 년 지나 삭제 누적이 쌓일수록 대량 삭제 임계(bulkDeleteThreshold)가 실제
+    // 재적 인원과 무관하게 계속 올라간다.
+    totalStudents: existing.filter((s) => !s.deleted).length,
   };
 
   // 파일 안에서 같은 학생코드가 두 번 나오거나 한 반에 번호가 겹치는지 먼저 본다.
@@ -222,7 +232,11 @@ export function planRoster(
   // 완성본(배정 없는 학생도 빈 줄로 나간다)이라 명단에 없다는 것 자체가 "지웠다"는
   // 뜻이다. 필터를 남겨두면 졸업생 줄을 지웠을 때 아무 일도 안 일어나 "지우면 삭제"
   // 규칙이 깨진다.
-  plan.missingFromFile = existing.filter((s) => !matchedIds.has(s.studentProfileId));
+  // 이미 삭제된 학생은 아직도 파일에 없더라도 다시 missingFromFile에 넣지 않는다 —
+  // 이미 지운 사람을 매번 "삭제하시겠습니까"로 재확인시키는 건 소음일 뿐이다.
+  plan.missingFromFile = existing.filter(
+    (s) => !matchedIds.has(s.studentProfileId) && !s.deleted,
+  );
 
   // 신규 줄인데 이름+생년월일이 "명단에 없는 학생"과 일치하면 학생코드 칸만 지워진
   // 것으로 의심한다. 지금까지는 신규 쪽과 missingFromFile 쪽을 따로 보여줘서 둘을

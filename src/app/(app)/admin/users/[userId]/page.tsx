@@ -40,6 +40,7 @@ export default async function UserDetailPage({
   const enrollment = profile?.enrollments[0];
   const cls = enrollment?.schoolClass;
   const active = user.status === "ACTIVE";
+  const deleted = user.deletedAt !== null;
 
   const editable: EditableUser = {
     id: user.id,
@@ -72,6 +73,7 @@ export default async function UserDetailPage({
           <section className="rounded-card border border-line bg-surface p-5 lg:p-6">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               <h1 className="text-xl font-extrabold text-ink">{user.name}</h1>
+              {deleted && <Badge tone="rejected">삭제됨</Badge>}
               <Badge tone={active ? "approved" : "cancelled"}>
                 {active ? "활성" : "비활성"}
               </Badge>
@@ -87,6 +89,9 @@ export default async function UserDetailPage({
               </Field>
               <Field label="전화번호">{user.phone ?? "—"}</Field>
               <Field label="가입일">{formatDate(user.createdAt)}</Field>
+              {deleted && user.deletedAt && (
+                <Field label="명단 제외일">{formatDate(user.deletedAt)}</Field>
+              )}
 
               {profile && (
                 <>
@@ -164,21 +169,38 @@ export default async function UserDetailPage({
         </div>
 
         <div className="grid content-start gap-5">
-          <section className="rounded-card border border-line bg-surface p-5">
-            <h2 className="mb-4 text-base font-extrabold text-ink">정보 수정</h2>
-            <EditUserForm user={editable} />
-          </section>
+          {deleted ? (
+            // 이미 명단에서 빠진 계정이다 — 정보 수정·비밀번호 초기화·활성화는
+            // 의미가 없다. 다음 명단에 다시 들어오면 이 계정은 스스로 되살아난다.
+            <section className="rounded-card border border-line bg-surface p-5">
+              <h2 className="mb-1 text-base font-extrabold text-ink">
+                명단에서 빠진 계정
+              </h2>
+              <p className="text-[12.5px] text-mut">
+                정보 수정·비밀번호 초기화·활성화를 할 수 없습니다. 학적·소속·기록은
+                그대로 남아 있으며, 다음 명단 반영에 이 학생이 다시 포함되면 계정이
+                자동으로 되살아납니다.
+              </p>
+            </section>
+          ) : (
+            <>
+              <section className="rounded-card border border-line bg-surface p-5">
+                <h2 className="mb-4 text-base font-extrabold text-ink">정보 수정</h2>
+                <EditUserForm user={editable} />
+              </section>
 
-          <section className="rounded-card border border-line bg-surface p-5">
-            <h2 className="mb-1 text-base font-extrabold text-ink">계정 조치</h2>
-            <p className="mb-4 text-[12px] text-mut">
-              둘 다 로그인 세션을 끊습니다.
-            </p>
-            <div className="grid gap-2.5">
-              <ResetPasswordForm user={editable} />
-              <ToggleActiveForm user={editable} />
-            </div>
-          </section>
+              <section className="rounded-card border border-line bg-surface p-5">
+                <h2 className="mb-1 text-base font-extrabold text-ink">계정 조치</h2>
+                <p className="mb-4 text-[12px] text-mut">
+                  둘 다 로그인 세션을 끊습니다.
+                </p>
+                <div className="grid gap-2.5">
+                  <ResetPasswordForm user={editable} />
+                  <ToggleActiveForm user={editable} />
+                </div>
+              </section>
+            </>
+          )}
         </div>
       </div>
     </div>

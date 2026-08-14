@@ -17,6 +17,9 @@ const currentEnrollment = (year: number) => ({
 
 export async function listUsers(year: number) {
   return prisma.user.findMany({
+    // 사용자 관리 목록 — 명단에서 빠져 소프트 삭제된 계정은 뺀다. 상세(findDetail)는
+    // 여전히 조회할 수 있다 (직접 URL로 들어가면 "삭제됨" 배지와 함께 보인다).
+    where: { deletedAt: null },
     orderBy: [{ role: "asc" }, { createdAt: "asc" }],
     select: {
       id: true,
@@ -37,11 +40,14 @@ export async function listUsers(year: number) {
 export async function findById(userId: string) {
   return prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, name: true, email: true, role: true, status: true },
+    select: { id: true, name: true, email: true, role: true, status: true, deletedAt: true },
   });
 }
 
-/** 상세 화면이 쓰는 전체 정보. */
+/**
+ * 상세 화면이 쓰는 전체 정보. **deletedAt으로 거르지 않는다** — 삭제된 계정도
+ * 상세는 보여야 "삭제됨" 배지와 과거 기록을 확인할 수 있다 (목록에서만 뺀다).
+ */
 export async function findDetail(userId: string, year: number) {
   return prisma.user.findUnique({
     where: { id: userId },
@@ -52,6 +58,7 @@ export async function findDetail(userId: string, year: number) {
       phone: true,
       role: true,
       status: true,
+      deletedAt: true,
       mustChangePassword: true,
       createdAt: true,
       studentProfile: {

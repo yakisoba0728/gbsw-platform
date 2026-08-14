@@ -14,6 +14,8 @@ export type SessionUser = {
   email: string;
   role: Role | null;
   status: string | null;
+  /** 명단에서 빠져 소프트 삭제된 계정이면 삭제 시각. null이면 살아 있다. */
+  deletedAt: Date | null;
   mustChangePassword: boolean;
 };
 
@@ -28,6 +30,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     email: user.email,
     role: isRole(user.role) ? user.role : null,
     status: user.status ?? null,
+    deletedAt: user.deletedAt ?? null,
     mustChangePassword: user.mustChangePassword ?? false,
   };
 }
@@ -59,7 +62,10 @@ export async function requireAuth(
 ): Promise<SessionUser> {
   const user = await getSessionUser();
   if (!user) redirect("/login");
-  if (user.status !== "ACTIVE") redirect("/login?disabled=1");
+  // status(비활성)와 deletedAt(소프트 삭제)을 따로 검사한다 — auth.ts의 세션
+  // 생성 훅과 같은 이유다. 훅이 로그인 자체를 막아도, 삭제되기 "전"에 이미
+  // 발급된 세션 쿠키가 남아 있을 수 있으므로 여기서도 매 요청 다시 확인한다.
+  if (user.status !== "ACTIVE" || user.deletedAt) redirect("/login?disabled=1");
   if (user.mustChangePassword && !options?.allowMustChangePassword) {
     redirect("/change-password");
   }

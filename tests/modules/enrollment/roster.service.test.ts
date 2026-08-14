@@ -26,7 +26,15 @@ vi.mock("@/modules/invites/invite.service", () => ({ generateUniqueCode, toExpir
 const { applyRosterPlan, exportRoster } = await import("@/modules/enrollment/roster.service");
 
 function user(role: SessionUser["role"], id = "admin-1"): SessionUser {
-  return { id, name: "테스트", email: "t@gbsw.hs.kr", role, status: "ACTIVE", mustChangePassword: false };
+  return {
+    id,
+    name: "테스트",
+    email: "t@gbsw.hs.kr",
+    role,
+    status: "ACTIVE",
+    deletedAt: null,
+    mustChangePassword: false,
+  };
 }
 const admin = user("ADMIN");
 const student = user("STUDENT", "s-1");
