@@ -96,6 +96,19 @@ describe("권한", () => {
     expect(setActive).not.toHaveBeenCalled();
     expect(resetCredential).not.toHaveBeenCalled();
   });
+
+  it("권한 거부를 감사로그에 남긴다 (I5) — 학생이 서버 액션을 직접 호출해도 흔적이 남는다", async () => {
+    await expect(listUsers(student)).rejects.toThrow("FORBIDDEN");
+
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: student.id,
+        action: "authz:denied",
+        targetType: "Authz",
+        metadata: { action: "user:manage" },
+      }),
+    );
+  });
 });
 
 describe("setUserActive()", () => {

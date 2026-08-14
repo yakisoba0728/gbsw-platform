@@ -1,6 +1,6 @@
 import { recordAudit } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
-import { can } from "@/core/authz/can";
+import { assertCan } from "@/core/authz/errors";
 import { generateUniqueCode, toExpiresAt } from "@/modules/invites/invite.service";
 import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
 import { buildExportRows } from "./roster.export";
@@ -14,11 +14,10 @@ export class RosterError extends Error {}
  * 기존 발급 화면(invite-form.tsx)의 expiresInDays 관례를 따라 기본 만료를 둔다. */
 const INVITE_EXPIRES_DAYS = 90;
 
-function assertMayImport(actor: SessionUser) {
+async function assertMayImport(actor: SessionUser): Promise<void> {
   // 소속을 바꾸고 초대코드도 만든다. 둘 다 확인한다.
-  if (!can(actor, "student:manage") || !can(actor, "invite:create")) {
-    throw new Error("FORBIDDEN");
-  }
+  await assertCan(actor, "student:manage");
+  await assertCan(actor, "invite:create");
 }
 
 /** 미리보기. **아무것도 저장하지 않는다.** */
@@ -26,7 +25,7 @@ export async function previewRoster(
   actor: SessionUser,
   file: { filename: string; buffer: Buffer },
 ): Promise<{ year: number; rows: RosterRow[]; plan: RosterPlan; notices: string[] }> {
-  assertMayImport(actor);
+  await assertMayImport(actor);
 
   const year = await getCurrentYear();
   const { rows, notices } = await parseRoster(file);
@@ -46,7 +45,7 @@ export async function previewRoster(
 export async function exportRoster(
   actor: SessionUser,
 ): Promise<{ year: number; rows: (string | number | null)[][] }> {
-  if (!can(actor, "student:manage")) throw new Error("FORBIDDEN");
+  await assertCan(actor, "student:manage");
 
   const year = await getCurrentYear();
   const rows = buildExportRows(await repo.listExisting(year));
@@ -86,7 +85,7 @@ export async function applyRosterPlan(
   deleted: number;
   invites: Awaited<ReturnType<typeof repo.applyRoster>>["invites"];
 }> {
-  assertMayImport(actor);
+  await assertMayImport(actor);
 
   // 경계 zod(rosterRowsSchema의 .min(1))가 항상 이 함수 앞에 있다는 보장은 없다 —
   // "서비스만 있으면 진입점을 갈아끼울 수 있다"가 이 저장소의 설계 목표다(CLAUDE.md).

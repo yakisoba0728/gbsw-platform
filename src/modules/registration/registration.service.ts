@@ -74,7 +74,21 @@ export async function completeRegistration(
   }
 
   if (!verified) {
-    await repo.registerFailedAttempt(invite.id, MAX_INVITE_ATTEMPTS);
+    const { revoked } = await repo.registerFailedAttempt(invite.id, MAX_INVITE_ATTEMPTS);
+    if (revoked) {
+      // 2차 요소를 MAX_INVITE_ATTEMPTS번 틀려 코드가 자동 폐기됐다 (I9). 관리자·
+      // 학생이 직접 폐기하는 경로(invite.service.ts의 revokeInvite)는 기록을
+      // 남기는데 이 경로만 없어서 "왜 이 코드가 죽었지"에 답할 방법이 없었다.
+      // 행위자가 없는 사건이라 actorUserId를 null로 남긴다 — 로그인 이전이라
+      // 누가 시도했는지 알 방법이 없다.
+      await recordAudit({
+        actorUserId: null,
+        actorName: "(가입 시도자)",
+        action: "invite:auto-revoke",
+        targetType: "Invite",
+        targetId: invite.id,
+      });
+    }
     throw new RegistrationError(GENERIC_FAILURE);
   }
 

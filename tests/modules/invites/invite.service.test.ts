@@ -236,6 +236,23 @@ describe("폐기", () => {
     expect(revokePending).not.toHaveBeenCalled();
   });
 
+  it("소유권 거부도 감사로그에 남긴다 (I5) — can()이 아니라 소유권 검사라 assertCan을 못 쓰는 경로", async () => {
+    findById.mockResolvedValue({ id: "inv1", studentId: "other-student" });
+    getStudentProfileByUserId.mockResolvedValue({ id: "student-1" });
+
+    await expect(revokeInvite(student, "inv1")).rejects.toThrow("FORBIDDEN");
+
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: student.id,
+        action: "authz:denied",
+        targetType: "Invite",
+        targetId: "inv1",
+        metadata: { action: "invite:revoke" },
+      }),
+    );
+  });
+
   it("이미 사용됐거나 폐기된 코드는 실패로 알린다", async () => {
     findById.mockResolvedValue({ id: "inv1", studentId: null });
     revokePending.mockResolvedValue(0);

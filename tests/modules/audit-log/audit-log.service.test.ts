@@ -4,12 +4,16 @@ import type { SessionUser } from "@/core/auth/session";
 const findPage = vi.fn();
 const countMatching = vi.fn();
 const distinctActions = vi.fn();
+const recordAudit = vi.fn();
 
 vi.mock("@/modules/audit-log/audit-log.repo", () => ({
   findPage,
   countMatching,
   distinctActions,
 }));
+// assertCan()이 거부를 기록할 때 recordAudit을 부른다 (I5) — 실제 DB를 치지
+// 않게 목으로 막는다.
+vi.mock("@/core/audit/audit", () => ({ recordAudit }));
 
 const { readAuditLog } = await import("@/modules/audit-log/audit-log.service");
 const { PAGE_SIZE, periodStart } = await import(
@@ -34,6 +38,7 @@ beforeEach(() => {
   findPage.mockReset().mockResolvedValue([]);
   countMatching.mockReset().mockResolvedValue(0);
   distinctActions.mockReset().mockResolvedValue(["invite:create"]);
+  recordAudit.mockReset();
 });
 
 describe("readAuditLog()", () => {
@@ -45,6 +50,21 @@ describe("readAuditLog()", () => {
       "FORBIDDEN",
     );
     expect(findPage).not.toHaveBeenCalled();
+  });
+
+  it("권한 거부를 감사로그에 남긴다 (I5) — 페이지 가드 없이 직접 호출해도 흔적이 남는다", async () => {
+    await expect(readAuditLog(user("STUDENT"), { ...base })).rejects.toThrow(
+      "FORBIDDEN",
+    );
+
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: "u1",
+        action: "authz:denied",
+        targetType: "Authz",
+        metadata: { action: "audit:read" },
+      }),
+    );
   });
 
   it("페이지 번호를 건너뛸 개수로 바꾼다", async () => {

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { recordAudit } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
 import { keepsAccountActive } from "@/core/authz/enrollment-status";
-import { can } from "@/core/authz/can";
+import { assertCan } from "@/core/authz/errors";
 import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
 import * as repo from "./enrollment.repo";
 import type { EnrollmentChange } from "./enrollment.schema";
@@ -21,7 +21,7 @@ export class EnrollmentError extends Error {
 }
 
 export async function listStudents(actor: SessionUser) {
-  if (!can(actor, "student:manage")) throw new Error("FORBIDDEN");
+  await assertCan(actor, "student:manage");
   return repo.listByYear(await getCurrentYear());
 }
 
@@ -62,7 +62,7 @@ export async function saveEnrollments(
   changes: EnrollmentChange[],
   expectedYear: number,
 ): Promise<{ saved: number }> {
-  if (!can(actor, "student:manage")) throw new Error("FORBIDDEN");
+  await assertCan(actor, "student:manage");
 
   const year = await getCurrentYear();
   // 렌더 시점에 표가 실어 온 학년도와 지금의 현재 학년도를 대조한다. 다르면 다른

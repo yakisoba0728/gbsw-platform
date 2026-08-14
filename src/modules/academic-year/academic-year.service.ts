@@ -1,6 +1,6 @@
 import { recordAudit } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
-import { can } from "@/core/authz/can";
+import { assertCan } from "@/core/authz/errors";
 import { MAX_YEAR, MIN_YEAR } from "./academic-year.schema";
 import * as repo from "./academic-year.repo";
 
@@ -19,12 +19,12 @@ export async function getCurrentYear(): Promise<number> {
 }
 
 export async function listYears(actor: SessionUser) {
-  if (!can(actor, "academic-year:manage")) throw new Error("FORBIDDEN");
+  await assertCan(actor, "academic-year:manage");
   return repo.listYears();
 }
 
 export async function createYear(actor: SessionUser, year: number): Promise<void> {
-  if (!can(actor, "academic-year:manage")) throw new Error("FORBIDDEN");
+  await assertCan(actor, "academic-year:manage");
   if (!Number.isInteger(year) || year < MIN_YEAR || year > MAX_YEAR) {
     throw new AcademicYearError("INVALID_YEAR");
   }
@@ -50,7 +50,7 @@ export async function setCurrentYear(
   actor: SessionUser,
   year: number,
 ): Promise<void> {
-  if (!can(actor, "academic-year:manage")) throw new Error("FORBIDDEN");
+  await assertCan(actor, "academic-year:manage");
 
   // 이미 현재 학년도면 기록도 남기지 않는다 (no-op으로 감사로그가 오염되지 않게).
   const current = await repo.findCurrent();

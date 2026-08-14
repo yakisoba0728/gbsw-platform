@@ -1,7 +1,7 @@
 import { hashPassword } from "better-auth/crypto";
 import { recordAudit } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
-import { can } from "@/core/authz/can";
+import { assertCan } from "@/core/authz/errors";
 import { formatDateInput, parseDateInputKst } from "@/lib/datetime";
 import { generateTempPassword } from "@/lib/temp-password";
 import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
@@ -11,7 +11,7 @@ import type { UpdateUserInput } from "./admin-user.schema";
 export class AdminUserError extends Error {}
 
 export async function listUsers(actor: SessionUser) {
-  if (!can(actor, "user:manage")) throw new Error("FORBIDDEN");
+  await assertCan(actor, "user:manage");
   return repo.listUsers(await getCurrentYear());
 }
 
@@ -19,7 +19,7 @@ export async function listUsers(actor: SessionUser) {
 const RELATED_AUDIT_LIMIT = 20;
 
 export async function getUserDetail(actor: SessionUser, userId: string) {
-  if (!can(actor, "user:manage")) throw new Error("FORBIDDEN");
+  await assertCan(actor, "user:manage");
 
   const year = await getCurrentYear();
   const user = await repo.findDetail(userId, year);
@@ -52,7 +52,7 @@ export async function updateUser(
   userId: string,
   input: UpdateUserInput,
 ): Promise<{ changed: string[] }> {
-  if (!can(actor, "user:manage")) throw new Error("FORBIDDEN");
+  await assertCan(actor, "user:manage");
 
   const year = await getCurrentYear();
   const current = await repo.findDetail(userId, year);
@@ -173,7 +173,7 @@ export async function setUserActive(
   userId: string,
   active: boolean,
 ): Promise<void> {
-  if (!can(actor, "user:manage")) throw new Error("FORBIDDEN");
+  await assertCan(actor, "user:manage");
 
   // 스스로를 잠가 가두는 상황을 막는다.
   if (userId === actor.id && !active) {
@@ -207,7 +207,7 @@ export async function resetPassword(
   actor: SessionUser,
   userId: string,
 ): Promise<{ tempPassword: string }> {
-  if (!can(actor, "user:manage")) throw new Error("FORBIDDEN");
+  await assertCan(actor, "user:manage");
 
   const target = await repo.findById(userId);
   if (!target) throw new AdminUserError("NOT_FOUND");

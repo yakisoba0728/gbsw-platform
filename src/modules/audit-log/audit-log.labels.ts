@@ -26,6 +26,10 @@ export const AUDIT_ACTIONS = [
   "invite:create",
   "invite:create:parent",
   "invite:revoke",
+  // 2차 요소를 MAX_INVITE_ATTEMPTS번 틀려 코드가 자동 폐기됐을 때 (I9). 관리자·
+  // 학생이 직접 폐기하는 invite:revoke와 구분한다 — 행위자가 없다(actorUserId
+  // null, actorName은 "(가입 시도자)").
+  "invite:auto-revoke",
   "user:update",
   "user:activate",
   "user:deactivate",
@@ -35,6 +39,10 @@ export const AUDIT_ACTIONS = [
   "academic-year:set-current",
   "enrollment:update",
   "enrollment:import",
+  // can() 검사를 통과 못 해 서비스가 거부했을 때 (I5, core/authz/errors.ts의
+  // assertCan). 정상 사용자가 페이지 가드에 막혀 여기 닿는 일은 없다 — 서버
+  // 액션을 직접 호출하는 등 페이지를 건너뛴 시도만 남는다.
+  "authz:denied",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -50,6 +58,7 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   "invite:create": "초대코드 발급",
   "invite:create:parent": "학부모 코드 발급",
   "invite:revoke": "초대코드 폐기",
+  "invite:auto-revoke": "초대코드 자동 폐기",
   "user:update": "사용자 정보 수정",
   "user:activate": "계정 활성화",
   "user:deactivate": "계정 비활성화",
@@ -59,6 +68,7 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   "academic-year:set-current": "현재 학년도 변경",
   "enrollment:update": "소속·학적 수정",
   "enrollment:import": "명단 일괄 반영",
+  "authz:denied": "권한 거부",
 };
 
 const ACTION_TONES: Record<AuditAction, BadgeTone> = {
@@ -68,6 +78,7 @@ const ACTION_TONES: Record<AuditAction, BadgeTone> = {
   "invite:create": "approved",
   "invite:create:parent": "approved",
   "invite:revoke": "cancelled",
+  "invite:auto-revoke": "cancelled",
   "user:update": "info",
   "user:activate": "approved",
   "user:deactivate": "cancelled",
@@ -77,6 +88,7 @@ const ACTION_TONES: Record<AuditAction, BadgeTone> = {
   "academic-year:set-current": "info",
   "enrollment:update": "info",
   "enrollment:import": "info",
+  "authz:denied": "rejected",
 };
 
 /** 모르는 값이면 원본 문자열을 그대로 돌려준다. */
@@ -177,6 +189,12 @@ function importSummary(metadata: Record<string, unknown>): string | null {
   return filled.length > 0 ? filled.join(" · ") : null;
 }
 
+/** authz:denied — 어떤 권한 액션을 시도하다 막혔는지 보여준다 (I5). */
+function authzDeniedSummary(metadata: Record<string, unknown>): string | null {
+  const action = metadata.action;
+  return typeof action === "string" ? `시도: ${action}` : null;
+}
+
 const METADATA_FORMATTERS: Partial<
   Record<AuditAction, (metadata: Record<string, unknown>) => string | null>
 > = {
@@ -187,6 +205,7 @@ const METADATA_FORMATTERS: Partial<
   "invite:create": roleSummary,
   "invite:create:parent": roleSummary,
   "registration:complete": roleSummary,
+  "authz:denied": authzDeniedSummary,
 };
 
 /**

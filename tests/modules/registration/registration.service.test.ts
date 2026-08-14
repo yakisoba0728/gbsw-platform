@@ -156,6 +156,35 @@ describe("completeRegistration() — 학생", () => {
     expect(completeStudentRegistration).not.toHaveBeenCalled();
   });
 
+  it("실패가 쌓여 코드가 자동 폐기되면 감사로그를 남긴다 (I9) — 행위자 없이", async () => {
+    findInviteByCode.mockResolvedValue(invite());
+    registerFailedAttempt.mockResolvedValue({ revoked: true });
+
+    await expect(
+      completeRegistration({ ...base, name: "김학샹", birthDate: "2010-03-04" }),
+    ).rejects.toThrow();
+
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: null,
+        action: "invite:auto-revoke",
+        targetType: "Invite",
+        targetId: "inv1",
+      }),
+    );
+  });
+
+  it("실패가 쌓여도 폐기되지 않았으면 감사로그를 남기지 않는다", async () => {
+    findInviteByCode.mockResolvedValue(invite());
+    registerFailedAttempt.mockResolvedValue({ revoked: false });
+
+    await expect(
+      completeRegistration({ ...base, name: "김학샹", birthDate: "2010-03-04" }),
+    ).rejects.toThrow();
+
+    expect(recordAudit).not.toHaveBeenCalled();
+  });
+
   it("생년월일을 비우면 통과하지 못한다", async () => {
     findInviteByCode.mockResolvedValue(invite());
 

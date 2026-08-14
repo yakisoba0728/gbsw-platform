@@ -1,11 +1,11 @@
 import type { SessionUser } from "@/core/auth/session";
-import { can } from "@/core/authz/can";
+import { assertCan } from "@/core/authz/errors";
 import * as repo from "./audit-log.repo";
 import { PAGE_SIZE, periodStart, type AuditQuery } from "./audit-log.schema";
 
 /** 감사로그 조회. 쓰기는 core/audit의 recordAudit가 담당한다. */
 export async function readAuditLog(actor: SessionUser, query: AuditQuery) {
-  if (!can(actor, "audit:read")) throw new Error("FORBIDDEN");
+  await assertCan(actor, "audit:read");
 
   const filter = {
     action: query.action || undefined,

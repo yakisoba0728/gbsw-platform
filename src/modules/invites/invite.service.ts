@@ -1,6 +1,7 @@
 import { recordAudit } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
 import { can } from "@/core/authz/can";
+import { assertCan, ForbiddenError } from "@/core/authz/errors";
 import { generateInviteCode } from "@/lib/invite-code";
 import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
 import * as repo from "./invite.repo";
@@ -45,7 +46,7 @@ export async function createStudentInvite(
   actor: SessionUser,
   input: CreateStudentInviteInput,
 ) {
-  if (!can(actor, "invite:create")) throw new Error("FORBIDDEN");
+  await assertCan(actor, "invite:create");
 
   const invite = await repo.insertInvite({
     code: await generateUniqueCode(),
@@ -77,7 +78,7 @@ export async function createAdminInvite(
   actor: SessionUser,
   input: CreateAdminInviteInput,
 ) {
-  if (!can(actor, "invite:create")) throw new Error("FORBIDDEN");
+  await assertCan(actor, "invite:create");
 
   const invite = await repo.insertInvite({
     code: await generateUniqueCode(),
@@ -111,7 +112,7 @@ export async function createParentInvite(
   actor: SessionUser,
   input: CreateParentInviteInput,
 ) {
-  if (!can(actor, "invite:create:parent")) throw new Error("FORBIDDEN");
+  await assertCan(actor, "invite:create:parent");
 
   const profile = await repo.getStudentProfileByUserId(actor.id);
   if (!profile) throw new InviteError("NOT_A_STUDENT");
@@ -152,7 +153,7 @@ export async function createParentInviteFor(
   actor: SessionUser,
   input: CreateParentInviteForInput,
 ) {
-  if (!can(actor, "invite:create")) throw new Error("FORBIDDEN");
+  await assertCan(actor, "invite:create");
 
   const student = await repo.findStudentById(input.studentId);
   if (!student) throw new InviteError("STUDENT_NOT_FOUND");
@@ -186,12 +187,12 @@ export async function createParentInviteFor(
 
 /** 학부모 코드 발급 화면에서 고를 학생 목록. */
 export async function listStudentsForInvite(actor: SessionUser) {
-  if (!can(actor, "invite:create")) throw new Error("FORBIDDEN");
+  await assertCan(actor, "invite:create");
   return repo.listStudents(await getCurrentYear());
 }
 
 export async function listInvites(actor: SessionUser) {
-  if (!can(actor, "invite:list")) throw new Error("FORBIDDEN");
+  await assertCan(actor, "invite:list");
   return repo.listAll(await getCurrentYear());
 }
 
@@ -215,10 +216,25 @@ export async function revokeInvite(actor: SessionUser, inviteId: string) {
   const isAdmin = can(actor, "invite:revoke");
 
   if (!isAdmin) {
-    // 학생 소유권 검사 — 자기 학생 프로필에 귀속된 코드인가.
+    // 학생 소유권 검사 — 자기 학생 프로필에 귀속된 코드인가. can()만으로는 못
+    // 잡는 거부라 assertCan을 못 쓴다 — 여기서도 같은 방식(거부 기록 + ForbiddenError)을
+    // 직접 맞춘다 (I5).
     const profile = await repo.getStudentProfileByUserId(actor.id);
     const owns = profile !== null && invite.studentId === profile.id;
-    if (!owns) throw new Error("FORBIDDEN");
+    if (!owns) {
+      try {
+        await recordAudit({
+          actorUserId: actor.id,
+          action: "authz:denied",
+          targetType: "Invite",
+          targetId: inviteId,
+          metadata: { action: "invite:revoke" },
+        });
+      } catch {
+        // 감사 기록 실패가 거부 자체를 막지 않는다.
+      }
+      throw new ForbiddenError("invite:revoke");
+    }
   }
 
   const count = await repo.revokePending(inviteId);
