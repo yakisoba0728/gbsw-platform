@@ -193,6 +193,11 @@ model MeritAward {
 대신 책임 추적을 남긴다: **취소 사유를 받고, 취소한 사람의 이름을 기록에 박고, 감사로그를
 남긴다.** 취소된 기록은 목록에서 사라지지 않고 취소 표시가 붙은 채로 남는다.
 
+**취소 사유는 필수다** — zod가 경계에서 막는다(`MeritError` 코드가 아니라 스키마 검증이다).
+"누구나 취소할 수 있다"를 정당화하는 근거가 사유와 감사로그이므로, 사유가 선택이면
+그 근거가 무너진다. 부여 메모(`note`)는 선택이다 — 규정 이름만으로 충분한 경우가 많고,
+부여는 취소와 달리 남의 기록을 뒤집는 행위가 아니다.
+
 같은 이유로 **사감과 담임을 구분하지 않는다** — 관리자면 두 트랙 다 부여할 수 있다.
 기숙사 상벌점을 사감에게만 열려면 역할 등급이 필요한데, 그건 이 프로젝트가 의도적으로
 만들지 않은 것이다. 나중에 필요해지면 `can.ts`에 트랙별 액션을 쪼개는 것으로 시작한다.
@@ -245,10 +250,29 @@ getChildAwards(sessionUser, childId)  // ParentStudent 연결을 서비스에서
 hover는 `hover:`, PC/모바일 전환은 `lg:` 브레이크포인트로 바꾼다 — 시안의 `device` prop
 토글을 JS로 재현하지 않는다 (SSR 불일치).
 
+### 규정 관리
+
+이전 버전은 수정이 아예 없어서 오타 하나에도 "비활성 후 재생성"을 해야 했다. 값을
+스냅샷해 두므로 과거 기록이 흔들릴 위험이 없어 **수정을 연다.**
+
+**단, 고칠 수 있는 것은 `label`·`points`·`category`·`description`뿐이다.**
+`track`과 `kind`는 만들 때 정하고 바꿀 수 없다 — 기록은 스냅샷이 지켜 주지만, "기숙사
+점호 지각(벌점)"이 어느 날 "교내 상점"으로 변신하는 것은 규정 카탈로그로서 말이 안 된다.
+트랙이나 종류가 잘못됐으면 비활성하고 새로 만든다.
+
+비활성한 규정은 부여 목록에서 사라지되 행은 남는다. 이미 나간 기록이 참조하고 있고
+(`onDelete: Restrict`), "이 규정으로 몇 건이 나갔나"를 세려면 필요하다.
+
 ### 과거 학년도
 
 **교내 탭에만 학년도 선택을 단다.** 기숙사는 누적이라 선택할 것이 없다.
 기본값은 현재 학년도이고, 학생 본인 화면에서도 지난 학년도를 볼 수 있다.
+
+**학년도 선택은 조회 전용이다. 부여는 항상 `getCurrentYear()`가 정한 학년도로 들어간다.**
+화면에서 고른 값을 부여에 넘기면, 지난 학년도를 들여다보던 관리자가 새 벌점을 2025학년도에
+꽂아 넣는 사고가 난다. 서버 액션은 학년도를 **입력으로 받지 않는다** — 세션에서 유도할 수
+있는 값을 클라이언트 입력으로 받지 않는다는 규칙과 같은 이유다.
+과거 학년도를 보고 있을 때는 부여 폼을 감춘다.
 
 ### 여러 명 한 번에 부여
 
@@ -297,7 +321,7 @@ hover는 `hover:`, PC/모바일 전환은 `lg:` 브레이크포인트로 바꾼�
 | 액션 | 언제 | metadata |
 |---|---|---|
 | `merit:rule:create` | 규정 추가 | track, kind, label, points |
-| `merit:rule:update` | 규정 수정 | 바뀐 항목의 전/후 |
+| `merit:rule:update` | 규정 수정 | 바뀐 항목의 전/후 (label·points·category·description만) |
 | `merit:rule:deactivate` | 규정 비활성 | label |
 | `merit:award` | 부여 (일괄이면 학생당 1줄) | studentId, track, kind, label, points, batchId? |
 | `merit:cancel` | 취소 | awardId, studentId, points, reason |
@@ -360,5 +384,13 @@ tests/modules/merit/                       구조를 src/와 맞춘다
 화면에서만 터지고, 서버 액션의 catch가 오류를 삼키면 원인이 어디에도 안 남는다.
 명단 내보내기에서 실제로 겪은 일이다.
 
-`components/app-shell/nav.ts`의 `NAV_ITEMS`에 상벌점 한 줄을 추가한다 (`MeritIcon`은 이미 있다).
-학생·학부모·관리자 모두 보는 항목이라 `roles`를 비운다.
+`components/app-shell/nav.ts`에 **두 줄**을 추가한다 (시안 사이드바에도 둘 다 있다).
+
+- `NAV_ITEMS`에 `{ href: "/merit", label: "상벌점", icon: MeritIcon }` — 학생·학부모·관리자가
+  모두 보는 항목이라 `roles`를 비운다 (`MeritIcon`은 이미 있다).
+- `ADMIN_NAV_ITEMS`에 `{ href: "/admin/merit/rules", label: "상벌점 규정", roles: ["ADMIN"] }` —
+  규정 관리는 설정 성격이라 관리자 섹션에 둔다.
+
+두 경로는 겹치지 않는다 — `"/admin/merit/rules".startsWith("/merit")`는 거짓이라
+`titleForPath`·`isActive`가 서로를 잡아채지 않는다. `/merit/students/[id]`는 `/merit`에
+걸려 상단바에 "상벌점"이 뜨는데, 그게 맞는 동작이다.
