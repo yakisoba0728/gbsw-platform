@@ -117,8 +117,10 @@ export type ApplyInput = {
    */
   managedStudentProfileIds: string[];
   /**
-   * 명단에서 빠진 학생 — **계정째 지운다.** service의 삭제 확인 게이트(확인 id
-   * 집합 대조 + 대량 삭제 건수 대조)를 통과한 뒤에만 여기 온다. 되돌릴 수 없다.
+   * 명단에서 빠진 학생 — **계정을 소프트 삭제한다** (지우지 않고 deletedAt만 찍는다).
+   * service의 삭제 확인 게이트(확인 id 집합 대조 + 대량 삭제 건수 대조)를 통과한
+   * 뒤에만 여기 온다. 학적·소속·감사로그는 그대로 남고, 다음 명단에 다시 나타나면
+   * 되살아난다(아래 statusChanged 동기화 블록의 deletedAt: null).
    */
   deleteStudentProfileIds: string[];
   createdById: string;
@@ -131,9 +133,9 @@ export type ApplyInput = {
  * 갱신으로는 성립하지 않는다 — Postgres 유일 제약은 DEFERRABLE이 아니면 문장 단위로
  * 검사하므로, 한 트랜잭션 안이라도 중간 상태에서 걸린다. 지우고 넣으면 그 창이 없다.
  *
- * 명단에 없던 학생은 계정째 지운다(deleteStudentProfileIds). 미리보기가 그걸
- * 가장 눈에 띄게 보여주고 별도 확인을 받은 뒤다 — 되돌릴 수 없는 유일한 동작이다.
- * 재배정을 다시 넣기 전, 트랜잭션 맨 앞에서 지운다.
+ * 명단에 없던 학생은 소프트 삭제한다(deleteStudentProfileIds) — 계정은 남고
+ * deletedAt만 찍힌다. 미리보기가 그걸 가장 눈에 띄게 보여주고 별도 확인을 받은
+ * 뒤다. 재배정을 다시 넣기 전, 트랜잭션 맨 앞에서 처리한다.
  *
  * 그 외 명단에 있는 학생의 그 학년도 배정은 managedStudentProfileIds 범위로 한정해
  * 지우고 새로 넣는다 (I5) — 관리 범위 밖 학생은 애초에 지우지 않는다.
@@ -148,27 +150,46 @@ export async function applyRoster(year: number, input: ApplyInput) {
   try {
     return await prisma.$transaction(
       async (tx) => {
-        // 되돌릴 수 없는 유일한 동작 — 재배정을 다시 넣기 전에 삭제부터 끝낸다.
+        // 재배정을 다시 넣기 전에 소프트 삭제부터 끝낸다.
         if (input.deleteStudentProfileIds.length > 0) {
           // listExisting(role: STUDENT)과 트랜잭션 사이에 승격되면 대상이 더는 학생이
-          // 아니다 — where에 role을 다시 좁혀 ADMIN을 지우는 사고를 막는다 (M-2).
+          // 아니다 — where에 role을 다시 좁혀 ADMIN을 삭제 대상에 넣는 사고를 막는다 (M-2).
           const targets = await tx.studentProfile.findMany({
             where: { id: { in: input.deleteStudentProfileIds }, user: { role: "STUDENT" } },
             select: { userId: true },
           });
           const deleteUserIds = targets.map((t) => t.userId);
 
-          // 학생이 만든 학부모 코드가 createdById(Restrict)로 삭제를 막는다. 먼저 치운다.
-          await tx.invite.deleteMany({ where: { createdById: { in: deleteUserIds } } });
-          // 그 학생을 만든 초대는 usedById가 SetNull이라 행이 남는다 — metadata에 이름·생년월일이
-          // 들어 있으므로 계정을 지우기 전에 함께 정리한다. 지운 뒤에는 usedById가 null이 되어
-          // 어느 초대가 그 학생 것이었는지 특정할 방법이 없다.
-          await tx.invite.deleteMany({ where: { usedById: { in: deleteUserIds } } });
-          // user를 지우면 session·account·StudentProfile이 Cascade로 함께 사라지고,
-          // StudentProfile에 딸린 Enrollment·ParentStudent도 이어서 정리된다.
-          // 연결된 학부모 계정은 ParentStudent 연결만 끊기고 계정 자체는 남는다 —
-          // 관리자가 요청한 것은 학생 삭제이지 학부모 삭제가 아니다.
-          await tx.user.deleteMany({ where: { id: { in: deleteUserIds } } });
+          // 아직 안 쓴 초대코드는 폐기한다 — 그 학생은 더 이상 학교 소속이 아니다.
+          // 지우지 않고 상태만 REVOKED로 바꿔 "왜 이 코드가 죽었는지" 기록이 남게
+          // 한다. createdById(학생이 직접 만든 학부모 코드)와 studentId(관리자가
+          // 이 학생 몫으로 대신 만든 학부모 코드) 둘 다 본다 — 하드 삭제 시절엔
+          // StudentProfile을 지워 Invite.studentId의 Cascade가 이 경우를 자동으로
+          // 정리해 줬지만, 이제 StudentProfile이 안 지워지므로 명시적으로 막아야
+          // 한다. 안 막으면 학부모가 몇 달 뒤에도 그 코드로 가입해 삭제된 학생에게
+          // 연결될 수 있다.
+          await tx.invite.updateMany({
+            where: {
+              status: "PENDING",
+              OR: [
+                { createdById: { in: deleteUserIds } },
+                { studentId: { in: input.deleteStudentProfileIds } },
+              ],
+            },
+            data: { status: "REVOKED" },
+          });
+
+          // 명단에서 빠진 학생은 지우지 않고 표시만 한다. 학적·소속·상벌점 기록이
+          // 스프레드시트 행 하나로 사라지면 안 된다 — 학교생활기록부의 기재 근거다.
+          // 진짜 삭제는 사용자 상세에서 한 명씩만 한다.
+          await tx.user.updateMany({
+            where: { id: { in: deleteUserIds } },
+            data: { deletedAt: new Date(), status: "INACTIVE" },
+          });
+          // 세션은 여전히 지운다 — 소프트 삭제라도 이미 로그인된 세션까지 살려둘
+          // 이유는 없다. auth.ts의 세션 생성 훅이 재로그인은 막아 주지만, 이미
+          // 발급된 쿠키는 별개다.
+          await tx.session.deleteMany({ where: { userId: { in: deleteUserIds } } });
         }
 
         await tx.enrollment.deleteMany({
@@ -216,6 +237,13 @@ export async function applyRoster(year: number, input: ApplyInput) {
 
         // 계정 상태를 학적에 맞춘다. statusChanged가 true인 학생만 건드린다 (C1) —
         // 그대로인 학생(untouched)까지 여기 섞여 있어도 계정은 손대지 않는다.
+        //
+        // 두 분기 모두 deletedAt: null을 함께 쓴다 — statusChanged=true라는 것
+        // 자체가 이번 파일에 그 학생의 줄이 있다는 뜻이고(명단에 없으면 여기
+        // assignments에 오지 않는다), 명단에 있다는 사실 하나로 "더는 소프트
+        // 삭제 대상이 아니다"가 성립한다. 재학(ENROLLED)으로 돌아오면 활성화까지
+        // 하고, 졸업·자퇴 등으로 돌아오면 deletedAt만 지우고 비활성은 유지한다 —
+        // "다시 넣으면 돌아온다"는 계정이 살아 있다는 뜻이지 재학한다는 뜻이 아니다.
         const changed = input.assignments.filter((r) => r.statusChanged);
         const inactive = changed
           .filter((r) => r.status !== "ENROLLED")
@@ -230,7 +258,10 @@ export async function applyRoster(year: number, input: ApplyInput) {
             select: { userId: true },
           });
           const ids = users.map((u) => u.userId);
-          await tx.user.updateMany({ where: { id: { in: ids } }, data: { status: "INACTIVE" } });
+          await tx.user.updateMany({
+            where: { id: { in: ids } },
+            data: { status: "INACTIVE", deletedAt: null },
+          });
           // 비활성으로 넘어가는 계정은 세션도 끊는다.
           await tx.session.deleteMany({ where: { userId: { in: ids } } });
         }
@@ -241,7 +272,7 @@ export async function applyRoster(year: number, input: ApplyInput) {
           });
           await tx.user.updateMany({
             where: { id: { in: users.map((u) => u.userId) } },
-            data: { status: "ACTIVE" },
+            data: { status: "ACTIVE", deletedAt: null },
           });
         }
 

@@ -363,34 +363,67 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
     expect(applyRoster.mock.calls[0]![1].deleteStudentProfileIds).toEqual([]);
   });
 
-  it("삭제 로그마다 actorName을 미리 넘긴다 (M8) — 275명 삭제가 매번 이름을 다시 " +
-    "조회하면 순차 왕복이 되어 리버스 프록시 타임아웃에 걸릴 수 있다", async () => {
+  it("소프트 삭제 로그마다 actorName을 미리 넘긴다 (M8) — 275명이 명단에서 빠지는 " +
+    "반영마다 이름을 다시 조회하면 순차 왕복이 되어 리버스 프록시 타임아웃에 " +
+    "걸릴 수 있다", async () => {
     await applyRosterPlan(admin, 2026, [무관한신규줄], ["sp-1"], null);
 
     const deleteLog = recordAudit.mock.calls
       .map((c) => c[0])
-      .find((c) => c.action === "user:delete");
+      .find((c) => c.action === "user:soft-delete");
     expect(deleteLog?.actorName).toBe(admin.name);
   });
 
-  it("삭제된 학생마다 user:delete 감사로그를 남긴다 — targetId만 담고 이름은 넣지 않는다", async () => {
+  it("명단에서 빠진 학생마다 user:soft-delete 감사로그를 남긴다 — targetId만 담고 " +
+    "이름은 넣지 않는다. user:delete가 아니다 — 그건 Task 3의 하드 삭제 전용이다", async () => {
     await applyRosterPlan(admin, 2026, [무관한신규줄], ["sp-1"], null);
 
     const deleteLogs = recordAudit.mock.calls
       .map((c) => c[0])
-      .filter((c) => c.action === "user:delete");
+      .filter((c) => c.action === "user:soft-delete");
     expect(deleteLogs).toHaveLength(1);
     expect(deleteLogs[0]).toMatchObject({ targetType: "User", targetId: "u-1" });
     expect(JSON.stringify(deleteLogs[0])).not.toContain("김동혁");
+
+    expect(
+      recordAudit.mock.calls.map((c) => c[0]).some((c) => c.action === "user:delete"),
+    ).toBe(false);
   });
 
-  it("배치 요약(enrollment:import)의 metadata에 삭제 건수를 남긴다", async () => {
+  it("배치 요약(enrollment:import)의 metadata에 softDeleted 건수를 남긴다 — 예전 " +
+    "필드명(deleted)은 계정을 지우던 시절 이름이라 더는 사실과 맞지 않는다", async () => {
     await applyRosterPlan(admin, 2026, [무관한신규줄], ["sp-1"], null);
 
     const summary = recordAudit.mock.calls
       .map((c) => c[0])
       .find((c) => c.action === "enrollment:import");
-    expect(summary.metadata).toMatchObject({ deleted: 1 });
+    expect(summary.metadata).toMatchObject({ softDeleted: 1 });
+  });
+
+  it("이미 소프트 삭제됐던 학생이 다시 배정을 받으면 restored로 센다 — " +
+    "'다시 넣으면 돌아온다'는 사실이 배치 요약에도 보이게 한다", async () => {
+    // 이전에 삭제됐던 학생: 그 학년도 배정이 없고(status:null) deleted:true.
+    // row(재학생과 같은 studentCode·이름·생년월일)가 이 학생을 다시 채운다 —
+    // before.status===null이므로 newAssignment로 분류된다.
+    listExisting.mockResolvedValue([
+      { ...재학생, deleted: true, status: null, grade: null, classNo: null, number: null },
+    ]);
+
+    await applyRosterPlan(admin, 2026, [row], [], null);
+
+    const summary = recordAudit.mock.calls
+      .map((c) => c[0])
+      .find((c) => c.action === "enrollment:import");
+    expect(summary.metadata).toMatchObject({ restored: 1 });
+  });
+
+  it("삭제된 적 없는 학생의 정상 배정은 restored로 세지 않는다", async () => {
+    await applyRosterPlan(admin, 2026, [row], [], null);
+
+    const summary = recordAudit.mock.calls
+      .map((c) => c[0])
+      .find((c) => c.action === "enrollment:import");
+    expect(summary.metadata).toMatchObject({ restored: 0 });
   });
 
   it("결과에 삭제 건수를 함께 돌려준다 (Minor-4) — 성공 문구에 반영 건수만 있으면 " +

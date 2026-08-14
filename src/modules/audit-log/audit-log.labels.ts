@@ -35,6 +35,11 @@ export const AUDIT_ACTIONS = [
   "user:deactivate",
   "user:reset-password",
   "user:delete",
+  // 명단에서 빠진 계정을 소프트 삭제할 때 (2026-08-14 결정). user:delete는
+  // Task 3의 하드 삭제(오등록 정리, 사용자 상세)가 계속 쓰므로 그대로 둔다 —
+  // 하나는 "명단에서 빠짐"(되돌릴 수 있음), 다른 하나는 "완전 삭제"(못 돌아옴)라
+  // 라벨과 톤을 분리해야 감사로그를 보는 사람이 둘을 헷갈리지 않는다.
+  "user:soft-delete",
   "academic-year:create",
   "academic-year:set-current",
   "enrollment:update",
@@ -64,6 +69,7 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   "user:deactivate": "계정 비활성화",
   "user:reset-password": "비밀번호 초기화",
   "user:delete": "계정 삭제",
+  "user:soft-delete": "명단에서 제외",
   "academic-year:create": "학년도 추가",
   "academic-year:set-current": "현재 학년도 변경",
   "enrollment:update": "소속·학적 수정",
@@ -84,6 +90,7 @@ const ACTION_TONES: Record<AuditAction, BadgeTone> = {
   "user:deactivate": "cancelled",
   "user:reset-password": "pending",
   "user:delete": "rejected",
+  "user:soft-delete": "cancelled",
   "academic-year:create": "approved",
   "academic-year:set-current": "info",
   "enrollment:update": "info",
@@ -169,7 +176,16 @@ function roleSummary(metadata: Record<string, unknown>): string | null {
   return isRole(role) ? ROLE_LABELS[role] : role;
 }
 
-/** enrollment:import 건수 필드 — 0인 항목은 뺀다. 값이 있는 것만 보여야 읽힌다. */
+/**
+ * enrollment:import 건수 필드 — 0인 항목은 뺀다. 값이 있는 것만 보여야 읽힌다.
+ *
+ * `deleted`는 옛 필드명이다 — 명단 반영이 계정을 지우던 시절(하드 삭제)에 쓰던
+ * 키로, 그 시절 저장된 감사로그 행에는 여전히 이 이름으로 남아 있다. 저장된
+ * 행은 스키마를 바꾸지 않는 한 고칠 수 없으므로(불변 로그) 라벨을 지우지 않는다
+ * (invite:create:parent와 같은 패턴, 이 파일 상단 주석 참고). 새로 쌓이는 행은
+ * `softDeleted`를 쓴다 — 계정을 지우지 않고 표시만 하므로 "삭제"라는 이름이
+ * 더는 사실과 맞지 않는다.
+ */
 const IMPORT_COUNT_LABELS: ReadonlyArray<readonly [key: string, label: string]> = [
   ["newStudents", "신규"],
   ["newAssignment", "신규배정"],
@@ -177,6 +193,8 @@ const IMPORT_COUNT_LABELS: ReadonlyArray<readonly [key: string, label: string]> 
   ["statusChange", "학적변동"],
   ["invitesIssued", "초대발급"],
   ["deleted", "삭제"],
+  ["softDeleted", "제외"],
+  ["restored", "복구"],
 ];
 
 function importSummary(metadata: Record<string, unknown>): string | null {

@@ -221,12 +221,27 @@ export async function applyRosterPlan(
   }
   const { invites } = applied;
 
+  // 이번 반영으로 되살아난(deletedAt이 지워진) 학생 수 — 이미 소프트 삭제됐던
+  // studentProfileId가 다시 배정을 받았다는 뜻이다. "다시 넣으면 돌아온다"는 사실이
+  // 배치 요약에도 보이도록 별도로 센다 (개별 학생 단위 감사로그는 statusChanged가
+  // 실제로 뒤집힐 때만 남는 user:activate/deactivate가 있고, 그 반대의 경우 —
+  // 예: 졸업생으로 돌아와 비활성이 유지되는 경우 — 는 이 배치 요약이 유일한 흔적이다).
+  const revivedProfileIds = new Set(
+    existing.filter((s) => s.deleted).map((s) => s.studentProfileId),
+  );
+  const restored = assignments.filter(
+    (a) => a.statusChanged && revivedProfileIds.has(a.studentProfileId!),
+  ).length;
+
   await recordAudit({
     actorUserId: actor.id,
     action: "enrollment:import",
     targetType: "AcademicYear",
     targetId: String(year),
     // 건수만 남긴다. 학생 이름·소속이 들어가면 감사로그가 명단 사본이 된다.
+    // 필드 이름은 softDeleted다 — 계정을 지우지 않고 표시만 하므로 예전 이름
+    // deleted를 그대로 쓰면 사실과 어긋난다. 옛 감사로그 행은 deleted로 저장돼
+    // 있으므로 audit-log.labels.ts의 IMPORT_COUNT_LABELS는 두 키를 다 안다.
     metadata: {
       year,
       reassign: plan.reassign.length,
@@ -234,13 +249,14 @@ export async function applyRosterPlan(
       newAssignment: plan.newAssignment.length,
       newStudents: plan.newStudents.length,
       invitesIssued: invites.length,
-      deleted: plan.missingFromFile.length,
+      softDeleted: plan.missingFromFile.length,
+      restored,
     },
   });
 
-  // 삭제된 학생마다 한 줄씩 남긴다. targetId(userId)만 담는다 — 계정이 사라진 뒤라
-  // 이름 없이도 무엇이 지워졌는지는 충분히 특정되고, 이름을 넣으면 감사로그가 삭제된
-  // 개인정보의 사본이 된다. 누가 지웠는지는 actorName이 남긴다.
+  // 명단에서 빠져 소프트 삭제된 학생마다 한 줄씩 남긴다. targetId(userId)만 담는다 —
+  // 이름을 넣으면 감사로그가 삭제된 학생의 개인정보 사본이 된다. 누가 뺐는지는
+  // actorName이 남긴다.
   //
   // actorName을 미리 넘긴다 (M8) — 안 넘기면 recordAudit이 호출마다 이름을
   // 다시 조회한다. 275명 삭제 = 275회 순차 왕복이 되어 리버스 프록시
@@ -250,7 +266,7 @@ export async function applyRosterPlan(
     await recordAudit({
       actorUserId: actor.id,
       actorName: actor.name,
-      action: "user:delete",
+      action: "user:soft-delete",
       targetType: "User",
       targetId: m.userId,
     });
@@ -275,8 +291,10 @@ export async function applyRosterPlan(
     });
   }
 
-  // deleted도 감사로그 metadata의 deleted와 같은 값(plan.missingFromFile.length)에서
-  // 나온다 — 반영 건수만 보여주면 "250건 반영했습니다" 뒤에 50명이 삭제됐다는 사실이
-  // 묻힌다 (Minor-4).
+  // deleted도 감사로그 metadata의 softDeleted와 같은 값(plan.missingFromFile.length)에서
+  // 나온다 — 반영 건수만 보여주면 "250건 반영했습니다" 뒤에 50명이 명단에서 빠졌다는
+  // 사실이 묻힌다 (Minor-4). 반환 필드 이름(deleted)은 그대로 둔다 — 화면(ApplyState)이
+  // 쓰는 내부 계약이라 감사로그처럼 사용자에게 "삭제"라고 보여주지 않는다(문구는
+  // import-form.tsx가 따로 정한다).
   return { saved: assignments.length, deleted: plan.missingFromFile.length, invites };
 }

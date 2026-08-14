@@ -5,19 +5,18 @@ const enrollmentCreate = vi.fn();
 const schoolClassUpsert = vi.fn();
 const studentProfileFindMany = vi.fn();
 const userUpdateMany = vi.fn();
-const userDeleteMany = vi.fn();
 const sessionDeleteMany = vi.fn();
 const inviteCreate = vi.fn();
-const inviteDeleteMany = vi.fn();
+const inviteUpdateMany = vi.fn();
 const transaction = vi.fn();
 
 const tx = {
   enrollment: { deleteMany: enrollmentDeleteMany, create: enrollmentCreate },
   schoolClass: { upsert: schoolClassUpsert },
   studentProfile: { findMany: studentProfileFindMany },
-  user: { updateMany: userUpdateMany, deleteMany: userDeleteMany },
+  user: { updateMany: userUpdateMany },
   session: { deleteMany: sessionDeleteMany },
-  invite: { create: inviteCreate, deleteMany: inviteDeleteMany },
+  invite: { create: inviteCreate, updateMany: inviteUpdateMany },
 };
 
 vi.mock("@/core/db/client", () => ({
@@ -90,23 +89,23 @@ beforeEach(() => {
   schoolClassUpsert.mockReset().mockResolvedValue({ id: "class-1" });
   studentProfileFindMany.mockReset().mockResolvedValue([]);
   userUpdateMany.mockReset().mockResolvedValue({ count: 0 });
-  userDeleteMany.mockReset().mockResolvedValue({ count: 0 });
   sessionDeleteMany.mockReset().mockResolvedValue({ count: 0 });
   inviteCreate.mockReset().mockResolvedValue(undefined);
-  inviteDeleteMany.mockReset().mockResolvedValue({ count: 0 });
+  inviteUpdateMany.mockReset().mockResolvedValue({ count: 0 });
   transaction.mockReset().mockImplementation(async (fn: (tx: unknown) => unknown) => fn(tx));
 });
 
 describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
-  it("deleteStudentProfileIds가 비어 있으면 삭제 쿼리를 부르지 않는다", async () => {
+  it("deleteStudentProfileIds가 비어 있으면 소프트 삭제 쿼리를 부르지 않는다", async () => {
     await applyRoster(2026, input({ deleteStudentProfileIds: [] }));
 
-    expect(inviteDeleteMany).not.toHaveBeenCalled();
-    expect(userDeleteMany).not.toHaveBeenCalled();
+    expect(inviteUpdateMany).not.toHaveBeenCalled();
+    expect(userUpdateMany).not.toHaveBeenCalled();
   });
 
-  it("삭제 대상의 studentProfileId를 userId로 바꾼 뒤, 학부모 코드를 먼저 지우고 " +
-    "계정을 지운다 — Invite.createdById가 Restrict라 순서가 바뀌면 계정 삭제가 막힌다", async () => {
+  it("삭제 대상의 studentProfileId를 userId로 바꾼 뒤, 아직 안 쓴 초대코드를 폐기하고 " +
+    "계정은 지우지 않고 deletedAt만 찍는다 — 학적·소속·상벌점 기록이 스프레드시트 " +
+    "행 하나로 사라지면 안 된다", async () => {
     studentProfileFindMany.mockResolvedValue([{ userId: "u-del-1" }, { userId: "u-del-2" }]);
 
     await applyRoster(2026, input({ deleteStudentProfileIds: ["sp-del-1", "sp-del-2"] }));
@@ -115,20 +114,28 @@ describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
       where: { id: { in: ["sp-del-1", "sp-del-2"] }, user: { role: "STUDENT" } },
       select: { userId: true },
     });
-    expect(inviteDeleteMany).toHaveBeenCalledWith({
-      where: { createdById: { in: ["u-del-1", "u-del-2"] } },
+    expect(inviteUpdateMany).toHaveBeenCalledWith({
+      where: {
+        status: "PENDING",
+        OR: [
+          { createdById: { in: ["u-del-1", "u-del-2"] } },
+          { studentId: { in: ["sp-del-1", "sp-del-2"] } },
+        ],
+      },
+      data: { status: "REVOKED" },
     });
-    expect(userDeleteMany).toHaveBeenCalledWith({
+    expect(userUpdateMany).toHaveBeenCalledWith({
       where: { id: { in: ["u-del-1", "u-del-2"] } },
+      data: { deletedAt: expect.any(Date), status: "INACTIVE" },
     });
-    const inviteDeleteOrder = inviteDeleteMany.mock.invocationCallOrder[0]!;
-    const userDeleteOrder = userDeleteMany.mock.invocationCallOrder[0]!;
-    expect(userDeleteOrder).toBeGreaterThan(inviteDeleteOrder);
+    expect(sessionDeleteMany).toHaveBeenCalledWith({
+      where: { userId: { in: ["u-del-1", "u-del-2"] } },
+    });
   });
 
   it("삭제 대상 조회가 role: STUDENT로 다시 좁혀진다 (M2) — listExisting과 트랜잭션 " +
-    "사이에 ADMIN으로 승격된 계정은 이 where 절 덕에 findMany 결과에서 빠져 지워지지 " +
-    "않는다", async () => {
+    "사이에 ADMIN으로 승격된 계정은 이 where 절 덕에 findMany 결과에서 빠져 소프트 " +
+    "삭제되지 않는다", async () => {
     studentProfileFindMany.mockResolvedValue([]);
 
     await applyRoster(2026, input({ deleteStudentProfileIds: ["sp-del-1"] }));
@@ -137,41 +144,39 @@ describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
       where: { id: { in: ["sp-del-1"] }, user: { role: "STUDENT" } },
       select: { userId: true },
     });
-    // findMany가 role 필터에 걸려 빈 배열을 돌려주면 지울 대상이 없다 — 승격된
-    // 계정은 뒤이은 삭제 쿼리의 in절에 아예 등장하지 않는다.
-    expect(userDeleteMany).toHaveBeenCalledWith({ where: { id: { in: [] } } });
+    // findMany가 role 필터에 걸려 빈 배열을 돌려주면 대상이 없다 — 승격된 계정은
+    // 뒤이은 소프트 삭제 쿼리의 in절에 아예 등장하지 않는다.
+    expect(userUpdateMany).toHaveBeenCalledWith({
+      where: { id: { in: [] } },
+      data: { deletedAt: expect.any(Date), status: "INACTIVE" },
+    });
   });
 
-  it("삭제는 재배정(enrollment 재생성)보다 먼저 끝낸다", async () => {
+  it("소프트 삭제는 재배정(enrollment 재생성)보다 먼저 끝낸다", async () => {
     studentProfileFindMany.mockResolvedValue([{ userId: "u-del-1" }]);
 
     await applyRoster(2026, input({ deleteStudentProfileIds: ["sp-del-1"] }));
 
-    const userDeleteOrder = userDeleteMany.mock.invocationCallOrder[0]!;
+    // 소프트 삭제 블록의 userUpdateMany 호출(첫 번째)이 enrollment.create보다 먼저다.
+    const deleteOrder = userUpdateMany.mock.invocationCallOrder[0]!;
     for (const call of enrollmentCreate.mock.invocationCallOrder) {
-      expect(call).toBeGreaterThan(userDeleteOrder);
+      expect(call).toBeGreaterThan(deleteOrder);
     }
   });
 
-  it("그 학생을 만든 초대(usedById)도 계정을 지우기 전에 지운다 (I1) — " +
-    "SetNull이라 행만 남으면 metadata의 이름·생년월일이 삭제된 뒤에도 남는다", async () => {
-    studentProfileFindMany.mockResolvedValue([{ userId: "u-del-1" }, { userId: "u-del-2" }]);
+  it("아직 안 쓴 초대코드는 지우지 않고 REVOKED로 바꾼다 — 관리자가 대신 만들어 준 " +
+    "학부모 코드(studentId 기준)도 함께 폐기한다. 예전 하드 삭제 시절엔 " +
+    "StudentProfile을 지워 Invite.studentId의 Cascade가 이걸 자동으로 정리했지만, " +
+    "이제 StudentProfile이 안 지워지므로 명시적으로 막지 않으면 몇 달 뒤에도 그 " +
+    "코드로 학부모가 가입해 삭제된 학생에게 연결될 수 있다", async () => {
+    studentProfileFindMany.mockResolvedValue([{ userId: "u-del-1" }]);
 
-    await applyRoster(2026, input({ deleteStudentProfileIds: ["sp-del-1", "sp-del-2"] }));
+    await applyRoster(2026, input({ deleteStudentProfileIds: ["sp-del-1"] }));
 
-    expect(inviteDeleteMany).toHaveBeenCalledWith({
-      where: { usedById: { in: ["u-del-1", "u-del-2"] } },
-    });
-
-    // usedById 정리는 createdById 정리와 마찬가지로 user.deleteMany보다 먼저 끝나야
-    // 한다 — 지운 뒤에는 usedById가 SetNull로 비어 어느 초대가 그 학생 것이었는지
-    // 특정할 방법이 없다.
-    const usedByIdCall = inviteDeleteMany.mock.calls.findIndex(
-      (call) => (call[0] as { where: { usedById?: unknown } }).where.usedById !== undefined,
-    );
-    const usedByIdOrder = inviteDeleteMany.mock.invocationCallOrder[usedByIdCall]!;
-    const userDeleteOrder = userDeleteMany.mock.invocationCallOrder[0]!;
-    expect(userDeleteOrder).toBeGreaterThan(usedByIdOrder);
+    const call = inviteUpdateMany.mock.calls[0]![0] as {
+      where: { OR: { studentId?: { in: string[] } }[] };
+    };
+    expect(call.where.OR.some((c) => c.studentId?.in.includes("sp-del-1"))).toBe(true);
   });
 });
 
@@ -211,7 +216,9 @@ describe("applyRoster()", () => {
     expect(sessionDeleteMany).not.toHaveBeenCalled();
   });
 
-  it("statusChanged=true고 비재학이면 계정을 잠그고 세션을 지운다", async () => {
+  it("statusChanged=true고 비재학이면 계정을 잠그고 세션을 지운다 — deletedAt도 " +
+    "함께 지운다(명단에 이 줄이 있다는 것 자체가 더는 소프트 삭제 대상이 아니라는 " +
+    "뜻이다. 비활성 상태는 그대로 유지한다 — 졸업생으로 돌아왔다고 재학은 아니다)", async () => {
     studentProfileFindMany.mockResolvedValue([{ userId: "u-1" }]);
 
     await applyRoster(
@@ -225,19 +232,20 @@ describe("applyRoster()", () => {
 
     expect(userUpdateMany).toHaveBeenCalledWith({
       where: { id: { in: ["u-1"] } },
-      data: { status: "INACTIVE" },
+      data: { status: "INACTIVE", deletedAt: null },
     });
     expect(sessionDeleteMany).toHaveBeenCalledWith({ where: { userId: { in: ["u-1"] } } });
   });
 
-  it("statusChanged=true고 재학이면 계정을 활성화한다", async () => {
+  it("statusChanged=true고 재학이면 계정을 활성화하고 deletedAt도 지운다 — " +
+    "이게 재삽입으로 되살아나는 경로다(다시 넣으면 돌아온다)", async () => {
     studentProfileFindMany.mockResolvedValue([{ userId: "u-1" }]);
 
     await applyRoster(2026, input({ assignments: [assignment({ statusChanged: true })] }));
 
     expect(userUpdateMany).toHaveBeenCalledWith({
       where: { id: { in: ["u-1"] } },
-      data: { status: "ACTIVE" },
+      data: { status: "ACTIVE", deletedAt: null },
     });
     expect(sessionDeleteMany).not.toHaveBeenCalled();
   });

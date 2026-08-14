@@ -274,22 +274,26 @@ function PreviewCard({
         ))}
       </header>
 
-      {/* 되돌릴 수 없는 유일한 동작이라 미리보기 맨 위에, 접지 않고 펼친 채로 보여준다.
-          경고색(amber)이 아니라 위험색(rose)을 쓴다 — 그 학년도 배정만이 아니라
-          계정 자체가 사라진다. */}
+      {/* 미리보기 맨 위에, 접지 않고 펼친 채로 보여준다. 위험색(rose)이 아니라
+          경고색(amber)을 쓴다 — 되돌릴 수 있는 동작이다(다음 명단에 다시 넣으면
+          돌아온다). 그래도 건수 직접 입력 확인은 그대로 둔다 — 되돌릴 수 있어도
+          전교생이 목록에서 한꺼번에 사라지는 건 여전히 큰 사고다. */}
       {deleteCount > 0 && (
-        <div className="border-b-4 border-rose bg-rose-soft px-5 py-4">
+        <div className="border-b-4 border-amber-ink bg-amber-soft px-5 py-4">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="text-sm font-extrabold text-rose">삭제될 학생</h3>
-            <span className="rounded-full bg-rose px-2.5 py-1 text-[11px] font-bold text-white">
+            <h3 className="text-sm font-extrabold text-amber-ink">
+              명단에서 빠지는 학생
+            </h3>
+            <span className="rounded-full bg-amber-ink px-2.5 py-1 text-[11px] font-bold text-white">
               {deleteCount}명
             </span>
           </div>
-          <p className="mt-1 text-[12.5px] font-semibold text-rose">
-            명단에 없는 학생입니다. 확정하면 {year}학년도 배정뿐 아니라 계정 자체가
-            지워집니다 — 되돌릴 수 없습니다.
+          <p className="mt-1 text-[12.5px] font-semibold text-amber-ink">
+            명단에 없는 학생입니다. 확정하면 계정이 비활성화되고 목록·로그인에서
+            빠집니다 — 학적·소속·상벌점 기록은 그대로 남고, 다음 명단에 다시
+            포함하면 계정이 자동으로 되살아납니다.
           </p>
-          <ul className="mt-3 divide-y divide-rose-line">
+          <ul className="mt-3 divide-y divide-line2">
             {plan.missingFromFile.map((s) => (
               <li
                 key={s.studentProfileId}
@@ -387,10 +391,10 @@ function PreviewCard({
 
         {applied ? (
           <p className="rounded-btn bg-green-soft px-3 py-2.5 text-[13px] font-semibold text-green">
-            {/* Minor-4: 삭제 건수가 반영 건수 안에 묻히면 몇 명이 지워졌는지 이
-                문구만 보고는 알 수 없다 — 삭제가 있을 때만 따로 덧붙인다. */}
+            {/* Minor-4: 제외 건수가 반영 건수 안에 묻히면 몇 명이 빠졌는지 이
+                문구만 보고는 알 수 없다 — 제외가 있을 때만 따로 덧붙인다. */}
             {applyState.deleted && applyState.deleted > 0
-              ? `${applyState.saved}건 반영, ${applyState.deleted}명 삭제했습니다.`
+              ? `${applyState.saved}건 반영, ${applyState.deleted}명 명단에서 제외했습니다.`
               : `${applyState.saved}건 반영했습니다.`}
           </p>
         ) : (
@@ -412,31 +416,32 @@ function PreviewCard({
                 문자열을 보내고 서버도 무시한다. */}
             <input type="hidden" name="deletionCount" value={typedDeleteCount} />
             {deleteCount > 0 && (
-              <label className="flex items-start gap-2 text-[13px] font-semibold text-rose">
+              <label className="flex items-start gap-2 text-[13px] font-semibold text-amber-ink">
                 <input
                   type="checkbox"
                   checked={deletionConfirmed}
                   onChange={(e) => setDeletionConfirmed(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 accent-rose"
+                  className="mt-0.5 h-4 w-4 accent-amber-ink"
                 />
                 <span>
-                  위 {deleteCount}명의 계정을 삭제합니다. 되돌릴 수 없습니다.
+                  위 {deleteCount}명을 명단에서 뺍니다. 계정이 비활성화되지만
+                  되돌릴 수 있습니다.
                 </span>
               </label>
             )}
             {requiresCountConfirmation && (
-              <label className="flex flex-col gap-1 text-[13px] font-semibold text-rose">
+              <label className="flex flex-col gap-1 text-[13px] font-semibold text-amber-ink">
                 <span>
-                  {deleteCount}명은 대량 삭제입니다. 잘못된 파일을 올렸을 때 마지막
-                  방어선이 되도록, 삭제할 인원 수를 직접 입력해야 확정할 수 있습니다.
+                  {deleteCount}명은 대량 제외입니다. 잘못된 파일을 올렸을 때 마지막
+                  방어선이 되도록, 뺄 인원 수를 직접 입력해야 확정할 수 있습니다.
                 </span>
                 <input
                   type="number"
                   inputMode="numeric"
                   value={typedDeleteCount}
                   onChange={(e) => setTypedDeleteCount(e.target.value)}
-                  placeholder="삭제할 인원 수"
-                  className="w-40 rounded-btn border border-rose-line bg-surface px-3 py-2 text-[13px] font-semibold text-ink"
+                  placeholder="뺄 인원 수"
+                  className="w-40 rounded-btn border border-amber-ink bg-surface px-3 py-2 text-[13px] font-semibold text-ink"
                 />
               </label>
             )}
@@ -454,7 +459,7 @@ function PreviewCard({
                 {applying
                   ? "반영하는 중…"
                   : deleteCount > 0
-                    ? `확정 (${deleteCount}명 삭제)`
+                    ? `확정 (${deleteCount}명 제외)`
                     : "확정"}
               </Button>
             </div>
