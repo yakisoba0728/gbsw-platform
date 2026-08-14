@@ -233,3 +233,23 @@ export async function resetCredential(
     return count;
   });
 }
+
+/**
+ * 완전 삭제 (오등록 정리 전용). 소프트 삭제된 계정에만 서비스가 이 함수를 부른다.
+ *
+ * createdById·usedById는 Invite 쪽 FK가 Restrict라 먼저 지워야 user.delete가
+ * 통과한다 (roster.repo.ts의 예전 하드 삭제 블록과 같은 이유). studentId
+ * (StudentProfile 참조)는 손대지 않는다 — Invite.student가 onDelete: Cascade라
+ * user.delete → StudentProfile Cascade를 타면서 자동으로 함께 지워진다.
+ *
+ * 학적(Enrollment)·상벌점(추후)도 StudentProfile을 onDelete: Cascade로 참조하므로
+ * 여기서 같이 사라진다 — 오등록 정리에서만 일어나는 유일한 동작이다. 소프트
+ * 삭제(명단 반영)에서는 절대 이 함수를 부르지 않는다.
+ */
+export async function deletePermanently(userId: string): Promise<void> {
+  await prisma.$transaction([
+    prisma.invite.deleteMany({ where: { createdById: userId } }),
+    prisma.invite.deleteMany({ where: { usedById: userId } }),
+    prisma.user.delete({ where: { id: userId } }),
+  ]);
+}

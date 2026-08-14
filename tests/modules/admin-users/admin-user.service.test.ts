@@ -8,6 +8,7 @@ const findRelatedAudit = vi.fn();
 const updateUserAndEnrollment = vi.fn();
 const setActive = vi.fn();
 const resetCredential = vi.fn();
+const deletePermanently = vi.fn();
 const recordAudit = vi.fn();
 
 class EmailTakenError extends Error {}
@@ -23,15 +24,15 @@ vi.mock("@/modules/admin-users/admin-user.repo", () => ({
   updateUserAndEnrollment,
   setActive,
   resetCredential,
+  deletePermanently,
 }));
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
 vi.mock("@/modules/academic-year/academic-year.service", () => ({
   getCurrentYear: vi.fn().mockResolvedValue(2026),
 }));
 
-const { listUsers, resetPassword, setUserActive, updateUser } = await import(
-  "@/modules/admin-users/admin-user.service"
-);
+const { deleteUserPermanently, listUsers, resetPassword, setUserActive, updateUser } =
+  await import("@/modules/admin-users/admin-user.service");
 
 /** KST 자정으로 저장되는 생년월일 */
 const BIRTH = new Date("2010-07-15T00:00:00+09:00");
@@ -42,6 +43,7 @@ function detail(overrides: Record<string, unknown> = {}) {
     name: "김학생",
     email: "student@gbsw.hs.kr",
     phone: "010-1111-2222",
+    deletedAt: null,
     studentProfile: {
       id: "sp-1",
       birthDate: BIRTH,
@@ -80,12 +82,13 @@ const student = user("STUDENT", "s-1");
 
 beforeEach(() => {
   listUsersRepo.mockReset().mockResolvedValue([]);
-  findById.mockReset().mockResolvedValue({ id: "u-9", name: "대상" });
+  findById.mockReset().mockResolvedValue({ id: "u-9", name: "대상", deletedAt: null });
   findDetail.mockReset().mockResolvedValue(detail());
   findRelatedAudit.mockReset().mockResolvedValue([]);
   updateUserAndEnrollment.mockReset().mockResolvedValue(undefined);
   setActive.mockReset().mockResolvedValue(undefined);
   resetCredential.mockReset().mockResolvedValue(1);
+  deletePermanently.mockReset().mockResolvedValue(undefined);
   recordAudit.mockReset();
 });
 
@@ -148,6 +151,14 @@ describe("setUserActive()", () => {
     await expect(setUserActive(admin, "없음", false)).rejects.toThrow("NOT_FOUND");
     expect(setActive).not.toHaveBeenCalled();
   });
+
+  it("명단에서 빠진(소프트 삭제된) 계정은 상태를 바꾸지 못한다 — 화면이 이 폼을 " +
+    "숨기는 건 실수 방지일 뿐이라 서버도 다시 막는다", async () => {
+    findById.mockResolvedValue({ id: "u-9", name: "대상", deletedAt: new Date() });
+
+    await expect(setUserActive(admin, "u-9", true)).rejects.toThrow("ACCOUNT_DELETED");
+    expect(setActive).not.toHaveBeenCalled();
+  });
 });
 
 describe("resetPassword()", () => {
@@ -182,6 +193,13 @@ describe("resetPassword()", () => {
       "NO_CREDENTIAL_ACCOUNT",
     );
     expect(recordAudit).not.toHaveBeenCalled();
+  });
+
+  it("명단에서 빠진(소프트 삭제된) 계정은 비밀번호를 초기화하지 못한다", async () => {
+    findById.mockResolvedValue({ id: "u-9", name: "대상", deletedAt: new Date() });
+
+    await expect(resetPassword(admin, "u-9")).rejects.toThrow("ACCOUNT_DELETED");
+    expect(resetCredential).not.toHaveBeenCalled();
   });
 
   it("호출할 때마다 다른 비밀번호가 나온다", async () => {
@@ -326,6 +344,15 @@ describe("updateUser()", () => {
     );
   });
 
+  it("명단에서 빠진(소프트 삭제된) 계정은 정보를 고치지 못한다", async () => {
+    findDetail.mockResolvedValue(detail({ deletedAt: new Date() }));
+
+    await expect(updateUser(admin, "u-9", sameInput)).rejects.toThrow(
+      "ACCOUNT_DELETED",
+    );
+    expect(updateUserAndEnrollment).not.toHaveBeenCalled();
+  });
+
   it("학년·반·번호 중 하나라도 비면 값을 지어내지 않고 거부한다 (M10)", async () => {
     // number를 아예 안 보낸다 — 예전엔 enrollment?.number ?? 1로 1번을 지어냈다.
     const withoutNumber = {
@@ -397,5 +424,76 @@ describe("updateUser()", () => {
       expect(changed).toEqual([]);
       expect(updateUserAndEnrollment).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("deleteUserPermanently() — 오등록 정리 전용, 되돌릴 수 없다", () => {
+  const softDeleted = { id: "u-9", name: "삭제대상", deletedAt: new Date() };
+
+  it("관리자가 아니면 삭제하지 못한다", async () => {
+    await expect(
+      deleteUserPermanently(student, "u-9", "삭제대상"),
+    ).rejects.toThrow("FORBIDDEN");
+    expect(deletePermanently).not.toHaveBeenCalled();
+  });
+
+  it("자기 자신은 삭제하지 못한다 — 소프트 삭제 여부 확인보다 먼저 막는다", async () => {
+    await expect(
+      deleteUserPermanently(admin, admin.id, "테스트"),
+    ).rejects.toThrow("CANNOT_DELETE_SELF");
+    expect(deletePermanently).not.toHaveBeenCalled();
+  });
+
+  it("없는 계정이면 거부한다", async () => {
+    findById.mockResolvedValue(null);
+
+    await expect(
+      deleteUserPermanently(admin, "없음", "아무개"),
+    ).rejects.toThrow("NOT_FOUND");
+    expect(deletePermanently).not.toHaveBeenCalled();
+  });
+
+  it("아직 명단에서 안 빠진(소프트 삭제 안 된) 계정은 완전 삭제하지 못한다 — " +
+    "살아 있는 계정을 상세 화면에서 바로 지우는 경로를 만들지 않는다", async () => {
+    findById.mockResolvedValue({ id: "u-9", name: "재학생", deletedAt: null });
+
+    await expect(
+      deleteUserPermanently(admin, "u-9", "재학생"),
+    ).rejects.toThrow("NOT_SOFT_DELETED");
+    expect(deletePermanently).not.toHaveBeenCalled();
+  });
+
+  it("입력한 이름이 다르면 거부한다 — 화면의 disabled는 실수 방지일 뿐이니 " +
+    "서버 액션을 직접 불러도 이름 대조를 건너뛸 수 없다", async () => {
+    findById.mockResolvedValue(softDeleted);
+
+    await expect(
+      deleteUserPermanently(admin, "u-9", "다른이름"),
+    ).rejects.toThrow("NAME_MISMATCH");
+    expect(deletePermanently).not.toHaveBeenCalled();
+  });
+
+  it("소프트 삭제된 계정에 이름까지 맞으면 완전 삭제한다", async () => {
+    findById.mockResolvedValue(softDeleted);
+
+    await deleteUserPermanently(admin, "u-9", "삭제대상");
+
+    expect(deletePermanently).toHaveBeenCalledWith("u-9");
+  });
+
+  it("감사로그를 남기되 이름은 넣지 않는다 — 완전히 삭제된 사람의 개인정보가 " +
+    "감사로그의 사본으로 남으면 안 된다", async () => {
+    findById.mockResolvedValue(softDeleted);
+
+    await deleteUserPermanently(admin, "u-9", "삭제대상");
+
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "user:delete",
+        targetType: "User",
+        targetId: "u-9",
+      }),
+    );
+    expect(JSON.stringify(recordAudit.mock.calls[0]![0])).not.toContain("삭제대상");
   });
 });

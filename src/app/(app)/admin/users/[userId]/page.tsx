@@ -12,6 +12,7 @@ import {
 } from "@/modules/admin-users/admin-user.service";
 import {
   EditUserForm,
+  HardDeleteForm,
   ResetPasswordForm,
   ToggleActiveForm,
   type EditableUser,
@@ -172,16 +173,28 @@ export default async function UserDetailPage({
           {deleted ? (
             // 이미 명단에서 빠진 계정이다 — 정보 수정·비밀번호 초기화·활성화는
             // 의미가 없다. 다음 명단에 다시 들어오면 이 계정은 스스로 되살아난다.
-            <section className="rounded-card border border-line bg-surface p-5">
-              <h2 className="mb-1 text-base font-extrabold text-ink">
-                명단에서 빠진 계정
-              </h2>
-              <p className="text-[12.5px] text-mut">
-                정보 수정·비밀번호 초기화·활성화를 할 수 없습니다. 학적·소속·기록은
-                그대로 남아 있으며, 다음 명단 반영에 이 학생이 다시 포함되면 계정이
-                자동으로 되살아납니다.
-              </p>
-            </section>
+            <>
+              <section className="rounded-card border border-line bg-surface p-5">
+                <h2 className="mb-1 text-base font-extrabold text-ink">
+                  명단에서 빠진 계정
+                </h2>
+                <p className="text-[12.5px] text-mut">
+                  정보 수정·비밀번호 초기화·활성화를 할 수 없습니다. 학적·소속·기록은
+                  그대로 남아 있으며, 다음 명단 반영에 이 학생이 다시 포함되면 계정이
+                  자동으로 되살아납니다.
+                </p>
+              </section>
+
+              {/* 오등록 정리용 완전 삭제 — 소프트 삭제된 계정에만 보인다.
+                  되돌릴 수 없는 유일한 동작이라 다른 계정 조치와 섞이지 않게
+                  따로 둔다. */}
+              <section className="rounded-card border border-rose-line bg-surface p-5">
+                <h2 className="mb-1 text-base font-extrabold text-rose">
+                  완전 삭제
+                </h2>
+                <HardDeleteForm user={editable} />
+              </section>
+            </>
           ) : (
             <>
               <section className="rounded-card border border-line bg-surface p-5">

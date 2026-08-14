@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { MaskedInput } from "@/components/ui/masked-input";
@@ -10,6 +10,7 @@ import {
   USER_ACTION_INITIAL,
 } from "../action-state";
 import {
+  deleteUserPermanentlyAction,
   resetPasswordAction,
   setUserActiveAction,
   updateUserAction,
@@ -250,6 +251,55 @@ export function ToggleActiveForm({ user }: { user: EditableUser }) {
           자기 계정은 비활성화할 수 없습니다.
         </p>
       )}
+      {state.error && <Note tone="bad">{state.error}</Note>}
+    </form>
+  );
+}
+
+/**
+ * 완전 삭제 (오등록 정리 전용). 이미 명단에서 빠진(소프트 삭제된) 계정에만
+ * 보인다 — 서비스도 같은 조건을 다시 검사한다(NOT_SOFT_DELETED).
+ *
+ * 체크박스가 아니라 이름 직접 입력을 요구한다 — 되돌릴 수 없는 유일한 동작이라
+ * 습관적으로 눌리는 확인 절차로는 부족하다. 서버 액션도 같은 이름을 받아
+ * 대조한다(NAME_MISMATCH) — 여기서 막는 건 실수 방지일 뿐, 서버 액션을 직접
+ * 부르면 이 disabled를 건너뛸 수 있기 때문이다.
+ */
+export function HardDeleteForm({ user }: { user: EditableUser }) {
+  const [state, formAction, pending] = useActionState(
+    deleteUserPermanentlyAction,
+    USER_ACTION_INITIAL,
+  );
+  const [confirmName, setConfirmName] = useState("");
+  const matches = confirmName.length > 0 && confirmName === user.name;
+
+  return (
+    <form action={formAction}>
+      <input type="hidden" name="userId" value={user.id} />
+
+      <p className="mb-3 text-[12.5px] text-mut">
+        되돌릴 수 없습니다. 소속 이력·상벌점·초대코드가 함께 사라집니다.
+        감사로그는 남습니다.
+      </p>
+
+      <Label htmlFor="confirmName">
+        확인을 위해 이름(<span className="font-bold text-ink">{user.name}</span>)을
+        그대로 입력하세요
+      </Label>
+      <Input
+        id="confirmName"
+        name="confirmName"
+        dense
+        value={confirmName}
+        onChange={(e) => setConfirmName(e.target.value)}
+        autoComplete="off"
+        className="mb-3"
+      />
+
+      <Button type="submit" variant="danger" full disabled={pending || !matches}>
+        {pending ? "삭제하는 중…" : "완전 삭제"}
+      </Button>
+
       {state.error && <Note tone="bad">{state.error}</Note>}
     </form>
   );

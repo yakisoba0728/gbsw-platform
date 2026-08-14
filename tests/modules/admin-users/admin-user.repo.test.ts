@@ -3,11 +3,13 @@ import { vi } from "vitest";
 
 const userUpdate = vi.fn();
 const userFindMany = vi.fn();
+const userDelete = vi.fn();
 const studentProfileUpdate = vi.fn();
 const schoolClassUpsert = vi.fn();
 const enrollmentUpsert = vi.fn();
 const sessionDeleteMany = vi.fn();
 const accountUpdateMany = vi.fn();
+const inviteDeleteMany = vi.fn();
 const transactionArray = vi.fn();
 
 const tx = {
@@ -21,10 +23,11 @@ const tx = {
 
 vi.mock("@/core/db/client", () => ({
   prisma: {
-    user: { update: userUpdate, findMany: userFindMany },
+    user: { update: userUpdate, findMany: userFindMany, delete: userDelete },
     session: { deleteMany: sessionDeleteMany },
+    invite: { deleteMany: inviteDeleteMany },
     // updateUserAndEnrollment/resetCredential은 콜백형 트랜잭션 — 콜백에 tx를 넘겨 흉내 낸다.
-    // setActive(비활성화)는 배열형 트랜잭션 — 배열을 그대로 기록해 둔다.
+    // setActive(비활성화)·deletePermanently는 배열형 트랜잭션 — 배열을 그대로 기록해 둔다.
     $transaction: (arg: unknown) => {
       if (typeof arg === "function") return (arg as (tx: unknown) => unknown)(tx);
       transactionArray(arg);
@@ -40,6 +43,7 @@ const {
   updateUserAndEnrollment,
   setActive,
   resetCredential,
+  deletePermanently,
 } = await import("@/modules/admin-users/admin-user.repo");
 
 /**
@@ -111,11 +115,13 @@ const enrollmentData = {
 beforeEach(() => {
   userUpdate.mockReset().mockResolvedValue(undefined);
   userFindMany.mockReset().mockResolvedValue([]);
+  userDelete.mockReset().mockResolvedValue(undefined);
   studentProfileUpdate.mockReset().mockResolvedValue(undefined);
   schoolClassUpsert.mockReset().mockResolvedValue({ id: "class-1" });
   enrollmentUpsert.mockReset().mockResolvedValue(undefined);
   sessionDeleteMany.mockReset().mockResolvedValue(undefined);
   accountUpdateMany.mockReset().mockResolvedValue({ count: 1 });
+  inviteDeleteMany.mockReset().mockResolvedValue({ count: 0 });
   transactionArray.mockReset();
 });
 
@@ -320,5 +326,28 @@ describe("resetCredential()", () => {
       data: { mustChangePassword: true },
     });
     expect(sessionDeleteMany).toHaveBeenCalledWith({ where: { userId: "u-9" } });
+  });
+});
+
+describe("deletePermanently()", () => {
+  it("createdById·usedById 초대코드를 먼저 지운 뒤 계정을 지운다 — 한 배열형 " +
+    "트랜잭션으로 묶는다. Invite 쪽 FK가 Restrict라 순서가 바뀌면 계정 삭제가 " +
+    "막힌다", async () => {
+    await deletePermanently("u-9");
+
+    expect(transactionArray).toHaveBeenCalledTimes(1);
+    const batch = transactionArray.mock.calls[0]![0] as unknown[];
+    expect(batch).toHaveLength(3);
+    expect(inviteDeleteMany).toHaveBeenCalledWith({ where: { createdById: "u-9" } });
+    expect(inviteDeleteMany).toHaveBeenCalledWith({ where: { usedById: "u-9" } });
+    expect(userDelete).toHaveBeenCalledWith({ where: { id: "u-9" } });
+  });
+
+  it("studentId로 귀속된 초대코드는 여기서 손대지 않는다 — user.delete가 " +
+    "StudentProfile까지 Cascade로 지우면서 자동으로 함께 사라진다", async () => {
+    await deletePermanently("u-9");
+
+    const calls = inviteDeleteMany.mock.calls.map((c) => c[0]);
+    expect(calls.some((c) => "studentId" in (c as { where: object }).where)).toBe(false);
   });
 });

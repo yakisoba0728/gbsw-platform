@@ -57,6 +57,9 @@ export async function updateUser(
   const year = await getCurrentYear();
   const current = await repo.findDetail(userId, year);
   if (!current) throw new AdminUserError("NOT_FOUND");
+  // setUserActive·resetPassword와 같은 이유 — 화면 가드는 실수 방지일 뿐이니
+  // 서버에서도 막는다. 이미 명단에서 빠진 계정을 고치는 건 의미가 없다.
+  if (current.deletedAt) throw new AdminUserError("ACCOUNT_DELETED");
 
   const changed: string[] = [];
 
@@ -182,6 +185,10 @@ export async function setUserActive(
 
   const target = await repo.findById(userId);
   if (!target) throw new AdminUserError("NOT_FOUND");
+  // 화면(상세 페이지)이 삭제된 계정에는 이 폼 자체를 감추지만, 그건 실수 방지일
+  // 뿐이다 — 서버 액션을 직접 부르면 화면 가드를 건너뛴다. 명단에서 빠진 계정을
+  // 고치는 건 의미가 없으므로 여기서도 막는다.
+  if (target.deletedAt) throw new AdminUserError("ACCOUNT_DELETED");
 
   await repo.setActive(userId, active);
 
@@ -211,6 +218,8 @@ export async function resetPassword(
 
   const target = await repo.findById(userId);
   if (!target) throw new AdminUserError("NOT_FOUND");
+  // setUserActive와 같은 이유 — 화면 가드는 실수 방지일 뿐이니 서버에서도 막는다.
+  if (target.deletedAt) throw new AdminUserError("ACCOUNT_DELETED");
 
   const tempPassword = generateTempPassword();
   const updated = await repo.resetCredential(userId, await hashPassword(tempPassword));
@@ -229,4 +238,43 @@ export async function resetPassword(
   });
 
   return { tempPassword };
+}
+
+/**
+ * 완전 삭제 (오등록 정리 전용). 되돌릴 수 없다.
+ *
+ * **소프트 삭제된 계정만** 대상이다 — 살아 있는 계정을 상세 화면에서 바로
+ * 지우는 경로를 만들지 않는다. 먼저 명단에서 빼고(소프트 삭제) 나서만 완전
+ * 삭제할 수 있다. 오등록 정리라는 용도에 정확히 맞고, 실수로 누를 여지를
+ * 없앤다.
+ *
+ * confirmName은 화면의 이름 입력을 그대로 받아 대조한다 — 화면의 확인은
+ * 실수 방지일 뿐이라 서버 액션을 직접 호출하면 건너뛸 수 있다. 여기서 다시
+ * 강제해야 진짜 방어선이 된다.
+ */
+export async function deleteUserPermanently(
+  actor: SessionUser,
+  userId: string,
+  confirmName: string,
+): Promise<void> {
+  await assertCan(actor, "user:manage");
+
+  if (userId === actor.id) throw new AdminUserError("CANNOT_DELETE_SELF");
+
+  const target = await repo.findById(userId);
+  if (!target) throw new AdminUserError("NOT_FOUND");
+  if (!target.deletedAt) throw new AdminUserError("NOT_SOFT_DELETED");
+  if (target.name !== confirmName) throw new AdminUserError("NAME_MISMATCH");
+
+  await repo.deletePermanently(userId);
+
+  await recordAudit({
+    actorUserId: actor.id,
+    action: "user:delete",
+    targetType: "User",
+    targetId: userId,
+    // 이름은 남기지 않는다 — 완전히 삭제된 사람의 개인정보가 감사로그에
+    // 사본으로 남으면 안 된다. targetId(userId)만으로 무엇이 지워졌는지는
+    // 충분히 특정된다. 누가 지웠는지는 actorName이 남긴다.
+  });
 }
