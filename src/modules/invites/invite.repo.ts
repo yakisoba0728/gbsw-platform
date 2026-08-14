@@ -25,10 +25,6 @@ export async function insertInvite(input: InsertInviteInput) {
   });
 }
 
-export async function findByCode(code: string) {
-  return prisma.invite.findUnique({ where: { code } });
-}
-
 export async function findById(id: string) {
   return prisma.invite.findUnique({ where: { id } });
 }

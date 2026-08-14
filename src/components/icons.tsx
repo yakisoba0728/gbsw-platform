@@ -39,24 +39,6 @@ export function MeritIcon(props: IconProps) {
   );
 }
 
-export function NoticeIcon(props: IconProps) {
-  return (
-    <Icon strokeWidth={1.7} {...props}>
-      <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-      <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-    </Icon>
-  );
-}
-
-export function LeaveIcon(props: IconProps) {
-  return (
-    <Icon strokeWidth={1.7} {...props}>
-      <rect x="4" y="5" width="16" height="15" rx="2" />
-      <path d="M4 9.5h16M9 3v4M15 3v4" />
-    </Icon>
-  );
-}
-
 export function InviteIcon(props: IconProps) {
   return (
     <Icon strokeWidth={1.7} {...props}>

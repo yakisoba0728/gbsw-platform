@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-// requireRole이 아니라 requireAuth를 쓴다 — mustChangePassword로 여기 온 사용자를
-// 다시 튕겨내면 무한 리다이렉트가 된다.
+// requirePermission 같은 권한 게이트가 아니라 requireAuth만 쓴다 — mustChangePassword로
+// 여기 온 사용자를 다시 튕겨내면 무한 리다이렉트가 된다.
 import { requireAuth } from "@/core/auth/session";
 import { ChangePasswordForm } from "./change-password-form";
 

@@ -45,13 +45,6 @@ export async function requireAuth(): Promise<SessionUser> {
   return user;
 }
 
-/** 특정 역할 전용 화면. 역할이 맞지 않으면 /forbidden으로 보낸다. */
-export async function requireRole(...roles: Role[]): Promise<SessionUser> {
-  const user = await requireAuth();
-  if (!user.role || !roles.includes(user.role)) redirect("/forbidden");
-  return user;
-}
-
 /** 단일 액션 권한 게이트. 서비스 계층에서 can()으로 한 번 더 검사한다. */
 export async function requirePermission(action: Action): Promise<SessionUser> {
   const user = await requireAuth();
