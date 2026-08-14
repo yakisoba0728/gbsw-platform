@@ -9,3 +9,11 @@ npm-debug.log*
 coverage
 tests/e2e/**/screenshots
 README.md
+
+# M16: builder 스테이지가 COPY . . 로 리포 전체를 받는다 — 빌드에 필요 없는
+# 것들은 이미지에 넣지 않는다 (에이전트 설정·문서·테스트는 next build에 안 쓰인다).
+.claude
+.agents
+.windsurf
+docs
+tests

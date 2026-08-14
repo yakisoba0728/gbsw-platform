@@ -54,6 +54,21 @@ services:
       target: runner
     container_name: gbsw-app
     restart: unless-stopped
+    # M16 — 컨테이너를 뚫어도 얻을 게 적게 만든다.
+    # db·migrate에는 같은 걸 하지 않는다: postgres 공식 이미지는 기동 시
+    # CHOWN·SETUID·SETGID가 필요해서(볼륨 소유권 정리, 권한 낮추기)
+    # cap_drop: [ALL]을 걸면 아예 못 뜬다. migrate는 1회성이라 표면이 짧다.
+    # app은 standalone Next.js 서버(순수 Node 프로세스, 이미 비루트 nextjs로
+    # 돈다)라 어떤 리눅스 capability도 필요 없다 — 직접 `docker compose up`으로
+    # 떠서 로그인·API 헬스체크가 정상 동작하는 것까지 확인했다.
+    security_opt:
+      - "no-new-privileges:true"
+    cap_drop:
+      - ALL
+    # 뼈대 단계 기준 넉넉한 상한 — 컨테이너 하나가 폭주해 호스트 전체를
+    # 굶기는 걸 막는다. 상벌점 등 업무 모듈이 붙으며 실측 후 조정한다.
+    mem_limit: 512m
+    cpus: 1.0
     depends_on:
       db:
         condition: service_healthy
