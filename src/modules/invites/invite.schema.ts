@@ -1,4 +1,12 @@
 import { z } from "zod";
+import {
+  MAX_CLASS_NO,
+  MAX_GRADE,
+  MAX_NUMBER,
+  MIN_CLASS_NO,
+  MIN_GRADE,
+  MIN_NUMBER,
+} from "@/modules/enrollment/enrollment.schema";
 
 const name = z
   .string()
@@ -14,16 +22,21 @@ const expiresInDays = z
   .optional()
   .describe("비우면 무기한");
 
-/** 관리자가 학생 코드를 발급할 때 입력하는 값. */
+/**
+ * 관리자가 학생 코드를 발급할 때 입력하는 값.
+ *
+ * 학년·반·번호 범위는 enrollment.schema.ts의 상수를 그대로 쓴다 (M6) — 표
+ * 편집·명단 업로드와 같은 SchoolClass 테이블에 쓰는 값이다.
+ */
 export const createStudentInviteSchema = z.object({
   name,
   birthDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "생년월일은 YYYY-MM-DD 형식으로 입력하세요.")
     .refine((v) => !Number.isNaN(Date.parse(v)), "존재하지 않는 날짜입니다."),
-  grade: z.number().int().min(1).max(3),
-  classNo: z.number().int().min(1).max(20),
-  number: z.number().int().min(1).max(50),
+  grade: z.number().int().min(MIN_GRADE).max(MAX_GRADE),
+  classNo: z.number().int().min(MIN_CLASS_NO).max(MAX_CLASS_NO),
+  number: z.number().int().min(MIN_NUMBER).max(MAX_NUMBER),
   expiresInDays,
 });
 
