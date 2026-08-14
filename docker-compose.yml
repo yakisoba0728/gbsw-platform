@@ -62,6 +62,18 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-gbsw}:${POSTGRES_PASSWORD:-gbsw_dev_password}@db:5432/${POSTGRES_DB:-gbsw}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET를 .env에 설정해야 합니다}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      # 비우면(로컬 기본) 인증코드가 콘솔로 나간다 — 알리고 미설정 시의 의도된 동작.
+      # 지금까지는 여기 안 넘겨서 compose로 띄우면 SMS_*를 .env에 채워도 문자가
+      # 항상 콘솔로 나갔다.
+      SMS_KEY: ${SMS_KEY:-}
+      SMS_USER_ID: ${SMS_USER_ID:-}
+      SMS_SENDER: ${SMS_SENDER:-}
+      # 여기서 true를 기본값으로 주지 않는다. 운영에 SMS_KEY는 넣고 이 값만 빠뜨리면
+      # 알리고가 요청을 정상 접수(assertAligoSuccess 통과)하면서도 실제로는 아무것도
+      # 보내지 않는, 가장 알아채기 힘든 조용한 실패가 생긴다. 비워서 코드의 기본값
+      # (env.SMS_TEST_MODE === "true", 즉 안 주면 false=진짜 발송)을 그대로 따르게 한다 —
+      # 빠뜨렸을 때 "조용히 성공한 척"이 아니라 "실제로 보내짐"이 되는 쪽이 더 안전하다.
+      SMS_TEST_MODE: ${SMS_TEST_MODE:-}
     ports:
       - "3000:3000"
     healthcheck:
