@@ -14,7 +14,10 @@ export default async function RegisterPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  if (await getSessionUser()) redirect("/");
+  // status까지 확인한다 — login/page.tsx와 같은 이유. 세션이 있다는 것만으로
+  // 보내면 비활성 계정이 /register ↔ / 사이를 무한 반복한다.
+  const sessionUser = await getSessionUser();
+  if (sessionUser?.status === "ACTIVE") redirect("/");
 
   const { token } = await searchParams;
   const candidate = typeof token === "string" ? token : undefined;

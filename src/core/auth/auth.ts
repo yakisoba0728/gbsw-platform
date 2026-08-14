@@ -1,4 +1,4 @@
-import { betterAuth } from "better-auth";
+import { APIError, betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
 import { admin } from "better-auth/plugins/admin";
@@ -44,6 +44,39 @@ export const auth = betterAuth({
     customRules: {
       // 비밀번호 대입 공격 완화
       "/sign-in/email": { window: 60, max: 10 },
+    },
+  },
+
+  /*
+   * status !== "ACTIVE"인 계정은 세션 자체를 만들지 못하게 한다.
+   *
+   * requireAuth()가 매 요청마다 status를 다시 검사하긴 하지만, 그건 (app) 레이아웃과
+   * 서버 액션 "안"에서만 실행된다. /api/auth/sign-in/email은 그 밖이라 Better Auth가
+   * 이 계정을 얼마든지 로그인시켜 새 세션 쿠키를 내줄 수 있었다 — admin 플러그인의
+   * session.create.before가 banned만 보고 우리 status는 모르기 때문이다.
+   * 같은 자리(session.create.before)에 우리 검사를 추가해 발급 자체를 막는다.
+   *
+   * ctx.context.internalAdapter로 조회하는 대신 prisma를 직접 쓴다 — admin.mjs는 타입이
+   * 없는 자바스크립트라 findUserById의 반환 타입에 status가 보이지 않고, ctx가 null인
+   * 경로(내부 API 직접 호출 등)에서도 검사가 빠지지 않게 하려는 목적도 있다.
+   */
+  databaseHooks: {
+    session: {
+      create: {
+        before: async (session) => {
+          const user = await prisma.user.findUnique({
+            where: { id: session.userId },
+            select: { status: true },
+          });
+
+          if (user?.status !== "ACTIVE") {
+            throw APIError.from("FORBIDDEN", {
+              message: "비활성화된 계정입니다.",
+              code: "ACCOUNT_INACTIVE",
+            });
+          }
+        },
+      },
     },
   },
 
