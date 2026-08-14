@@ -188,10 +188,17 @@ export async function saveEnrollments(
   // 커밋에 성공한 뒤에만 기록한다. recordAudit은 전역 Prisma 클라이언트를 써서
   // 위 트랜잭션에 못 끼므로, 저장이 실제로 전부 끝난 다음이어야 감사로그도
   // 전부 아니면 전무가 된다.
+  //
+  // actorName을 넘긴다 (M8) — 안 넘기면 recordAudit이 호출마다 이름을 다시
+  // 조회한다. 275명 저장 = 최대 550회 순차 왕복이 되어 리버스 프록시
+  // 타임아웃에 걸릴 수 있다. actor(SessionUser)에 이미 이름이 있으므로
+  // 조회 자체가 불필요하다 — 선택적 최적화 경로일 뿐, 안 넘기는 호출부는
+  // 여전히 정상 동작한다(기존 규약을 깨지 않는다).
   const batch = randomUUID();
   for (const { change, active, changed } of planned) {
     await recordAudit({
       actorUserId: actor.id,
+      actorName: actor.name,
       action: "enrollment:update",
       targetType: "StudentProfile",
       targetId: change.studentProfileId,
@@ -206,6 +213,7 @@ export async function saveEnrollments(
     if (changed.includes("status") && before && before.accountActive !== active) {
       await recordAudit({
         actorUserId: actor.id,
+        actorName: actor.name,
         action: active ? "user:activate" : "user:deactivate",
         targetType: "User",
         targetId: change.userId,

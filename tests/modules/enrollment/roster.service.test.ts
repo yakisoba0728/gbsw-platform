@@ -278,6 +278,8 @@ describe("applyRosterPlan()", () => {
     const calls = recordAudit.mock.calls.map((c) => c[0]);
     const flip = calls.find((c) => c.action === "user:activate");
     expect(flip).toMatchObject({ targetType: "User", targetId: "u-1" });
+    // actorName을 미리 넘긴다 (M8) — 이 루프도 이름을 다시 조회하지 않는다.
+    expect(flip?.actorName).toBe(admin.name);
   });
 
   it("계정 상태가 실제로는 안 바뀌면(비재학→비재학) 활성/비활성 감사로그를 남기지 않는다", async () => {
@@ -351,6 +353,16 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
 
     expect(applyRoster).toHaveBeenCalledTimes(1);
     expect(applyRoster.mock.calls[0]![1].deleteStudentProfileIds).toEqual([]);
+  });
+
+  it("삭제 로그마다 actorName을 미리 넘긴다 (M8) — 275명 삭제가 매번 이름을 다시 " +
+    "조회하면 순차 왕복이 되어 리버스 프록시 타임아웃에 걸릴 수 있다", async () => {
+    await applyRosterPlan(admin, 2026, [무관한신규줄], ["sp-1"], null);
+
+    const deleteLog = recordAudit.mock.calls
+      .map((c) => c[0])
+      .find((c) => c.action === "user:delete");
+    expect(deleteLog?.actorName).toBe(admin.name);
   });
 
   it("삭제된 학생마다 user:delete 감사로그를 남긴다 — targetId만 담고 이름은 넣지 않는다", async () => {

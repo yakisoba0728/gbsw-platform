@@ -237,9 +237,15 @@ export async function applyRosterPlan(
   // 삭제된 학생마다 한 줄씩 남긴다. targetId(userId)만 담는다 — 계정이 사라진 뒤라
   // 이름 없이도 무엇이 지워졌는지는 충분히 특정되고, 이름을 넣으면 감사로그가 삭제된
   // 개인정보의 사본이 된다. 누가 지웠는지는 actorName이 남긴다.
+  //
+  // actorName을 미리 넘긴다 (M8) — 안 넘기면 recordAudit이 호출마다 이름을
+  // 다시 조회한다. 275명 삭제 = 275회 순차 왕복이 되어 리버스 프록시
+  // 타임아웃에 걸릴 수 있다. actor(SessionUser)에 이미 이름이 있다 —
+  // 선택적 최적화 경로일 뿐, 안 넘기는 호출부는 여전히 정상 동작한다.
   for (const m of plan.missingFromFile) {
     await recordAudit({
       actorUserId: actor.id,
+      actorName: actor.name,
       action: "user:delete",
       targetType: "User",
       targetId: m.userId,
@@ -258,6 +264,7 @@ export async function applyRosterPlan(
 
     await recordAudit({
       actorUserId: actor.id,
+      actorName: actor.name,
       action: active ? "user:activate" : "user:deactivate",
       targetType: "User",
       targetId: userIdByProfile.get(a.studentProfileId!)!,

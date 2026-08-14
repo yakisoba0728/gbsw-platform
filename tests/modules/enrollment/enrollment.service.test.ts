@@ -146,6 +146,12 @@ describe("saveEnrollments()", () => {
     expect(audit.metadata.classNo).toBeUndefined();
   });
 
+  it("actorName을 미리 넘겨 배치 저장이 매번 이름을 다시 조회하지 않게 한다 (M8)", async () => {
+    await save(admin, [{ ...unchanged, classNo: 5 }]);
+
+    expect(recordAudit.mock.calls[0]![0].actorName).toBe(admin.name);
+  });
+
   it("같은 저장에 속한 줄들은 같은 배치 식별자를 단다", async () => {
     listByYear.mockResolvedValue([
       current(),
