@@ -219,6 +219,7 @@ describe("updateUser()", () => {
     expect(updateUserAndEnrollment).toHaveBeenCalledTimes(1);
     expect(updateUserAndEnrollment).toHaveBeenCalledWith("u-9", {
       profile: { name: "김학생", email: "student@gbsw.hs.kr", phone: "010-9999-8888" },
+      studentProfile: null,
       enrollment: null,
     });
   });
@@ -256,6 +257,8 @@ describe("updateUser()", () => {
     expect(updateUserAndEnrollment).toHaveBeenCalledTimes(1);
     const [, arg] = updateUserAndEnrollment.mock.calls[0]!;
     expect(arg.profile).toBeNull();
+    // 생년월일은 바뀌지 않았으므로 studentProfile 버킷은 비어 있다.
+    expect(arg.studentProfile).toBeNull();
     expect(arg.enrollment).toMatchObject({ studentProfileId: "sp-1", year: 2026, grade: 2 });
   });
 
@@ -282,7 +285,10 @@ describe("updateUser()", () => {
     await updateUser(admin, "u-9", { ...sameInput, birthDate: "2011-01-01" });
 
     const [, arg] = updateUserAndEnrollment.mock.calls[0]!;
-    const saved: Date = arg.enrollment.birthDate;
+    // 생년월일만 바뀌었으므로 studentProfile 버킷에 담겨 간다 — 학년·반·번호가
+    // 바뀌지 않았으니 enrollment는 안 건드린다.
+    expect(arg.enrollment).toBeNull();
+    const saved: Date = arg.studentProfile.birthDate;
     expect(saved.toISOString()).toBe("2010-12-31T15:00:00.000Z");
   });
 
@@ -304,5 +310,78 @@ describe("updateUser()", () => {
     await expect(updateUser(admin, "없음", sameInput)).rejects.toThrow(
       "NOT_FOUND",
     );
+  });
+
+  it("학년·반·번호 중 하나라도 비면 값을 지어내지 않고 거부한다 (M10)", async () => {
+    // number를 아예 안 보낸다 — 예전엔 enrollment?.number ?? 1로 1번을 지어냈다.
+    const withoutNumber = {
+      name: sameInput.name,
+      email: sameInput.email,
+      phone: sameInput.phone,
+      birthDate: sameInput.birthDate,
+      grade: 2,
+      classNo: sameInput.classNo,
+    };
+
+    await expect(updateUser(admin, "u-9", withoutNumber)).rejects.toThrow(
+      "INCOMPLETE_STUDENT_INPUT",
+    );
+    expect(updateUserAndEnrollment).not.toHaveBeenCalled();
+  });
+
+  describe("재학 중이 아닌 학생 (I2 — 졸업생 편집)", () => {
+    function graduated(overrides: Record<string, unknown> = {}) {
+      return detail({
+        studentProfile: {
+          id: "sp-1",
+          birthDate: BIRTH,
+          enrollments: [
+            {
+              id: "en-1",
+              number: null,
+              status: "GRADUATED",
+              schoolClass: null,
+            },
+          ],
+        },
+        ...overrides,
+      });
+    }
+
+    it("학년·반·번호를 보내지 않아도 생년월일만 고칠 수 있다", async () => {
+      findDetail.mockResolvedValue(graduated());
+
+      const { changed } = await updateUser(admin, "u-9", {
+        name: "김학생",
+        email: "student@gbsw.hs.kr",
+        phone: "010-1111-2222",
+        birthDate: "2011-01-01",
+        // 학년·반·번호는 아예 안 보낸다 — 폼에서 칸이 숨겨져 있다.
+      });
+
+      expect(changed).toEqual(["birthDate"]);
+      expect(updateUserAndEnrollment).toHaveBeenCalledWith("u-9", {
+        profile: null,
+        studentProfile: {
+          studentProfileId: "sp-1",
+          birthDate: new Date("2010-12-31T15:00:00.000Z"),
+        },
+        enrollment: null,
+      });
+    });
+
+    it("학년·반·번호가 함께 와도 학적을 되돌리지 않는다 — 애초에 바뀐 것으로도 안 잡는다", async () => {
+      findDetail.mockResolvedValue(graduated());
+
+      // 서버 액션을 직접 호출하는 등으로 grade/classNo/number가 섞여 들어와도
+      // (defense-in-depth) 재학 중이 아니면 소속 항목은 무시한다.
+      const { changed } = await updateUser(admin, "u-9", {
+        ...sameInput,
+        birthDate: "2010-07-15",
+      });
+
+      expect(changed).toEqual([]);
+      expect(updateUserAndEnrollment).not.toHaveBeenCalled();
+    });
   });
 });

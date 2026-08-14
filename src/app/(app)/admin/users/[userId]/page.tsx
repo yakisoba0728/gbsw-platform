@@ -47,6 +47,8 @@ export default async function UserDetailPage({
     email: user.email,
     phone: user.phone,
     isStudent: profile != null,
+    // 재학 중일 때만 학년·반·번호를 이 화면에서 고칠 수 있다 (I2).
+    canEditAssignment: enrollment?.status === "ENROLLED",
     birthDate: profile ? formatDateInput(profile.birthDate) : "",
     grade: cls ? String(cls.grade) : "",
     classNo: cls ? String(cls.classNo) : "",

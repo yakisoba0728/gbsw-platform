@@ -41,6 +41,11 @@ export async function getUserDetail(actor: SessionUser, userId: string) {
  * 초대코드가 신뢰 기준이고 이번엔 관리자가 직접 바꾼 것이라 근거가 약해지지 않는다.
  * 세션도 끊지 않는다. 이메일은 인증 수단이 아니고, 계정을 실제로 뺏는 경로
  * (비밀번호 초기화·비활성화)는 각자 세션을 끊는다.
+ *
+ * 학년·반·번호는 **재학 중인 학생만** 이 화면에서 다룬다 (I2). 졸업·자퇴 등으로
+ * Enrollment.status가 ENROLLED가 아니면 학년·반·번호는 애초에 "바뀐 항목"으로도
+ * 잡지 않는다 — 학적 변경은 /admin/students 표(계정 상태 동기화가 있는 곳) 한
+ * 곳에서만 하도록 통일한다. 생년월일(신원)은 학적과 무관하게 언제나 고칠 수 있다.
  */
 export async function updateUser(
   actor: SessionUser,
@@ -62,6 +67,8 @@ export async function updateUser(
   const profile = current.studentProfile;
   const isStudent = profile !== null && profile !== undefined;
   const enrollment = profile?.enrollments[0];
+  // 재학 중일 때만 학년·반·번호를 이 화면에서 편집 가능한 것으로 본다 (I2).
+  const canEditAssignment = enrollment?.status === "ENROLLED";
 
   if (isStudent) {
     if (
@@ -70,54 +77,69 @@ export async function updateUser(
     ) {
       changed.push("birthDate");
     }
-    if (
-      input.grade !== undefined &&
-      enrollment?.schoolClass?.grade !== input.grade
-    ) {
-      changed.push("grade");
-    }
-    if (
-      input.classNo !== undefined &&
-      enrollment?.schoolClass?.classNo !== input.classNo
-    ) {
-      changed.push("classNo");
-    }
-    if (input.number !== undefined && enrollment?.number !== input.number) {
-      changed.push("number");
+    if (canEditAssignment) {
+      if (
+        input.grade !== undefined &&
+        enrollment?.schoolClass?.grade !== input.grade
+      ) {
+        changed.push("grade");
+      }
+      if (
+        input.classNo !== undefined &&
+        enrollment?.schoolClass?.classNo !== input.classNo
+      ) {
+        changed.push("classNo");
+      }
+      if (input.number !== undefined && enrollment?.number !== input.number) {
+        changed.push("number");
+      }
     }
   }
 
   if (changed.length === 0) return { changed };
 
   const profileChanged = ["name", "email", "phone"].some((f) => changed.includes(f));
-  const studentChanged = ["birthDate", "grade", "classNo", "number"].some((f) =>
+  const birthDateChanged = changed.includes("birthDate");
+  const assignmentChanged = ["grade", "classNo", "number"].some((f) =>
     changed.includes(f),
   );
 
-  if (isStudent && studentChanged) {
-    if (!input.birthDate || input.grade == null || input.classNo == null) {
+  if (isStudent && assignmentChanged) {
+    // M10: 값을 지어내지 않는다 — 셋 중 하나라도 없으면 거절한다.
+    if (
+      !input.birthDate ||
+      input.grade == null ||
+      input.classNo == null ||
+      input.number == null
+    ) {
       throw new AdminUserError("INCOMPLETE_STUDENT_INPUT");
     }
   }
 
-  // 이름·이메일·전화번호와 학생 소속을 한 트랜잭션으로 저장한다 (I1) — 절반만
-  // 저장되고 감사로그는 안 남는 상태를 막는다. repo.updateUserAndEnrollment가
+  // 이름·이메일·전화번호, 생년월일, 학년·반·번호를 한 트랜잭션으로 저장한다 (I1) —
+  // 절반만 저장되고 감사로그는 안 남는 상태를 막는다. repo.updateUserAndEnrollment가
   // enrollment.repo.ts의 applyAll과 같은 패턴으로 묶는다.
   try {
     await repo.updateUserAndEnrollment(userId, {
       profile: profileChanged
         ? { name: input.name, email: input.email, phone: input.phone }
         : null,
+      studentProfile:
+        isStudent && birthDateChanged
+          ? {
+              studentProfileId: profile.id,
+              // 생년월일은 날짜만 의미가 있다. KST 자정으로 고정해 하루 밀림을 막는다.
+              birthDate: parseDateInputKst(input.birthDate!),
+            }
+          : null,
       enrollment:
-        isStudent && studentChanged
+        isStudent && assignmentChanged
           ? {
               studentProfileId: profile.id,
               year,
-              // 생년월일은 날짜만 의미가 있다. KST 자정으로 고정해 하루 밀림을 막는다.
-              birthDate: parseDateInputKst(input.birthDate!),
               grade: input.grade!,
               classNo: input.classNo!,
-              number: input.number ?? enrollment?.number ?? 1,
+              number: input.number!,
             }
           : null,
     });

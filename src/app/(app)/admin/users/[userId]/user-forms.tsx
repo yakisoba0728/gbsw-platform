@@ -27,6 +27,8 @@ export type EditableUser = {
   email: string;
   phone: string;
   isStudent: boolean;
+  /** 재학(ENROLLED) 중일 때만 true — 이때만 학년·반·번호를 이 화면에서 고칠 수 있다 (I2). */
+  canEditAssignment: boolean;
   birthDate: string;
   grade: string;
   classNo: string;
@@ -119,47 +121,58 @@ export function EditUserForm({ user }: { user: EditableUser }) {
             className="mb-[13px]"
           />
 
-          <div className="mb-[13px] grid grid-cols-3 gap-2">
-            <div>
-              <Label htmlFor="grade">학년</Label>
-              <Input
-                id="grade"
-                name="grade"
-                type="number"
-                dense
-                min={1}
-                max={3}
-                defaultValue={user.grade}
-                required
-              />
+          {user.canEditAssignment ? (
+            <div className="mb-[13px] grid grid-cols-3 gap-2">
+              <div>
+                <Label htmlFor="grade">학년</Label>
+                <Input
+                  id="grade"
+                  name="grade"
+                  type="number"
+                  dense
+                  min={1}
+                  max={3}
+                  defaultValue={user.grade}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="classNo">반</Label>
+                <Input
+                  id="classNo"
+                  name="classNo"
+                  type="number"
+                  dense
+                  min={1}
+                  max={20}
+                  defaultValue={user.classNo}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="number">번호</Label>
+                <Input
+                  id="number"
+                  name="number"
+                  type="number"
+                  dense
+                  min={1}
+                  max={50}
+                  defaultValue={user.number}
+                  required
+                />
+              </div>
             </div>
-            <div>
-              <Label htmlFor="classNo">반</Label>
-              <Input
-                id="classNo"
-                name="classNo"
-                type="number"
-                dense
-                min={1}
-                max={20}
-                defaultValue={user.classNo}
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="number">번호</Label>
-              <Input
-                id="number"
-                name="number"
-                type="number"
-                dense
-                min={1}
-                max={50}
-                defaultValue={user.number}
-                required
-              />
-            </div>
-          </div>
+          ) : (
+            // 재학 중이 아니면(졸업·자퇴 등) 학년·반·번호 칸을 감춘다 (I2) —
+            // 관리자가 생년월일 오타 하나를 고치려고 학년·반·번호를 지어낼 필요가
+            // 없게 한다. 학적 변경은 /admin/students 표(계정 상태 동기화가 있는
+            // 곳) 한 곳에서만 한다.
+            <p className="mb-[13px] text-[11.5px] text-mut">
+              재학 중이 아니라 학년·반·번호는 여기서 고칠 수 없습니다. 학적을
+              바꾸려면 학생 관리에서 진행하세요.
+            </p>
+          )}
         </>
       )}
 

@@ -97,13 +97,17 @@ export type UpdateUserAndEnrollmentInput = {
   /** 이름·이메일·전화번호. 안 바뀌었으면 null — 문장 자체를 안 만든다. */
   profile: { name: string; email: string; phone: string } | null;
   /**
-   * 학생 소속 수정. 학급이 없으면 만든다 — 가입 때와 같은 방식이다.
-   * (registration.repo의 upsert 패턴과 동일) 안 바뀌었으면 null.
+   * 생년월일(신원)만 고친다. 학적과 무관하게 학생이면 언제나 쓸 수 있다 —
+   * 졸업생의 생년월일 오타를 고치는 데 학년·반·번호를 지어낼 필요가 없다 (I2).
+   */
+  studentProfile: { studentProfileId: string; birthDate: Date } | null;
+  /**
+   * 학년·반·번호 — 재학 중인 학생만 대상이다 (I2). 학급이 없으면 만든다
+   * (registration.repo의 upsert 패턴과 동일). 안 바뀌었으면 null.
    */
   enrollment: {
     studentProfileId: string;
     year: number;
-    birthDate: Date;
     grade: number;
     classNo: number;
     number: number;
@@ -111,13 +115,17 @@ export type UpdateUserAndEnrollmentInput = {
 };
 
 /**
- * 사용자 정보와 학생 소속을 **한 트랜잭션**으로 저장한다 (I1).
+ * 사용자 정보와 학생 신원·소속을 **한 트랜잭션**으로 저장한다 (I1).
  *
  * 예전엔 updateProfile()과 updateEnrollment()가 서로 다른 호출이었다.
  * 이름·이메일·전화번호가 먼저 커밋된 뒤 반·번호 충돌(NumberTakenError)로
  * 두 번째 호출이 실패하면, 앞선 변경은 이미 저장된 채로 화면엔 "저장 못 함"만
  * 뜨는 반쪽짜리 저장이 됐다 — 로그인 아이디인 이메일이 흔적 없이 바뀔 수 있다는
  * 게 특히 나빴다. enrollment.repo.ts의 applyAll과 같은 패턴으로 묶는다.
+ *
+ * studentProfile(생년월일)과 enrollment(학년·반·번호)를 별개 인자로 받는다 —
+ * 예전엔 하나로 묶여 있어서 졸업생의 생년월일만 고치려 해도 학년·반·번호를
+ * 지어내야 했다 (I2). 서비스가 재학 여부로 둘을 독립적으로 채운다.
  */
 export async function updateUserAndEnrollment(
   userId: string,
@@ -135,13 +143,15 @@ export async function updateUserAndEnrollment(
       }
     }
 
-    if (input.enrollment) {
-      const { studentProfileId, year, birthDate, grade, classNo, number } = input.enrollment;
-
+    if (input.studentProfile) {
       await tx.studentProfile.update({
-        where: { id: studentProfileId },
-        data: { birthDate },
+        where: { id: input.studentProfile.studentProfileId },
+        data: { birthDate: input.studentProfile.birthDate },
       });
+    }
+
+    if (input.enrollment) {
+      const { studentProfileId, year, grade, classNo, number } = input.enrollment;
 
       const schoolClass = await tx.schoolClass.upsert({
         where: { year_grade_classNo: { year, grade, classNo } },
@@ -159,8 +169,11 @@ export async function updateUserAndEnrollment(
             number,
             status: "ENROLLED",
           },
-          // 상세에서 반·번호를 고치는 건 재학 중이라는 뜻이다. 졸업 행에 반만 채워지면 안 된다.
-          update: { classId: schoolClass.id, number, status: "ENROLLED" },
+          // update에는 status를 넣지 않는다 (I2) — 여기 오는 건 이미 ENROLLED인
+          // 학생의 반·번호 수정뿐이다(서비스가 canEditAssignment로 gate한다).
+          // 예전엔 무조건 ENROLLED를 덮어써서, 졸업생의 신원만 고치는 경로가
+          // 어쩌다 여기까지 오면 학적이 재학으로 되돌아가는 사고가 났다.
+          update: { classId: schoolClass.id, number },
         });
       } catch (error) {
         // updateProfile과 같은 이유 — 미리 조회해 봐야 그 사이에 끼어드는 요청을 못 막는다.

@@ -93,10 +93,14 @@ const profileData = {
   phone: "010-1111-2222",
 };
 
+const studentProfileData = {
+  studentProfileId: "sp-1",
+  birthDate: new Date("2010-07-27T15:00:00.000Z"),
+};
+
 const enrollmentData = {
   studentProfileId: "sp-1",
   year: 2026,
-  birthDate: new Date("2010-07-27T15:00:00.000Z"),
   grade: 1,
   classNo: 2,
   number: 15,
@@ -117,7 +121,11 @@ describe("updateUserAndEnrollment() — profile", () => {
     userUpdate.mockRejectedValue(realWorldP2002());
 
     await expect(
-      updateUserAndEnrollment("u-9", { profile: profileData, enrollment: null }),
+      updateUserAndEnrollment("u-9", {
+        profile: profileData,
+        studentProfile: null,
+        enrollment: null,
+      }),
     ).rejects.toBeInstanceOf(EmailTakenError);
   });
 
@@ -129,7 +137,11 @@ describe("updateUserAndEnrollment() — profile", () => {
     userUpdate.mockRejectedValue(error);
 
     await expect(
-      updateUserAndEnrollment("u-9", { profile: profileData, enrollment: null }),
+      updateUserAndEnrollment("u-9", {
+        profile: profileData,
+        studentProfile: null,
+        enrollment: null,
+      }),
     ).rejects.toBeInstanceOf(EmailTakenError);
   });
 
@@ -141,32 +153,70 @@ describe("updateUserAndEnrollment() — profile", () => {
     userUpdate.mockRejectedValue(other);
 
     await expect(
-      updateUserAndEnrollment("u-9", { profile: profileData, enrollment: null }),
+      updateUserAndEnrollment("u-9", {
+        profile: profileData,
+        studentProfile: null,
+        enrollment: null,
+      }),
     ).rejects.toBe(other);
   });
 
   it("profile이 null이면 user.update를 부르지 않는다", async () => {
-    await updateUserAndEnrollment("u-9", { profile: null, enrollment: null });
+    await updateUserAndEnrollment("u-9", {
+      profile: null,
+      studentProfile: null,
+      enrollment: null,
+    });
     expect(userUpdate).not.toHaveBeenCalled();
   });
 });
 
-describe("updateUserAndEnrollment() — enrollment", () => {
+describe("updateUserAndEnrollment() — studentProfile(생년월일)", () => {
+  it("학년·반·번호를 건드리지 않고 생년월일만 고칠 수 있다 (I2) — 졸업생 편집 경로", async () => {
+    await updateUserAndEnrollment("u-9", {
+      profile: null,
+      studentProfile: studentProfileData,
+      enrollment: null,
+    });
+
+    expect(studentProfileUpdate).toHaveBeenCalledWith({
+      where: { id: "sp-1" },
+      data: { birthDate: studentProfileData.birthDate },
+    });
+    expect(schoolClassUpsert).not.toHaveBeenCalled();
+    expect(enrollmentUpsert).not.toHaveBeenCalled();
+  });
+
+  it("studentProfile이 null이면 studentProfile.update를 부르지 않는다", async () => {
+    await updateUserAndEnrollment("u-9", {
+      profile: null,
+      studentProfile: null,
+      enrollment: enrollmentData,
+    });
+    expect(studentProfileUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe("updateUserAndEnrollment() — enrollment(학년·반·번호)", () => {
   it("반·번호 중복이면 NumberTakenError로 옮긴다", async () => {
     enrollmentUpsert.mockRejectedValue(realWorldNumberP2002());
 
     await expect(
-      updateUserAndEnrollment("u-9", { profile: null, enrollment: enrollmentData }),
+      updateUserAndEnrollment("u-9", {
+        profile: null,
+        studentProfile: null,
+        enrollment: enrollmentData,
+      }),
     ).rejects.toBeInstanceOf(NumberTakenError);
   });
 
   it("성공하면 학급을 찾아 소속을 갱신한다", async () => {
-    await updateUserAndEnrollment("u-9", { profile: null, enrollment: enrollmentData });
-
-    expect(studentProfileUpdate).toHaveBeenCalledWith({
-      where: { id: "sp-1" },
-      data: { birthDate: enrollmentData.birthDate },
+    await updateUserAndEnrollment("u-9", {
+      profile: null,
+      studentProfile: null,
+      enrollment: enrollmentData,
     });
+
     expect(enrollmentUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { studentProfileId_year: { studentProfileId: "sp-1", year: 2026 } },
@@ -174,21 +224,39 @@ describe("updateUserAndEnrollment() — enrollment", () => {
     );
   });
 
-  it("enrollment가 null이면 소속 관련 문장을 하나도 안 부른다", async () => {
-    await updateUserAndEnrollment("u-9", { profile: profileData, enrollment: null });
+  it("update에는 status를 넣지 않는다 (I2) — 기존 학적을 덮어쓰지 않는다", async () => {
+    await updateUserAndEnrollment("u-9", {
+      profile: null,
+      studentProfile: null,
+      enrollment: enrollmentData,
+    });
 
-    expect(studentProfileUpdate).not.toHaveBeenCalled();
+    const call = enrollmentUpsert.mock.calls[0]![0];
+    expect(call.update).not.toHaveProperty("status");
+    // create는 배정이 아예 없던 학생을 위한 것이라 ENROLLED로 시작한다.
+    expect(call.create.status).toBe("ENROLLED");
+  });
+
+  it("enrollment가 null이면 소속 관련 문장을 하나도 안 부른다", async () => {
+    await updateUserAndEnrollment("u-9", {
+      profile: profileData,
+      studentProfile: null,
+      enrollment: null,
+    });
+
     expect(schoolClassUpsert).not.toHaveBeenCalled();
     expect(enrollmentUpsert).not.toHaveBeenCalled();
   });
 
-  it("profile과 enrollment를 한 트랜잭션에서 함께 저장한다 (I1)", async () => {
+  it("profile·studentProfile·enrollment를 한 트랜잭션에서 함께 저장한다 (I1)", async () => {
     await updateUserAndEnrollment("u-9", {
       profile: profileData,
+      studentProfile: studentProfileData,
       enrollment: enrollmentData,
     });
 
     expect(userUpdate).toHaveBeenCalledWith({ where: { id: "u-9" }, data: profileData });
+    expect(studentProfileUpdate).toHaveBeenCalled();
     expect(enrollmentUpsert).toHaveBeenCalled();
   });
 });
