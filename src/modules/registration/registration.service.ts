@@ -15,8 +15,10 @@ import {
 } from "@/modules/invites/invite.schema";
 import * as repo from "./registration.repo";
 import type { CompleteRegistrationInput } from "./registration.schema";
+import type { VerificationChannel } from "@/modules/verification/verification.schema";
 import {
   consumeVerifications,
+  requestCode,
   requireVerified,
 } from "@/modules/verification/verification.service";
 import { birthDateMatches, nameMatches } from "./registration.verify";
@@ -46,6 +48,27 @@ export async function checkInvite(rawCode: string): Promise<{ role: Role }> {
   }
 
   return { role: invite.role };
+}
+
+/**
+ * 이메일·휴대폰 인증코드 발송 — 유효한 초대코드를 함께 요구한다 (I4).
+ *
+ * requestVerificationAction은 로그인 없이 호출되고, verification.service.ts의
+ * requestCode()가 두는 유일한 제한은 **대상별**(target) 5회/시간이다. 대상은
+ * 공격자가 마음대로 바꿀 수 있어, 그것만으로는 임의의 휴대폰 번호마다 시간당
+ * 5통씩 무제한 발송(학교 알리고 잔액 소진 + 학교 이름으로 스팸)을 막지 못한다.
+ *
+ * 가입 흐름은 1단계(checkInvite)에서 이미 코드를 검증했다 — 여기서 같은 검사를
+ * 한 번 더 태워 코드 보유자만 문자·메일 발송을 촉발할 수 있게 한다. 폼 변경
+ * 없이 서버 인자만 늘어난다 (register-flow.tsx가 이미 code를 들고 있다).
+ */
+export async function requestVerification(
+  code: string,
+  channel: VerificationChannel,
+  target: string,
+): Promise<{ mockCode?: string }> {
+  await checkInvite(code);
+  return requestCode(channel, target);
 }
 
 /** 2단계 — 2차 요소를 대조하고 계정을 만든다. */

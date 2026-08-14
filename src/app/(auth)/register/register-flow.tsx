@@ -159,6 +159,7 @@ function ProfileStep({ code, role }: { code: string; role: Role }) {
 
       <VerifiedField
         channel="EMAIL"
+        inviteCode={code}
         id="email"
         name="email"
         label="이메일"
@@ -169,6 +170,7 @@ function ProfileStep({ code, role }: { code: string; role: Role }) {
 
       <VerifiedField
         channel="PHONE"
+        inviteCode={code}
         id="phone"
         name="phone"
         label="전화번호"

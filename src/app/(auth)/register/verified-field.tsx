@@ -12,6 +12,8 @@ import {
 
 type Props = {
   channel: "EMAIL" | "PHONE";
+  /** 1단계에서 이미 확인한 가입코드. 발송 요청에 함께 실어 남용을 막는다 (I4). */
+  inviteCode: string;
   id: string;
   name: string;
   label: string;
@@ -30,6 +32,7 @@ type Props = {
  */
 export function VerifiedField({
   channel,
+  inviteCode,
   id,
   name,
   label,
@@ -64,7 +67,7 @@ export function VerifiedField({
   function send() {
     setError(null);
     startTransition(async () => {
-      const result = await requestVerificationAction(channel, value);
+      const result = await requestVerificationAction(channel, value, inviteCode);
       if (!result.ok) {
         setError(result.error);
         return;

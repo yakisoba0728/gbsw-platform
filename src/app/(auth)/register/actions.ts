@@ -14,6 +14,7 @@ import {
   checkInvite,
   completeRegistration,
   RegistrationError,
+  requestVerification,
 } from "@/modules/registration/registration.service";
 import {
   confirmCodeSchema,
@@ -21,7 +22,6 @@ import {
 } from "@/modules/verification/verification.schema";
 import {
   confirmCode,
-  requestCode,
   VerificationError,
 } from "@/modules/verification/verification.service";
 
@@ -139,17 +139,25 @@ export type VerifyResult = {
   mockCode?: string;
 };
 
+/**
+ * code(가입코드)를 함께 받는다 (I4) — 유효한 초대코드 보유자만 문자·메일
+ * 발송을 촉발할 수 있게 한다. register-flow.tsx가 1단계에서 이미 확인한
+ * code를 그대로 들고 있다가 넘긴다.
+ */
 export async function requestVerificationAction(
   channel: string,
   target: string,
+  code: string,
 ): Promise<VerifyResult> {
+  const parsedCode = inviteCodeSchema.safeParse(code);
   const parsed = requestCodeSchema.safeParse({ channel, target });
-  if (!parsed.success) {
+  if (!parsedCode.success || !parsed.success) {
     return { ok: false, error: "형식을 확인해 주세요." };
   }
 
   try {
-    const { mockCode } = await requestCode(
+    const { mockCode } = await requestVerification(
+      parsedCode.data,
       parsed.data.channel,
       parsed.data.target,
     );
@@ -159,7 +167,7 @@ export async function requestVerificationAction(
     return {
       ok: false,
       error:
-        error instanceof VerificationError
+        error instanceof VerificationError || error instanceof RegistrationError
           ? error.message
           : "인증번호를 보내지 못했습니다.",
     };

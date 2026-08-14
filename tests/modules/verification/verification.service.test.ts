@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const countRecentSends = vi.fn();
+const countRecentSendsByIp = vi.fn();
 const expirePending = vi.fn();
 const insertCode = vi.fn();
 const findLiveCode = vi.fn();
@@ -11,9 +12,11 @@ const findVerified = vi.fn();
 const consume = vi.fn();
 const deleteById = vi.fn();
 const sendVerification = vi.fn();
+const readRequestContext = vi.fn();
 
 vi.mock("@/modules/verification/verification.repo", () => ({
   countRecentSends,
+  countRecentSendsByIp,
   expirePending,
   insertCode,
   findLiveCode,
@@ -27,6 +30,9 @@ vi.mock("@/modules/verification/verification.repo", () => ({
 vi.mock("@/modules/verification/verification.sender", () => ({
   sendVerification,
 }));
+// requestCode()가 IP별 한도(I4)를 보려고 접속 정보를 읽는다. next/headers는
+// 요청 컨텍스트 밖(테스트)에서 못 쓰므로 읽기 함수만 갈아끼운다.
+vi.mock("@/core/audit/request-context", () => ({ readRequestContext }));
 
 const { confirmCode, requestCode, requireVerified } = await import(
   "@/modules/verification/verification.service"
@@ -37,6 +43,7 @@ const hash = (code: string) => createHash("sha256").update(code).digest("hex");
 
 beforeEach(() => {
   countRecentSends.mockReset().mockResolvedValue(0);
+  countRecentSendsByIp.mockReset().mockResolvedValue(0);
   expirePending.mockReset();
   insertCode.mockReset().mockResolvedValue({ id: "v1" });
   findLiveCode.mockReset();
@@ -47,6 +54,7 @@ beforeEach(() => {
   consume.mockReset();
   deleteById.mockReset();
   sendVerification.mockReset().mockResolvedValue(undefined);
+  readRequestContext.mockReset().mockResolvedValue({ ip: null, userAgent: null });
 });
 
 describe("requestCode()", () => {
@@ -102,6 +110,41 @@ describe("requestCode()", () => {
 
     await expect(requestCode("EMAIL", "a@b.kr")).rejects.toThrow("너무 많이");
     expect(sendVerification).not.toHaveBeenCalled();
+  });
+
+  describe("IP별 제한 (I4)", () => {
+    it("같은 접속 IP에서 너무 자주 보내면 막는다 — 대상만 바꿔가며 도는 공격 방어", async () => {
+      readRequestContext.mockResolvedValue({ ip: "203.0.113.9", userAgent: null });
+      countRecentSendsByIp.mockResolvedValue(20);
+
+      await expect(requestCode("EMAIL", "a@b.kr")).rejects.toThrow("너무 많이");
+      expect(sendVerification).not.toHaveBeenCalled();
+    });
+
+    it("IP를 못 읽으면(null) IP별 검사를 건너뛴다 — 서로 다른 요청이 한도를 나눠 갖지 않게", async () => {
+      readRequestContext.mockResolvedValue({ ip: null, userAgent: null });
+
+      await requestCode("EMAIL", "a@b.kr");
+
+      expect(countRecentSendsByIp).not.toHaveBeenCalled();
+      expect(sendVerification).toHaveBeenCalled();
+    });
+
+    it("발송한 코드 행에 요청 IP를 함께 남긴다", async () => {
+      readRequestContext.mockResolvedValue({ ip: "203.0.113.9", userAgent: null });
+
+      await requestCode("EMAIL", "a@b.kr");
+
+      expect(insertCode.mock.calls[0]![0].requestIp).toBe("203.0.113.9");
+    });
+
+    it("한도 아래면 다른 IP는 서로의 발송을 막지 않는다", async () => {
+      readRequestContext.mockResolvedValue({ ip: "203.0.113.9", userAgent: null });
+      countRecentSendsByIp.mockResolvedValue(3);
+
+      await expect(requestCode("EMAIL", "a@b.kr")).resolves.toBeDefined();
+      expect(sendVerification).toHaveBeenCalled();
+    });
   });
 });
 

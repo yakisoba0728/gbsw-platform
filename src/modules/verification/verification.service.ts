@@ -1,4 +1,5 @@
 import { createHash, randomInt, timingSafeEqual } from "node:crypto";
+import { readRequestContext } from "@/core/audit/request-context";
 import * as repo from "./verification.repo";
 import {
   normalizeTarget,
@@ -21,6 +22,15 @@ const TTL_MINUTES = 5;
 const MAX_ATTEMPTS = 5;
 /** 같은 대상에 한 시간 동안 보낼 수 있는 횟수 */
 const MAX_SENDS_PER_HOUR = 5;
+/**
+ * 같은 접속 IP에서 한 시간 동안 보낼 수 있는 횟수 (I4).
+ *
+ * 대상별 제한(MAX_SENDS_PER_HOUR)은 공격자가 대상을 계속 바꾸면 무의미하다
+ * — IP별 제한이 그 구멍을 막는 두 번째 방어선이다. 대상별보다 넉넉하게
+ * 잡는다: 같은 교내망 IP에서 여러 학생이 동시에 가입하는 정상적인 상황
+ * (컴퓨터실 등)을 오탐으로 막지 않아야 한다.
+ */
+const MAX_SENDS_PER_HOUR_PER_IP = 20;
 /** 확인 후 이 시간 안에 가입을 마쳐야 한다 */
 const VERIFIED_TTL_MINUTES = 30;
 
@@ -52,23 +62,39 @@ function minutesFromNow(minutes: number, now: Date): Date {
   return new Date(now.getTime() + minutes * 60_000);
 }
 
-/** 인증코드 발송. 같은 대상의 이전 코드는 무효가 된다. */
+/**
+ * 인증코드 발송. 같은 대상의 이전 코드는 무효가 된다.
+ *
+ * registration.service.ts의 requestVerification()이 유효한 초대코드를
+ * 요구하는 구조적 방어를 먼저 태운 뒤에만 여기 닿는다 (I4) — 이 함수 자신은
+ * 대상별·IP별 발송 횟수만 본다.
+ */
 export async function requestCode(
   channel: VerificationChannel,
   rawTarget: string,
 ): Promise<{ mockCode?: string }> {
   const target = normalizeTarget(channel, rawTarget);
   const now = new Date();
+  const since = new Date(now.getTime() - 60 * 60_000);
 
-  const recent = await repo.countRecentSends(
-    channel,
-    target,
-    new Date(now.getTime() - 60 * 60_000),
-  );
+  const recent = await repo.countRecentSends(channel, target, since);
   if (recent >= MAX_SENDS_PER_HOUR) {
     throw new VerificationError(
       "인증번호를 너무 많이 요청했습니다. 잠시 후 다시 시도하세요.",
     );
+  }
+
+  const { ip } = await readRequestContext();
+  // ip를 못 읽으면(요청 컨텍스트 밖, 프록시 미설정 로컬 개발 등) 이 검사를
+  // 건너뛴다 — null을 하나의 버킷으로 묶으면 IP를 못 읽는 서로 다른 요청들이
+  // 남의 한도를 갉아먹는다.
+  if (ip) {
+    const recentByIp = await repo.countRecentSendsByIp(ip, since);
+    if (recentByIp >= MAX_SENDS_PER_HOUR_PER_IP) {
+      throw new VerificationError(
+        "인증번호를 너무 많이 요청했습니다. 잠시 후 다시 시도하세요.",
+      );
+    }
   }
 
   await repo.expirePending(channel, target, now);
@@ -81,6 +107,7 @@ export async function requestCode(
     target,
     codeHash: hash(code),
     expiresAt: minutesFromNow(TTL_MINUTES, now),
+    requestIp: ip,
   });
 
   if (isMockVerification()) {

@@ -295,10 +295,17 @@ model VerificationCode {
   /// 가입에 실제로 쓰인 시각. 찍히면 더는 못 쓴다.
   consumedAt DateTime?
 
+  /// 발송을 요청한 접속 IP (I4). 대상(target)은 공격자가 마음대로 바꿀 수
+  /// 있어 대상별 제한만으로는 한 IP가 임의의 번호마다 계속 발송을 촉발하는
+  /// 것을 막지 못한다 — IP별 제한의 근거로 쓴다. 요청 컨텍스트 밖(테스트 등)
+  /// 에서는 비어 있을 수 있다.
+  requestIp String?
+
   createdAt DateTime @default(now())
 
   @@index([channel, target])
   @@index([expiresAt])
+  @@index([requestIp, createdAt])
 }
 
 // ─────────────────────────────────────────────────────────────

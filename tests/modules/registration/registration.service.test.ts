@@ -9,6 +9,7 @@ const completeParentRegistration = vi.fn();
 const recordAudit = vi.fn();
 const requireVerified = vi.fn();
 const consumeVerifications = vi.fn();
+const requestCode = vi.fn();
 
 class InviteRaceError extends Error {}
 class NumberTakenError extends Error {}
@@ -27,12 +28,13 @@ vi.mock("@/core/audit/audit", () => ({ recordAudit }));
 vi.mock("@/modules/verification/verification.service", () => ({
   requireVerified,
   consumeVerifications,
+  requestCode,
 }));
 vi.mock("@/modules/academic-year/academic-year.service", () => ({
   getCurrentYear: vi.fn().mockResolvedValue(2026),
 }));
 
-const { checkInvite, completeRegistration } = await import(
+const { checkInvite, completeRegistration, requestVerification } = await import(
   "@/modules/registration/registration.service"
 );
 
@@ -75,6 +77,7 @@ beforeEach(() => {
   recordAudit.mockReset();
   requireVerified.mockReset().mockResolvedValue({ id: "v1" });
   consumeVerifications.mockReset();
+  requestCode.mockReset().mockResolvedValue({});
 });
 
 describe("checkInvite()", () => {
@@ -104,6 +107,30 @@ describe("checkInvite()", () => {
         "가입코드 또는 입력한 정보가 올바르지 않습니다.",
       );
     }
+  });
+});
+
+describe("requestVerification() (I4)", () => {
+  it("유효한 가입코드면 인증코드 발송으로 넘어간다", async () => {
+    findInviteByCode.mockResolvedValue(invite());
+
+    await requestVerification("GBSWA3K92M7P", "EMAIL", "a@b.kr");
+
+    expect(requestCode).toHaveBeenCalledWith("EMAIL", "a@b.kr");
+  });
+
+  it("가입코드가 없거나 이미 쓰였거나 폐기됐으면 발송하지 않는다 — 대상만 " +
+    "바꿔가며 문자를 촉발하는 것을 막는 구조적 방어", async () => {
+    const cases = [null, invite({ status: "USED" }), invite({ status: "REVOKED" })];
+
+    for (const value of cases) {
+      findInviteByCode.mockResolvedValue(value);
+      await expect(
+        requestVerification("GBSWA3K92M7P", "PHONE", "010-1234-5678"),
+      ).rejects.toThrow("가입코드 또는 입력한 정보가 올바르지 않습니다.");
+    }
+
+    expect(requestCode).not.toHaveBeenCalled();
   });
 });
 

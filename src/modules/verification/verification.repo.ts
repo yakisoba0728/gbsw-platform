@@ -12,6 +12,21 @@ export async function countRecentSends(
   });
 }
 
+/**
+ * 같은 접속 IP에서 최근 보낸 횟수 (I4). 대상(target)은 공격자가 마음대로
+ * 바꿀 수 있어 countRecentSends(대상별)만으로는 한 IP가 임의의 번호마다
+ * 계속 발송을 촉발하는 것을 막지 못한다 — channel을 가리지 않고 센다
+ * (이메일·전화 어느 쪽이든 같은 IP의 남용은 같은 자원을 축낸다).
+ */
+export async function countRecentSendsByIp(
+  ip: string,
+  since: Date,
+): Promise<number> {
+  return prisma.verificationCode.count({
+    where: { requestIp: ip, createdAt: { gte: since } },
+  });
+}
+
 /** 같은 대상의 아직 안 쓴 코드를 모두 만료시킨다 — 마지막 코드만 유효하게. */
 export async function expirePending(
   channel: string,
@@ -29,6 +44,7 @@ export async function insertCode(input: {
   target: string;
   codeHash: string;
   expiresAt: Date;
+  requestIp: string | null;
 }) {
   return prisma.verificationCode.create({ data: input });
 }
