@@ -2,12 +2,20 @@
 
 import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
+import { TableFrame, tableCellPadding } from "@/components/ui/table";
 import { KindBadge, kindColorClass } from "@/components/merit/kind-badge";
 import { MERIT_KIND_LABELS, meritKindSign, type MeritKind } from "@/core/authz/merit-track";
 import { EMPTY_RULE_FORM_STATE } from "./action-state";
 import { deleteRuleAction, updateRuleAction } from "./actions";
+
+const HEADERS = ["종류", "분류", "항목명", "점수", "작업"] as const;
+
+/** 본문 셀의 좌우 여백. 머리글과 같은 규칙을 써야 세로줄이 맞는다. */
+const cell = (index: number) =>
+  `${tableCellPadding(index, HEADERS.length)} py-2.5`;
 
 export type RuleRow = {
   id: string;
@@ -49,11 +57,7 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
   }
 
   if (rules.length === 0) {
-    return (
-      <div className="rounded-card border border-line bg-surface p-8 text-center text-[12.5px] text-mut">
-        등록된 규정이 없습니다.
-      </div>
-    );
+    return <EmptyState>등록된 규정이 없습니다.</EmptyState>;
   }
 
   return (
@@ -67,159 +71,145 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
         </Note>
       )}
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] text-left text-sm">
-          <colgroup>
-            <col className="w-[76px]" />
-            <col className="w-[128px]" />
-            <col />
-            <col className="w-[92px]" />
-            <col className="w-[150px]" />
-          </colgroup>
-          <thead>
-            <tr className="border-b border-line2 text-[12px] text-mut">
-              <th className="px-5 py-2.5 font-semibold">종류</th>
-              <th className="px-3 py-2.5 font-semibold">분류</th>
-              <th className="px-3 py-2.5 font-semibold">항목명</th>
-              <th className="px-3 py-2.5 font-semibold">점수</th>
-              <th className="px-5 py-2.5 font-semibold">작업</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rules.map((rule) => {
-              const editing = editingId === rule.id;
+      <TableFrame
+        minWidth={640}
+        cols={["w-[76px]", "w-[128px]", undefined, "w-[92px]", "w-[150px]"]}
+        headers={HEADERS}
+      >
+        <tbody>
+          {rules.map((rule) => {
+            const editing = editingId === rule.id;
 
-              return (
-                <tr key={rule.id} className="border-b border-line2 last:border-0">
-                  <td className="px-5 py-2.5">
-                    <KindBadge kind={rule.kind} />
-                  </td>
+            return (
+              <tr key={rule.id} className="border-b border-line2 last:border-0">
+                <td className={cell(0)}>
+                  <KindBadge kind={rule.kind} />
+                </td>
 
-                  <td className="px-3 py-2.5 text-mut">
-                    {editing ? (
-                      <Input
-                        dense
-                        name="category"
-                        form="rule-edit-form"
-                        defaultValue={rule.category ?? ""}
-                        maxLength={50}
-                        aria-label={`${rule.label} 분류 수정`}
-                      />
-                    ) : (
-                      (rule.category ?? "—")
-                    )}
-                  </td>
+                <td className={`${cell(1)} text-mut`}>
+                  {editing ? (
+                    <Input
+                      dense
+                      name="category"
+                      form="rule-edit-form"
+                      defaultValue={rule.category ?? ""}
+                      maxLength={50}
+                      aria-label={`${rule.label} 분류 수정`}
+                    />
+                  ) : (
+                    (rule.category ?? "—")
+                  )}
+                </td>
 
-                  <td className={`px-3 py-2.5 font-semibold ${"text-ink"}`}>
-                    {editing ? (
-                      <Input
-                        dense
-                        name="label"
-                        form="rule-edit-form"
-                        defaultValue={rule.label}
-                        required
-                        maxLength={200}
-                        aria-label={`${rule.label} 항목명 수정`}
-                      />
-                    ) : (
-                      rule.label
-                    )}
-                  </td>
+                <td className={`${cell(2)} font-semibold text-ink`}>
+                  {editing ? (
+                    <Input
+                      dense
+                      name="label"
+                      form="rule-edit-form"
+                      defaultValue={rule.label}
+                      required
+                      maxLength={200}
+                      aria-label={`${rule.label} 항목명 수정`}
+                    />
+                  ) : (
+                    rule.label
+                  )}
+                </td>
 
-                  {/*
-                    부호는 종류가 정하며 고칠 수 없다. 수정 중에도 입력칸 앞에
-                    그대로 붙여 둔다 — 예전엔 편집을 시작하면 부호가 사라져서
-                    상점을 고치는지 벌점을 고치는지 화면에서 알 수 없었다.
-                  */}
-                  <td className={`px-3 py-2.5 font-bold ${"text-ink"}`}>
-                    <span className="flex items-center gap-1">
-                      <span aria-hidden className={kindColorClass(rule.kind)}>
-                        {meritKindSign(rule.kind)}
-                      </span>
-                      {editing ? (
-                        <Input
-                          dense
-                          name="points"
-                          form="rule-edit-form"
-                          defaultValue={String(rule.points)}
-                          inputMode="numeric"
-                          required
-                          className="w-16"
-                          aria-label={`${rule.label} 점수 수정 (${
-                            MERIT_KIND_LABELS[rule.kind as MeritKind]
-                          })`}
-                        />
-                      ) : (
-                        rule.points
-                      )}
+                {/*
+                  부호는 종류가 정하며 고칠 수 없다. 수정 중에도 입력칸 앞에
+                  그대로 붙여 둔다 — 예전엔 편집을 시작하면 부호가 사라져서
+                  상점을 고치는지 벌점을 고치는지 화면에서 알 수 없었다.
+                */}
+                <td className={`${cell(3)} font-bold text-ink`}>
+                  <span className="flex items-center gap-1">
+                    <span aria-hidden className={kindColorClass(rule.kind)}>
+                      {meritKindSign(rule.kind)}
                     </span>
-                  </td>
-
-                  <td className="px-5 py-2.5">
                     {editing ? (
-                      <div className="flex gap-2">
-                        <input type="hidden" name="ruleId" value={rule.id} form="rule-edit-form" />
-                        {/* 표에 없는 필드(설명)는 그대로 넘긴다 — 안 넘기면 zod가
-                            빈 값으로 받아 매번 수정할 때마다 설명이 사라진다. */}
-                        <input
-                          type="hidden"
-                          name="description"
-                          value={rule.description ?? ""}
-                          form="rule-edit-form"
-                        />
-                        <Button type="submit" form="rule-edit-form" size="sm" disabled={updating}>
-                          {updating ? "저장 중…" : "저장"}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => setEditingId(null)}
-                        >
-                          취소
-                        </Button>
-                      </div>
+                      <Input
+                        dense
+                        name="points"
+                        form="rule-edit-form"
+                        defaultValue={String(rule.points)}
+                        inputMode="numeric"
+                        required
+                        className="w-16"
+                        aria-label={`${rule.label} 점수 수정 (${
+                          MERIT_KIND_LABELS[rule.kind as MeritKind]
+                        })`}
+                      />
                     ) : (
-                      <div className="flex gap-2">
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => setEditingId(rule.id)}
-                        >
-                          수정
-                        </Button>
-                        <Button
-                          type="submit"
-                          form="rule-delete-form"
-                          name="ruleId"
-                          value={rule.id}
-                          variant="danger"
-                          size="sm"
-                          onClick={(e) => {
-                            if (
-                              !confirm(
-                                `"${rule.label}" 규정을 삭제합니다.\n\n` +
-                                  `· 목록과 부여 화면에서 사라집니다\n` +
-                                  `· 되돌리는 화면이 없습니다 (다시 쓰려면 새로 만들어야 합니다)\n` +
-                                  `· 이미 준 상벌점 기록은 그대로 남습니다`,
-                              )
-                            ) {
-                              e.preventDefault();
-                            }
-                          }}
-                        >
-                          삭제
-                        </Button>
-                      </div>
+                      rule.points
                     )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                  </span>
+                </td>
+
+                <td className={cell(4)}>
+                  {editing ? (
+                    <div className="flex gap-2">
+                      <input type="hidden" name="ruleId" value={rule.id} form="rule-edit-form" />
+                      {/* 표에 없는 필드(설명)는 그대로 넘긴다 — 안 넘기면 zod가
+                          빈 값으로 받아 매번 수정할 때마다 설명이 사라진다. */}
+                      <input
+                        type="hidden"
+                        name="description"
+                        value={rule.description ?? ""}
+                        form="rule-edit-form"
+                      />
+                      <Button type="submit" form="rule-edit-form" size="sm" disabled={updating}>
+                        {updating ? "저장 중…" : "저장"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setEditingId(null)}
+                      >
+                        취소
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setEditingId(rule.id)}
+                      >
+                        수정
+                      </Button>
+                      <Button
+                        type="submit"
+                        form="rule-delete-form"
+                        name="ruleId"
+                        value={rule.id}
+                        variant="danger"
+                        size="sm"
+                        onClick={(e) => {
+                          if (
+                            !confirm(
+                              `"${rule.label}" 규정을 삭제합니다.\n\n` +
+                                `· 목록과 부여 화면에서 사라집니다\n` +
+                                `· 되돌리는 화면이 없습니다 (다시 쓰려면 새로 만들어야 합니다)\n` +
+                                `· 이미 준 상벌점 기록은 그대로 남습니다`,
+                            )
+                          ) {
+                            e.preventDefault();
+                          }
+                        }}
+                      >
+                        삭제
+                      </Button>
+                    </div>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </TableFrame>
     </section>
   );
 }

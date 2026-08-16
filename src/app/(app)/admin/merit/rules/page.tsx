@@ -11,6 +11,10 @@ import {
   type MeritKind,
   type MeritTrack,
 } from "@/core/authz/merit-track";
+import { ChipLink } from "@/components/ui/chip-link";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SearchForm } from "@/components/ui/search-form";
+import { hrefWith } from "@/lib/search-params";
 import { filterRules } from "@/components/merit/rule-filter";
 import { listRules } from "@/modules/merit/rule.service";
 import { RuleForm } from "./rule-form";
@@ -18,24 +22,7 @@ import { RuleTable } from "./rule-table";
 
 export const metadata: Metadata = { title: "상벌점 규정" };
 
-type Params = Record<string, string | string[] | undefined>;
-
-/**
- * 지금 쿼리를 유지한 채 일부만 바꾼 주소. 종류 칩이 검색어·트랙을 잃지 않게 한다.
- * (/merit의 hrefWith와 같은 방식)
- */
-function hrefWith(params: Params, patch: Record<string, string | null>): string {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (typeof value === "string") query.set(key, value);
-  }
-  for (const [key, value] of Object.entries(patch)) {
-    if (value === null) query.delete(key);
-    else query.set(key, value);
-  }
-  const qs = query.toString();
-  return qs ? `/admin/merit/rules?${qs}` : "/admin/merit/rules";
-}
+const BASE_PATH = "/admin/merit/rules";
 
 export default async function RulesPage({
   searchParams,
@@ -64,57 +51,49 @@ export default async function RulesPage({
     <div className="mx-auto max-w-5xl space-y-4">
       <div className="flex items-center gap-2">
         {MERIT_TRACKS.map((t) => (
-          <Link
+          <ChipLink
             key={t}
             // 트랙을 바꾸면 검색 조건은 버린다 — 규정 목록이 트랙별로 아예 달라서
             // "교내에서 찾던 말"이 기숙사 탭에서 0건으로 남으면 빈 화면처럼 읽힌다.
             href={`/admin/merit/rules?track=${t}`}
-            className={
-              t === track
-                ? "rounded-full bg-pri px-4 py-2 text-[13px] font-bold text-white"
-                : "rounded-full border border-line bg-surface px-4 py-2 text-[13px] font-semibold text-mut hover:border-pri hover:text-pri"
-            }
+            active={t === track}
           >
             {MERIT_TRACK_LABELS[t]}
-          </Link>
+          </ChipLink>
         ))}
       </div>
 
       <RuleForm track={track} />
 
       <section className="rounded-card border border-line bg-surface p-4">
-        {/* GET 폼이라 검색 결과가 URL에 남는다 (/merit의 학생 검색과 같은 방식) */}
-        <form method="get" className="flex gap-2">
-          <input type="hidden" name="track" value={track} />
-          {kind && <input type="hidden" name="kind" value={kind} />}
-          <input
-            name="q"
-            defaultValue={q}
-            placeholder="항목명 또는 분류로 검색"
-            className="flex-1 rounded-field border border-line bg-surface px-3.5 py-2.5 text-sm"
-          />
-          <button
-            type="submit"
-            className="rounded-btn bg-pri px-4 py-2.5 text-[13px] font-bold text-white"
-          >
-            검색
-          </button>
-        </form>
+        {/* GET 폼이라 검색 결과가 URL에 남는다 (/merit의 학생 검색과 같은 방식).
+            지금 보고 있는 트랙·종류를 함께 실어 보내지 않으면 검색과 동시에
+            필터가 풀린다. */}
+        <SearchForm
+          defaultValue={q}
+          placeholder="항목명 또는 분류로 검색"
+          ariaLabel="규정 항목명 또는 분류 검색"
+          hidden={{ track, kind }}
+        />
 
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
           <span className="mr-1 text-[12px] font-semibold text-mut">종류</span>
-          <KindChip
-            href={hrefWith(raw, { kind: null })}
-            label="전체"
-            selected={kind === null}
-          />
+          <ChipLink
+            href={hrefWith(BASE_PATH, raw, { kind: null })}
+            active={kind === null}
+            size="sm"
+          >
+            전체
+          </ChipLink>
           {MERIT_KINDS.map((k) => (
-            <KindChip
+            <ChipLink
               key={k}
-              href={hrefWith(raw, { kind: k })}
-              label={MERIT_KIND_LABELS[k]}
-              selected={kind === k}
-            />
+              href={hrefWith(BASE_PATH, raw, { kind: k })}
+              active={kind === k}
+              size="sm"
+            >
+              {MERIT_KIND_LABELS[k]}
+            </ChipLink>
           ))}
         </div>
 
@@ -137,35 +116,10 @@ export default async function RulesPage({
       </section>
 
       {filtering && rules.length === 0 ? (
-        <div className="rounded-card border border-line bg-surface p-8 text-center text-[12.5px] text-mut">
-          조건에 맞는 규정이 없습니다.
-        </div>
+        <EmptyState>조건에 맞는 규정이 없습니다.</EmptyState>
       ) : (
         <RuleTable rules={rules} />
       )}
     </div>
-  );
-}
-
-function KindChip({
-  href,
-  label,
-  selected,
-}: {
-  href: string;
-  label: string;
-  selected: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      className={
-        selected
-          ? "rounded-full bg-pri px-3.5 py-1.5 text-[12.5px] font-bold text-white"
-          : "rounded-full border border-line bg-surface px-3.5 py-1.5 text-[12.5px] font-semibold text-mut hover:border-pri hover:text-pri"
-      }
-    >
-      {label}
-    </Link>
   );
 }
