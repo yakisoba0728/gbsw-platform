@@ -816,6 +816,97 @@ describe("getClassRoster", () => {
 });
 
 /**
+ * 검색 결과.
+ *
+ * **학적을 함께 내보낸다.** 부여는 학적을 안 본다 — 자퇴 처리 중인 학생에게도
+ * 기록할 일이 있어 일부러 막지 않았다. 그런데 졸업·자퇴 학생에게 준 벌점은 반
+ * 명단(status: ENROLLED만)과 통계 어디에도 안 나타나므로, 주는 사람이 그 사실을
+ * 미리 알 수 있어야 한다. 화면이 "졸업"·"자퇴"를 적을 재료를 여기서 낸다.
+ */
+describe("searchStudents", () => {
+  function found(over: Record<string, unknown> = {}) {
+    return {
+      id: "sp-1",
+      studentCode: "K7M2XQ4A",
+      user: { name: "김민준" },
+      enrollments: [
+        { number: 7, status: "ENROLLED", schoolClass: { grade: 2, classNo: 3 } },
+      ],
+      ...over,
+    };
+  }
+
+  it("재학생은 소속과 학적을 함께 낸다", async () => {
+    searchStudents.mockResolvedValue([found()]);
+
+    expect(await service.searchStudents(admin, "김민준")).toEqual([
+      {
+        studentProfileId: "sp-1",
+        studentCode: "K7M2XQ4A",
+        name: "김민준",
+        grade: 2,
+        classNo: 3,
+        number: 7,
+        status: "ENROLLED",
+      },
+    ]);
+  });
+
+  it("졸업생도 검색에 잡히고 학적이 함께 온다", async () => {
+    searchStudents.mockResolvedValue([
+      found({
+        enrollments: [
+          { number: 7, status: "GRADUATED", schoolClass: { grade: 3, classNo: 1 } },
+        ],
+      }),
+    ]);
+
+    const [row] = await service.searchStudents(admin, "김민준");
+    expect(row.status).toBe("GRADUATED");
+  });
+
+  /** 마지막 자리를 그대로 보이면 지금도 그 반인 것처럼 읽힌다. */
+  it("재학이 아니면 반·번호는 비운다", async () => {
+    searchStudents.mockResolvedValue([
+      found({
+        enrollments: [
+          { number: 7, status: "WITHDRAWN", schoolClass: { grade: 3, classNo: 1 } },
+        ],
+      }),
+    ]);
+
+    const [row] = await service.searchStudents(admin, "김민준");
+    expect(row).toEqual(
+      expect.objectContaining({ grade: null, classNo: null, number: null }),
+    );
+  });
+
+  it("그 학년도 재적 줄이 아예 없으면 학적은 null이다 — 반 미배정", async () => {
+    searchStudents.mockResolvedValue([found({ enrollments: [] })]);
+
+    const [row] = await service.searchStudents(admin, "김민준");
+    expect(row.status).toBeNull();
+    expect(row.grade).toBeNull();
+  });
+
+  it("현재 학년도 기준으로 찾는다", async () => {
+    await service.searchStudents(admin, "  김민준  ");
+
+    expect(searchStudents).toHaveBeenCalledWith("김민준", 2026);
+  });
+
+  it("빈 검색어는 조회하지 않는다", async () => {
+    expect(await service.searchStudents(admin, "   ")).toEqual([]);
+    expect(searchStudents).not.toHaveBeenCalled();
+  });
+
+  it("학생은 남을 검색할 수 없다", async () => {
+    await expect(service.searchStudents(student, "김")).rejects.toThrow("FORBIDDEN");
+    expect(searchStudents).not.toHaveBeenCalled();
+  });
+});
+
+/**
  * 학년도 선택지.
  *
  * 세 호출부가 서로 다른 근거로 studentProfileId를 얻는다 — 관리자는 URL 파라미터,

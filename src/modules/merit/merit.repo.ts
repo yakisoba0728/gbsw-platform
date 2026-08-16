@@ -484,10 +484,11 @@ export async function searchStudents(query: string, year: number) {
       id: true,
       studentCode: true,
       user: { select: { name: true } },
-      // 재학인 줄만 학급으로 쓴다. 졸업·전출 학생의 마지막 자리가 남아 있으면
-      // 검색 결과에 지금도 그 반인 것처럼 보인다.
+      // **학적으로 거르지 않는다.** 재학인 줄만 가져오면 졸업·자퇴 학생은 재적 줄이
+      // 통째로 빠져, 화면이 "반 미배정"과 "졸업"을 구분할 수 없다. 소속을 재학인
+      // 줄에서만 쓰는 규칙은 서비스가 지킨다 (findStudentHeader와 같은 방식).
       enrollments: {
-        where: { year, status: "ENROLLED" },
+        where: { year },
         take: 1,
         select: {
           number: true,
@@ -539,6 +540,12 @@ export async function isChildOf(
  * 학급을 스냅샷하지 않고 그때그때 조인한다. 반이 잘못 올라간 것을 나중에 고치면
  * 지난 상벌점 화면의 반 표시까지 함께 바로잡힌다 (설계서 "왜 Enrollment가 아니라
  * year인가" 참고).
+ *
+ * **학적(status)도 함께 낸다** — searchStudents와 같은 이유다. 졸업·자퇴 학생에게
+ * 준 벌점은 반 명단·통계에 안 나타나므로, 이 화면이 그 사실을 알려줄 유일한 자리다.
+ * 다만 소속은 재학 여부와 무관하게 그 학년도 줄 그대로 낸다 — 머리글은 학적을
+ * 나란히 적을 자리가 있어서 "3학년 1반 · 졸업"으로 읽히기 때문이다. 한 줄에
+ * 욱여넣는 검색 결과 쪽은 반대로 소속을 비운다.
  */
 export async function findStudentHeader(id: string, year: number) {
   const profile = await prisma.studentProfile.findFirst({

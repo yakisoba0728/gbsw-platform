@@ -442,7 +442,17 @@ export async function getClassRoster(
   });
 }
 
-/** 이름 또는 학생코드로 찾는다. 반·번호는 현재 학년도 기준으로 붙인다. */
+/**
+ * 이름 또는 학생코드로 찾는다. 반·번호·학적은 현재 학년도 기준이다.
+ *
+ * **학적(status)을 함께 낸다.** 부여는 학적을 보지 않는다 — 자퇴 처리 중인 학생에게도
+ * 기록할 일이 있어 일부러 막지 않았다. 그런데 졸업·자퇴 학생에게 준 벌점은 반
+ * 명단(재학만 센다)에도 통계에도 안 나타나서, 준 사람은 화면 어디서도 그 기록을 다시
+ * 만나지 못한다. 막는 대신 **주기 전에 보이게** 한다.
+ *
+ * 소속은 재학인 줄에서만 쓴다. 졸업생의 마지막 자리를 그대로 보이면 지금도 그 반인
+ * 것처럼 읽히기 때문이다 — 학적은 따로 내보내므로 화면이 "졸업"이라고 적을 수 있다.
+ */
 export async function searchStudents(actor: SessionUser, query: string) {
   await assertCan(actor, "merit:read:any");
 
@@ -454,13 +464,17 @@ export async function searchStudents(actor: SessionUser, query: string) {
 
   return rows.map((row) => {
     const enrollment = row.enrollments[0];
+    const enrolled = enrollment?.status === "ENROLLED" ? enrollment : null;
     return {
       studentProfileId: row.id,
       studentCode: row.studentCode,
       name: row.user.name,
-      grade: enrollment?.schoolClass?.grade ?? null,
-      classNo: enrollment?.schoolClass?.classNo ?? null,
-      number: enrollment?.number ?? null,
+      grade: enrolled?.schoolClass?.grade ?? null,
+      classNo: enrolled?.schoolClass?.classNo ?? null,
+      number: enrolled?.number ?? null,
+      // 그 학년도 재적 줄이 아예 없으면 null — 아직 아무 학적도 아니다
+      // (enrollment.repo.listByYear와 같은 표기).
+      status: enrollment?.status ?? null,
     };
   });
 }
