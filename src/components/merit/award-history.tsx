@@ -94,7 +94,11 @@ export function AwardHistory({
                       </span>
                     )}
                   </td>
-                  <td className="px-3 py-2.5 font-bold">
+                  <td
+                    className={`px-3 py-2.5 font-bold ${
+                      cancelled ? "text-mut" : kindColorClass(award.kind)
+                    }`}
+                  >
                     {signedPoints(award.kind, award.points)}
                   </td>
                   <td className="px-3 py-2.5 text-mut">{award.awardedByName}</td>

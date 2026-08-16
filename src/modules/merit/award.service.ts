@@ -3,11 +3,24 @@ import { recordAudit } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
 import { assertCan, ForbiddenError } from "@/core/authz/errors";
 import { isYearScoped, type MeritTrack } from "@/core/authz/merit-track";
+import {
+  categoryDistribution,
+  monthlyTotals,
+  rollingMonths,
+  schoolYearMonths,
+  type CategorySlice,
+  type MonthlyPoint,
+} from "./merit.chart";
 import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
 import { MeritError } from "./merit.error";
 import * as repo from "./merit.repo";
 import { BULK_AWARD_LIMIT } from "./merit.schema";
-import type { AwardInput, BulkAwardInput, CancelInput } from "./merit.schema";
+import type {
+  AwardInput,
+  BulkAwardInput,
+  CancelBatchInput,
+  CancelInput,
+} from "./merit.schema";
 
 /** 순점수 = 상점 + 상쇄점 − 벌점. 상쇄점은 벌점을 덜어내므로 순점수를 올린다. */
 export type MeritTotals = {
@@ -169,6 +182,53 @@ export async function cancelAward(
   });
 }
 
+/**
+ * 묶음 통째로 취소. 잘못 고른 항목으로 30명에게 줬을 때 한 명씩 30번 되돌리지
+ * 않게 한다 — 그 30번이 각각 다른 사유로 기록되면 나중에 읽을 수도 없다.
+ *
+ * 단건 취소와 같은 규칙을 따른다: 사유 필수, ACTIVE인 것만, 감사로그는 건별 1줄.
+ * 그 사이 누가 몇 건을 먼저 취소했으면 그건 건드리지 않는다.
+ */
+export async function cancelBatch(
+  actor: SessionUser,
+  input: CancelBatchInput,
+): Promise<{ count: number }> {
+  await assertCan(actor, "merit:cancel");
+
+  const awards = await repo.findBatch(input.batchId);
+  if (awards.length === 0) throw new MeritError("BATCH_NOT_FOUND");
+
+  const count = await repo.cancelBatch(input.batchId, {
+    userId: actor.id,
+    name: actor.name,
+    reason: input.reason,
+  });
+  if (count === 0) throw new MeritError("ALREADY_CANCELLED");
+
+  await Promise.all(
+    awards.map((award) =>
+      recordAudit({
+        actorUserId: actor.id,
+        actorName: actor.name,
+        action: "merit:cancel",
+        targetType: "MeritAward",
+        targetId: award.id,
+        metadata: {
+          studentProfileId: award.studentProfileId,
+          track: award.track,
+          kind: award.kind,
+          label: award.label,
+          points: award.points,
+          reason: input.reason,
+          batchId: input.batchId,
+        },
+      }),
+    ),
+  );
+
+  return { count };
+}
+
 /** 관리자가 보는 한 학생의 트랙별 현황. */
 export async function getStudentMerit(
   actor: SessionUser,
@@ -259,16 +319,20 @@ export async function bulkAwardMerit(
   if (ids.length > BULK_AWARD_LIMIT) throw new MeritError("TOO_MANY_STUDENTS");
 
   // DB에 쓰기 전에 전부 확인한다 — 절반만 들어가는 상태를 만들지 않는다.
-  const students = await Promise.all(ids.map((id) => repo.findStudentProfileById(id)));
-  const missing = students.some((s) => s === null);
-  if (missing) throw new MeritError("STUDENT_NOT_FOUND");
+  // 한 번에 조회한다: 예전엔 학생 수만큼 순차 왕복(최대 100회)이었다.
+  const found = await repo.findStudentProfilesByIds(ids);
+  if (found.length !== ids.length) throw new MeritError("STUDENT_NOT_FOUND");
+
+  // 넘어온 순서를 지킨다 — 감사로그를 이 순서로 남기므로 화면 선택 순서와 맞는다.
+  const byId = new Map(found.map((s) => [s.id, s]));
+  const students = ids.map((id) => byId.get(id)!);
 
   const year = await getCurrentYear();
   const batchId = randomUUID();
 
   const created = await repo.createAwards(
     students.map((student) => ({
-      studentProfileId: student!.id,
+      studentProfileId: student.id,
       year,
       ruleId: rule.id,
       track: rule.track,
@@ -283,26 +347,29 @@ export async function bulkAwardMerit(
   );
 
   // 커밋된 뒤에 기록한다. 감사 실패가 부여를 되돌리지는 않는다 (core/audit 규약).
-  for (const [index, row] of created.entries()) {
-    const student = students[index]!;
-    await recordAudit({
-      actorUserId: actor.id,
-      actorName: actor.name,
-      action: "merit:award",
-      targetType: "MeritAward",
-      targetId: row.id,
-      metadata: {
-        studentProfileId: student.id,
-        studentName: student.user.name,
-        year,
-        track: rule.track,
-        kind: rule.kind,
-        label: rule.label,
-        points: rule.points,
-        batchId,
-      },
-    });
-  }
+  // 감사 기록은 서로 독립이라 함께 보낸다. 건별 1줄이라는 규칙은 그대로다.
+  await Promise.all(
+    created.map((row, index) => {
+      const student = students[index];
+      return recordAudit({
+        actorUserId: actor.id,
+        actorName: actor.name,
+        action: "merit:award",
+        targetType: "MeritAward",
+        targetId: row.id,
+        metadata: {
+          studentProfileId: student.id,
+          studentName: student.user.name,
+          year,
+          track: rule.track,
+          kind: rule.kind,
+          label: rule.label,
+          points: rule.points,
+          batchId,
+        },
+      });
+    }),
+  );
 
   return { count: created.length };
 }
@@ -419,6 +486,10 @@ export async function getChildMerit(
 // ── 통계 ──────────────────────────────────────────────────────
 
 export type MeritStats = {
+  /** 월별 추이 축 설명 — 교내는 학년도(3월~2월), 기숙사는 최근 12개월. */
+  axisLabel: string;
+  monthly: MonthlyPoint[];
+  categories: CategorySlice[];
   track: MeritTrack;
   /** 교내면 보고 있는 학년도, 기숙사면 null(전체 누적). */
   year: number | null;
@@ -436,6 +507,8 @@ export async function getMeritStats(
   actor: SessionUser,
   track: MeritTrack,
   year?: number,
+  /** 최근 12개월 축의 기준 시각. 인자로 받아야 테스트가 날짜에 안 흔들린다. */
+  now: Date = new Date(),
 ): Promise<MeritStats> {
   await assertCan(actor, "merit:read:any");
 
@@ -445,10 +518,18 @@ export async function getMeritStats(
   const scoped = await scopeYear(track, year);
   const rosterYear = year ?? (await getCurrentYear());
 
-  const [totalRows, classes, topRules] = await Promise.all([
+  // 기숙사는 누적이라 학년도 경계가 없다 — 최근 12개월만 그린다. 그렇지 않으면
+  // 3학년 학생이 있는 해에는 축이 3년치로 늘어나 아무것도 안 보인다.
+  const axis = isYearScoped(track)
+    ? schoolYearMonths(scoped ?? rosterYear)
+    : rollingMonths(now);
+  const since = isYearScoped(track) ? undefined : monthStart(axis[0].key);
+
+  const [totalRows, classes, topRules, chartAwards] = await Promise.all([
     repo.trackTotals({ track, totalsYear: scoped }),
     repo.classSummaries({ year: rosterYear, track, totalsYear: scoped }),
     repo.topRules({ track, totalsYear: scoped, limit: TOP_RULE_LIMIT }),
+    repo.listAwardsForChart({ track, year: scoped, since }),
   ]);
 
   const totals = sumTotals(totalRows);
@@ -458,8 +539,30 @@ export async function getMeritStats(
     track,
     year: scoped,
     rosterYear,
+    axisLabel: isYearScoped(track)
+      ? `${scoped ?? rosterYear}학년도 (3월~이듬해 2월)`
+      : "최근 12개월 (누적)",
+    monthly: monthlyTotals(chartAwards, axis),
+    categories: categoryDistribution(chartAwards),
     totals: { ...totals, awardCount },
     classes,
     topRules,
   };
 }
+
+/** `2026-03` → 그 달 1일 00:00 KST. 조회 하한으로 쓴다. */
+function monthStart(key: string): Date {
+  const [year, month] = key.split("-");
+  return new Date(`${year}-${month}-01T00:00:00+09:00`);
+}
+
+/**
+ * 최근 부여 흐름. "오늘 무슨 일이 있었나"를 훑는 용도라 취소된 것도 보여준다 —
+ * 취소 역시 일어난 일이고, 빠지면 목록이 조용히 짧아져 더 헷갈린다.
+ */
+export async function listRecentAwards(actor: SessionUser, track: MeritTrack) {
+  await assertCan(actor, "merit:read:any");
+  return repo.listRecentAwards({ track, limit: RECENT_AWARD_LIMIT });
+}
+
+const RECENT_AWARD_LIMIT = 30;

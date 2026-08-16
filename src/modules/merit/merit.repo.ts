@@ -611,3 +611,132 @@ export async function trackTotals(params: {
     _sum: { points: true },
   });
 }
+
+// ── 그래프용 조회 ─────────────────────────────────────────────
+
+/**
+ * 그래프에 쓸 원자료. 부여 시각·종류·점수·규정만 가져와 애플리케이션에서 묶는다.
+ *
+ * Prisma의 groupBy로는 월 단위로 자를 수 없고(date_trunc를 못 쓴다), 무엇보다
+ * **월 구분은 KST 기준이어야 한다** — UTC로 자르면 밤 9시 이후 부여가 전날로
+ * 밀린다. 전교 300명 한 학년도면 수천 행 규모라 애플리케이션에서 묶어도 된다.
+ *
+ * ruleId를 함께 가져오는 이유: 부여 기록은 label·points만 스냅샷하고 **분류는
+ * 스냅샷하지 않는다.** 분류별 분포를 내려면 규정 쪽에서 가져와야 한다
+ * (규정 행은 지우지 않으므로 항상 이어진다).
+ */
+export async function listAwardsForChart(params: {
+  track: MeritTrack;
+  year: number | null;
+  /** 이 시각 이후만. 기숙사(누적)의 최근 12개월을 자를 때 쓴다. */
+  since?: Date;
+}) {
+  return prisma.meritAward.findMany({
+    where: {
+      track: params.track,
+      status: "ACTIVE",
+      ...(params.year === null ? {} : { year: params.year }),
+      ...(params.since ? { createdAt: { gte: params.since } } : {}),
+    },
+    select: {
+      createdAt: true,
+      kind: true,
+      points: true,
+      rule: { select: { category: true } },
+    },
+  });
+}
+
+/**
+ * 최근 부여 흐름. "오늘 무슨 일이 있었나"를 한 눈에 보는 용도라
+ * 취소된 것도 포함한다 — 취소 역시 일어난 일이다.
+ */
+export async function listRecentAwards(params: { track: MeritTrack; limit: number }) {
+  const rows = await prisma.meritAward.findMany({
+    where: { track: params.track },
+    orderBy: { createdAt: "desc" },
+    take: params.limit,
+    select: {
+      id: true,
+      kind: true,
+      label: true,
+      points: true,
+      status: true,
+      awardedByName: true,
+      createdAt: true,
+      batchId: true,
+      studentProfile: {
+        select: { id: true, user: { select: { name: true } } },
+      },
+    },
+  });
+
+  return rows.map((row) => ({
+    id: row.id,
+    kind: row.kind,
+    label: row.label,
+    points: row.points,
+    status: row.status,
+    awardedByName: row.awardedByName,
+    createdAt: row.createdAt,
+    batchId: row.batchId,
+    studentProfileId: row.studentProfile.id,
+    studentName: row.studentProfile.user.name,
+  }));
+}
+
+// ── 일괄 취소 ─────────────────────────────────────────────────
+
+/** 한 묶음에 속한, 아직 살아 있는 기록들. 일괄 취소가 무엇을 지울지 미리 센다. */
+export async function findBatch(batchId: string) {
+  return prisma.meritAward.findMany({
+    where: { batchId, status: "ACTIVE" },
+    select: {
+      id: true,
+      studentProfileId: true,
+      track: true,
+      kind: true,
+      label: true,
+      points: true,
+    },
+  });
+}
+
+/**
+ * 묶음 통째로 취소. **ACTIVE인 것만 고친다** — 단건 취소와 같은 이유로,
+ * 그 사이 누가 몇 건을 먼저 취소했어도 그 사람의 사유를 덮지 않는다.
+ * 실제로 고친 수를 돌려준다.
+ */
+export async function cancelBatch(
+  batchId: string,
+  by: { userId: string; name: string; reason: string },
+): Promise<number> {
+  const result = await prisma.meritAward.updateMany({
+    where: { batchId, status: "ACTIVE" },
+    data: {
+      status: "CANCELLED",
+      cancelledByUserId: by.userId,
+      cancelledByName: by.name,
+      cancelledAt: new Date(),
+      cancelReason: by.reason,
+    },
+  });
+  return result.count;
+}
+
+/**
+ * 여러 학생을 한 번에 찾는다. 일괄 부여가 쓴다 —
+ * 예전엔 학생 수만큼(최대 100회) 순차로 왕복했다.
+ *
+ * 못 찾은 id가 있으면 결과 길이가 줄어든다. 호출부가 길이로 판별한다.
+ */
+export async function findStudentProfilesByIds(ids: string[]) {
+  return prisma.studentProfile.findMany({
+    where: { id: { in: ids }, user: { deletedAt: null } },
+    select: {
+      id: true,
+      studentCode: true,
+      user: { select: { id: true, name: true } },
+    },
+  });
+}

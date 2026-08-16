@@ -165,11 +165,19 @@ export default async function StudentMeritPage({
 
           <AwardHistory awards={view.awards} canCancel studentProfileId={studentId} />
 
-          <ExportHistoryButton
-            studentProfileId={studentId}
-            track={track}
-            year={year}
-          />
+          <div className="flex flex-wrap gap-2">
+            <ExportHistoryButton
+              studentProfileId={studentId}
+              track={track}
+              year={year}
+            />
+            <Link
+              href={`/merit/students/${studentId}/print?track=${track}${year ? `&year=${year}` : ""}`}
+              className="inline-flex items-center rounded-btn border border-line bg-surface px-3.5 py-2 text-[13px] font-semibold text-mut hover:border-pri hover:text-pri"
+            >
+              확인서 보기
+            </Link>
+          </div>
         </>
       )}
     </div>

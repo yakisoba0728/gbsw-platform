@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import type { MeritTrack } from "@/core/authz/merit-track";
 import { RuleOptions, type RuleOption } from "@/components/merit/rule-options";
+import { demeritCellClass, ThresholdHint } from "@/components/merit/demerit-level";
 import { EMPTY_MERIT_STATE } from "./action-state";
 import { bulkAwardAction } from "./actions";
 import { ExportButton } from "./export-button";
@@ -105,6 +106,9 @@ export function ClassRoster({
             </h2>
             <span className="text-[12px] text-mut">{rows.length}명</span>
           </div>
+          <div className="hidden lg:block">
+            <ThresholdHint track={track} />
+          </div>
           <ExportButton grade={grade} classNo={classNo} track={track} year={year} />
         </header>
 
@@ -175,7 +179,11 @@ export function ClassRoster({
                     </a>
                   </td>
                   <td className="px-3 py-2.5 font-bold text-blue">{row.merit}</td>
-                  <td className="px-3 py-2.5 font-bold text-rose">{row.demerit}</td>
+                  <td className="px-3 py-2.5">
+                    <span className={demeritCellClass(track, row.demerit)}>
+                      {row.demerit}
+                    </span>
+                  </td>
                   <td
                     className={`px-3 py-2.5 font-bold ${row.offset === 0 ? "text-mut2" : "text-green"}`}
                   >

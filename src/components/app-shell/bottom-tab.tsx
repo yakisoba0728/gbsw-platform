@@ -11,7 +11,7 @@ export function BottomTab({ role }: { role: Role | null }) {
   const items = visibleItems(NAV_ITEMS, role);
 
   return (
-    <nav className="flex flex-none border-t border-line bg-surface px-1.5 pt-2 pb-3 lg:hidden">
+    <nav className="flex flex-none border-t border-line bg-surface px-1.5 pt-2 pb-3 lg:hidden print:hidden">
       {items.map((item) => {
         const active = isActive(pathname, item.href);
         const Icon = item.icon;

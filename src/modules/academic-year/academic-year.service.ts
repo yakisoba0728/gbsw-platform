@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { recordAudit } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
 import { assertCan } from "@/core/authz/errors";
@@ -11,12 +12,17 @@ export class AcademicYearError extends Error {}
  *
  * 없으면 던진다. null로 넘기면 소속 조회가 전부 빈 결과를 내면서
  * "학생이 아무 반에도 없다"처럼 보이는데, 원인이 화면에 드러나지 않는다.
+ *
+ * **한 요청 안에서는 한 번만 조회한다** (React cache). 상벌점 화면 하나가
+ * 이 함수를 3~5번 부른다 — 합계 범위 계산, 학생 머리글, 과거 학년도 판정이
+ * 각자 부른다. 같은 요청 안에서 값이 바뀔 일이 없으므로 왕복을 줄인다.
+ * 요청이 끝나면 캐시도 사라져서 학년도를 바꾼 직후 화면이 옛 값을 보지 않는다.
  */
-export async function getCurrentYear(): Promise<number> {
+export const getCurrentYear = cache(async (): Promise<number> => {
   const current = await repo.findCurrent();
   if (!current) throw new AcademicYearError("NO_CURRENT_YEAR");
   return current.year;
-}
+});
 
 export async function listYears(actor: SessionUser) {
   await assertCan(actor, "academic-year:manage");

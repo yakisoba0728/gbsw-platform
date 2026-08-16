@@ -9,6 +9,7 @@ const listAwards = vi.fn();
 const totals = vi.fn();
 const findStudentProfileByUserId = vi.fn();
 const findStudentProfileById = vi.fn();
+const findStudentProfilesByIds = vi.fn();
 const recordAudit = vi.fn();
 const getCurrentYear = vi.fn();
 const createAwards = vi.fn();
@@ -26,6 +27,7 @@ vi.mock("@/modules/merit/merit.repo", () => ({
   totals,
   findStudentProfileByUserId,
   findStudentProfileById,
+  findStudentProfilesByIds,
   createAwards,
   listClassRoster,
   searchStudents,
@@ -95,6 +97,12 @@ beforeEach(() => {
     studentCode: "K7M2XQ4A",
     user: { id: "u-1", name: "김민준" },
   });
+  // 일괄 부여는 한 번에 조회한다 — 넘긴 id 전부를 찾은 것으로 기본 설정한다.
+  findStudentProfilesByIds
+    .mockReset()
+    .mockImplementation(async (ids: string[]) =>
+      ids.map((id) => ({ id, studentCode: "CODE", user: { id: `u-${id}`, name: `학생${id}` } })),
+    );
   recordAudit.mockReset().mockResolvedValue(undefined);
   createAwards.mockReset().mockResolvedValue([{ id: "a-1" }, { id: "a-2" }]);
   listClassRoster.mockReset().mockResolvedValue([]);
@@ -395,14 +403,6 @@ describe("bulkAwardMerit", () => {
     note: null,
   };
 
-  beforeEach(() => {
-    findStudentProfileById.mockImplementation(async (id: string) => ({
-      id,
-      studentCode: "CODE",
-      user: { id: `u-${id}`, name: `학생${id}` },
-    }));
-  });
-
   it("한 번에 여러 건을 넣고 같은 batchId로 묶는다", async () => {
     await service.bulkAwardMerit(admin, bulk);
 
@@ -426,14 +426,23 @@ describe("bulkAwardMerit", () => {
   });
 
   it("한 명이라도 없는 학생이면 아무것도 넣지 않는다", async () => {
-    findStudentProfileById.mockImplementation(async (id: string) =>
-      id === "sp-2" ? null : { id, studentCode: "C", user: { id: "u", name: "n" } },
-    );
+    // 한 번에 조회하므로 "못 찾음"은 결과 길이가 모자란 것으로 나타난다.
+    findStudentProfilesByIds.mockResolvedValue([
+      { id: "sp-1", studentCode: "C", user: { id: "u", name: "n" } },
+    ]);
 
     await expect(service.bulkAwardMerit(admin, bulk)).rejects.toThrow(
       "STUDENT_NOT_FOUND",
     );
     expect(createAwards).not.toHaveBeenCalled();
+  });
+
+  it("학생 조회는 한 번만 한다 — 예전엔 인원수만큼 순차로 돌았다", async () => {
+    await service.bulkAwardMerit(admin, bulk);
+
+    expect(findStudentProfilesByIds).toHaveBeenCalledTimes(1);
+    expect(findStudentProfilesByIds).toHaveBeenCalledWith(["sp-1", "sp-2"]);
+    expect(findStudentProfileById).not.toHaveBeenCalled();
   });
 
   it("중복 선택은 한 번만 들어간다", async () => {
