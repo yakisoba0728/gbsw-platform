@@ -19,6 +19,8 @@ const listClassRoster = vi.fn();
 const searchStudents = vi.fn();
 const listChildren = vi.fn();
 const isChildOf = vi.fn();
+const findBatch = vi.fn();
+const cancelAwards = vi.fn();
 
 vi.mock("@/modules/merit/merit.repo", () => ({
   findRule,
@@ -35,6 +37,8 @@ vi.mock("@/modules/merit/merit.repo", () => ({
   searchStudents,
   listChildren,
   isChildOf,
+  findBatch,
+  cancelAwards,
 }));
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
 vi.mock("@/modules/academic-year/academic-year.service", () => ({
@@ -111,7 +115,41 @@ beforeEach(() => {
   searchStudents.mockReset().mockResolvedValue([]);
   listChildren.mockReset().mockResolvedValue([]);
   isChildOf.mockReset().mockResolvedValue(true);
+  findBatch.mockReset().mockResolvedValue(BATCH_AWARDS);
+  // 실제로 취소된 것의 id만 돌려준다 — 기본은 넘긴 것 전부가 취소된 경우다.
+  cancelAwards.mockReset().mockImplementation(async (ids: string[]) => ids);
 });
+
+/** 한 묶음에 속한 살아 있는 기록 셋. 학생이 서로 다르다는 것이 요점이다. */
+const BATCH_AWARDS = [
+  {
+    id: "a-1",
+    studentProfileId: "sp-1",
+    track: "DORM",
+    kind: "DEMERIT",
+    label: "점호 지각",
+    points: 3,
+    studentProfile: { user: { name: "김민준" } },
+  },
+  {
+    id: "a-2",
+    studentProfileId: "sp-2",
+    track: "DORM",
+    kind: "DEMERIT",
+    label: "점호 지각",
+    points: 3,
+    studentProfile: { user: { name: "이서연" } },
+  },
+  {
+    id: "a-3",
+    studentProfileId: "sp-3",
+    track: "DORM",
+    kind: "DEMERIT",
+    label: "점호 지각",
+    points: 3,
+    studentProfile: { user: { name: "박도윤" } },
+  },
+];
 
 /**
  * 발생일은 2026학년도(2026-03-01 ~ 2027-02-28) 안이고 NOW보다 앞이다.
@@ -405,6 +443,134 @@ describe("cancelAward", () => {
     expect(cancelLogs).toHaveLength(0);
   });
 });
+
+/**
+ * 묶음 취소.
+ *
+ * 사감이 28명에게 일괄 부여한 뒤 되돌리는 경로다. **감사로그가 유일한 근거**이므로
+ * ("관리자면 누구나 취소할 수 있다"는 결정이 여기 기대고 있다) 두 가지가 성립해야 한다 —
+ * 줄마다 누구 기록인지 알 수 있어야 하고, 실제로 취소된 것에만 남아야 한다.
+ */
+describe("cancelBatch", () => {
+  const batchInput = { batchId: "batch-1", reason: "항목을 잘못 골랐음" };
+
+  it("취소한 사람과 사유가 기록에 박힌다", async () => {
+    await service.cancelBatch(admin, batchInput);
+
+    expect(cancelAwards).toHaveBeenCalledWith(["a-1", "a-2", "a-3"], {
+      userId: admin.id,
+      name: admin.name,
+      reason: "항목을 잘못 골랐음",
+    });
+  });
+
+  it("돌려주는 건수가 실제로 취소된 수다", async () => {
+    expect(await service.cancelBatch(admin, batchInput)).toEqual({ count: 3 });
+  });
+
+  it("없는 묶음은 BATCH_NOT_FOUND — 아무것도 고치지 않는다", async () => {
+    findBatch.mockResolvedValue([]);
+
+    await expect(service.cancelBatch(admin, batchInput)).rejects.toThrow(
+      "BATCH_NOT_FOUND",
+    );
+    expect(cancelAwards).not.toHaveBeenCalled();
+  });
+
+  it("학생은 묶음을 취소할 수 없다", async () => {
+    await expect(service.cancelBatch(student, batchInput)).rejects.toThrow(
+      "FORBIDDEN",
+    );
+    expect(cancelAwards).not.toHaveBeenCalled();
+  });
+
+  it("감사로그는 건별 1줄이다", async () => {
+    await service.cancelBatch(admin, batchInput);
+
+    expect(cancelLogs()).toHaveLength(3);
+  });
+
+  /**
+   * 28줄이 전부 `기숙사 · 벌점 3점 · 점호 지각`으로 똑같으면 누구 기록이 뒤집혔는지
+   * 로그만 보고는 알 수 없다. 단건 취소는 정확히 이 이유로 이름을 남긴다.
+   */
+  it("줄마다 학생 이름이 남는다 — 묶음이면 나머지 값이 전부 같다", async () => {
+    await service.cancelBatch(admin, batchInput);
+
+    expect(cancelLogs().map((log) => log.metadata.studentName)).toEqual([
+      "김민준",
+      "이서연",
+      "박도윤",
+    ]);
+  });
+
+  it("줄마다 그 학생의 id·묶음·사유가 남는다", async () => {
+    await service.cancelBatch(admin, batchInput);
+
+    expect(cancelLogs()[1]).toEqual(
+      expect.objectContaining({
+        actorUserId: admin.id,
+        action: "merit:cancel",
+        targetType: "MeritAward",
+        targetId: "a-2",
+        metadata: expect.objectContaining({
+          studentProfileId: "sp-2",
+          studentName: "이서연",
+          track: "DORM",
+          kind: "DEMERIT",
+          label: "점호 지각",
+          points: 3,
+          reason: "항목을 잘못 골랐음",
+          batchId: "batch-1",
+        }),
+      }),
+    );
+  });
+
+  /**
+   * 사전 조회와 갱신 사이에 누가 몇 건을 단건으로 취소할 수 있다. 그때 조회한
+   * 건수로 로그를 남기면 "내가 취소했다"가 거짓인 줄이 섞인다 — 단건 경로는
+   * `cancelled === 0` 검사로 정확히 이걸 막는다.
+   */
+  it("그 사이 남이 먼저 취소한 건에는 로그를 남기지 않는다", async () => {
+    // 조회는 3건인데 실제로는 2건만 뒤집혔다 (a-2는 남이 먼저 취소).
+    cancelAwards.mockResolvedValue(["a-1", "a-3"]);
+
+    const result = await service.cancelBatch(admin, batchInput);
+
+    expect(result).toEqual({ count: 2 });
+    expect(cancelLogs().map((log) => log.targetId)).toEqual(["a-1", "a-3"]);
+    expect(cancelLogs().map((log) => log.metadata.studentName)).toEqual([
+      "김민준",
+      "박도윤",
+    ]);
+  });
+
+  it("그 사이 전부 취소됐으면 실패하고 감사로그를 남기지 않는다", async () => {
+    cancelAwards.mockResolvedValue([]);
+
+    await expect(service.cancelBatch(admin, batchInput)).rejects.toThrow(
+      MeritError,
+    );
+    await expect(service.cancelBatch(admin, batchInput)).rejects.toThrow(
+      "ALREADY_CANCELLED",
+    );
+
+    expect(cancelLogs()).toHaveLength(0);
+  });
+
+  it("남이 준 묶음도 관리자면 취소할 수 있다", async () => {
+    await service.cancelBatch(other, batchInput);
+    expect(cancelAwards).toHaveBeenCalled();
+  });
+});
+
+/** 취소 감사로그만 골라낸다. */
+function cancelLogs() {
+  return recordAudit.mock.calls
+    .map(([arg]) => arg)
+    .filter((arg) => arg.action === "merit:cancel");
+}
 
 describe("합계 범위 — 이 모듈의 핵심", () => {
   beforeEach(() => {

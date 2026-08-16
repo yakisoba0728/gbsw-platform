@@ -233,35 +233,46 @@ export async function cancelBatch(
   const awards = await repo.findBatch(input.batchId);
   if (awards.length === 0) throw new MeritError("BATCH_NOT_FOUND");
 
-  const count = await repo.cancelBatch(input.batchId, {
-    userId: actor.id,
-    name: actor.name,
-    reason: input.reason,
-  });
-  if (count === 0) throw new MeritError("ALREADY_CANCELLED");
-
-  await Promise.all(
-    awards.map((award) =>
-      recordAudit({
-        actorUserId: actor.id,
-        actorName: actor.name,
-        action: "merit:cancel",
-        targetType: "MeritAward",
-        targetId: award.id,
-        metadata: {
-          studentProfileId: award.studentProfileId,
-          track: award.track,
-          kind: award.kind,
-          label: award.label,
-          points: award.points,
-          reason: input.reason,
-          batchId: input.batchId,
-        },
-      }),
+  // 조회와 갱신 사이에 남이 몇 건을 단건으로 취소할 수 있다. repo는 **실제로
+  // 뒤집힌 것의 id만** 돌려주고, 감사로그는 그것들에만 남긴다 — 조회한 건수로
+  // 남기면 남이 취소한 건까지 "내가 취소했다"로 기록된다. 단건 경로의
+  // `cancelled === 0` 검사가 막는 것과 같은 거짓이며, 묶음에서는 그 거짓이
+  // 전부가 아니라 몇 줄만 섞여 들어와 더 알아채기 어렵다.
+  const cancelled = new Set(
+    await repo.cancelAwards(
+      awards.map((award) => award.id),
+      { userId: actor.id, name: actor.name, reason: input.reason },
     ),
   );
+  if (cancelled.size === 0) throw new MeritError("ALREADY_CANCELLED");
 
-  return { count };
+  await Promise.all(
+    awards
+      .filter((award) => cancelled.has(award.id))
+      .map((award) =>
+        recordAudit({
+          actorUserId: actor.id,
+          actorName: actor.name,
+          action: "merit:cancel",
+          targetType: "MeritAward",
+          targetId: award.id,
+          metadata: {
+            studentProfileId: award.studentProfileId,
+            // 묶음은 트랙·종류·점수·항목이 전부 같다 — 이름이 없으면 28줄이
+            // 완전히 동일해져 누구 기록이 뒤집혔는지 로그만으로는 알 수 없다.
+            studentName: award.studentProfile.user.name,
+            track: award.track,
+            kind: award.kind,
+            label: award.label,
+            points: award.points,
+            reason: input.reason,
+            batchId: input.batchId,
+          },
+        }),
+      ),
+  );
+
+  return { count: cancelled.size };
 }
 
 /** 관리자가 보는 한 학생의 트랙별 현황. */

@@ -783,6 +783,8 @@ export async function listRecentAwards(params: { track: MeritTrack; limit: numbe
 export async function findBatch(batchId: string) {
   return prisma.meritAward.findMany({
     where: { batchId, status: "ACTIVE" },
+    // 순서를 고정한다 — 감사로그를 이 순서로 남기므로 매번 같아야 읽기 좋다.
+    orderBy: { createdAt: "asc" },
     select: {
       id: true,
       studentProfileId: true,
@@ -790,30 +792,45 @@ export async function findBatch(batchId: string) {
       kind: true,
       label: true,
       points: true,
+      // 단건 취소(findAward)와 같은 이유로 이름을 함께 가져온다. 없으면 28명
+      // 묶음의 감사로그 28줄이 전부 똑같아져 누구 기록이 뒤집혔는지 구분되지 않는다.
+      studentProfile: { select: { user: { select: { name: true } } } },
     },
   });
 }
 
 /**
- * 묶음 통째로 취소. **ACTIVE인 것만 고친다** — 단건 취소와 같은 이유로,
- * 그 사이 누가 몇 건을 먼저 취소했어도 그 사람의 사유를 덮지 않는다.
- * 실제로 고친 수를 돌려준다.
+ * 여러 건을 한 번에 취소하고 **실제로 고친 것의 id만** 돌려준다.
+ *
+ * **묶음(batchId)이 아니라 id 목록을 받는다.** 호출부는 미리 조회한 목록을 근거로
+ * 감사로그를 남기는데, 갱신 범위가 그 목록과 다르면 로그와 실제가 어긋난다 —
+ * 목록에 없던 행이 뒤집히면 이름 없는 취소가 되고, 목록에 있던 행이 그 사이 남에게
+ * 취소되면 "내가 취소했다"는 거짓 줄이 남는다. id로 좁히고 결과를 돌려주면 둘 다 없다.
+ *
+ * **ACTIVE인 것만 고친다** — 단건 취소와 같은 이유로, 먼저 취소한 사람의
+ * 이름·사유·시각을 덮지 않는다.
  */
-export async function cancelBatch(
-  batchId: string,
+export async function cancelAwards(
+  ids: string[],
   by: { userId: string; name: string; reason: string },
-): Promise<number> {
-  const result = await prisma.meritAward.updateMany({
-    where: { batchId, status: "ACTIVE" },
+): Promise<string[]> {
+  if (ids.length === 0) return [];
+
+  const rows = await prisma.meritAward.updateManyAndReturn({
+    where: { id: { in: ids }, status: "ACTIVE" },
     data: {
       status: "CANCELLED",
       cancelledByUserId: by.userId,
       cancelledByName: by.name,
+      // 한 번의 취소는 한 시각이다 — 행마다 new Date()를 부르면 같은 작업이
+      // 밀리초 단위로 흩어져 로그를 시각으로 묶을 수 없다.
       cancelledAt: new Date(),
       cancelReason: by.reason,
     },
+    select: { id: true },
   });
-  return result.count;
+
+  return rows.map((row) => row.id);
 }
 
 /**

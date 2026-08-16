@@ -213,6 +213,110 @@ describe("service.bulkAwardMerit — 실제 경로", () => {
   });
 });
 
+/**
+ * 묶음 취소 — 감사로그가 실제와 어긋나지 않는지.
+ *
+ * 목으로는 확인할 수 없는 부분이 둘이다. `updateManyAndReturn`이 정말로 **고친 행만**
+ * 돌려주는지, 그리고 그 사이 남이 먼저 취소한 행을 건드리지 않는지. 이 둘이 무너지면
+ * "관리자면 누구나 취소할 수 있다"를 떠받치는 감사로그가 거짓을 담는다.
+ */
+describe("service.cancelBatch — 실제 경로", () => {
+  async function makeBatch(suffix: string, count: number) {
+    const ruleId = await makeRule({
+      track: "DORM",
+      kind: "DEMERIT",
+      label: `묶음취소 ${suffix}`,
+      points: 3,
+    });
+    const students: string[] = [];
+    for (let i = 0; i < count; i += 1) {
+      students.push(await makeStudent(`${suffix}${i}`));
+    }
+
+    await service.bulkAwardMerit(
+      admin,
+      { studentProfileIds: students, ruleId, occurredOn: OCCURRED_ON, note: null },
+      NOW,
+    );
+
+    const rows = await prisma.meritAward.findMany({
+      where: { ruleId },
+      orderBy: { createdAt: "asc" },
+    });
+    return { batchId: rows[0].batchId!, awardIds: rows.map((r) => r.id), ruleId };
+  }
+
+  it("묶음을 통째로 취소한다", async () => {
+    const { batchId, awardIds } = await makeBatch("bc", 3);
+
+    expect(await service.cancelBatch(admin, { batchId, reason: "항목 오선택" })).toEqual({
+      count: 3,
+    });
+
+    const rows = await prisma.meritAward.findMany({ where: { id: { in: awardIds } } });
+    expect(rows.every((r) => r.status === "CANCELLED")).toBe(true);
+    expect(rows.every((r) => r.cancelReason === "항목 오선택")).toBe(true);
+  });
+
+  it("그 사이 남이 먼저 취소한 건은 건드리지 않고 세지도 않는다", async () => {
+    const { batchId, awardIds } = await makeBatch("bd", 3);
+
+    // 묶음 취소를 누르기 전에 다른 관리자가 한 건을 단건으로 취소했다.
+    await repo.cancelAward(awardIds[1], {
+      userId: admin.id,
+      name: "먼저 취소한 사람",
+      reason: "단건 취소 사유",
+    });
+
+    // 실제로 뒤집힌 것은 둘뿐이다 — 감사로그도 이 수만큼만 남아야 한다.
+    expect(await service.cancelBatch(admin, { batchId, reason: "묶음 사유" })).toEqual({
+      count: 2,
+    });
+
+    const first = await prisma.meritAward.findUnique({ where: { id: awardIds[1] } });
+    expect(first?.cancelReason).toBe("단건 취소 사유");
+    expect(first?.cancelledByName).toBe("먼저 취소한 사람");
+  });
+
+  it("전부 이미 취소됐으면 거부한다 — BATCH_NOT_FOUND", async () => {
+    const { batchId } = await makeBatch("be", 2);
+    await service.cancelBatch(admin, { batchId, reason: "첫 번째" });
+
+    await expect(
+      service.cancelBatch(admin, { batchId, reason: "두 번째" }),
+    ).rejects.toThrow("BATCH_NOT_FOUND");
+  });
+
+  it("repo.cancelAwards는 실제로 고친 id만 돌려준다", async () => {
+    const { awardIds } = await makeBatch("bf", 3);
+    await repo.cancelAward(awardIds[0], {
+      userId: admin.id,
+      name: admin.name,
+      reason: "먼저",
+    });
+
+    const cancelled = await repo.cancelAwards(awardIds, {
+      userId: admin.id,
+      name: admin.name,
+      reason: "나중",
+    });
+
+    expect(new Set(cancelled)).toEqual(new Set([awardIds[1], awardIds[2]]));
+  });
+
+  it("묶음 조회는 학생 이름을 함께 가져온다 — 감사로그가 줄을 구분할 근거다", async () => {
+    const { batchId } = await makeBatch("bg", 2);
+
+    const awards = await repo.findBatch(batchId);
+
+    expect(awards).toHaveLength(2);
+    expect(awards.map((a) => a.studentProfile.user.name)).toEqual([
+      "통합테스트학생bg0",
+      "통합테스트학생bg1",
+    ]);
+  });
+});
+
 describe("합계 범위 — 교내는 학년도별, 기숙사는 누적", () => {
   it("service.getStudentMerit이 트랙에 따라 다른 합계를 낸다", async () => {
     const dormRule = await makeRule({
