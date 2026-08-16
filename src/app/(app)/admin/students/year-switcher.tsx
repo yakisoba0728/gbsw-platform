@@ -37,14 +37,15 @@ export function YearSwitcher({
 
       <div className="mt-4 flex flex-wrap items-end gap-4">
         <form action={switchAction} className="flex items-end gap-2">
-          <div>
+          {/* 폭은 바깥에서 준다 — cn()이 tailwind-merge가 아니라 Select의
+              w-full을 className으로 덮을 수 없다. */}
+          <div className="w-36">
             <Select
               dense
               name="year"
               aria-label="현재 학년도"
               value={selected}
               onChange={(e) => setSelected(e.currentTarget.value)}
-              className="w-36"
             >
               {years.map((y) => (
                 <option key={y.year} value={y.year}>
@@ -64,17 +65,18 @@ export function YearSwitcher({
         </form>
 
         <form action={createAction} className="flex items-end gap-2">
-          <Input
-            dense
-            type="number"
-            name="year"
-            aria-label="새 학년도"
-            placeholder="2027"
-            min={2000}
-            max={2100}
-            required
-            className="w-28"
-          />
+          <div className="w-28">
+            <Input
+              dense
+              type="number"
+              name="year"
+              aria-label="새 학년도"
+              placeholder="2027"
+              min={2000}
+              max={2100}
+              required
+            />
+          </div>
           <Button type="submit" size="sm" variant="secondary" disabled={creating}>
             {creating ? "만드는 중…" : "학년도 추가"}
           </Button>

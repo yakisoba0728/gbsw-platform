@@ -248,37 +248,43 @@ export function StudentTable({
                     </td>
                     {(["grade", "classNo", "number"] as const).map((f, i) => (
                       <td key={f} className={cell(i + 1)}>
-                        <Input
-                          dense
-                          type="number"
-                          aria-label={`${row.name} ${
-                            { grade: "학년", classNo: "반", number: "번호" }[f]
-                          }`}
-                          value={d[f]}
-                          disabled={!enrolled}
-                          onChange={(e) => set(row.studentProfileId, { [f]: e.currentTarget.value })}
-                          className="w-20"
-                        />
+                        {/* 폭은 바깥에서 준다 — cn()이 tailwind-merge가 아니라
+                            Input의 w-full을 className으로 덮을 수 없다. */}
+                        <div className="w-20">
+                          <Input
+                            dense
+                            type="number"
+                            aria-label={`${row.name} ${
+                              { grade: "학년", classNo: "반", number: "번호" }[f]
+                            }`}
+                            value={d[f]}
+                            disabled={!enrolled}
+                            onChange={(e) =>
+                              set(row.studentProfileId, { [f]: e.currentTarget.value })
+                            }
+                          />
+                        </div>
                       </td>
                     ))}
                     <td className={cell(4)}>
-                      <Select
-                        dense
-                        aria-label={`${row.name} 학적`}
-                        value={d.status}
-                        onChange={(e) =>
-                          set(row.studentProfileId, {
-                            status: e.currentTarget.value as EnrollmentStatus,
-                          })
-                        }
-                        className="w-28"
-                      >
-                        {ENROLLMENT_STATUSES.map((s) => (
-                          <option key={s} value={s}>
-                            {ENROLLMENT_STATUS_LABELS[s]}
-                          </option>
-                        ))}
-                      </Select>
+                      <div className="w-28">
+                        <Select
+                          dense
+                          aria-label={`${row.name} 학적`}
+                          value={d.status}
+                          onChange={(e) =>
+                            set(row.studentProfileId, {
+                              status: e.currentTarget.value as EnrollmentStatus,
+                            })
+                          }
+                        >
+                          {ENROLLMENT_STATUSES.map((s) => (
+                            <option key={s} value={s}>
+                              {ENROLLMENT_STATUS_LABELS[s]}
+                            </option>
+                          ))}
+                        </Select>
+                      </div>
                     </td>
                     <td className={`${cell(5)} text-[12px] text-mut`}>
                       {row.accountActive ? "활성" : "비활성"}

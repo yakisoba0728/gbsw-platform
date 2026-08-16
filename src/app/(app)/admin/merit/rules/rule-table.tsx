@@ -128,18 +128,22 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
                       {meritKindSign(rule.kind)}
                     </span>
                     {editing ? (
-                      <Input
-                        dense
-                        name="points"
-                        form="rule-edit-form"
-                        defaultValue={String(rule.points)}
-                        inputMode="numeric"
-                        required
-                        className="w-16"
-                        aria-label={`${rule.label} 점수 수정 (${
-                          MERIT_KIND_LABELS[rule.kind as MeritKind]
-                        })`}
-                      />
+                      // 폭은 바깥에서 준다 — cn()이 tailwind-merge가 아니라 Input의
+                      // w-full을 className으로 덮을 수 없다. 부모가 <span>이라
+                      // <div>가 아니라 inline-block <span>으로 감싼다.
+                      <span className="inline-block w-16">
+                        <Input
+                          dense
+                          name="points"
+                          form="rule-edit-form"
+                          defaultValue={String(rule.points)}
+                          inputMode="numeric"
+                          required
+                          aria-label={`${rule.label} 점수 수정 (${
+                            MERIT_KIND_LABELS[rule.kind as MeritKind]
+                          })`}
+                        />
+                      </span>
                     ) : (
                       rule.points
                     )}
