@@ -17,7 +17,11 @@ export class InviteError extends Error {}
 /** 학생 한 명이 동시에 살려둘 수 있는 학부모 코드 수. */
 export const MAX_ACTIVE_PARENT_INVITES = 3;
 
-/** 코드 충돌 시 재시도 횟수. 31^10 공간이라 실제로는 거의 일어나지 않는다. */
+/**
+ * 코드 충돌 시 재시도 횟수. 31^8 ≈ 8.5 × 10^11 공간이라 실제로는 거의 일어나지
+ * 않는다 — 값의 근거는 generate-invite-code.ts에 있다. 여기 숫자를 손으로
+ * 옮겨 적었다가 한 번 틀렸으므로(31^10), 바꿀 일이 있으면 그쪽부터 본다.
+ */
 const CODE_RETRIES = 5;
 
 /**
