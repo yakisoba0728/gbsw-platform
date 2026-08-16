@@ -1,7 +1,11 @@
-import { kindColorClass } from "@/components/merit/kind-badge";
+import Link from "next/link";
+import { DemeritFlag } from "@/components/merit/demerit-level";
+import { kindBarClass, kindColorClass } from "@/components/merit/kind-badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SectionCard } from "@/components/ui/section-card";
 import {
-  demeritLevel,
   MERIT_KIND_LABELS,
+  signedNet,
   type MeritKind,
   type MeritTrack,
 } from "@/core/authz/merit-track";
@@ -22,6 +26,10 @@ import { scaleToPercent } from "@/modules/merit/merit.chart";
  * 거들 뿐이고, 없어도 값을 읽을 수 있어야 한다.
  */
 
+/**
+ * 그래프 카드는 ui/SectionCard 그대로다 — 여기 있던 ChartCard가 정확히 그것이라
+ * 올려 보내고 이름만 남긴다. merit 전용인 구석이 없었다.
+ */
 function ChartCard({
   title,
   hint,
@@ -32,19 +40,15 @@ function ChartCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-card border border-line bg-surface">
-      <header className="border-b border-line px-5 py-4">
-        <h2 className="text-base font-extrabold text-ink">{title}</h2>
-        {hint && <p className="mt-1 text-[12px] text-mut">{hint}</p>}
-      </header>
-      <div className="px-5 py-4">{children}</div>
-    </section>
+    <SectionCard title={title} hint={hint}>
+      {children}
+    </SectionCard>
   );
 }
 
 /** 데이터가 없을 때. 빈 축만 남으면 고장난 것처럼 보인다. */
 function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="py-8 text-center text-[12.5px] text-mut">{children}</p>;
+  return <EmptyState variant="inside">{children}</EmptyState>;
 }
 
 /**
@@ -103,6 +107,12 @@ export function MonthlyChart({
               <div
                 key={point.key}
                 tabIndex={0}
+                // 키보드로 막대 12개를 지나간다. role 없이 tabIndex만 있으면
+                // 스크린리더가 "그룹" 정도로만 읽어서 무슨 달의 무슨 값인지가
+                // 전혀 안 나온다. 막대 아래 숫자는 늘 보이므로(터치 기기 배려)
+                // 이름에는 그것과 같은 내용만 적고 더 얹지 않는다.
+                role="group"
+                aria-label={`${point.label} 순점수 ${empty ? "없음" : signedNet(point.net)}`}
                 className="group relative flex min-w-[30px] flex-1 flex-col gap-1 rounded-[3px] outline-none focus-visible:ring-2 focus-visible:ring-pri"
               >
                 <Tooltip
@@ -121,7 +131,7 @@ export function MonthlyChart({
                     { label: "벌점", value: String(point.demerit), className: "text-rose" },
                     {
                       label: "순점수",
-                      value: `${point.net >= 0 ? "+" : ""}${point.net}`,
+                      value: signedNet(point.net),
                       className: point.net >= 0 ? "text-green" : "text-rose",
                     },
                   ]}
@@ -150,7 +160,7 @@ export function MonthlyChart({
                     empty ? "text-mut2" : point.net >= 0 ? "text-green" : "text-rose"
                   }`}
                 >
-                  {empty ? "—" : `${point.net >= 0 ? "+" : ""}${point.net}`}
+                  {empty ? "—" : signedNet(point.net)}
                 </span>
               </div>
             );
@@ -204,7 +214,6 @@ export function ClassNetChart({
     >
       <div className="flex flex-col gap-2">
         {rows.map((row, i) => {
-          const level = demeritLevel(track, row.demerit);
           const body = (
             <>
               <Tooltip
@@ -217,19 +226,15 @@ export function ClassNetChart({
                   { label: "벌점", value: String(row.demerit), className: "text-rose" },
                   {
                     label: "순점수",
-                    value: `${row.net >= 0 ? "+" : ""}${row.net}`,
+                    value: signedNet(row.net),
                     className: row.net >= 0 ? "text-green" : "text-rose",
                   },
-                  { label: "1인 평균", value: `${row.avgNet >= 0 ? "+" : ""}${row.avgNet}` },
+                  { label: "1인 평균", value: signedNet(row.avgNet) },
                 ]}
               />
               <span className="w-[76px] shrink-0 text-[12px] font-semibold text-ink">
                 {row.grade}-{row.classNo}
-                {level !== "none" && (
-                  <span className="ml-1 text-rose" aria-label="벌점 기준 초과">
-                    !
-                  </span>
-                )}
+                <DemeritFlag track={track} demerit={row.demerit} />
               </span>
               <span className="flex flex-1 justify-end">
                 <span
@@ -249,8 +254,7 @@ export function ClassNetChart({
                   row.net >= 0 ? "text-green" : "text-rose"
                 }`}
               >
-                {row.net >= 0 ? "+" : ""}
-                {row.net}
+                {signedNet(row.net)}
               </span>
             </>
           );
@@ -259,15 +263,25 @@ export function ClassNetChart({
             "group relative flex items-center gap-2 rounded-btn px-1 py-0.5 outline-none focus-visible:ring-2 focus-visible:ring-pri";
 
           return hrefFor ? (
-            <a
+            <Link
               key={`${row.grade}-${row.classNo}`}
               href={hrefFor(row)}
               className={`${shared} hover:bg-soft`}
             >
               {body}
-            </a>
+            </Link>
           ) : (
-            <div key={`${row.grade}-${row.classNo}`} tabIndex={0} className={shared}>
+            // 링크가 아닐 때도 키보드로 훑을 수 있어야 말풍선(focus-within)이 뜬다.
+            // role 없이 tabIndex만 주면 스크린리더가 "그룹" 정도로만 읽으므로
+            // 무엇의 무슨 값인지를 이름에 적는다. 막대 아래 숫자는 늘 보이므로
+            // 여기서 더 얹지 않는다.
+            <div
+              key={`${row.grade}-${row.classNo}`}
+              tabIndex={0}
+              role="group"
+              aria-label={`${row.grade}학년 ${row.classNo}반 순점수 ${signedNet(row.net)}`}
+              className={shared}
+            >
               {body}
             </div>
           );
@@ -310,10 +324,8 @@ export function StudentNetChart({
   return (
     <ChartCard title="학생별 순점수" hint="순점수 낮은 순">
       <div className="flex flex-col gap-2">
-        {sorted.map((row, i) => {
-          const level = demeritLevel(track, row.demerit);
-          return (
-            <a
+        {sorted.map((row, i) => (
+            <Link
               key={row.studentProfileId}
               href={hrefFor(row.studentProfileId)}
               className="group relative flex items-center gap-2 rounded-btn px-1 py-0.5 outline-none hover:bg-soft focus-visible:ring-2 focus-visible:ring-pri"
@@ -328,18 +340,14 @@ export function StudentNetChart({
                   { label: "벌점", value: String(row.demerit), className: "text-rose" },
                   {
                     label: "순점수",
-                    value: `${row.net >= 0 ? "+" : ""}${row.net}`,
+                    value: signedNet(row.net),
                     className: row.net >= 0 ? "text-green" : "text-rose",
                   },
                 ]}
               />
               <span className="w-[92px] shrink-0 truncate text-[12px] font-semibold text-ink">
                 {row.name}
-                {level !== "none" && (
-                  <span className="ml-1 text-rose" aria-label="벌점 기준 초과">
-                    !
-                  </span>
-                )}
+                <DemeritFlag track={track} demerit={row.demerit} />
               </span>
               <span className="flex flex-1 justify-end">
                 <span
@@ -359,12 +367,10 @@ export function StudentNetChart({
                   row.net >= 0 ? "text-green" : "text-rose"
                 }`}
               >
-                {row.net >= 0 ? "+" : ""}
-                {row.net}
+                {signedNet(row.net)}
               </span>
-            </a>
-          );
-        })}
+            </Link>
+          ))}
       </div>
     </ChartCard>
   );
@@ -411,6 +417,10 @@ export function CategoryChart({
           <div
             key={`${slice.kind}-${slice.category}`}
             tabIndex={0}
+            role="group"
+            aria-label={`${slice.category} ${
+              MERIT_KIND_LABELS[slice.kind as MeritKind] ?? slice.kind
+            } ${slice.count}건 ${slice.points}점`}
             className="group relative flex items-center gap-2.5 rounded-btn px-1 py-0.5 outline-none focus-visible:ring-2 focus-visible:ring-pri"
           >
             <Tooltip
@@ -435,7 +445,7 @@ export function CategoryChart({
             </span>
             <span className="h-4 flex-1 rounded-[3px] bg-soft">
               <span
-                className={`block h-4 rounded-[3px] ${barColor(slice.kind)} transition-opacity group-hover:opacity-80`}
+                className={`block h-4 rounded-[3px] ${kindBarClass(slice.kind)} transition-opacity group-hover:opacity-80`}
                 style={{ width: `${scale[i]}%` }}
               />
             </span>
@@ -447,13 +457,6 @@ export function CategoryChart({
       </div>
     </ChartCard>
   );
-}
-
-function barColor(kind: string): string {
-  if (kind === "MERIT") return "bg-blue";
-  if (kind === "DEMERIT") return "bg-rose";
-  if (kind === "OFFSET") return "bg-green";
-  return "bg-mut";
 }
 
 function Legend({ items }: { items: { color: string; label: string }[] }) {

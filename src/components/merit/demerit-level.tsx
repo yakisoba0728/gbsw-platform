@@ -16,6 +16,24 @@ export function demeritCellClass(track: MeritTrack, demerit: number): string {
   return "font-bold text-rose";
 }
 
+/**
+ * 그래프 막대 옆의 "!" 표시. 기준을 넘긴 반·학생을 눈에 띄게 한다.
+ *
+ * 문구는 sr-only로 따로 적는다. 전에는 `<span aria-label="벌점 기준 초과">!</span>`
+ * 이었는데, **role 없는 span의 aria-label은 대부분의 스크린리더가 무시한다** —
+ * 이름을 받을 수 있는 요소가 아니라서다. 결과적으로 "느낌표"만 읽혔다.
+ */
+export function DemeritFlag({ track, demerit }: { track: MeritTrack; demerit: number }) {
+  if (demeritLevel(track, demerit) === "none") return null;
+
+  return (
+    <span className="ml-1 text-rose">
+      <span aria-hidden>!</span>
+      <span className="sr-only">벌점 기준 초과</span>
+    </span>
+  );
+}
+
 /** 기준을 화면에 적어 둔다 — 숫자가 안 보이면 왜 붉은지 알 수 없다. */
 export function ThresholdHint({ track }: { track: MeritTrack }) {
   const { warn, danger } = DEMERIT_THRESHOLDS[track];

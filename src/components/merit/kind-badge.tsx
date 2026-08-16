@@ -27,6 +27,13 @@ const TEXT_COLORS: Record<MeritKind, string> = {
   OFFSET: "text-green",
 };
 
+/** 그래프 막대의 채움색. 글자색(TEXT_COLORS)과 같은 색을 배경으로 쓴다. */
+const BAR_COLORS: Record<MeritKind, string> = {
+  MERIT: "bg-blue",
+  DEMERIT: "bg-rose",
+  OFFSET: "bg-green",
+};
+
 function known(kind: string): MeritKind | null {
   return kind in TONES ? (kind as MeritKind) : null;
 }
@@ -43,6 +50,17 @@ export function KindBadge({ kind }: { kind: string }) {
 export function kindColorClass(kind: string): string {
   const k = known(kind);
   return k ? TEXT_COLORS[k] : "text-ink";
+}
+
+/**
+ * 막대 채움색. 모르는 종류는 중립 회색으로 떨어진다.
+ *
+ * charts.tsx가 이 매핑을 자기 안에 다시 만들고 있었다 — 같은 파일이 글자색은
+ * 여기서 가져다 쓰면서 배경색만 따로 뒀다. 종류가 늘면 한쪽만 고쳐지는 자리다.
+ */
+export function kindBarClass(kind: string): string {
+  const k = known(kind);
+  return k ? BAR_COLORS[k] : "bg-mut";
 }
 
 /** `+5` · `−3` · `+60`. 부호는 종류가 정하며 사용자가 바꿀 수 없다. */
