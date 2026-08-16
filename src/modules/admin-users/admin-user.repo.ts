@@ -237,12 +237,27 @@ export async function resetCredential(
 /**
  * 완전 삭제 (오등록 정리 전용). 소프트 삭제된 계정에만 서비스가 이 함수를 부른다.
  *
- * createdById·usedById는 Invite 쪽 FK가 Restrict라 먼저 지워야 user.delete가
- * 통과한다 (roster.repo.ts의 예전 하드 삭제 블록과 같은 이유). studentId
- * (StudentProfile 참조)는 손대지 않는다 — Invite.student가 onDelete: Cascade라
- * user.delete → StudentProfile Cascade를 타면서 자동으로 함께 지워진다.
+ * **초대코드 세 갈래를 서로 다른 이유로 다룬다. 셋을 헷갈리면 안 된다.**
  *
- * 학적(Enrollment)·상벌점(추후)도 StudentProfile을 onDelete: Cascade로 참조하므로
+ * 1. `createdById` — 이 사람이 **발급한** 코드. `Invite.createdBy`가
+ *    `onDelete: Restrict`이고 `createdById`가 **null을 못 받는 컬럼**이라,
+ *    먼저 지우지 않으면 user.delete 자체가 막힌다. 이미 USED인 코드만 남기는
+ *    선택지를 검토했지만 **스키마를 안 바꾸는 한 불가능하다** — 남겨두면
+ *    Restrict에 걸리고, null로 비울 수도 없다. 그 대가로 이 사람이 발급한
+ *    코드로 가입한 사람들의 "어떤 코드로 언제 가입했나"가 함께 사라진다.
+ *    (가입 사실 자체는 registration:complete 감사로그에 남는다.)
+ * 2. `usedById` — 이 사람이 **써서 가입한** 코드 한 장(@unique).
+ *    이쪽 FK는 `onDelete: SetNull`이라 **지우지 않아도 user.delete가 통과한다.**
+ *    그런데도 지운다 — 판단이지 제약이 아니다. `Invite.metadata`에 이 사람의
+ *    이름·생년월일이 그대로 들어 있어서, 남기면 완전히 삭제한 사람의 개인정보
+ *    사본이 남는다. 아래 deleteUserPermanently의 감사로그 주석이 같은 이유로
+ *    이름을 안 남기기로 한 것과 같은 결정이다. 화면에서도 "사용자 —"인 USED
+ *    코드가 목록에 계속 떠 있는 것보다 사라지는 편이 맞다.
+ * 3. `studentId` — 이 학생 몫으로 발급된 학부모 코드. 여기서 손대지 않는다.
+ *    `Invite.student`가 `onDelete: Cascade`라 user.delete → StudentProfile
+ *    Cascade를 타면서 자동으로 함께 지워진다.
+ *
+ * 학적(Enrollment)·상벌점도 StudentProfile을 onDelete: Cascade로 참조하므로
  * 여기서 같이 사라진다 — 오등록 정리에서만 일어나는 유일한 동작이다. 소프트
  * 삭제(명단 반영)에서는 절대 이 함수를 부르지 않는다.
  */

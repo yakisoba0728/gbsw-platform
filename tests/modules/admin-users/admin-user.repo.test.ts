@@ -330,17 +330,25 @@ describe("resetCredential()", () => {
 });
 
 describe("deletePermanently()", () => {
-  it("createdById·usedById 초대코드를 먼저 지운 뒤 계정을 지운다 — 한 배열형 " +
-    "트랜잭션으로 묶는다. Invite 쪽 FK가 Restrict라 순서가 바뀌면 계정 삭제가 " +
-    "막힌다", async () => {
+  it("이 사람이 발급한 코드(createdById)를 먼저 지운 뒤 계정을 지운다 — 한 배열형 " +
+    "트랜잭션으로 묶는다. Invite.createdBy가 onDelete: Restrict고 createdById가 " +
+    "null을 못 받는 컬럼이라, USED만 남기는 선택지는 스키마를 안 바꾸는 한 없다", async () => {
     await deletePermanently("u-9");
 
     expect(transactionArray).toHaveBeenCalledTimes(1);
     const batch = transactionArray.mock.calls[0]![0] as unknown[];
     expect(batch).toHaveLength(3);
     expect(inviteDeleteMany).toHaveBeenCalledWith({ where: { createdById: "u-9" } });
-    expect(inviteDeleteMany).toHaveBeenCalledWith({ where: { usedById: "u-9" } });
     expect(userDelete).toHaveBeenCalledWith({ where: { id: "u-9" } });
+  });
+
+  it("이 사람이 써서 가입한 코드(usedById)도 지운다 — 이쪽 FK는 SetNull이라 " +
+    "지우지 않아도 계정 삭제가 통과한다. 제약이 아니라 판단이다: Invite.metadata에 " +
+    "이름·생년월일이 그대로 들어 있어 남기면 완전히 삭제한 사람의 개인정보 사본이 " +
+    "남는다(같은 이유로 user:delete 감사로그도 이름을 안 남긴다)", async () => {
+    await deletePermanently("u-9");
+
+    expect(inviteDeleteMany).toHaveBeenCalledWith({ where: { usedById: "u-9" } });
   });
 
   it("studentId로 귀속된 초대코드는 여기서 손대지 않는다 — user.delete가 " +
