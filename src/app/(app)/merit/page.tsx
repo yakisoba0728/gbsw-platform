@@ -7,7 +7,7 @@ import { AcademicYearError } from "@/modules/academic-year/academic-year.service
 import {
   getChildMerit,
   getMyMerit,
-  listAwardYears,
+  listChildAwardYears,
   listMyAwardYears,
   listMyChildren,
 } from "@/modules/merit/award.service";
@@ -59,8 +59,9 @@ export default async function MeritPage({
     }
     if (!view) return <NoAcademicYearNotice />;
 
-    // 학년도 선택지는 이미 조회가 성공한 뒤(=childId가 검증된 뒤)에만 부른다.
-    const years = isYearScoped(track) ? await listAwardYears(childId) : [];
+    // 학년도 선택지도 자녀 연결을 다시 검사한다 — 조회가 이미 성공한 뒤라 통과가
+    // 보장되지만, 검사를 여기 두어야 이 호출부만 남기고 위를 옮겨도 안 뚫린다.
+    const years = isYearScoped(track) ? await listChildAwardYears(user, childId) : [];
 
     return (
       <OwnMeritView

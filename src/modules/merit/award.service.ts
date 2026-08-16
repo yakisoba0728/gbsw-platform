@@ -476,12 +476,19 @@ export async function searchStudents(actor: SessionUser, query: string) {
 /**
  * 이 학생에게 기록이 있는 학년도들 (내림차순). 교내 탭의 학년도 선택지에 쓴다.
  *
- * **이 함수 자체는 권한을 검사하지 않는다** — studentProfileId가 이미 이 요청
- * 안에서 검증된 자리에서만 부른다. 학부모 조회는 getChildMerit이 소유권을
- * 확인에 성공한 뒤에만, 학생 본인 조회는 아래 listMyAwardYears가 세션에서
- * 유도한 id만 넘긴다 — 둘 다 URL의 studentProfileId를 그대로 받지 않는다.
+ * **부르는 자리가 셋이고 studentProfileId의 출처가 저마다 다르다** — 관리자 화면은
+ * URL 파라미터, 학부모 화면은 자녀 목록, 학생 화면은 세션. 예전에는 함수 하나가
+ * 셋을 다 받으면서 권한을 전혀 안 봤고, 주석이 "안전한 호출 경로"를 둘만 열거해
+ * 실제 호출부를 담지 못했다 — 다음 사람이 그 주석을 믿는 것이 더 큰 문제였다.
+ * 그래서 출처마다 함수를 나누고 각자 자기 근거를 검사한다.
+ *
+ * 이쪽은 관리자용 — 형제 함수 getStudentHeader·getStudentMerit과 같은 검사다.
  */
-export async function listAwardYears(studentProfileId: string): Promise<number[]> {
+export async function listAwardYears(
+  actor: SessionUser,
+  studentProfileId: string,
+): Promise<number[]> {
+  await assertCan(actor, "merit:read:any");
   return repo.listAwardYears(studentProfileId);
 }
 
@@ -490,6 +497,15 @@ export async function listMyAwardYears(sessionUser: SessionUser): Promise<number
   const profile = await repo.findStudentProfileByUserId(sessionUser.id);
   if (!profile) return [];
   return repo.listAwardYears(profile.id);
+}
+
+/** 학부모의 자녀 조회. 연결을 확인한다 — getChildMerit과 같은 근거다. */
+export async function listChildAwardYears(
+  sessionUser: SessionUser,
+  childProfileId: string,
+): Promise<number[]> {
+  await assertIsChildOf(sessionUser, childProfileId);
+  return repo.listAwardYears(childProfileId);
 }
 
 /** 로그인한 학부모의 자녀들. 화면의 자녀 선택에 쓴다. */
@@ -502,36 +518,44 @@ export async function listMyChildren(sessionUser: SessionUser) {
 }
 
 /**
- * 학부모의 자녀 조회.
+ * 이 학부모와 이 학생이 실제로 연결되어 있는가.
  *
  * `can()`으로 가를 수 없는 거부다 — 학부모 역할이 있다는 것과 **이** 학생의
  * 학부모라는 것은 다른 문제다. 연결을 직접 확인하고 ForbiddenError를 던지되,
  * 거부 감사로그는 assertCan과 같은 방식으로 남긴다
  * (invite.service.ts의 revokeInvite와 같은 처리).
+ *
+ * 자녀를 보는 경로가 둘(내역·학년도 선택지)이라 여기 모아 둔다 — 한쪽만 검사하면
+ * 그쪽이 곧 우회로가 된다.
  */
+async function assertIsChildOf(
+  sessionUser: SessionUser,
+  childProfileId: string,
+): Promise<void> {
+  if (await repo.isChildOf(sessionUser.id, childProfileId)) return;
+
+  try {
+    await recordAudit({
+      actorUserId: sessionUser.id,
+      actorName: sessionUser.name,
+      action: "authz:denied",
+      targetType: "MeritAward",
+      metadata: { action: "merit:read:child", studentProfileId: childProfileId },
+    });
+  } catch {
+    // 감사 기록 실패가 거부 자체를 막지 않는다.
+  }
+  throw new ForbiddenError("merit:read:child");
+}
+
+/** 학부모의 자녀 조회. 연결 확인이 곧 권한이다. */
 export async function getChildMerit(
   sessionUser: SessionUser,
   childProfileId: string,
   track: MeritTrack,
   year?: number,
 ): Promise<StudentMeritView> {
-  const linked = await repo.isChildOf(sessionUser.id, childProfileId);
-
-  if (!linked) {
-    try {
-      await recordAudit({
-        actorUserId: sessionUser.id,
-        actorName: sessionUser.name,
-        action: "authz:denied",
-        targetType: "MeritAward",
-        metadata: { action: "merit:read:child", studentProfileId: childProfileId },
-      });
-    } catch {
-      // 감사 기록 실패가 거부 자체를 막지 않는다.
-    }
-    throw new ForbiddenError("merit:read:child");
-  }
-
+  await assertIsChildOf(sessionUser, childProfileId);
   return readMerit(childProfileId, track, year);
 }
 

@@ -21,6 +21,7 @@ const listChildren = vi.fn();
 const isChildOf = vi.fn();
 const findBatch = vi.fn();
 const cancelAwards = vi.fn();
+const listAwardYears = vi.fn();
 
 vi.mock("@/modules/merit/merit.repo", () => ({
   findRule,
@@ -39,6 +40,7 @@ vi.mock("@/modules/merit/merit.repo", () => ({
   isChildOf,
   findBatch,
   cancelAwards,
+  listAwardYears,
 }));
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
 vi.mock("@/modules/academic-year/academic-year.service", () => ({
@@ -118,6 +120,7 @@ beforeEach(() => {
   findBatch.mockReset().mockResolvedValue(BATCH_AWARDS);
   // 실제로 취소된 것의 id만 돌려준다 — 기본은 넘긴 것 전부가 취소된 경우다.
   cancelAwards.mockReset().mockImplementation(async (ids: string[]) => ids);
+  listAwardYears.mockReset().mockResolvedValue([2026, 2025]);
 });
 
 /** 한 묶음에 속한 살아 있는 기록 셋. 학생이 서로 다르다는 것이 요점이다. */
@@ -809,6 +812,74 @@ describe("getClassRoster", () => {
     await expect(
       service.getClassRoster(student, { grade: 1, classNo: 1, track: "SCHOOL" }),
     ).rejects.toThrow("FORBIDDEN");
+  });
+});
+
+/**
+ * 학년도 선택지.
+ *
+ * 세 호출부가 서로 다른 근거로 studentProfileId를 얻는다 — 관리자는 URL 파라미터,
+ * 학부모는 자녀 목록, 학생은 세션. **셋 다 서비스에서 다시 검사한다**는 것이 요점이다.
+ * 예전엔 함수 하나가 권한 검사 없이 셋을 다 받았고, 주석은 안전한 경로를 둘만
+ * 열거해 실제 호출부를 담지 못했다.
+ */
+describe("listAwardYears", () => {
+  it("관리자는 아무 학생의 학년도 선택지를 볼 수 있다", async () => {
+    expect(await service.listAwardYears(admin, "sp-9")).toEqual([2026, 2025]);
+    expect(listAwardYears).toHaveBeenCalledWith("sp-9");
+  });
+
+  it("학생은 남의 학년도 선택지를 볼 수 없다", async () => {
+    await expect(service.listAwardYears(student, "sp-2")).rejects.toThrow(
+      "FORBIDDEN",
+    );
+    expect(listAwardYears).not.toHaveBeenCalled();
+  });
+
+  it("학부모도 이 경로로는 볼 수 없다 — 자녀는 listChildAwardYears로 간다", async () => {
+    await expect(
+      service.listAwardYears(user("PARENT", "p-1"), "sp-1"),
+    ).rejects.toThrow("FORBIDDEN");
+    expect(listAwardYears).not.toHaveBeenCalled();
+  });
+});
+
+describe("listMyAwardYears", () => {
+  it("세션에서 학생 신원을 끌어온다 — id를 인자로 받지 않는다", async () => {
+    await service.listMyAwardYears(student);
+
+    expect(findStudentProfileByUserId).toHaveBeenCalledWith(student.id);
+    expect(listAwardYears).toHaveBeenCalledWith("sp-1");
+  });
+
+  it("학생 신원이 없으면 빈 목록이다", async () => {
+    findStudentProfileByUserId.mockResolvedValue(null);
+
+    expect(await service.listMyAwardYears(admin)).toEqual([]);
+    expect(listAwardYears).not.toHaveBeenCalled();
+  });
+});
+
+describe("listChildAwardYears", () => {
+  const parent = user("PARENT", "p-1");
+
+  it("연결된 자녀의 학년도 선택지는 볼 수 있다", async () => {
+    isChildOf.mockResolvedValue(true);
+
+    expect(await service.listChildAwardYears(parent, "sp-1")).toEqual([2026, 2025]);
+    expect(isChildOf).toHaveBeenCalledWith("p-1", "sp-1");
+  });
+
+  it("연결되지 않은 학생은 못 본다 — 거부 감사로그가 남는다", async () => {
+    isChildOf.mockResolvedValue(false);
+
+    await expect(service.listChildAwardYears(parent, "sp-9")).rejects.toThrow(
+      "FORBIDDEN",
+    );
+    expect(listAwardYears).not.toHaveBeenCalled();
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "authz:denied" }),
+    );
   });
 });
 

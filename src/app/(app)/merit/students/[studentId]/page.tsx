@@ -83,7 +83,7 @@ export default async function StudentMeritPage({
   // "학생을 찾을 수 없습니다"가 나오면 그 전까지는 정상 화면과 구분되지 않는다.
   if (!noCurrentYear && !header) notFound();
 
-  const awardYears = await listAwardYears(studentId);
+  const awardYears = await listAwardYears(actor, studentId);
 
   // 과거 학년도를 보고 있으면 부여 폼을 감춘다 — 부여는 항상 현재 학년도로
   // 들어가므로, 지난 해를 보면서 부여하면 결과가 화면에 안 나타나 혼란만 준다.
