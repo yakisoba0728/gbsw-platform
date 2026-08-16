@@ -94,3 +94,20 @@ export function LogoutIcon(props: IconProps) {
     </Icon>
   );
 }
+
+/** 모바일 상단바의 메뉴 버튼. */
+export function MenuIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={1.9} {...props}>
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </Icon>
+  );
+}
+
+export function CloseIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={1.9} {...props}>
+      <path d="M6 6l12 12M18 6L6 18" />
+    </Icon>
+  );
+}

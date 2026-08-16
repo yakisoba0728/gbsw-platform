@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -8,6 +7,7 @@ import { LogoutIcon } from "@/components/icons";
 import { authClient } from "@/core/auth/auth-client";
 import type { Role } from "@/core/authz/roles";
 import { ROLE_LABELS } from "@/core/authz/roles";
+import { MobileNav } from "./mobile-nav";
 import { titleForPath } from "./nav";
 
 export function Topbar({
@@ -33,15 +33,14 @@ export function Topbar({
 
   return (
     <header className="flex h-14 flex-none items-center justify-between border-b border-line bg-surface px-[18px] lg:h-[62px] lg:px-7">
-      <div className="flex items-center gap-2.5">
-        <Image
-          src="/brand/gbsw-logo.webp"
-          alt=""
-          width={26}
-          height={26}
-          className="lg:hidden"
-        />
-        <h1 className="text-base font-extrabold tracking-[-0.01em] text-ink lg:text-lg">
+      <div className="flex min-w-0 items-center gap-2.5">
+        {/*
+         * 좁은 화면에서는 로고 자리를 메뉴 버튼이 대신한다 — 390px 폭에 로고와
+         * 버튼을 둘 다 두면 제목이 잘린다. 로고는 서랍 머리와 데스크톱
+         * 사이드바에 그대로 남는다.
+         */}
+        <MobileNav role={role} />
+        <h1 className="truncate text-base font-extrabold tracking-[-0.01em] text-ink lg:text-lg">
           {title}
         </h1>
       </div>
