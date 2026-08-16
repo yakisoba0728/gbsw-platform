@@ -12,9 +12,16 @@ import { Button } from "@/components/ui/button";
  * 아무 데도 남지 않는다. 이 파일이 있으면 오류는 이 화면 자리에서만 나고
  * 메뉴는 그대로 서 있는다.
  *
- * `reset()`은 이 구간을 다시 그린다 — 원인이 일시적인 것(디비 연결이 잠깐
- * 끊긴 경우 등)이면 새로고침 없이 되살아난다. 그렇지 않은 경우를 위해
- * 대시보드로 나가는 길도 함께 둔다.
+ * **`reset`이 아니라 `retry`를 쓴다.** 둘 다 넘어오지만 하는 일이 다르다 —
+ * `reset()`은 오류 상태만 지우고 **다시 가져오지 않는다.** 여기 오는 오류는
+ * 대부분 서버 컴포넌트가 렌더 중에 던진 것이라, 클라이언트는 오류가 박힌
+ * payload를 그대로 들고 있다. 그 상태로 다시 그리면 같은 오류 화면으로
+ * 즉시 돌아와서, 사용자에게는 눌러도 반응 없는 버튼으로 보인다.
+ * `retry()`는 `router.refresh()`로 서버에서 다시 받아온다 — 원인이 일시적인
+ * 것(디비 연결이 잠깐 끊긴 경우 등)이면 이때 되살아난다.
+ * (Next 16.3에서 stable이 된 prop이다. node_modules/next/dist/docs의
+ * error.md가 "In most cases, you should use retry() instead"라고 적어 뒀다.)
+ * 그래도 안 되는 경우를 위해 대시보드로 나가는 길을 함께 둔다.
  *
  * 무엇이 틀렸는지는 적지 않는다. 여기 오는 오류는 서비스가 예상하고 던지는
  * 코드(그쪽은 각 화면이 사전으로 문구를 만든다)가 아니라 **예상 못 한 것**이라
@@ -23,10 +30,10 @@ import { Button } from "@/components/ui/button";
  */
 export default function MeritError({
   error,
-  reset,
+  retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 }) {
   useEffect(() => {
     // 서버 컴포넌트에서 난 오류는 서버 로그에도 남지만, 클라이언트에서 난
@@ -46,7 +53,7 @@ export default function MeritError({
       </p>
 
       <div className="mt-6 flex justify-center gap-2">
-        <Button type="button" onClick={reset}>
+        <Button type="button" onClick={retry}>
           다시 시도
         </Button>
         <Link

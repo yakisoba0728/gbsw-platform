@@ -131,6 +131,15 @@ export function ConfirmDialog({
             rows={3}
             value={reason}
             onChange={(event) => setReason(event.currentTarget.value)}
+            // 한 줄 입력이었다면 Enter가 곧 제출이지만 textarea에서는 줄바꿈이다.
+            // 사유는 대개 한 문장이라 그 손버릇이 남아 있어서, 표준 대체키인
+            // Ctrl/⌘+Enter로 제출할 수 있게 둔다. Enter 자체는 줄바꿈으로 남긴다
+            // — 여러 줄을 쓰는 경우가 실제로 있다.
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                event.currentTarget.form?.requestSubmit();
+              }
+            }}
             placeholder={reasonPlaceholder}
             required
             // 스키마(cancelSchema·cancelBatchSchema)의 상한과 같다.

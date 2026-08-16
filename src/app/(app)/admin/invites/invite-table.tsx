@@ -137,7 +137,7 @@ export function InviteTable({ rows }: { rows: InviteRow[] }) {
             dense
             value={query}
             onChange={(e) => setQuery(e.currentTarget.value)}
-            aria-label="코드 · 이름 · 학년반번호 검색"
+            aria-label="코드 · 이름 · 학반번호 검색"
             placeholder="코드 · 이름 · 학반번호 검색"
             className="mt-2.5"
           />

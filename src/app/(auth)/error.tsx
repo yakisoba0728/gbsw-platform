@@ -12,13 +12,17 @@ import { Button } from "@/components/ui/button";
  *
  * 사진 패널까지 다시 그리지는 않는다 — 오류 화면의 목적은 "다시 시도"와
  * "로그인으로"까지 데려다주는 것뿐이라 브랜드 패널은 방해만 된다.
+ *
+ * **`reset`이 아니라 `retry`를 쓴다.** `reset()`은 오류 상태만 지우고 다시
+ * 가져오지 않아서, 서버에서 난 오류에는 눌러도 반응 없는 버튼이 된다.
+ * Next 16.3에서 stable이 된 prop이다.
  */
 export default function AuthError({
   error,
-  reset,
+  retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 }) {
   return (
     <main className="flex min-h-dvh items-center justify-center p-4">
@@ -38,7 +42,7 @@ export default function AuthError({
           </p>
         )}
 
-        <Button onClick={reset} className="mt-6">
+        <Button onClick={retry} className="mt-6">
           다시 시도
         </Button>
 
