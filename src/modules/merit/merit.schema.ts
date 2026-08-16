@@ -82,3 +82,32 @@ export const cancelSchema = z.object({
 });
 
 export type CancelInput = z.infer<typeof cancelSchema>;
+
+/**
+ * 여러 명 한 번에 부여.
+ *
+ * 상한 100명 — 전교생이 300명이라 반 단위 작업에 충분하고, 실수로 전교생에게
+ * 벌점을 주는 사고를 막는다. 학년도는 여기에도 없다 (단건 부여와 같은 이유).
+ */
+export const BULK_AWARD_LIMIT = 100;
+
+export const bulkAwardSchema = z.object({
+  studentProfileIds: z
+    .array(z.string().trim().min(1))
+    .min(1, "학생을 선택해 주세요")
+    .max(BULK_AWARD_LIMIT, `한 번에 ${BULK_AWARD_LIMIT}명까지 줄 수 있습니다`),
+  ruleId: z.string().trim().min(1),
+  note: optionalText(500),
+});
+
+export type BulkAwardInput = z.infer<typeof bulkAwardSchema>;
+
+/** 반별 목록 조회 조건. 학년·반은 명단과 같은 범위(1~3학년)를 쓴다. */
+export const classRosterSchema = z.object({
+  grade: z.coerce.number().int().min(1).max(3),
+  classNo: z.coerce.number().int().min(1).max(20),
+  track: trackSchema,
+  year: z.coerce.number().int().min(2000).max(2100).optional(),
+});
+
+export type ClassRosterQuery = z.infer<typeof classRosterSchema>;

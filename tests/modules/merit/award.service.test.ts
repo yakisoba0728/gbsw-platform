@@ -11,6 +11,11 @@ const findStudentProfileByUserId = vi.fn();
 const findStudentProfileById = vi.fn();
 const recordAudit = vi.fn();
 const getCurrentYear = vi.fn();
+const createAwards = vi.fn();
+const listClassRoster = vi.fn();
+const searchStudents = vi.fn();
+const listChildren = vi.fn();
+const isChildOf = vi.fn();
 
 vi.mock("@/modules/merit/merit.repo", () => ({
   findRule,
@@ -21,6 +26,11 @@ vi.mock("@/modules/merit/merit.repo", () => ({
   totals,
   findStudentProfileByUserId,
   findStudentProfileById,
+  createAwards,
+  listClassRoster,
+  searchStudents,
+  listChildren,
+  isChildOf,
 }));
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
 vi.mock("@/modules/academic-year/academic-year.service", () => ({
@@ -84,6 +94,11 @@ beforeEach(() => {
     user: { id: "u-1", name: "김민준" },
   });
   recordAudit.mockReset().mockResolvedValue(undefined);
+  createAwards.mockReset().mockResolvedValue([{ id: "a-1" }, { id: "a-2" }]);
+  listClassRoster.mockReset().mockResolvedValue([]);
+  searchStudents.mockReset().mockResolvedValue([]);
+  listChildren.mockReset().mockResolvedValue([]);
+  isChildOf.mockReset().mockResolvedValue(true);
 });
 
 const awardInput = { studentProfileId: "sp-1", ruleId: "r-1", note: null };
@@ -328,6 +343,159 @@ describe("getStudentMerit 권한", () => {
   it("학생은 남의 기록을 볼 수 없다", async () => {
     await expect(
       service.getStudentMerit(student, "sp-2", "SCHOOL"),
+    ).rejects.toThrow("FORBIDDEN");
+  });
+});
+
+describe("bulkAwardMerit", () => {
+  const bulk = {
+    studentProfileIds: ["sp-1", "sp-2"],
+    ruleId: "r-1",
+    note: null,
+  };
+
+  beforeEach(() => {
+    findStudentProfileById.mockImplementation(async (id: string) => ({
+      id,
+      studentCode: "CODE",
+      user: { id: `u-${id}`, name: `학생${id}` },
+    }));
+  });
+
+  it("한 번에 여러 건을 넣고 같은 batchId로 묶는다", async () => {
+    await service.bulkAwardMerit(admin, bulk);
+
+    expect(createAwards).toHaveBeenCalledTimes(1);
+    const items = createAwards.mock.calls[0][0];
+    expect(items).toHaveLength(2);
+    expect(items[0].batchId).toBeTruthy();
+    expect(items[0].batchId).toBe(items[1].batchId);
+  });
+
+  it("감사로그는 학생 수만큼 남는다 — 건별 추적이 가능해야 한다", async () => {
+    await service.bulkAwardMerit(admin, bulk);
+
+    const meritLogs = recordAudit.mock.calls.filter(
+      ([arg]) => arg.action === "merit:award",
+    );
+    expect(meritLogs).toHaveLength(2);
+    expect(meritLogs[0][0].metadata).toEqual(
+      expect.objectContaining({ batchId: expect.any(String) }),
+    );
+  });
+
+  it("한 명이라도 없는 학생이면 아무것도 넣지 않는다", async () => {
+    findStudentProfileById.mockImplementation(async (id: string) =>
+      id === "sp-2" ? null : { id, studentCode: "C", user: { id: "u", name: "n" } },
+    );
+
+    await expect(service.bulkAwardMerit(admin, bulk)).rejects.toThrow(
+      "STUDENT_NOT_FOUND",
+    );
+    expect(createAwards).not.toHaveBeenCalled();
+  });
+
+  it("중복 선택은 한 번만 들어간다", async () => {
+    await service.bulkAwardMerit(admin, {
+      ...bulk,
+      studentProfileIds: ["sp-1", "sp-1", "sp-2"],
+    });
+
+    expect(createAwards.mock.calls[0][0]).toHaveLength(2);
+  });
+
+  it("비활성 규정으로는 일괄도 못 준다", async () => {
+    findRule.mockResolvedValue({ ...SCHOOL_RULE, active: false });
+
+    await expect(service.bulkAwardMerit(admin, bulk)).rejects.toThrow(
+      "RULE_INACTIVE",
+    );
+    expect(createAwards).not.toHaveBeenCalled();
+  });
+
+  it("학생은 일괄 부여를 할 수 없다", async () => {
+    await expect(service.bulkAwardMerit(student, bulk)).rejects.toThrow(
+      "FORBIDDEN",
+    );
+    expect(createAwards).not.toHaveBeenCalled();
+  });
+
+  it("돌려주는 건수가 실제로 넣은 수와 같다", async () => {
+    const result = await service.bulkAwardMerit(admin, bulk);
+    expect(result).toEqual({ count: 2 });
+  });
+});
+
+describe("getClassRoster", () => {
+  it("교내는 그 학년도 합계로 반 명단을 만든다", async () => {
+    await service.getClassRoster(admin, {
+      grade: 2,
+      classNo: 3,
+      track: "SCHOOL",
+    });
+
+    expect(listClassRoster).toHaveBeenCalledWith({
+      year: 2026,
+      grade: 2,
+      classNo: 3,
+      track: "SCHOOL",
+      totalsYear: 2026,
+    });
+  });
+
+  it("기숙사는 합계만 누적으로 센다 — 반은 그 학년도 기준이다", async () => {
+    await service.getClassRoster(admin, {
+      grade: 2,
+      classNo: 3,
+      track: "DORM",
+    });
+
+    expect(listClassRoster).toHaveBeenCalledWith({
+      year: 2026,
+      grade: 2,
+      classNo: 3,
+      track: "DORM",
+      totalsYear: null,
+    });
+  });
+
+  it("학생은 반 명단을 볼 수 없다", async () => {
+    await expect(
+      service.getClassRoster(student, { grade: 1, classNo: 1, track: "SCHOOL" }),
+    ).rejects.toThrow("FORBIDDEN");
+  });
+});
+
+describe("학부모 조회", () => {
+  const parent = user("PARENT", "p-1");
+
+  it("연결된 자녀는 볼 수 있다", async () => {
+    isChildOf.mockResolvedValue(true);
+
+    await service.getChildMerit(parent, "sp-1", "SCHOOL");
+
+    expect(isChildOf).toHaveBeenCalledWith("p-1", "sp-1");
+    expect(totals).toHaveBeenCalled();
+  });
+
+  it("연결되지 않은 학생은 못 본다 — 거부 감사로그가 남는다", async () => {
+    isChildOf.mockResolvedValue(false);
+
+    await expect(
+      service.getChildMerit(parent, "sp-9", "SCHOOL"),
+    ).rejects.toThrow("FORBIDDEN");
+
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "authz:denied" }),
+    );
+    expect(totals).not.toHaveBeenCalled();
+  });
+
+  it("학생이 남의 자녀 경로로 우회할 수 없다", async () => {
+    isChildOf.mockResolvedValue(false);
+
+    await expect(
+      service.getChildMerit(student, "sp-2", "SCHOOL"),
     ).rejects.toThrow("FORBIDDEN");
   });
 });

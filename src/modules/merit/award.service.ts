@@ -1,11 +1,13 @@
+import { randomUUID } from "node:crypto";
 import { recordAudit } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
-import { assertCan } from "@/core/authz/errors";
+import { assertCan, ForbiddenError } from "@/core/authz/errors";
 import { isYearScoped, type MeritTrack } from "@/core/authz/merit-track";
 import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
 import { MeritError } from "./merit.error";
 import * as repo from "./merit.repo";
-import type { AwardInput, CancelInput } from "./merit.schema";
+import { BULK_AWARD_LIMIT } from "./merit.schema";
+import type { AwardInput, BulkAwardInput, CancelInput } from "./merit.schema";
 
 export type MeritTotals = { merit: number; demerit: number; net: number };
 
@@ -189,4 +191,169 @@ async function readMerit(
   ]);
 
   return { track, year: scoped, totals: sumTotals(rows), awards };
+}
+
+/**
+ * 여러 명에게 한 번에 부여.
+ *
+ * 한 트랜잭션으로 넣고 같은 batchId를 공유한다. **감사로그는 학생 1명당 1줄**이다 —
+ * 일괄이어도 "이 학생이 왜 벌점을 받았나"를 건별로 추적해야 한다.
+ * (enrollment.service.saveEnrollments와 같은 원칙)
+ *
+ * 학생 확인을 전부 끝낸 뒤에 쓴다. 한 명이라도 없으면 아무것도 넣지 않는다.
+ */
+export async function bulkAwardMerit(
+  actor: SessionUser,
+  input: BulkAwardInput,
+): Promise<{ count: number }> {
+  await assertCan(actor, "merit:award");
+
+  const rule = await repo.findRule(input.ruleId);
+  if (!rule) throw new MeritError("RULE_NOT_FOUND");
+  if (!rule.active) throw new MeritError("RULE_INACTIVE");
+
+  // 화면에서 같은 학생이 두 번 넘어와도 한 번만 준다.
+  const ids = [...new Set(input.studentProfileIds)];
+  if (ids.length === 0) throw new MeritError("NO_STUDENTS");
+  // zod가 이미 막지만 여기서도 센다. 이건 입력 형식이 아니라 "한 번에 이만큼까지"라는
+  // 업무 규칙이고, 규칙은 서비스가 지켜야 서버 액션을 새로 만들 때 함께 딸려 온다.
+  if (ids.length > BULK_AWARD_LIMIT) throw new MeritError("TOO_MANY_STUDENTS");
+
+  // DB에 쓰기 전에 전부 확인한다 — 절반만 들어가는 상태를 만들지 않는다.
+  const students = await Promise.all(ids.map((id) => repo.findStudentProfileById(id)));
+  const missing = students.some((s) => s === null);
+  if (missing) throw new MeritError("STUDENT_NOT_FOUND");
+
+  const year = await getCurrentYear();
+  const batchId = randomUUID();
+
+  const created = await repo.createAwards(
+    students.map((student) => ({
+      studentProfileId: student!.id,
+      year,
+      ruleId: rule.id,
+      track: rule.track,
+      kind: rule.kind,
+      label: rule.label,
+      points: rule.points,
+      note: input.note,
+      awardedByUserId: actor.id,
+      awardedByName: actor.name,
+      batchId,
+    })),
+  );
+
+  // 커밋된 뒤에 기록한다. 감사 실패가 부여를 되돌리지는 않는다 (core/audit 규약).
+  for (const [index, row] of created.entries()) {
+    const student = students[index]!;
+    await recordAudit({
+      actorUserId: actor.id,
+      actorName: actor.name,
+      action: "merit:award",
+      targetType: "MeritAward",
+      targetId: row.id,
+      metadata: {
+        studentProfileId: student.id,
+        studentName: student.user.name,
+        year,
+        track: rule.track,
+        kind: rule.kind,
+        label: rule.label,
+        points: rule.points,
+        batchId,
+      },
+    });
+  }
+
+  return { count: created.length };
+}
+
+/**
+ * 반별 목록.
+ *
+ * **반은 그 학년도 기준, 합계는 트랙 규칙을 따른다.** 기숙사 탭에서도 "2026학년도
+ * 2학년 3반"의 명단을 보되 각자의 합계는 입학부터 전체 누적이다 — 반 편성은
+ * 학년도 개념이지만 기숙사 점수는 아니기 때문이다.
+ */
+export async function getClassRoster(
+  actor: SessionUser,
+  params: { grade: number; classNo: number; track: MeritTrack; year?: number },
+) {
+  await assertCan(actor, "merit:read:any");
+
+  const year = params.year ?? (await getCurrentYear());
+
+  return repo.listClassRoster({
+    year,
+    grade: params.grade,
+    classNo: params.classNo,
+    track: params.track,
+    totalsYear: await scopeYear(params.track, params.year),
+  });
+}
+
+/** 이름 또는 학생코드로 찾는다. 반·번호는 현재 학년도 기준으로 붙인다. */
+export async function searchStudents(actor: SessionUser, query: string) {
+  await assertCan(actor, "merit:read:any");
+
+  const trimmed = query.trim();
+  if (trimmed.length === 0) return [];
+
+  const year = await getCurrentYear();
+  const rows = await repo.searchStudents(trimmed, year);
+
+  return rows.map((row) => {
+    const enrollment = row.enrollments[0];
+    return {
+      studentProfileId: row.id,
+      studentCode: row.studentCode,
+      name: row.user.name,
+      grade: enrollment?.schoolClass?.grade ?? null,
+      classNo: enrollment?.schoolClass?.classNo ?? null,
+      number: enrollment?.number ?? null,
+    };
+  });
+}
+
+/** 로그인한 학부모의 자녀들. 화면의 자녀 선택에 쓴다. */
+export async function listMyChildren(sessionUser: SessionUser) {
+  const links = await repo.listChildren(sessionUser.id);
+  return links.map((link) => ({
+    studentProfileId: link.student.id,
+    name: link.student.user.name,
+  }));
+}
+
+/**
+ * 학부모의 자녀 조회.
+ *
+ * `can()`으로 가를 수 없는 거부다 — 학부모 역할이 있다는 것과 **이** 학생의
+ * 학부모라는 것은 다른 문제다. 연결을 직접 확인하고 ForbiddenError를 던지되,
+ * 거부 감사로그는 assertCan과 같은 방식으로 남긴다
+ * (invite.service.ts의 revokeInvite와 같은 처리).
+ */
+export async function getChildMerit(
+  sessionUser: SessionUser,
+  childProfileId: string,
+  track: MeritTrack,
+  year?: number,
+): Promise<StudentMeritView> {
+  const linked = await repo.isChildOf(sessionUser.id, childProfileId);
+
+  if (!linked) {
+    try {
+      await recordAudit({
+        actorUserId: sessionUser.id,
+        actorName: sessionUser.name,
+        action: "authz:denied",
+        targetType: "MeritAward",
+        metadata: { action: "merit:read:child", studentProfileId: childProfileId },
+      });
+    } catch {
+      // 감사 기록 실패가 거부 자체를 막지 않는다.
+    }
+    throw new ForbiddenError("merit:read:child");
+  }
+
+  return readMerit(childProfileId, track, year);
 }

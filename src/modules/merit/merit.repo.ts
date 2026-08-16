@@ -209,3 +209,141 @@ export async function findStudentProfileById(id: string) {
     },
   });
 }
+
+// ── 일괄 부여 ─────────────────────────────────────────────────
+
+/**
+ * 여러 건을 **한 트랜잭션으로** 넣는다. 절반만 들어간 상태를 만들지 않는다.
+ * createMany를 쓰지 않는 이유: 감사로그를 건별로 남기려면 각 행의 id가 필요한데
+ * createMany는 id를 돌려주지 않는다.
+ */
+export async function createAwards(items: NewAward[]): Promise<{ id: string }[]> {
+  return prisma.$transaction(
+    async (tx) => {
+      const created: { id: string }[] = [];
+      for (const item of items) {
+        created.push(
+          await tx.meritAward.create({ data: item, select: { id: true } }),
+        );
+      }
+      return created;
+    },
+    // 100명 × 1문장. 기본 5초로도 충분하지만 느린 디스크에서 여유를 둔다.
+    { timeout: 30_000, maxWait: 5_000 },
+  );
+}
+
+// ── 목록 조회 ─────────────────────────────────────────────────
+
+/**
+ * 그 학년도 그 반의 재학생 + 트랙별 합계.
+ *
+ * 학생 목록과 합계를 따로 질의해 애플리케이션에서 잇는다 — groupBy로는
+ * "기록이 하나도 없는 학생"이 결과에서 빠져 반 명단에 구멍이 생긴다.
+ */
+export async function listClassRoster(params: {
+  year: number;
+  grade: number;
+  classNo: number;
+  track: MeritTrack;
+  /** 합계를 셀 학년도. null이면 전체 누적(기숙사). */
+  totalsYear: number | null;
+}) {
+  const enrollments = await prisma.enrollment.findMany({
+    where: {
+      year: params.year,
+      status: "ENROLLED",
+      schoolClass: { grade: params.grade, classNo: params.classNo },
+      studentProfile: { user: { deletedAt: null } },
+    },
+    orderBy: { number: "asc" },
+    select: {
+      number: true,
+      studentProfile: {
+        select: { id: true, studentCode: true, user: { select: { name: true } } },
+      },
+    },
+  });
+
+  const ids = enrollments.map((e) => e.studentProfile.id);
+  if (ids.length === 0) return [];
+
+  const sums = await prisma.meritAward.groupBy({
+    by: ["studentProfileId", "kind"],
+    where: {
+      studentProfileId: { in: ids },
+      track: params.track,
+      status: "ACTIVE",
+      ...(params.totalsYear === null ? {} : { year: params.totalsYear }),
+    },
+    _sum: { points: true },
+  });
+
+  return enrollments.map((e) => {
+    const mine = sums.filter((s) => s.studentProfileId === e.studentProfile.id);
+    const merit =
+      mine.find((s) => s.kind === "MERIT")?._sum.points ?? 0;
+    const demerit =
+      mine.find((s) => s.kind === "DEMERIT")?._sum.points ?? 0;
+    return {
+      studentProfileId: e.studentProfile.id,
+      studentCode: e.studentProfile.studentCode,
+      name: e.studentProfile.user.name,
+      number: e.number,
+      merit,
+      demerit,
+      net: merit - demerit,
+    };
+  });
+}
+
+/** 이름 또는 학생코드로 찾는다. 30명에서 자른다. */
+export async function searchStudents(query: string, year: number) {
+  return prisma.studentProfile.findMany({
+    where: {
+      user: { deletedAt: null, role: "STUDENT" },
+      OR: [
+        { user: { name: { contains: query, mode: "insensitive" } } },
+        { studentCode: { contains: query, mode: "insensitive" } },
+      ],
+    },
+    take: 30,
+    orderBy: { user: { name: "asc" } },
+    select: {
+      id: true,
+      studentCode: true,
+      user: { select: { name: true } },
+      enrollments: {
+        where: { year },
+        take: 1,
+        select: {
+          number: true,
+          status: true,
+          schoolClass: { select: { grade: true, classNo: true } },
+        },
+      },
+    },
+  });
+}
+
+/** 학부모의 자녀들. ParentStudent 연결이 곧 권한이다. */
+export async function listChildren(parentUserId: string) {
+  return prisma.parentStudent.findMany({
+    where: { parentUserId, student: { user: { deletedAt: null } } },
+    select: {
+      student: { select: { id: true, user: { select: { name: true } } } },
+    },
+  });
+}
+
+/** 이 학부모와 이 학생이 실제로 연결되어 있는가. 소유권 검사의 전부다. */
+export async function isChildOf(
+  parentUserId: string,
+  studentProfileId: string,
+): Promise<boolean> {
+  const link = await prisma.parentStudent.findFirst({
+    where: { parentUserId, studentId: studentProfileId },
+    select: { id: true },
+  });
+  return link !== null;
+}
