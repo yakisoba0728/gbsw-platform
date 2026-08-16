@@ -1,5 +1,5 @@
 import { prisma } from "@/core/db/client";
-import { isUniqueViolation } from "@/core/db/unique-violation";
+import { isUniqueViolation, NumberTakenError } from "@/core/db/unique-violation";
 import type { Prisma } from "@/generated/prisma/client";
 import { generateStudentCode } from "@/lib/student-code";
 
@@ -16,8 +16,13 @@ export class InviteRaceError extends Error {}
  */
 const STUDENT_CODE_RETRIES = 5;
 
-/** 이 반·번호가 이미 다른 학생에게 배정돼 있을 때. (Enrollment_classId_number_key) */
-export class NumberTakenError extends Error {}
+/**
+ * 이 반·번호가 이미 다른 학생에게 배정돼 있을 때. (Enrollment_classId_number_key)
+ * 기존 import 경로를 깨지 않기 위해 re-export한다. 실물은 core/db에 하나뿐이다
+ * (admin-user.repo.ts와 같은 방식) — 여기서 같은 이름의 별개 클래스를 새로
+ * 만들면 instanceof가 모듈을 건너 통하지 않는다.
+ */
+export { NumberTakenError };
 
 export async function findInviteByCode(code: string) {
   return prisma.invite.findUnique({ where: { code } });

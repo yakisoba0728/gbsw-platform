@@ -34,8 +34,11 @@ export function isUniqueViolation(error: unknown, field: string): boolean {
 /**
  * 한 반에 같은 번호가 이미 있을 때.
  *
- * 소속을 쓰는 경로가 셋(사용자 상세·학생 표·명단 반영)이라 여기 둔다.
- * 모듈마다 같은 이름의 별개 클래스를 두면 instanceof가 모듈을 건너 통하지 않아
- * 조용히 새는 자리가 된다.
+ * 소속에 반·번호를 쓰는 모듈이 여럿(사용자 상세·학생 표·명단 반영·가입)이라
+ * 여기 둔다. 모듈마다 같은 이름의 별개 클래스를 두면 instanceof가 모듈을 건너
+ * 통하지 않아 조용히 새는 자리가 된다 — 각 모듈의 repo는 이 클래스를 import해
+ * re-export만 한다. **숫자를 세어 적지 않는다**: 예전엔 "경로가 셋"이라고 적혀
+ * 있었는데 네 번째가 생겼을 때 아무도 이 줄을 고치지 않았고, 그 네 번째가 바로
+ * 별개 클래스를 새로 만든 곳이었다.
  */
 export class NumberTakenError extends Error {}
