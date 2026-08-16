@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useActionState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
+import { Note } from "@/components/ui/note";
 import { changePasswordAction, type ChangePasswordState } from "./actions";
 
 const INITIAL: ChangePasswordState = { error: null, ok: false };
@@ -66,12 +67,9 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
       />
 
       {state.error && (
-        <p
-          role="alert"
-          className="mb-4 rounded-btn bg-rose-soft px-3 py-2.5 text-[13px] font-semibold text-rose"
-        >
+        <Note tone="error" className="mb-4">
           {state.error}
-        </p>
+        </Note>
       )}
 
       <Button type="submit" size="lg" full disabled={pending}>

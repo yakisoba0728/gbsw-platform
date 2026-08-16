@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Note } from "@/components/ui/note";
 import { Select } from "@/components/ui/select";
 import {
   ENROLLMENT_STATUSES,
@@ -197,19 +198,16 @@ export function StudentTable({
         </header>
 
         {state.error && (
-          <p
-            role="alert"
-            className="mx-5 mt-4 rounded-btn bg-rose-soft px-3 py-2.5 text-[13px] font-semibold text-rose"
-          >
+          <Note tone="error" className="mx-5 mt-4">
             {state.error}
-          </p>
+          </Note>
         )}
         {state.saved !== null && !state.error && (
-          <p className="mx-5 mt-4 rounded-btn bg-green-soft px-3 py-2.5 text-[13px] font-semibold text-green">
+          <Note tone="success" className="mx-5 mt-4">
             {state.saved === 0
               ? "바뀐 내용이 없습니다."
               : `${state.saved}명 저장했습니다.`}
-          </p>
+          </Note>
         )}
 
         {filtered.length === 0 ? (

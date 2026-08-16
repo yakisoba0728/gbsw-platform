@@ -3,11 +3,12 @@
 import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
+import { Note } from "@/components/ui/note";
+import { INVITE_FORM_INITIAL, type InviteFormState } from "./action-state";
 import {
   createAdminInviteAction,
   createParentInviteForAction,
   createStudentInviteAction,
-  type InviteFormState,
 } from "./actions";
 
 export type StudentOption = {
@@ -15,8 +16,6 @@ export type StudentOption = {
   label: string;
   search: string;
 };
-
-const INITIAL: InviteFormState = { error: null, code: null };
 
 type Target = "STUDENT" | "ADMIN" | "PARENT";
 
@@ -67,7 +66,7 @@ export function InviteForm({ students }: { students: StudentOption[] }) {
 function ParentForm({ students }: { students: StudentOption[] }) {
   const [state, formAction, pending] = useActionState(
     createParentInviteForAction,
-    INITIAL,
+    INVITE_FORM_INITIAL,
   );
   const [query, setQuery] = useState("");
 
@@ -120,12 +119,9 @@ function ParentForm({ students }: { students: StudentOption[] }) {
 function Result({ state }: { state: InviteFormState }) {
   if (state.error) {
     return (
-      <p
-        role="alert"
-        className="mt-4 rounded-btn bg-rose-soft px-3 py-2.5 text-[13px] font-semibold text-rose"
-      >
+      <Note tone="error" className="mt-4">
         {state.error}
-      </p>
+      </Note>
     );
   }
 
@@ -161,7 +157,7 @@ function ExpiryField() {
 function StudentForm() {
   const [state, formAction, pending] = useActionState(
     createStudentInviteAction,
-    INITIAL,
+    INVITE_FORM_INITIAL,
   );
 
   return (
@@ -201,7 +197,7 @@ function StudentForm() {
 function AdminForm() {
   const [state, formAction, pending] = useActionState(
     createAdminInviteAction,
-    INITIAL,
+    INVITE_FORM_INITIAL,
   );
 
   return (

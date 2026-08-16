@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
+import { Note } from "@/components/ui/note";
 import { authClient } from "@/core/auth/auth-client";
 
 /** 관리자가 계정을 잠갔을 때 보여줄 문구. 배너와 로그인 실패 메시지가 같은 문구를 쓴다. */
@@ -81,12 +82,9 @@ export function LoginForm({ disabled = false }: { disabled?: boolean }) {
       />
 
       {error && (
-        <p
-          role="alert"
-          className="mb-4 rounded-btn bg-rose-soft px-3 py-2.5 text-[13px] font-semibold text-rose"
-        >
+        <Note tone="error" className="mb-4">
           {error}
-        </p>
+        </Note>
       )}
 
       <Button type="submit" size="lg" full disabled={pending}>

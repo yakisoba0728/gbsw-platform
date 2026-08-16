@@ -6,6 +6,7 @@ import { ChevronLeftIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { MaskedInput } from "@/components/ui/masked-input";
+import { Note } from "@/components/ui/note";
 import { formatInviteCodeInput, formatPhone } from "@/lib/masks";
 import type { Role } from "@/core/authz/roles";
 import {
@@ -34,17 +35,6 @@ export function RegisterFlow() {
     <ProfileStep code={check.code} role={check.role} />
   ) : (
     <CodeStep formAction={checkAction} pending={checking} error={check.error} />
-  );
-}
-
-function ErrorNote({ message }: { message: string }) {
-  return (
-    <p
-      role="alert"
-      className="mb-4 rounded-btn bg-rose-soft px-3 py-2.5 text-[13px] font-semibold text-rose"
-    >
-      {message}
-    </p>
   );
 }
 
@@ -83,7 +73,11 @@ function CodeStep({
         className="mb-[22px]"
       />
 
-      {error && <ErrorNote message={error} />}
+      {error && (
+        <Note tone="error" className="mb-4">
+          {error}
+        </Note>
+      )}
 
       <Button type="submit" size="lg" full disabled={pending}>
         {pending ? "확인 중…" : "코드 확인 후 계속"}
@@ -207,7 +201,11 @@ function ProfileStep({ code, role }: { code: string; role: Role }) {
         className="mb-5"
       />
 
-      {state.error && <ErrorNote message={state.error} />}
+      {state.error && (
+        <Note tone="error" className="mb-4">
+          {state.error}
+        </Note>
+      )}
 
       <Button type="submit" size="lg" full disabled={pending}>
         {pending ? "가입 중…" : "가입하고 시작하기"}

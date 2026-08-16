@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { MaskedInput } from "@/components/ui/masked-input";
+import { Note } from "@/components/ui/note";
 import { formatPhone } from "@/lib/masks";
 import {
   UPDATE_USER_INITIAL,
@@ -37,21 +38,6 @@ export type EditableUser = {
   active: boolean;
   isSelf: boolean;
 };
-
-function Note({ tone, children }: { tone: "ok" | "bad"; children: React.ReactNode }) {
-  return (
-    <p
-      role={tone === "bad" ? "alert" : undefined}
-      className={
-        tone === "bad"
-          ? "mt-3 rounded-btn bg-rose-soft px-3 py-2.5 text-[13px] font-semibold text-rose"
-          : "mt-3 rounded-btn bg-green-soft px-3 py-2.5 text-[13px] font-semibold text-green"
-      }
-    >
-      {children}
-    </p>
-  );
-}
 
 const FIELD_LABEL: Record<string, string> = {
   name: "이름",
@@ -181,12 +167,12 @@ export function EditUserForm({ user }: { user: EditableUser }) {
         {pending ? "저장 중…" : "저장"}
       </Button>
 
-      {state.error && <Note tone="bad">{state.error}</Note>}
+      {state.error && <Note tone="error" className="mt-3">{state.error}</Note>}
       {state.changed !== null &&
         (state.changed.length === 0 ? (
-          <Note tone="ok">바뀐 내용이 없습니다.</Note>
+          <Note tone="success" className="mt-3">바뀐 내용이 없습니다.</Note>
         ) : (
-          <Note tone="ok">
+          <Note tone="success" className="mt-3">
             저장했습니다 —{" "}
             {state.changed.map((f) => FIELD_LABEL[f] ?? f).join(", ")}
           </Note>
@@ -208,7 +194,7 @@ export function ResetPasswordForm({ user }: { user: EditableUser }) {
         {pending ? "처리 중…" : "비밀번호 초기화"}
       </Button>
 
-      {state.error && <Note tone="bad">{state.error}</Note>}
+      {state.error && <Note tone="error" className="mt-3">{state.error}</Note>}
 
       {state.tempPassword && (
         <div className="mt-3 rounded-btn bg-pri-soft px-4 py-3">
@@ -251,7 +237,7 @@ export function ToggleActiveForm({ user }: { user: EditableUser }) {
           자기 계정은 비활성화할 수 없습니다.
         </p>
       )}
-      {state.error && <Note tone="bad">{state.error}</Note>}
+      {state.error && <Note tone="error" className="mt-3">{state.error}</Note>}
     </form>
   );
 }
@@ -300,7 +286,7 @@ export function HardDeleteForm({ user }: { user: EditableUser }) {
         {pending ? "삭제하는 중…" : "완전 삭제"}
       </Button>
 
-      {state.error && <Note tone="bad">{state.error}</Note>}
+      {state.error && <Note tone="error" className="mt-3">{state.error}</Note>}
     </form>
   );
 }

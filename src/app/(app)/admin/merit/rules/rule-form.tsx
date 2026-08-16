@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
+import { Note } from "@/components/ui/note";
 import { Select } from "@/components/ui/select";
 import { MERIT_KIND_LABELS, MERIT_KINDS, type MeritTrack } from "@/core/authz/merit-track";
 import { EMPTY_RULE_FORM_STATE } from "./action-state";
@@ -72,12 +73,9 @@ export function RuleForm({ track }: { track: MeritTrack }) {
       </form>
 
       {state.error && (
-        <p
-          role="alert"
-          className="mt-3 rounded-btn bg-rose-soft px-3 py-2.5 text-[13px] font-semibold text-rose"
-        >
+        <Note tone="error" className="mt-3">
           {state.error}
-        </p>
+        </Note>
       )}
     </section>
   );

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useState, useTransition } from "react";
 import writeXlsxFile from "write-excel-file/browser";
 import { Button } from "@/components/ui/button";
+import { Note } from "@/components/ui/note";
 import {
   ENROLLMENT_STATUS_LABELS,
   type EnrollmentStatus,
@@ -191,12 +192,9 @@ function UploadCard({
       </div>
 
       {exportError && (
-        <p
-          role="alert"
-          className="mt-3 rounded-btn bg-rose-soft px-3 py-2.5 text-[13px] font-semibold text-rose"
-        >
+        <Note tone="error" className="mt-3">
           {exportError}
-        </p>
+        </Note>
       )}
 
       <form action={action} className="mt-4 flex flex-wrap items-center gap-3">
@@ -214,12 +212,9 @@ function UploadCard({
       </form>
 
       {state.error && (
-        <p
-          role="alert"
-          className="mt-4 rounded-btn bg-rose-soft px-3 py-2.5 text-[13px] font-semibold text-rose"
-        >
+        <Note tone="error" className="mt-4">
           {state.error}
-        </p>
+        </Note>
       )}
     </section>
   );
@@ -264,13 +259,12 @@ function PreviewCard({
         <h2 className="text-base font-extrabold text-ink">미리보기</h2>
         <p className="mt-0.5 text-[12px] text-mut">{year}학년도 기준입니다.</p>
         {notices.map((notice) => (
-          <p
-            key={notice}
-            role="alert"
-            className="mt-2 rounded-btn bg-amber-soft px-3 py-2.5 text-[12.5px] font-semibold text-amber-ink"
-          >
+          // 경고색이지만 알림은 필요하다 — 파일 전체에 걸리는 주의(학생코드 열
+          // 없음 등)라 놓치면 잘못된 확정으로 이어진다. Note는 error에만 role을
+          // 자동으로 붙이므로 여기서 명시한다.
+          <Note key={notice} tone="warn" role="alert" className="mt-2">
             {notice}
-          </p>
+          </Note>
         ))}
       </header>
 
@@ -377,26 +371,32 @@ function PreviewCard({
       </div>
 
       <div className="border-t border-line px-5 py-4">
+        {/* 이 두 배너는 role="alert"가 빠져 있었다 — 하필 되돌릴 수 없는 동작을
+            다루는 화면이라, 화면을 못 보는 사람에게 실패가 전달되지 않으면 그대로
+            다음 단추를 누른다. Note tone="error"가 자동으로 붙인다. */}
         {plan.hasBlockingError && (
-          <p className="mb-3 rounded-btn bg-rose-soft px-3 py-2.5 text-[13px] font-semibold text-rose">
+          <Note tone="error" className="mb-3">
             오류나 확인 필요 항목이 남아 있어 확정할 수 없습니다. 파일을 고쳐 다시
             올려 주세요.
-          </p>
+          </Note>
         )}
         {applyState.error && (
-          <p className="mb-3 rounded-btn bg-rose-soft px-3 py-2.5 text-[13px] font-semibold text-rose">
+          <Note tone="error" className="mb-3">
             {applyState.error}
-          </p>
+          </Note>
         )}
 
         {applied ? (
-          <p className="rounded-btn bg-green-soft px-3 py-2.5 text-[13px] font-semibold text-green">
+          // 확정에 성공하면 폼이 통째로 사라져 포커스가 <body>로 떨어진다 —
+          // 이 결과만은 알림으로도 전달돼야 한다. Note는 error에만 role을
+          // 자동으로 붙이므로 여기서 명시한다.
+          <Note tone="success" role="status">
             {/* Minor-4: 제외 건수가 반영 건수 안에 묻히면 몇 명이 빠졌는지 이
                 문구만 보고는 알 수 없다 — 제외가 있을 때만 따로 덧붙인다. */}
             {applyState.deleted && applyState.deleted > 0
               ? `${applyState.saved}건 반영, ${applyState.deleted}명 명단에서 제외했습니다.`
               : `${applyState.saved}건 반영했습니다.`}
-          </p>
+          </Note>
         ) : (
           <form action={applyAction} className="flex flex-col gap-3">
             <input type="hidden" name="rows" value={JSON.stringify(rows)} />

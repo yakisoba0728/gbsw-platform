@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { MaskedInput } from "@/components/ui/masked-input";
+import { Note } from "@/components/ui/note";
 import { formatPhone } from "@/lib/masks";
 import { createInitialAdminAction, type BootstrapState } from "./actions";
 
@@ -81,12 +82,9 @@ export function BootstrapForm({ token }: { token: string }) {
       />
 
       {state.error && (
-        <p
-          role="alert"
-          className="mb-4 rounded-btn bg-rose-soft px-3 py-2.5 text-[13px] font-semibold text-rose"
-        >
+        <Note tone="error" className="mb-4">
           {state.error}
-        </p>
+        </Note>
       )}
 
       <Button type="submit" size="lg" full disabled={pending}>

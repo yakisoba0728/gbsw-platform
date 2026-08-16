@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Note } from "@/components/ui/note";
 import { KindBadge, kindColorClass } from "@/components/merit/kind-badge";
 import { MERIT_KIND_LABELS, meritKindSign, type MeritKind } from "@/core/authz/merit-track";
 import { EMPTY_RULE_FORM_STATE } from "./action-state";
@@ -61,12 +62,9 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
       <form id="rule-delete-form" action={deleteAction} className="hidden" />
 
       {(updateState.error ?? deleteState.error) && (
-        <p
-          role="alert"
-          className="mx-5 mt-4 rounded-btn bg-rose-soft px-3 py-2.5 text-[13px] font-semibold text-rose"
-        >
+        <Note tone="error" className="mx-5 mt-4">
           {updateState.error ?? deleteState.error}
-        </p>
+        </Note>
       )}
 
       <div className="overflow-x-auto">

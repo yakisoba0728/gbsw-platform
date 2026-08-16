@@ -3,17 +3,14 @@
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
-import {
-  createParentInviteAction,
-  type ParentInviteState,
-} from "./actions";
-
-const INITIAL: ParentInviteState = { error: null, code: null };
+import { Note } from "@/components/ui/note";
+import { PARENT_INVITE_INITIAL } from "./action-state";
+import { createParentInviteAction } from "./actions";
 
 export function ParentInviteForm() {
   const [state, formAction, pending] = useActionState(
     createParentInviteAction,
-    INITIAL,
+    PARENT_INVITE_INITIAL,
   );
 
   return (
@@ -22,12 +19,9 @@ export function ParentInviteForm() {
       <Input id="name" name="name" required maxLength={50} className="mb-[22px]" />
 
       {state.error && (
-        <p
-          role="alert"
-          className="mb-4 rounded-btn bg-rose-soft px-3 py-2.5 text-[13px] font-semibold text-rose"
-        >
+        <Note tone="error" className="mb-4">
           {state.error}
-        </p>
+        </Note>
       )}
 
       <Button type="submit" full disabled={pending}>

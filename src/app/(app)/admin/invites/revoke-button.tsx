@@ -2,14 +2,13 @@
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
-import { revokeInviteAction, type RevokeState } from "./actions";
-
-const INITIAL: RevokeState = { error: null };
+import { REVOKE_INITIAL } from "./action-state";
+import { revokeInviteAction } from "./actions";
 
 export function RevokeButton({ inviteId }: { inviteId: string }) {
   const [state, formAction, pending] = useActionState(
     revokeInviteAction,
-    INITIAL,
+    REVOKE_INITIAL,
   );
 
   return (
