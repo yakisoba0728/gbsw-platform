@@ -92,7 +92,7 @@ export default async function RecentAwardsPage({
               </colgroup>
               <thead>
                 <tr className="border-b border-line2 text-[12px] text-mut">
-                  <th className="px-5 py-2.5 font-semibold">입력</th>
+                  <th className="px-5 py-2.5 font-semibold">시각</th>
                   <th className="px-2 py-2.5 font-semibold">구분</th>
                   <th className="px-2 py-2.5 font-semibold">학생</th>
                   <th className="px-2 py-2.5 font-semibold">항목</th>
