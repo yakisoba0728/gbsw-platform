@@ -18,7 +18,7 @@ import {
   MonthlyChart,
   StudentNetChart,
 } from "@/components/merit/charts";
-import { getMeritStats, type MeritStats } from "@/modules/merit/award.service";
+import { getMeritStats, type MeritStats } from "@/modules/merit/stats.service";
 
 export const metadata: Metadata = { title: "상벌점 통계" };
 

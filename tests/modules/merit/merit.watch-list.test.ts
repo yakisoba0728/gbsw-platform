@@ -33,7 +33,7 @@ vi.mock("@/modules/academic-year/academic-year.service", () => ({
   AcademicYearError: class extends Error {},
 }));
 
-const service = await import("@/modules/merit/award.service");
+const service = await import("@/modules/merit/stats.service");
 
 function user(role: SessionUser["role"]): SessionUser {
   return {

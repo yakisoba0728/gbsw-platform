@@ -64,6 +64,7 @@ vi.mock("@/modules/academic-year/academic-year.service", () => ({
 }));
 
 const service = await import("@/modules/merit/award.service");
+const statsService = await import("@/modules/merit/stats.service");
 
 const admin: SessionUser = {
   id: "admin-1",
@@ -142,7 +143,7 @@ describe("학생 합계", () => {
 
 describe("통계 합계", () => {
   it("트랙 전체 합계에도 상쇄점이 들어간다", async () => {
-    const stats = await service.getMeritStats(admin, "SCHOOL");
+    const stats = await statsService.getMeritStats(admin, "SCHOOL");
 
     expect(stats.totals.merit).toBe(10);
     expect(stats.totals.demerit).toBe(20);
@@ -151,7 +152,7 @@ describe("통계 합계", () => {
   });
 
   it("부여 건수는 종류와 무관하게 전부 센다", async () => {
-    const stats = await service.getMeritStats(admin, "SCHOOL");
+    const stats = await statsService.getMeritStats(admin, "SCHOOL");
 
     expect(stats.totals.awardCount).toBe(3);
   });

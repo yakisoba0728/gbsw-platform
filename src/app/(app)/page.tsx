@@ -8,14 +8,13 @@ import { MeritTotalsCards } from "@/components/merit/merit-totals";
 import { formatDate } from "@/lib/datetime";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import {
-  getMeritSummary,
   getMyMerit,
   listMyChildren,
   listRecentAwards,
   getChildMerit,
-  type MeritSummary,
   type StudentMeritView,
 } from "@/modules/merit/award.service";
+import { getMeritSummary, type MeritSummary } from "@/modules/merit/stats.service";
 
 /**
  * 카드 제목은 메뉴(nav.ts)와 같은 이름을 쓴다. MERIT_TRACK_LABELS(교내·기숙사)는
