@@ -318,7 +318,7 @@ describe("합계 범위 — 이 모듈의 핵심", () => {
     });
   });
 
-  it("순점수는 상점 − 벌점이고 음수가 될 수 있다", async () => {
+  it("순점수는 상점 + 상쇄 − 벌점이고 음수가 될 수 있다", async () => {
     totals.mockResolvedValue([
       { kind: "MERIT", _sum: { points: 2 } },
       { kind: "DEMERIT", _sum: { points: 9 } },
@@ -326,7 +326,7 @@ describe("합계 범위 — 이 모듈의 핵심", () => {
 
     const view = await service.getStudentMerit(admin, "sp-1", "SCHOOL");
 
-    expect(view.totals).toEqual({ merit: 2, demerit: 9, net: -7 });
+    expect(view.totals).toEqual({ merit: 2, demerit: 9, offset: 0, net: -7 });
   });
 
   it("기록이 하나도 없으면 0이다", async () => {
@@ -334,7 +334,7 @@ describe("합계 범위 — 이 모듈의 핵심", () => {
 
     const view = await service.getStudentMerit(admin, "sp-1", "SCHOOL");
 
-    expect(view.totals).toEqual({ merit: 0, demerit: 0, net: 0 });
+    expect(view.totals).toEqual({ merit: 0, demerit: 0, offset: 0, net: 0 });
   });
 });
 
@@ -353,7 +353,7 @@ describe("getMyMerit", () => {
 
     const view = await service.getMyMerit(admin, "SCHOOL");
 
-    expect(view.totals).toEqual({ merit: 0, demerit: 0, net: 0 });
+    expect(view.totals).toEqual({ merit: 0, demerit: 0, offset: 0, net: 0 });
     expect(view.awards).toEqual([]);
   });
 

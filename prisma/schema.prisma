@@ -365,7 +365,9 @@ model MeritRule {
 
   /// SCHOOL | DORM — src/core/authz/merit-track.ts의 MeritTrack과 일치해야 한다.
   track String
-  /// MERIT | DEMERIT — 같은 파일의 MeritKind와 일치해야 한다.
+  /// MERIT | DEMERIT | OFFSET — 같은 파일의 MeritKind와 일치해야 한다.
+  /// OFFSET(상쇄점)은 상점이 아니다 — 선도관리위원회가 벌점을 덜어내는 조치이며
+  /// 순점수에서만 만난다 (순점수 = 상점 + 상쇄점 − 벌점).
   kind  String
 
   label String

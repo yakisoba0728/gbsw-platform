@@ -1,4 +1,8 @@
-import { MERIT_KIND_LABELS, type MeritKind } from "@/core/authz/merit-track";
+import {
+  MERIT_KIND_LABELS,
+  MERIT_KIND_SHORT_LABELS,
+  type MeritKind,
+} from "@/core/authz/merit-track";
 
 export type RuleOption = {
   id: string;
@@ -10,7 +14,7 @@ export type RuleOption = {
 
 /** 시안의 표기 그대로 — `[상 5점] 교내 봉사활동 우수 참여`. */
 function optionLabel(rule: RuleOption): string {
-  const kind = rule.kind === "MERIT" ? "상" : "벌";
+  const kind = MERIT_KIND_SHORT_LABELS[rule.kind as MeritKind] ?? rule.kind;
   return `[${kind} ${rule.points}점] ${rule.label}`;
 }
 

@@ -18,6 +18,7 @@ export type RosterRow = {
   number: number | null;
   merit: number;
   demerit: number;
+  offset: number;
   net: number;
 };
 
@@ -115,6 +116,7 @@ export function ClassRoster({
               <col />
               <col className="w-[70px]" />
               <col className="w-[70px]" />
+              <col className="w-[74px]" />
               <col className="w-[84px]" />
             </colgroup>
             <thead>
@@ -137,6 +139,12 @@ export function ClassRoster({
                 <th className="px-3 py-2.5 font-semibold">이름</th>
                 <th className="px-3 py-2.5 font-semibold">상점</th>
                 <th className="px-3 py-2.5 font-semibold">벌점</th>
+                {/*
+                  상쇄점 열은 값이 0이어도 항상 낸다. 표는 행마다 열을 껐다 켤 수
+                  없고, 상점 − 벌점이 순점수와 안 맞는 줄이 하나라도 보이면
+                  보는 사람이 표 전체를 의심하게 된다.
+                */}
+                <th className="px-3 py-2.5 font-semibold">상쇄</th>
                 <th
                   className="cursor-pointer px-3 py-2.5 font-semibold select-none"
                   onClick={() => setSortKey("net")}
@@ -168,6 +176,11 @@ export function ClassRoster({
                   </td>
                   <td className="px-3 py-2.5 font-bold text-blue">{row.merit}</td>
                   <td className="px-3 py-2.5 font-bold text-rose">{row.demerit}</td>
+                  <td
+                    className={`px-3 py-2.5 font-bold ${row.offset === 0 ? "text-mut2" : "text-green"}`}
+                  >
+                    {row.offset}
+                  </td>
                   <td
                     className={`px-3 py-2.5 font-extrabold ${row.net >= 0 ? "text-green" : "text-rose"}`}
                   >

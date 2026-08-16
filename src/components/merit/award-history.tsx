@@ -1,6 +1,6 @@
 import { CancelButton } from "@/app/(app)/merit/students/[studentId]/cancel-button";
 import { Badge } from "@/components/ui/badge";
-import { MERIT_KIND_LABELS, type MeritKind } from "@/core/authz/merit-track";
+import { KindBadge, kindColorClass, signedPoints } from "@/components/merit/kind-badge";
 import { formatDate } from "@/lib/datetime";
 import type { StudentMeritView } from "@/modules/merit/award.service";
 
@@ -65,9 +65,7 @@ export function AwardHistory({
                     {formatDate(award.createdAt)}
                   </td>
                   <td className="px-3 py-2.5">
-                    <Badge tone={award.kind === "MERIT" ? "merit" : "demerit"}>
-                      {MERIT_KIND_LABELS[award.kind as MeritKind]}
-                    </Badge>
+                    <KindBadge kind={award.kind} />
                   </td>
                   <td className="px-3 py-2.5">
                     <span
@@ -97,8 +95,7 @@ export function AwardHistory({
                     )}
                   </td>
                   <td className="px-3 py-2.5 font-bold">
-                    {award.kind === "MERIT" ? "+" : "−"}
-                    {award.points}
+                    {signedPoints(award.kind, award.points)}
                   </td>
                   <td className="px-3 py-2.5 text-mut">{award.awardedByName}</td>
                   <td className="px-3 py-2.5">

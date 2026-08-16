@@ -38,13 +38,19 @@ describe("MeritTrack", () => {
 });
 
 describe("MeritKind", () => {
-  it("종류는 상점과 벌점 둘뿐이다", () => {
-    expect(MERIT_KINDS).toEqual(["MERIT", "DEMERIT"]);
+  it("종류는 상점·벌점·상쇄점 셋이다 — 순서는 학교 규정표와 같다", () => {
+    expect(MERIT_KINDS).toEqual(["MERIT", "DEMERIT", "OFFSET"]);
   });
 
   it("모든 종류에 한글 라벨이 있다", () => {
     expect(MERIT_KIND_LABELS.MERIT).toBe("상점");
     expect(MERIT_KIND_LABELS.DEMERIT).toBe("벌점");
+    expect(MERIT_KIND_LABELS.OFFSET).toBe("상쇄점");
+  });
+
+  it("상쇄점은 상점이 아니다 — 벌점을 덜어내는 행정 조치라 종류를 따로 둔다", () => {
+    expect(MERIT_KIND_LABELS.OFFSET).not.toBe(MERIT_KIND_LABELS.MERIT);
+    expect(isMeritKind("OFFSET")).toBe(true);
   });
 
   it("모르는 값은 종류가 아니다", () => {

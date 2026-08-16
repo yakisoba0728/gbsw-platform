@@ -3,14 +3,17 @@ import { toHistorySheet, toRosterSheet } from "@/modules/merit/merit.export";
 
 describe("toRosterSheet", () => {
   const rows = [
-    { studentProfileId: "sp-1", studentCode: "K7M2XQ4A", name: "김민준", number: 3, merit: 15, demerit: 6, net: 9 },
-    { studentProfileId: "sp-2", studentCode: "B3N8ZR5C", name: "정하윤", number: 4, merit: 0, demerit: 12, net: -12 },
+    { studentProfileId: "sp-1", studentCode: "K7M2XQ4A", name: "김민준", number: 3, merit: 15, demerit: 6, offset: 0, net: 9 },
+    // 상쇄 60점을 받은 학생 — 벌점 72를 덜어내 순점수가 −12로 올라갔다.
+    { studentProfileId: "sp-2", studentCode: "B3N8ZR5C", name: "정하윤", number: 4, merit: 0, demerit: 72, offset: 60, net: -12 },
   ];
 
   it("첫 줄은 조회 범위, 둘째 줄이 머리글이다", () => {
     const sheet = toRosterSheet(rows, { track: "SCHOOL", year: 2026, grade: 2, classNo: 3 });
     expect(sheet[0]).toEqual(["2026학년도 2학년 3반 · 교내"]);
-    expect(sheet[1]).toEqual(["번호", "이름", "학생코드", "상점", "벌점", "순점수"]);
+    expect(sheet[1]).toEqual([
+      "번호", "이름", "학생코드", "상점", "벌점", "상쇄", "순점수",
+    ]);
   });
 
   it("기숙사는 학년도 대신 누적임을 적는다 — 같은 숫자가 전혀 다른 뜻이다", () => {
@@ -21,12 +24,21 @@ describe("toRosterSheet", () => {
   it("학생 수만큼 줄이 나온다 (범위 + 머리글 + 학생)", () => {
     const sheet = toRosterSheet(rows, { track: "SCHOOL", year: 2026, grade: 2, classNo: 3 });
     expect(sheet).toHaveLength(4);
-    expect(sheet[2]).toEqual([3, "김민준", "K7M2XQ4A", 15, 6, 9]);
+    expect(sheet[2]).toEqual([3, "김민준", "K7M2XQ4A", 15, 6, 0, 9]);
   });
 
   it("순점수는 음수도 그대로 숫자로 나간다 — 엑셀에서 계산할 수 있어야 한다", () => {
     const sheet = toRosterSheet(rows, { track: "SCHOOL", year: 2026, grade: 2, classNo: 3 });
-    expect(sheet[3][5]).toBe(-12);
+    expect(sheet[3][6]).toBe(-12);
+  });
+
+  it("상쇄 열이 항상 있고, 상점 + 상쇄 − 벌점이 순점수와 맞는다", () => {
+    const sheet = toRosterSheet(rows, { track: "SCHOOL", year: 2026, grade: 2, classNo: 3 });
+
+    for (const row of sheet.slice(2)) {
+      const [, , , merit, demerit, offset, net] = row as number[];
+      expect(merit + offset - demerit).toBe(net);
+    }
   });
 
   it("빈 명단이어도 범위와 머리글은 나온다", () => {

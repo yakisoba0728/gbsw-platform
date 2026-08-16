@@ -9,7 +9,13 @@ import * as repo from "./merit.repo";
 import { BULK_AWARD_LIMIT } from "./merit.schema";
 import type { AwardInput, BulkAwardInput, CancelInput } from "./merit.schema";
 
-export type MeritTotals = { merit: number; demerit: number; net: number };
+/** 순점수 = 상점 + 상쇄점 − 벌점. 상쇄점은 벌점을 덜어내므로 순점수를 올린다. */
+export type MeritTotals = {
+  merit: number;
+  demerit: number;
+  offset: number;
+  net: number;
+};
 
 export type StudentMeritView = {
   track: MeritTrack;
@@ -19,7 +25,7 @@ export type StudentMeritView = {
   awards: Awaited<ReturnType<typeof repo.listAwards>>;
 };
 
-const EMPTY_TOTALS: MeritTotals = { merit: 0, demerit: 0, net: 0 };
+const EMPTY_TOTALS: MeritTotals = { merit: 0, demerit: 0, offset: 0, net: 0 };
 
 /**
  * 합계를 셀 학년도를 정한다. **이 함수 하나가 "교내는 매년 초기화, 기숙사는 누적"의
@@ -35,17 +41,28 @@ async function scopeYear(
   return year ?? (await getCurrentYear());
 }
 
+/**
+ * 종류별 합계를 화면이 쓰는 모양으로 접는다.
+ *
+ * **상쇄점을 상점에도 벌점에도 접지 않는다.** 각자 자기 칸에 남고 순점수에서만
+ * 만난다 — 상점 총합이 부풀면 표창 기준이 흔들리고, 벌점 총합이 부풀면
+ * 징계 기준이 흔들린다.
+ */
 function sumTotals(
   rows: { kind: string; _sum: { points: number | null } }[],
 ): MeritTotals {
   let merit = 0;
   let demerit = 0;
+  let offset = 0;
+
   for (const row of rows) {
     const points = row._sum.points ?? 0;
     if (row.kind === "MERIT") merit += points;
     else if (row.kind === "DEMERIT") demerit += points;
+    else if (row.kind === "OFFSET") offset += points;
   }
-  return { merit, demerit, net: merit - demerit };
+
+  return { merit, demerit, offset, net: merit + offset - demerit };
 }
 
 /**

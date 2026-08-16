@@ -65,7 +65,7 @@ export async function deactivateRule(id: string): Promise<void> {
  * 자연스럽고 원본 표도 그 순서라, 가져온 뒤 여기서 다시 세운다.
  * 규정은 전교 통틀어 수백 개 규모라 애플리케이션 정렬로 충분하다.
  */
-const KIND_ORDER: Record<string, number> = { MERIT: 0, DEMERIT: 1 };
+const KIND_ORDER: Record<string, number> = { MERIT: 0, DEMERIT: 1, OFFSET: 2 };
 
 /**
  * 규정 정렬: **종류 → 분류 → 점수**.
@@ -338,10 +338,15 @@ export async function listClassRoster(params: {
 
   return enrollments.map((e) => {
     const mine = sums.filter((s) => s.studentProfileId === e.studentProfile.id);
-    const merit =
-      mine.find((s) => s.kind === "MERIT")?._sum.points ?? 0;
-    const demerit =
-      mine.find((s) => s.kind === "DEMERIT")?._sum.points ?? 0;
+    const of = (kind: string) =>
+      mine.find((s) => s.kind === kind)?._sum.points ?? 0;
+
+    const merit = of("MERIT");
+    const demerit = of("DEMERIT");
+    // 상쇄점은 자기 칸에 남고 순점수에서만 만난다 — 상점에 접으면 상점 총합이,
+    // 벌점에 접으면 벌점 총합이 부풀어 기준이 흔들린다.
+    const offset = of("OFFSET");
+
     return {
       studentProfileId: e.studentProfile.id,
       studentCode: e.studentProfile.studentCode,
@@ -349,7 +354,8 @@ export async function listClassRoster(params: {
       number: e.number,
       merit,
       demerit,
-      net: merit - demerit,
+      offset,
+      net: merit + offset - demerit,
     };
   });
 }
@@ -498,17 +504,30 @@ export async function classSummaries(params: {
     _sum: { points: true },
   });
 
-  const perStudent = new Map<string, { merit: number; demerit: number }>();
+  const perStudent = new Map<
+    string,
+    { merit: number; demerit: number; offset: number }
+  >();
   for (const row of sums) {
-    const cur = perStudent.get(row.studentProfileId) ?? { merit: 0, demerit: 0 };
-    if (row.kind === "MERIT") cur.merit += row._sum.points ?? 0;
-    else if (row.kind === "DEMERIT") cur.demerit += row._sum.points ?? 0;
+    const cur =
+      perStudent.get(row.studentProfileId) ?? { merit: 0, demerit: 0, offset: 0 };
+    const points = row._sum.points ?? 0;
+    if (row.kind === "MERIT") cur.merit += points;
+    else if (row.kind === "DEMERIT") cur.demerit += points;
+    else if (row.kind === "OFFSET") cur.offset += points;
     perStudent.set(row.studentProfileId, cur);
   }
 
   const byClass = new Map<
     string,
-    { grade: number; classNo: number; students: number; merit: number; demerit: number }
+    {
+      grade: number;
+      classNo: number;
+      students: number;
+      merit: number;
+      demerit: number;
+      offset: number;
+    }
   >();
   for (const e of enrollments) {
     const grade = e.schoolClass?.grade;
@@ -517,21 +536,26 @@ export async function classSummaries(params: {
 
     const key = `${grade}-${classNo}`;
     const cur =
-      byClass.get(key) ?? { grade, classNo, students: 0, merit: 0, demerit: 0 };
+      byClass.get(key) ??
+      { grade, classNo, students: 0, merit: 0, demerit: 0, offset: 0 };
     const mine = perStudent.get(e.studentProfileId);
     cur.students += 1;
     cur.merit += mine?.merit ?? 0;
     cur.demerit += mine?.demerit ?? 0;
+    cur.offset += mine?.offset ?? 0;
     byClass.set(key, cur);
   }
 
   return [...byClass.values()]
-    .map((row) => ({
-      ...row,
-      net: row.merit - row.demerit,
-      // 인원이 0인 반은 위에서 만들어지지 않으므로 나눗셈이 안전하다.
-      avgNet: Math.round(((row.merit - row.demerit) / row.students) * 10) / 10,
-    }))
+    .map((row) => {
+      const net = row.merit + row.offset - row.demerit;
+      return {
+        ...row,
+        net,
+        // 인원이 0인 반은 위에서 만들어지지 않으므로 나눗셈이 안전하다.
+        avgNet: Math.round((net / row.students) * 10) / 10,
+      };
+    })
     .sort((a, b) => a.grade - b.grade || a.classNo - b.classNo);
 }
 

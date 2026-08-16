@@ -35,6 +35,7 @@ export type RosterRow = {
   number: number | null;
   merit: number;
   demerit: number;
+  offset: number;
   net: number;
 };
 
@@ -47,13 +48,16 @@ export function toRosterSheet(
     // 시트 첫 줄은 남는다 — 교내(그 학년도)와 기숙사(누적)는 같은 숫자가
     // 전혀 다른 뜻이라, 구분이 없으면 나중에 아무도 판별할 수 없다.
     [rosterScope(meta)],
-    ["번호", "이름", "학생코드", "상점", "벌점", "순점수"],
+    // 상쇄 열은 값이 0이어도 항상 낸다 — 상점 − 벌점이 순점수와 안 맞는 시트를
+    // 받으면 받은 사람이 숫자를 못 믿는다. 순점수 = 상점 + 상쇄 − 벌점.
+    ["번호", "이름", "학생코드", "상점", "벌점", "상쇄", "순점수"],
     ...rows.map((r) => [
       r.number ?? "",
       r.name,
       r.studentCode,
       r.merit,
       r.demerit,
+      r.offset,
       r.net,
     ]),
   ];

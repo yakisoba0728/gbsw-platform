@@ -1,10 +1,11 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MERIT_KIND_LABELS, type MeritKind } from "@/core/authz/merit-track";
+import { Badge } from "@/components/ui/badge";
+import { KindBadge, kindColorClass } from "@/components/merit/kind-badge";
+import { MERIT_KIND_LABELS, meritKindSign, type MeritKind } from "@/core/authz/merit-track";
 import { EMPTY_RULE_FORM_STATE } from "./action-state";
 import { deactivateRuleAction, updateRuleAction } from "./actions";
 
@@ -97,9 +98,7 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
               return (
                 <tr key={rule.id} className="border-b border-line2 last:border-0">
                   <td className="px-5 py-2.5">
-                    <Badge tone={rule.kind === "MERIT" ? "merit" : "demerit"}>
-                      {MERIT_KIND_LABELS[rule.kind as MeritKind]}
-                    </Badge>
+                    <KindBadge kind={rule.kind} />
                   </td>
 
                   <td className={`px-3 py-2.5 ${rule.active ? "text-mut" : "text-mut line-through"}`}>
@@ -140,13 +139,8 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
                   */}
                   <td className={`px-3 py-2.5 font-bold ${dim}`}>
                     <span className="flex items-center gap-1">
-                      <span
-                        aria-hidden
-                        className={
-                          rule.kind === "MERIT" ? "text-blue" : "text-rose"
-                        }
-                      >
-                        {rule.kind === "MERIT" ? "+" : "−"}
+                      <span aria-hidden className={kindColorClass(rule.kind)}>
+                        {meritKindSign(rule.kind)}
                       </span>
                       {editing ? (
                         <Input

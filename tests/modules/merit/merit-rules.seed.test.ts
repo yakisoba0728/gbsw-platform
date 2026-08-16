@@ -12,10 +12,11 @@ import { MERIT_KINDS, MERIT_TRACKS } from "@/core/authz/merit-track";
  * 이 숫자도 함께 고쳐야 한다(그때는 의도한 변경이다).
  */
 describe("규정 시드 — 개수", () => {
-  it("교내는 73개다 (상점 18 + 상쇄 1 + 벌점 54)", () => {
+  it("교내는 73개다 (상점 18 + 벌점 54 + 상쇄점 1)", () => {
     expect(SCHOOL_RULES).toHaveLength(73);
-    expect(SCHOOL_RULES.filter((r) => r.kind === "MERIT")).toHaveLength(19);
+    expect(SCHOOL_RULES.filter((r) => r.kind === "MERIT")).toHaveLength(18);
     expect(SCHOOL_RULES.filter((r) => r.kind === "DEMERIT")).toHaveLength(54);
+    expect(SCHOOL_RULES.filter((r) => r.kind === "OFFSET")).toHaveLength(1);
   });
 
   it("기숙사는 41개다 (상점 9 + 벌점 32)", () => {
@@ -55,8 +56,18 @@ describe("규정 시드 — 개수", () => {
       "선행 질서": 5,
       "수업 관련": 4,
       "학교 활동": 4,
-      "선도관리 위원회": 1,
     });
+  });
+
+  it("상쇄점은 선도관리 위원회 항목 하나뿐이다", () => {
+    const offsets = SCHOOL_RULES.filter((r) => r.kind === "OFFSET");
+    expect(offsets).toHaveLength(1);
+    expect(offsets[0].category).toBe("선도관리 위원회");
+    expect(offsets[0].points).toBe(60);
+  });
+
+  it("기숙사에는 상쇄점이 없다", () => {
+    expect(DORM_RULES.filter((r) => r.kind === "OFFSET")).toHaveLength(0);
   });
 
   it("기숙사 분류별 개수가 원본 표와 같다", () => {
@@ -150,7 +161,7 @@ describe("규정 시드 — 원본 대조 표본", () => {
     ["SCHOOL", "재학 기간 중 문신을 한 학생", "DEMERIT", 30],
     ["SCHOOL", "교내·외에서 흡연이나 음주를 한 학생", "DEMERIT", 20],
     ["SCHOOL", "가벼운 교육적 지시 사항을 어긴 학생", "DEMERIT", 1],
-    ["SCHOOL", "선도관리위원회 징계후 벌점 상쇄", "MERIT", 60],
+    ["SCHOOL", "선도관리위원회 징계후 벌점 상쇄", "OFFSET", 60],
     ["SCHOOL", "교사의 교육활동에 도움을 주는 학생", "MERIT", 1],
     ["SCHOOL", "학교 행사 후 청소 및 정리정돈에 솔선수범하여 참여한 학생", "MERIT", 10],
     ["DORM", "무단 외출 (보호자 통보)", "DEMERIT", 20],

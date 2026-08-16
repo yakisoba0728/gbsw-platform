@@ -10,7 +10,7 @@ import {
   type MeritKind,
   type MeritTrack,
 } from "@/core/authz/merit-track";
-import { Badge } from "@/components/ui/badge";
+import { KindBadge, kindColorClass, signedPoints } from "@/components/merit/kind-badge";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import { getMeritStats, type MeritStats } from "@/modules/merit/award.service";
@@ -66,9 +66,10 @@ export default async function MeritStatsPage({
               : `입학부터 전체 누적 · 반 편성 ${stats.rosterYear}학년도`}
           </p>
 
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
             <Stat label="상점" value={stats.totals.merit} className="text-blue" />
             <Stat label="벌점" value={stats.totals.demerit} className="text-rose" />
+            <Stat label="상쇄점" value={stats.totals.offset} className="text-green" />
             <Stat
               label="순점수"
               value={stats.totals.net}
@@ -133,6 +134,7 @@ function ClassTable({ rows }: { rows: MeritStats["classes"] }) {
             <col className="w-[72px]" />
             <col className="w-[88px]" />
             <col className="w-[88px]" />
+            <col className="w-[80px]" />
             <col className="w-[92px]" />
             <col />
           </colgroup>
@@ -142,6 +144,7 @@ function ClassTable({ rows }: { rows: MeritStats["classes"] }) {
               <th className="px-3 py-2.5 font-semibold">인원</th>
               <th className="px-3 py-2.5 font-semibold">상점</th>
               <th className="px-3 py-2.5 font-semibold">벌점</th>
+              <th className="px-3 py-2.5 font-semibold">상쇄</th>
               <th className="px-3 py-2.5 font-semibold">순점수</th>
               <th className="px-5 py-2.5 font-semibold">1인 평균</th>
             </tr>
@@ -158,6 +161,11 @@ function ClassTable({ rows }: { rows: MeritStats["classes"] }) {
                 <td className="px-3 py-2.5 text-mut">{row.students}</td>
                 <td className="px-3 py-2.5 font-bold text-blue">{row.merit}</td>
                 <td className="px-3 py-2.5 font-bold text-rose">{row.demerit}</td>
+                <td
+                  className={`px-3 py-2.5 font-bold ${row.offset === 0 ? "text-mut2" : "text-green"}`}
+                >
+                  {row.offset}
+                </td>
                 <td
                   className={`px-3 py-2.5 font-bold ${row.net >= 0 ? "text-green" : "text-rose"}`}
                 >
@@ -217,17 +225,14 @@ function TopRules({ rows }: { rows: MeritStats["topRules"] }) {
                 className="border-b border-line2 last:border-0"
               >
                 <td className="px-5 py-2.5">
-                  <Badge tone={row.kind === "MERIT" ? "merit" : "demerit"}>
-                    {MERIT_KIND_LABELS[row.kind as MeritKind] ?? row.kind}
-                  </Badge>
+                  <KindBadge kind={row.kind} />
                 </td>
                 <td className="px-3 py-2.5 text-ink">{row.label}</td>
                 <td className="px-3 py-2.5 font-bold text-ink">{row.count}</td>
                 <td
-                  className={`px-5 py-2.5 font-bold ${row.kind === "MERIT" ? "text-blue" : "text-rose"}`}
+                  className={`px-5 py-2.5 font-bold ${kindColorClass(row.kind)}`}
                 >
-                  {row.kind === "MERIT" ? "+" : "−"}
-                  {row.points}
+                  {signedPoints(row.kind, row.points)}
                 </td>
               </tr>
             ))}
