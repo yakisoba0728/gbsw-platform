@@ -1,5 +1,13 @@
 import { prisma } from "@/core/db/client";
-import type { MeritTrack } from "@/core/authz/merit-track";
+import {
+  addKindPoints,
+  addKindTotals,
+  emptyKindTotals,
+  netScore,
+  withNetScore,
+  type KindTotals,
+  type MeritTrack,
+} from "@/core/authz/merit-track";
 import type { CreateRuleInput, UpdateRuleInput } from "./merit.schema";
 
 /** Prisma 호출만 둔다. 권한 검사도, 업무 규칙도 여기 두지 않는다. */
@@ -312,6 +320,28 @@ export async function createAwards(items: NewAward[]): Promise<{ id: string }[]>
 // ── 목록 조회 ─────────────────────────────────────────────────
 
 /**
+ * groupBy(학생·종류) 결과를 학생별 합계로 접는다. 반 명단과 반별 요약이 함께 쓴다.
+ *
+ * 접는 규칙은 merit-track이 갖고 있다 — 여기서 손으로 종류를 나누면 종류가 늘었을 때
+ * 이 파일만 조용히 옛 계산을 계속한다.
+ */
+function foldByStudent(
+  sums: {
+    studentProfileId: string;
+    kind: string;
+    _sum: { points: number | null };
+  }[],
+): Map<string, KindTotals> {
+  const byStudent = new Map<string, KindTotals>();
+  for (const row of sums) {
+    const totals = byStudent.get(row.studentProfileId) ?? emptyKindTotals();
+    addKindPoints(totals, row.kind, row._sum.points ?? 0);
+    byStudent.set(row.studentProfileId, totals);
+  }
+  return byStudent;
+}
+
+/**
  * 그 학년도 그 반의 재학생 + 트랙별 합계.
  *
  * 학생 목록과 합계를 따로 질의해 애플리케이션에서 잇는다 — groupBy로는
@@ -355,28 +385,16 @@ export async function listClassRoster(params: {
     _sum: { points: true },
   });
 
-  return enrollments.map((e) => {
-    const mine = sums.filter((s) => s.studentProfileId === e.studentProfile.id);
-    const of = (kind: string) =>
-      mine.find((s) => s.kind === kind)?._sum.points ?? 0;
+  const byStudent = foldByStudent(sums);
 
-    const merit = of("MERIT");
-    const demerit = of("DEMERIT");
-    // 상쇄점은 자기 칸에 남고 순점수에서만 만난다 — 상점에 접으면 상점 총합이,
-    // 벌점에 접으면 벌점 총합이 부풀어 기준이 흔들린다.
-    const offset = of("OFFSET");
-
-    return {
-      studentProfileId: e.studentProfile.id,
-      studentCode: e.studentProfile.studentCode,
-      name: e.studentProfile.user.name,
-      number: e.number,
-      merit,
-      demerit,
-      offset,
-      net: merit + offset - demerit,
-    };
-  });
+  // 기록이 하나도 없는 학생도 0으로 남는다 — 명단에 구멍이 생기면 안 된다.
+  return enrollments.map((e) => ({
+    studentProfileId: e.studentProfile.id,
+    studentCode: e.studentProfile.studentCode,
+    name: e.studentProfile.user.name,
+    number: e.number,
+    ...withNetScore(byStudent.get(e.studentProfile.id) ?? emptyKindTotals()),
+  }));
 }
 
 /** 이름 또는 학생코드로 찾는다. 30명에서 자른다. */
@@ -523,30 +541,11 @@ export async function classSummaries(params: {
     _sum: { points: true },
   });
 
-  const perStudent = new Map<
-    string,
-    { merit: number; demerit: number; offset: number }
-  >();
-  for (const row of sums) {
-    const cur =
-      perStudent.get(row.studentProfileId) ?? { merit: 0, demerit: 0, offset: 0 };
-    const points = row._sum.points ?? 0;
-    if (row.kind === "MERIT") cur.merit += points;
-    else if (row.kind === "DEMERIT") cur.demerit += points;
-    else if (row.kind === "OFFSET") cur.offset += points;
-    perStudent.set(row.studentProfileId, cur);
-  }
+  const perStudent = foldByStudent(sums);
 
   const byClass = new Map<
     string,
-    {
-      grade: number;
-      classNo: number;
-      students: number;
-      merit: number;
-      demerit: number;
-      offset: number;
-    }
+    { grade: number; classNo: number; students: number } & KindTotals
   >();
   for (const e of enrollments) {
     const grade = e.schoolClass?.grade;
@@ -555,19 +554,17 @@ export async function classSummaries(params: {
 
     const key = `${grade}-${classNo}`;
     const cur =
-      byClass.get(key) ??
-      { grade, classNo, students: 0, merit: 0, demerit: 0, offset: 0 };
-    const mine = perStudent.get(e.studentProfileId);
+      byClass.get(key) ?? { grade, classNo, students: 0, ...emptyKindTotals() };
     cur.students += 1;
-    cur.merit += mine?.merit ?? 0;
-    cur.demerit += mine?.demerit ?? 0;
-    cur.offset += mine?.offset ?? 0;
+    // 기록이 없는 학생도 인원에는 든다 — 반 평균의 분모가 명단 인원이어야 한다.
+    const mine = perStudent.get(e.studentProfileId);
+    if (mine) addKindTotals(cur, mine);
     byClass.set(key, cur);
   }
 
   return [...byClass.values()]
     .map((row) => {
-      const net = row.merit + row.offset - row.demerit;
+      const net = netScore(row);
       return {
         ...row,
         net,

@@ -3,11 +3,15 @@ import { recordAudit } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
 import { assertCan, ForbiddenError } from "@/core/authz/errors";
 import {
+  addKindPoints,
   DEMERIT_THRESHOLDS,
   demeritLevel,
+  emptyKindTotals,
   isYearScoped,
+  withNetScore,
   type DemeritLevel,
   type MeritTrack,
+  type NetTotals,
 } from "@/core/authz/merit-track";
 import {
   categoryDistribution,
@@ -29,13 +33,13 @@ import type {
   CancelInput,
 } from "./merit.schema";
 
-/** 순점수 = 상점 + 상쇄점 − 벌점. 상쇄점은 벌점을 덜어내므로 순점수를 올린다. */
-export type MeritTotals = {
-  merit: number;
-  demerit: number;
-  offset: number;
-  net: number;
-};
+/**
+ * 순점수 = 상점 + 상쇄점 − 벌점. 상쇄점은 벌점을 덜어내므로 순점수를 올린다.
+ *
+ * 계산은 core/authz/merit-track이 한다 — 반 명단·반별 요약·월별 추이도 같은
+ * 헬퍼를 쓰므로 화면마다 다른 순점수가 뜰 수 없다.
+ */
+export type MeritTotals = NetTotals;
 
 export type StudentMeritView = {
   track: MeritTrack;
@@ -45,7 +49,7 @@ export type StudentMeritView = {
   awards: Awaited<ReturnType<typeof repo.listAwards>>;
 };
 
-const EMPTY_TOTALS: MeritTotals = { merit: 0, demerit: 0, offset: 0, net: 0 };
+const EMPTY_TOTALS: MeritTotals = withNetScore(emptyKindTotals());
 
 /**
  * 합계를 셀 학년도를 정한다. **이 함수 하나가 "교내는 매년 초기화, 기숙사는 누적"의
@@ -62,27 +66,19 @@ async function scopeYear(
 }
 
 /**
- * 종류별 합계를 화면이 쓰는 모양으로 접는다.
+ * groupBy 결과(종류별 한 줄)를 화면이 쓰는 모양으로 접는다.
  *
- * **상쇄점을 상점에도 벌점에도 접지 않는다.** 각자 자기 칸에 남고 순점수에서만
- * 만난다 — 상점 총합이 부풀면 표창 기준이 흔들리고, 벌점 총합이 부풀면
- * 징계 기준이 흔들린다.
+ * 접는 규칙 자체는 merit-track이 갖고 있다 — 여기서는 Prisma의 `_sum` 껍데기만
+ * 벗긴다. 상쇄점이 자기 칸에 남는 이유도 그쪽에 적혀 있다.
  */
-function sumTotals(
+export function sumTotals(
   rows: { kind: string; _sum: { points: number | null } }[],
 ): MeritTotals {
-  let merit = 0;
-  let demerit = 0;
-  let offset = 0;
-
+  const totals = emptyKindTotals();
   for (const row of rows) {
-    const points = row._sum.points ?? 0;
-    if (row.kind === "MERIT") merit += points;
-    else if (row.kind === "DEMERIT") demerit += points;
-    else if (row.kind === "OFFSET") offset += points;
+    addKindPoints(totals, row.kind, row._sum.points ?? 0);
   }
-
-  return { merit, demerit, offset, net: merit + offset - demerit };
+  return withNetScore(totals);
 }
 
 /**

@@ -1,11 +1,20 @@
 import { KST } from "@/lib/datetime";
-import { meritKindDelta } from "@/core/authz/merit-track";
+import {
+  addKindPoints,
+  emptyKindTotals,
+  meritKindDelta,
+  withNetScore,
+  type KindTotals,
+} from "@/core/authz/merit-track";
 
 /**
  * 그래프에 넣을 값을 만드는 **순수 함수들**. DB도 화면도 모른다 — 그래서
  * 테스트가 쉽고, 여기서 상쇄점을 빠뜨리는 사고를 확실히 잡을 수 있다.
  *
- * 집계는 전부 meritKindDelta를 거친다. 종류가 또 늘어도 이 파일은 안 고쳐도 된다.
+ * 종류를 다루는 일은 전부 merit-track에 맡긴다(addKindPoints·netScore·
+ * meritKindDelta). 종류가 또 늘어도 이 파일은 안 고쳐도 된다 — 예전엔 이 문장이
+ * 적혀만 있고 monthlyTotals가 if/else 3분기를 손으로 써서, 새 종류를 말없이
+ * 버릴 참이었다.
  */
 
 export type ChartAward = {
@@ -105,9 +114,9 @@ export function monthlyTotals(
   awards: ChartAward[],
   axis: { key: string; label: string }[],
 ): MonthlyPoint[] {
-  const buckets = new Map<string, { merit: number; demerit: number; offset: number }>();
+  const buckets = new Map<string, KindTotals>();
   for (const { key } of axis) {
-    buckets.set(key, { merit: 0, demerit: 0, offset: 0 });
+    buckets.set(key, emptyKindTotals());
   }
 
   for (const award of awards) {
@@ -116,15 +125,14 @@ export function monthlyTotals(
     // 축 밖의 달(범위를 벗어난 기록)은 버린다 — 축을 늘리면 그래프가 못 읽힌다.
     if (!bucket) continue;
 
-    if (award.kind === "MERIT") bucket.merit += award.points;
-    else if (award.kind === "DEMERIT") bucket.demerit += award.points;
-    else if (award.kind === "OFFSET") bucket.offset += award.points;
+    addKindPoints(bucket, award.kind, award.points);
   }
 
-  return axis.map(({ key, label }) => {
-    const b = buckets.get(key)!;
-    return { key, label, ...b, net: b.merit + b.offset - b.demerit };
-  });
+  return axis.map(({ key, label }) => ({
+    key,
+    label,
+    ...withNetScore(buckets.get(key)!),
+  }));
 }
 
 export type CategorySlice = {

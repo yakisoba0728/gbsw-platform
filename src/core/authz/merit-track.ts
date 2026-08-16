@@ -83,6 +83,92 @@ export function meritKindSign(kind: string): "+" | "−" | "" {
 }
 
 /**
+ * 종류별 합계 — 상점·벌점·상쇄점이 각자 자기 칸에 남는다.
+ *
+ * **상쇄점을 상점에도 벌점에도 접지 않는다.** 상점 총합이 부풀면 표창 기준이,
+ * 벌점 총합이 부풀면 징계 기준이 흔들린다. 셋은 순점수에서만 만난다.
+ */
+export type KindTotals = { merit: number; demerit: number; offset: number };
+
+/** 세 칸에 순점수까지 붙인 모양. 화면이 실제로 받는 값이다. */
+export type NetTotals = KindTotals & { net: number };
+
+/**
+ * 종류 → 들어갈 칸.
+ *
+ * **여기가 "종류가 늘어도 한 곳만 고치면 된다"의 실체다.** `Record<MeritKind, …>`라
+ * MERIT_KINDS에 종류를 하나 더 넣는 순간 이 줄이 타입 검사에서 깨진다 —
+ * 예전처럼 집계 네 곳의 if/else가 새 종류를 말없이 버리는 일이 생기지 않는다.
+ */
+const KIND_BUCKETS: Record<MeritKind, keyof KindTotals> = {
+  MERIT: "merit",
+  DEMERIT: "demerit",
+  OFFSET: "offset",
+};
+
+/** 중복 없는 칸 목록. 종류가 늘어 칸이 늘어도 KIND_BUCKETS에서 저절로 따라온다. */
+const KIND_BUCKET_LIST = [...new Set(Object.values(KIND_BUCKETS))];
+
+export function emptyKindTotals(): KindTotals {
+  return { merit: 0, demerit: 0, offset: 0 };
+}
+
+/**
+ * 한 건(또는 한 묶음의 합)을 제 칸에 더한다. 제자리에서 고친다 —
+ * 학생별·월별로 수천 건을 접는 자리라 매번 객체를 새로 만들지 않는다.
+ *
+ * 모르는 종류는 어느 칸에도 넣지 않는다. meritKindDelta가 0을 주는 것과 같은
+ * 판단이다 — 합계가 조용히 틀어지느니 안 세는 편이 낫다. 다만 그 상황은
+ * **스키마를 거치지 않고 쓰인 값**일 때만 생긴다. 개발자가 종류를 늘리는 쪽은
+ * 위의 KIND_BUCKETS가 타입 검사에서 먼저 잡는다.
+ */
+export function addKindPoints(totals: KindTotals, kind: string, points: number): void {
+  if (!isMeritKind(kind)) return;
+  totals[KIND_BUCKETS[kind]] += points;
+}
+
+/**
+ * 이미 칸이 나뉜 합계끼리 더한다 — 학생별 합계를 반별로 모을 때 쓴다.
+ *
+ * 손으로 `merit += … ; demerit += … ; offset += …`를 적지 않는 이유는
+ * addKindPoints와 같다. 칸이 하나 늘면 그 줄만 빠뜨리기 딱 좋다.
+ */
+export function addKindTotals(target: KindTotals, source: KindTotals): void {
+  for (const bucket of KIND_BUCKET_LIST) {
+    target[bucket] += source[bucket];
+  }
+}
+
+/**
+ * 순점수 = 상점 + 상쇄점 − 벌점.
+ *
+ * 손으로 쓴 식이 아니라 meritKindDelta에서 끌어낸다 — 부호 규칙이 한 곳에만
+ * 있어야 그래프의 막대와 합계 카드가 다른 이야기를 하지 않는다.
+ */
+export function netScore(totals: KindTotals): number {
+  return MERIT_KINDS.reduce(
+    (sum, kind) => sum + meritKindDelta(kind) * totals[KIND_BUCKETS[kind]],
+    0,
+  );
+}
+
+/** 세 칸에 순점수를 붙여 화면이 쓰는 모양으로 만든다. */
+export function withNetScore(totals: KindTotals): NetTotals {
+  return { ...totals, net: netScore(totals) };
+}
+
+/**
+ * 순점수의 화면 표기 — `+7` · `-3` · `+0`.
+ *
+ * 음수 부호는 숫자가 이미 갖고 있는 보통 하이픈이다. 종류 배지의
+ * `−`(meritKindSign, U+2212)와 다르다 — 저건 종류가 정하는 표기이고
+ * 이건 계산 결과인 숫자 자체의 부호다.
+ */
+export function signedNet(net: number): string {
+  return net >= 0 ? `+${net}` : String(net);
+}
+
+/**
  * 벌점 누적 기준점.
  *
  * **이 숫자는 학교가 정하는 값이며 지금은 임시값이다.** 실제 학칙·기숙사 규정의
