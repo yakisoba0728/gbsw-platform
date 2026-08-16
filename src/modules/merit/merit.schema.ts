@@ -58,3 +58,27 @@ export const updateRuleSchema = z.object({
 export type UpdateRuleInput = z.infer<typeof updateRuleSchema>;
 
 export const ruleIdSchema = z.object({ ruleId: z.string().trim().min(1) });
+
+/**
+ * 부여 입력. **학년도가 없다** — 항상 getCurrentYear()로 들어간다.
+ * 화면의 학년도 선택은 조회 전용이며, 그 값을 여기로 흘리면 지난 학년도를
+ * 들여다보던 관리자가 새 벌점을 거기 꽂는 사고가 난다.
+ */
+export const awardSchema = z.object({
+  studentProfileId: z.string().trim().min(1),
+  ruleId: z.string().trim().min(1),
+  note: optionalText(500),
+});
+
+export type AwardInput = z.infer<typeof awardSchema>;
+
+/**
+ * 취소 입력. **사유는 필수다** — "관리자면 누구나 취소 가능"을 정당화하는
+ * 근거가 사유와 감사로그이므로, 사유가 선택이면 그 근거가 무너진다.
+ */
+export const cancelSchema = z.object({
+  awardId: z.string().trim().min(1),
+  reason: z.string().trim().min(1, "취소 사유를 입력해 주세요").max(500),
+});
+
+export type CancelInput = z.infer<typeof cancelSchema>;
