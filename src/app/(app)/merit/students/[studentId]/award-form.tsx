@@ -3,6 +3,7 @@
 import { useActionState, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
+import { Note } from "@/components/ui/note";
 import { RulePicker, type RuleOption } from "@/components/merit/rule-picker";
 import { EMPTY_MERIT_STATE } from "@/app/(app)/merit/action-state";
 import { awardAction } from "@/app/(app)/merit/actions";
@@ -73,18 +74,16 @@ export function AwardForm({
         </p>
       )}
 
+      {/* role="alert"는 Note가 tone="error"에 저절로 붙인다 — 빠뜨릴 수 없다. */}
       {state.error && (
-        <p
-          role="alert"
-          className="mt-3 rounded-btn bg-rose-soft px-3 py-2.5 text-[13px] font-semibold text-rose"
-        >
+        <Note tone="error" className="mt-3">
           {state.error}
-        </p>
+        </Note>
       )}
       {state.ok && (
-        <p className="mt-3 rounded-btn bg-green-soft px-3 py-2.5 text-[13px] font-semibold text-green">
+        <Note tone="success" className="mt-3">
           부여했습니다.
-        </p>
+        </Note>
       )}
     </section>
   );
