@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { EmptyState } from "@/components/ui/empty-state";
 import { requirePermission } from "@/core/auth/session";
 import {
   AcademicYearError,
@@ -56,10 +57,10 @@ export default async function StudentsPage() {
       {rows && currentYear !== undefined ? (
         <StudentTable key={currentYear} rows={rows} year={currentYear} />
       ) : (
-        <div className="rounded-card border border-line bg-surface p-8 text-center text-[12.5px] text-mut">
-          현재 학년도가 없습니다. 위에서 학년도를 만들거나 선택하면 학생
-          목록이 여기 나타납니다.
-        </div>
+        <EmptyState>
+          현재 학년도가 없습니다. 위에서 학년도를 만들거나 선택하면 학생 목록이
+          여기 나타납니다.
+        </EmptyState>
       )}
     </div>
   );

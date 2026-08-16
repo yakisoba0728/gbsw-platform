@@ -2,9 +2,12 @@
 
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
+import { SectionCard } from "@/components/ui/section-card";
 import { Select } from "@/components/ui/select";
+import { TableFrame, tableCellPadding } from "@/components/ui/table";
 import {
   ENROLLMENT_STATUSES,
   ENROLLMENT_STATUS_LABELS,
@@ -23,6 +26,11 @@ export type StudentRow = {
   status: string | null;
   accountActive: boolean;
 };
+
+const HEADERS = ["이름", "학년", "반", "번호", "학적", "계정"] as const;
+
+/** 본문 셀의 좌우 여백. 머리글과 같은 규칙을 써야 세로줄이 맞는다. */
+const cell = (index: number) => `${tableCellPadding(index, HEADERS.length)} py-2`;
 
 /** 편집 중인 값. 표시용 문자열로 들고 있다가 보낼 때 숫자로 바꾼다. */
 type Draft = {
@@ -149,54 +157,57 @@ export function StudentTable({
       <input type="hidden" name="changes" value={payload} />
       <input type="hidden" name="year" value={year} />
 
-      <section className="rounded-card border border-line bg-surface">
-        <header className="border-b border-line px-5 py-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-base font-extrabold text-ink">학생</h2>
-            <div className="flex items-center gap-2.5">
-              {dirtyIds.length > 0 && (
-                <span className="text-[12px] font-semibold text-amber-ink">
-                  {dirtyIds.length}명 수정됨
-                </span>
-              )}
-              <Button
-                type="submit"
-                size="sm"
-                disabled={pending || dirtyIds.length === 0}
-              >
-                {pending ? "저장 중…" : "저장"}
-              </Button>
+      <SectionCard
+        title="학생"
+        aside={
+          <div className="flex items-center gap-2.5">
+            {dirtyIds.length > 0 && (
+              <span className="text-[12px] font-semibold text-amber-ink">
+                {dirtyIds.length}명 수정됨
+              </span>
+            )}
+            <Button
+              type="submit"
+              size="sm"
+              disabled={pending || dirtyIds.length === 0}
+            >
+              {pending ? "저장 중…" : "저장"}
+            </Button>
+          </div>
+        }
+        controls={
+          <>
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+              {["ALL", "1", "2", "3"].map((g) => (
+                <Button
+                  key={g}
+                  type="button"
+                  variant="chip"
+                  size="sm"
+                  active={gradeFilter === g}
+                  onClick={() => setGradeFilter(g)}
+                >
+                  {g === "ALL" ? "전체" : `${g}학년`}
+                </Button>
+              ))}
             </div>
-          </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-1.5">
-            {["ALL", "1", "2", "3"].map((g) => (
-              <Button
-                key={g}
-                type="button"
-                variant="chip"
-                size="sm"
-                active={gradeFilter === g}
-                onClick={() => setGradeFilter(g)}
-              >
-                {g === "ALL" ? "전체" : `${g}학년`}
-              </Button>
-            ))}
-          </div>
-
-          <Input
-            dense
-            value={query}
-            onChange={(e) => setQuery(e.currentTarget.value)}
-            // Enter가 이 폼 전체를 제출시키지 않게 막는다 — 검색은 저장이 아니다 (M1).
-            onKeyDown={(e) => {
-              if (e.key === "Enter") e.preventDefault();
-            }}
-            placeholder="이름 · 이메일 검색"
-            className="mt-2.5"
-          />
-        </header>
-
+            <Input
+              dense
+              value={query}
+              onChange={(e) => setQuery(e.currentTarget.value)}
+              // Enter가 이 폼 전체를 제출시키지 않게 막는다 — 검색은 저장이 아니다 (M1).
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.preventDefault();
+              }}
+              aria-label="이름 · 이메일 검색"
+              placeholder="이름 · 이메일 검색"
+              className="mt-2.5"
+            />
+          </>
+        }
+        flush
+      >
         {state.error && (
           <Note tone="error" className="mx-5 mt-4">
             {state.error}
@@ -211,88 +222,74 @@ export function StudentTable({
         )}
 
         {filtered.length === 0 ? (
-          <p className="px-5 py-10 text-center text-sm text-mut">
-            조건에 맞는 학생이 없습니다.
-          </p>
+          <EmptyState variant="inside">조건에 맞는 학생이 없습니다.</EmptyState>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px] text-left text-sm">
-              <thead>
-                <tr className="border-b border-line2 text-[12px] text-mut">
-                  <th className="px-5 py-2.5 font-semibold">이름</th>
-                  <th className="px-3 py-2.5 font-semibold">학년</th>
-                  <th className="px-3 py-2.5 font-semibold">반</th>
-                  <th className="px-3 py-2.5 font-semibold">번호</th>
-                  <th className="px-3 py-2.5 font-semibold">학적</th>
-                  <th className="px-5 py-2.5 font-semibold">계정</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((row) => {
-                  const d = draftFor(row, drafts);
-                  const dirty = !sameAsRow(row, d);
-                  const enrolled = d.status === "ENROLLED";
+          <TableFrame minWidth={820} headers={HEADERS}>
+            <tbody>
+              {filtered.map((row) => {
+                const d = draftFor(row, drafts);
+                const dirty = !sameAsRow(row, d);
+                const enrolled = d.status === "ENROLLED";
 
-                  return (
-                    <tr
-                      key={row.studentProfileId}
-                      className={
-                        dirty
-                          ? "border-b border-line2 bg-amber-soft last:border-0"
-                          : "border-b border-line2 last:border-0"
-                      }
-                    >
-                      <td className="px-5 py-2">
-                        <span className="font-semibold text-ink">{row.name}</span>
-                        <span className="block text-[12px] text-mut">
-                          {row.email}
-                        </span>
-                      </td>
-                      {(["grade", "classNo", "number"] as const).map((f) => (
-                        <td key={f} className="px-3 py-2">
-                          <Input
-                            dense
-                            type="number"
-                            aria-label={`${row.name} ${
-                              { grade: "학년", classNo: "반", number: "번호" }[f]
-                            }`}
-                            value={d[f]}
-                            disabled={!enrolled}
-                            onChange={(e) => set(row.studentProfileId, { [f]: e.currentTarget.value })}
-                            className="w-20"
-                          />
-                        </td>
-                      ))}
-                      <td className="px-3 py-2">
-                        <Select
+                return (
+                  <tr
+                    key={row.studentProfileId}
+                    className={
+                      dirty
+                        ? "border-b border-line2 bg-amber-soft last:border-0"
+                        : "border-b border-line2 last:border-0"
+                    }
+                  >
+                    <td className={cell(0)}>
+                      <span className="font-semibold text-ink">{row.name}</span>
+                      <span className="block text-[12px] text-mut">
+                        {row.email}
+                      </span>
+                    </td>
+                    {(["grade", "classNo", "number"] as const).map((f, i) => (
+                      <td key={f} className={cell(i + 1)}>
+                        <Input
                           dense
-                          aria-label={`${row.name} 학적`}
-                          value={d.status}
-                          onChange={(e) =>
-                            set(row.studentProfileId, {
-                              status: e.currentTarget.value as EnrollmentStatus,
-                            })
-                          }
-                          className="w-28"
-                        >
-                          {ENROLLMENT_STATUSES.map((s) => (
-                            <option key={s} value={s}>
-                              {ENROLLMENT_STATUS_LABELS[s]}
-                            </option>
-                          ))}
-                        </Select>
+                          type="number"
+                          aria-label={`${row.name} ${
+                            { grade: "학년", classNo: "반", number: "번호" }[f]
+                          }`}
+                          value={d[f]}
+                          disabled={!enrolled}
+                          onChange={(e) => set(row.studentProfileId, { [f]: e.currentTarget.value })}
+                          className="w-20"
+                        />
                       </td>
-                      <td className="px-5 py-2 text-[12px] text-mut">
-                        {row.accountActive ? "활성" : "비활성"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                    ))}
+                    <td className={cell(4)}>
+                      <Select
+                        dense
+                        aria-label={`${row.name} 학적`}
+                        value={d.status}
+                        onChange={(e) =>
+                          set(row.studentProfileId, {
+                            status: e.currentTarget.value as EnrollmentStatus,
+                          })
+                        }
+                        className="w-28"
+                      >
+                        {ENROLLMENT_STATUSES.map((s) => (
+                          <option key={s} value={s}>
+                            {ENROLLMENT_STATUS_LABELS[s]}
+                          </option>
+                        ))}
+                      </Select>
+                    </td>
+                    <td className={`${cell(5)} text-[12px] text-mut`}>
+                      {row.accountActive ? "활성" : "비활성"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </TableFrame>
         )}
-      </section>
+      </SectionCard>
     </form>
   );
 }

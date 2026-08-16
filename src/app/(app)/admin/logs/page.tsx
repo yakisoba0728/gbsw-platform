@@ -4,6 +4,10 @@ import { requirePermission } from "@/core/auth/session";
 import { formatDateTime } from "@/lib/datetime";
 import { isRole, ROLE_LABELS } from "@/core/authz/roles";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SectionCard } from "@/components/ui/section-card";
+import { TableFrame, tableCellPadding } from "@/components/ui/table";
+import { hrefWith } from "@/lib/search-params";
 import {
   auditActionLabel,
   auditActionTone,
@@ -15,6 +19,11 @@ import { readAuditLog } from "@/modules/audit-log/audit-log.service";
 import { LogFilters } from "./log-filters";
 
 export const metadata: Metadata = { title: "로그" };
+
+const HEADERS = ["시각", "행위자", "동작", "대상", "접속", "상세"] as const;
+
+/** 본문 셀의 좌우 여백. 머리글과 같은 규칙을 써야 세로줄이 맞는다. */
+const cell = (index: number) => `${tableCellPadding(index, HEADERS.length)} py-3`;
 
 export default async function LogsPage({
   searchParams,
@@ -34,87 +43,78 @@ export default async function LogsPage({
   );
 
   return (
-    <div className="mx-auto max-w-6xl rounded-card border border-line bg-surface">
-      <header className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
-        <h2 className="text-base font-extrabold text-ink">감사로그</h2>
-        <span className="text-[12px] text-mut">{total}건</span>
-      </header>
-
-      <LogFilters
-        actions={actions}
-        period={query.period}
-        action={query.action ?? ""}
-        actor={query.actor ?? ""}
-      />
-
+    <SectionCard
+      title="감사로그"
+      aside={<span className="text-[12px] text-mut">{total}건</span>}
+      controls={
+        <LogFilters
+          actions={actions}
+          period={query.period}
+          action={query.action ?? ""}
+          actor={query.actor ?? ""}
+        />
+      }
+      flush
+      className="mx-auto max-w-6xl"
+    >
       {entries.length === 0 ? (
-        <p className="px-5 py-10 text-center text-sm text-mut">
-          조건에 맞는 기록이 없습니다.
-        </p>
+        <EmptyState variant="inside">조건에 맞는 기록이 없습니다.</EmptyState>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[840px] table-fixed text-left text-sm">
-            {/*
-              시각은 `26. 8. 14. 오전 8:30:16`이 통째로 들어가야 한다 —
-              whitespace-nowrap이라 좁으면 넘쳐서 옆 열을 덮는다.
-              상세는 남는 폭을 가져간다 (가장 길고 가장 자주 읽는 열).
-            */}
-            <colgroup>
-              <col className="w-[188px]" />
-              <col className="w-[148px]" />
-              <col className="w-[132px]" />
-              <col className="w-[76px]" />
-              <col className="w-[132px]" />
-              <col />
-            </colgroup>
-            <thead>
-              <tr className="border-b border-line2 text-[12px] text-mut">
-                <th className="px-5 py-2.5 font-semibold">시각</th>
-                <th className="px-3 py-2.5 font-semibold">행위자</th>
-                <th className="px-3 py-2.5 font-semibold">동작</th>
-                <th className="px-3 py-2.5 font-semibold">대상</th>
-                <th className="px-3 py-2.5 font-semibold">접속</th>
-                <th className="px-5 py-2.5 font-semibold">상세</th>
+        /*
+          시각은 `26. 8. 14. 오전 8:30:16`이 통째로 들어가야 한다 —
+          whitespace-nowrap이라 좁으면 넘쳐서 옆 열을 덮는다.
+          상세는 남는 폭을 가져간다 (가장 길고 가장 자주 읽는 열).
+        */
+        <TableFrame
+          minWidth={840}
+          fixed
+          cols={[
+            "w-[188px]",
+            "w-[148px]",
+            "w-[132px]",
+            "w-[76px]",
+            "w-[132px]",
+            undefined,
+          ]}
+          headers={HEADERS}
+        >
+          <tbody>
+            {entries.map((entry) => (
+              <tr key={entry.id} className="border-b border-line2 last:border-0">
+                <td className={`${cell(0)} whitespace-nowrap text-mut`}>
+                  {formatDateTime(entry.createdAt)}
+                </td>
+                <td className={cell(1)}>
+                  <span className="block truncate text-ink">{entry.actorName}</span>
+                  <span className="block truncate text-[12px] text-mut">
+                    {entry.actor
+                      ? isRole(entry.actor.role)
+                        ? ROLE_LABELS[entry.actor.role]
+                        : entry.actor.email
+                      : "탈퇴한 계정"}
+                  </span>
+                </td>
+                <td className={cell(2)}>
+                  <Badge tone={auditActionTone(entry.action)}>
+                    {auditActionLabel(entry.action)}
+                  </Badge>
+                </td>
+                <td className={`${cell(3)} text-mut`}>
+                  {auditTargetLabel(entry.targetType)}
+                </td>
+                <td
+                  className={`${cell(4)} text-mut`}
+                  title={entry.userAgent ?? undefined}
+                >
+                  {entry.ip ?? "—"}
+                </td>
+                <td className={`${cell(5)} text-[12px] break-words text-mut`}>
+                  {formatAuditMetadata(entry.action, entry.metadata) ?? "—"}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {entries.map((entry) => (
-                <tr key={entry.id} className="border-b border-line2 last:border-0">
-                  <td className="px-5 py-3 whitespace-nowrap text-mut">
-                    {formatDateTime(entry.createdAt)}
-                  </td>
-                  <td className="px-3 py-3">
-                    <span className="block truncate text-ink">{entry.actorName}</span>
-                    <span className="block truncate text-[12px] text-mut">
-                      {entry.actor
-                        ? isRole(entry.actor.role)
-                          ? ROLE_LABELS[entry.actor.role]
-                          : entry.actor.email
-                        : "탈퇴한 계정"}
-                    </span>
-                  </td>
-                  <td className="px-3 py-3">
-                    <Badge tone={auditActionTone(entry.action)}>
-                      {auditActionLabel(entry.action)}
-                    </Badge>
-                  </td>
-                  <td className="px-3 py-3 text-mut">
-                    {auditTargetLabel(entry.targetType)}
-                  </td>
-                  <td
-                    className="px-3 py-3 text-mut"
-                    title={entry.userAgent ?? undefined}
-                  >
-                    {entry.ip ?? "—"}
-                  </td>
-                  <td className="px-5 py-3 text-[12px] break-words text-mut">
-                    {formatAuditMetadata(entry.action, entry.metadata) ?? "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </TableFrame>
       )}
 
       {pageCount > 1 && (
@@ -130,7 +130,7 @@ export default async function LogsPage({
           </PageLink>
         </nav>
       )}
-    </div>
+    </SectionCard>
   );
 }
 
@@ -149,15 +149,9 @@ function PageLink({
     return <span className="text-mut2">{children}</span>;
   }
 
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (typeof value === "string" && key !== "page") query.set(key, value);
-  }
-  query.set("page", String(page));
-
   return (
     <Link
-      href={`/admin/logs?${query.toString()}`}
+      href={hrefWith("/admin/logs", params, { page: String(page) })}
       className="font-semibold text-pri hover:underline"
     >
       {children}

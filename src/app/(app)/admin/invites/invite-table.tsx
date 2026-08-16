@@ -3,7 +3,10 @@
 import { useMemo, useState } from "react";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
+import { SectionCard } from "@/components/ui/section-card";
+import { TableFrame, tableCellPadding } from "@/components/ui/table";
 import { RevokeButton } from "./revoke-button";
 
 export type InviteRow = {
@@ -55,6 +58,20 @@ const ROLE_FILTERS = [
 type StatusKey = (typeof STATUS_FILTERS)[number]["key"];
 type RoleKey = (typeof ROLE_FILTERS)[number]["key"];
 
+const HEADERS = [
+  "코드",
+  "역할",
+  "이름",
+  "학년·반·번호",
+  "상태",
+  "발급일",
+  // 폐기 버튼 열 — 머리글에 이름이 없다.
+  "",
+] as const;
+
+/** 본문 셀의 좌우 여백. 머리글과 같은 규칙을 써야 세로줄이 맞는다. */
+const cell = (index: number) => `${tableCellPadding(index, HEADERS.length)} py-3`;
+
 export function InviteTable({ rows }: { rows: InviteRow[] }) {
   const [status, setStatus] = useState<StatusKey>("PENDING");
   const [role, setRole] = useState<RoleKey>("ALL");
@@ -83,113 +100,96 @@ export function InviteTable({ rows }: { rows: InviteRow[] }) {
       : rows.filter((r) => r.status === key).length;
 
   return (
-    <section className="min-w-0 rounded-card border border-line bg-surface">
-      <header className="border-b border-line px-5 py-4">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-base font-extrabold text-ink">발급 내역</h2>
-          <span className="text-[12px] text-mut">{filtered.length}건</span>
-        </div>
+    <SectionCard
+      title="발급 내역"
+      aside={<span className="text-[12px] text-mut">{filtered.length}건</span>}
+      controls={
+        <>
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            {STATUS_FILTERS.map((f) => (
+              <Button
+                key={f.key}
+                variant="chip"
+                size="sm"
+                active={status === f.key}
+                onClick={() => setStatus(f.key)}
+              >
+                {f.label} {countFor(f.key)}
+              </Button>
+            ))}
 
-        <div className="mt-3 flex flex-wrap items-center gap-1.5">
-          {STATUS_FILTERS.map((f) => (
-            <Button
-              key={f.key}
-              variant="chip"
-              size="sm"
-              active={status === f.key}
-              onClick={() => setStatus(f.key)}
-            >
-              {f.label} {countFor(f.key)}
-            </Button>
-          ))}
+            <span className="mx-1 h-4 w-px bg-line" aria-hidden />
 
-          <span className="mx-1 h-4 w-px bg-line" aria-hidden />
+            {ROLE_FILTERS.map((f) => (
+              <Button
+                key={f.key}
+                variant="chip"
+                size="sm"
+                active={role === f.key}
+                onClick={() => setRole(f.key)}
+              >
+                {f.label}
+              </Button>
+            ))}
+          </div>
 
-          {ROLE_FILTERS.map((f) => (
-            <Button
-              key={f.key}
-              variant="chip"
-              size="sm"
-              active={role === f.key}
-              onClick={() => setRole(f.key)}
-            >
-              {f.label}
-            </Button>
-          ))}
-        </div>
-
-        <Input
-          dense
-          value={query}
-          onChange={(e) => setQuery(e.currentTarget.value)}
-          placeholder="코드 · 이름 · 학반번호 검색"
-          className="mt-2.5"
-        />
-      </header>
-
+          <Input
+            dense
+            value={query}
+            onChange={(e) => setQuery(e.currentTarget.value)}
+            aria-label="코드 · 이름 · 학년반번호 검색"
+            placeholder="코드 · 이름 · 학반번호 검색"
+            className="mt-2.5"
+          />
+        </>
+      }
+      flush
+      className="min-w-0"
+    >
       {filtered.length === 0 ? (
-        <p className="px-5 py-10 text-center text-sm text-mut">
-          조건에 맞는 코드가 없습니다.
-        </p>
+        <EmptyState variant="inside">조건에 맞는 코드가 없습니다.</EmptyState>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[680px] text-left text-sm">
-            <thead>
-              <tr className="border-b border-line2 text-[12px] text-mut">
-                <th className="px-5 py-2.5 font-semibold">코드</th>
-                <th className="px-3 py-2.5 font-semibold">역할</th>
-                <th className="px-3 py-2.5 font-semibold">이름</th>
-                <th className="px-3 py-2.5 font-semibold">학년·반·번호</th>
-                <th className="px-3 py-2.5 font-semibold">상태</th>
-                <th className="px-3 py-2.5 font-semibold">발급일</th>
-                <th className="px-5 py-2.5" />
+        <TableFrame minWidth={680} headers={HEADERS}>
+          <tbody>
+            {filtered.map((row) => (
+              <tr key={row.id} className="border-b border-line2 last:border-0">
+                <td className={`${cell(0)} font-semibold text-ink`}>{row.code}</td>
+                <td className={`${cell(1)} text-mut`}>{row.roleLabel}</td>
+                <td className={`${cell(2)} text-ink`}>
+                  {row.name}
+                  {(row.childName || row.birthDate) && (
+                    <span className="block text-[12px] text-mut">
+                      {row.childName ? `${row.childName} 학부모` : row.birthDate}
+                    </span>
+                  )}
+                </td>
+                <td className={`${cell(3)} text-ink`}>
+                  {row.classLabel ?? <span className="text-mut">—</span>}
+                </td>
+                <td className={cell(4)}>
+                  <Badge tone={STATUS_TONE[row.status] ?? "neutral"}>
+                    {STATUS_LABEL[row.status] ?? row.status}
+                  </Badge>
+                  {row.usedByName && (
+                    <span className="mt-1 block text-[12px] text-mut">
+                      {row.usedByName}
+                    </span>
+                  )}
+                </td>
+                <td className={`${cell(5)} text-mut`}>
+                  {row.createdAt}
+                  {row.expiresAt && (
+                    <span className="block text-[12px]">~{row.expiresAt}</span>
+                  )}
+                </td>
+                <td className={`${cell(6)} text-right`}>
+                  {row.status === "PENDING" && <RevokeButton inviteId={row.id} />}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {filtered.map((row) => (
-                <tr key={row.id} className="border-b border-line2 last:border-0">
-                  <td className="px-5 py-3 font-semibold text-ink">{row.code}</td>
-                  <td className="px-3 py-3 text-mut">{row.roleLabel}</td>
-                  <td className="px-3 py-3 text-ink">
-                    {row.name}
-                    {(row.childName || row.birthDate) && (
-                      <span className="block text-[12px] text-mut">
-                        {row.childName ? `${row.childName} 학부모` : row.birthDate}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-3 py-3 text-ink">
-                    {row.classLabel ?? <span className="text-mut">—</span>}
-                  </td>
-                  <td className="px-3 py-3">
-                    <Badge tone={STATUS_TONE[row.status] ?? "neutral"}>
-                      {STATUS_LABEL[row.status] ?? row.status}
-                    </Badge>
-                    {row.usedByName && (
-                      <span className="mt-1 block text-[12px] text-mut">
-                        {row.usedByName}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-3 py-3 text-mut">
-                    {row.createdAt}
-                    {row.expiresAt && (
-                      <span className="block text-[12px]">
-                        ~{row.expiresAt}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-5 py-3 text-right">
-                    {row.status === "PENDING" && (
-                      <RevokeButton inviteId={row.id} />
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </TableFrame>
       )}
-    </section>
+    </SectionCard>
   );
 }

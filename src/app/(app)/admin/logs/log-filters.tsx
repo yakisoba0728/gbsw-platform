@@ -47,8 +47,10 @@ export function LogFilters({
   }
 
   return (
-    <div className="border-b border-line px-5 py-4">
-      <div className="flex flex-wrap items-center gap-1.5">
+    // 카드 머리글 안(SectionCard의 controls)에 들어간다 — 여백·구분선은 머리글이
+    // 이미 갖고 있다. 초대·사용자·학생 화면의 필터와 같은 자리다.
+    <>
+      <div className="mt-3 flex flex-wrap items-center gap-1.5">
         {AUDIT_PERIODS.map((p) => (
           <Button
             key={p}
@@ -93,6 +95,7 @@ export function LogFilters({
           name="actor"
           value={actorInput}
           onChange={(e) => setActorInput(e.currentTarget.value)}
+          aria-label="행위자 이름 · 이메일 검색"
           placeholder="행위자 이름 · 이메일"
           className="min-w-0 flex-1"
         />
@@ -100,6 +103,6 @@ export function LogFilters({
           검색
         </Button>
       </form>
-    </div>
+    </>
   );
 }
