@@ -243,8 +243,17 @@ function authzDeniedSummary(metadata: Record<string, unknown>): string | null {
 }
 
 /** merit:award — "교내 · 상점 5점 · 교내 봉사활동 우수 참여" */
-function meritAwardSummary(metadata: Record<string, unknown>): string | null {
+/**
+ * 상벌점 기록의 공통 앞부분 — "김민준 · 기숙사 · 벌점 3점 · 점호 지각".
+ *
+ * **학생 이름이 맨 앞에 온다.** 로그를 보는 이유는 대개 "이 학생이 왜"이지
+ * "어떤 규정이 몇 번 나갔나"가 아니다. 이름이 없으면 studentProfileId(cuid)를
+ * 들고 DB를 따로 뒤져야 하는데, 그건 로그 화면이 있는 의미를 없앤다.
+ */
+function meritSubject(metadata: Record<string, unknown>): string[] {
   const parts: string[] = [];
+
+  if (typeof metadata.studentName === "string") parts.push(metadata.studentName);
 
   const track = metadata.track;
   if (isMeritTrack(track)) parts.push(MERIT_TRACK_LABELS[track]);
@@ -257,13 +266,31 @@ function meritAwardSummary(metadata: Record<string, unknown>): string | null {
 
   if (typeof metadata.label === "string") parts.push(metadata.label);
 
+  return parts;
+}
+
+function meritAwardSummary(metadata: Record<string, unknown>): string | null {
+  const parts = meritSubject(metadata);
+  // 일괄 부여였다는 사실만 표시한다 — batchId 자체는 내부 식별자라 화면에선
+  // 의미가 없다 (enrollment:import의 batch와 같은 처리).
+  if (typeof metadata.batchId === "string") parts.push("일괄");
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
-/** merit:cancel — 사유가 필수이므로 항상 보여줄 것이 있다. */
+/**
+ * merit:cancel — 무엇을 취소했는지까지 보여준다.
+ *
+ * 사유만 남기면 "사유: 오기입"이라는 줄이 뜨는데, 그것만으로는 어느 학생의 어떤
+ * 기록이 뒤집혔는지 알 수 없다. "누구나 취소할 수 있다"는 결정의 근거가 이 로그이므로
+ * 여기서 답이 나와야 한다.
+ */
 function meritCancelSummary(metadata: Record<string, unknown>): string | null {
+  const parts = meritSubject(metadata);
+
   const reason = metadata.reason;
-  return typeof reason === "string" && reason.length > 0 ? `사유: ${reason}` : null;
+  if (typeof reason === "string" && reason.length > 0) parts.push(`사유: ${reason}`);
+
+  return parts.length > 0 ? parts.join(" · ") : null;
 }
 
 /**

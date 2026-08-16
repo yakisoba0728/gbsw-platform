@@ -69,14 +69,32 @@ export function AwardHistory({
                       {MERIT_KIND_LABELS[award.kind as MeritKind]}
                     </Badge>
                   </td>
-                  <td
-                    className={
-                      cancelled
-                        ? "px-3 py-2.5 text-mut line-through"
-                        : "px-3 py-2.5 font-semibold text-ink"
-                    }
-                  >
-                    {award.label}
+                  <td className="px-3 py-2.5">
+                    <span
+                      className={
+                        cancelled
+                          ? "text-mut line-through"
+                          : "font-semibold text-ink"
+                      }
+                    >
+                      {award.label}
+                    </span>
+                    {award.note && (
+                      <span className="block text-[12px] text-mut">{award.note}</span>
+                    )}
+                    {/*
+                      취소 사유와 취소한 사람. "관리자면 누구나 취소할 수 있다"는
+                      결정의 근거가 바로 이 흔적이므로, DB에만 있고 화면에 없으면
+                      그 근거가 실제로는 없는 것과 같다.
+                    */}
+                    {cancelled && (
+                      <span className="block text-[12px] text-rose">
+                        취소
+                        {award.cancelledByName ? ` · ${award.cancelledByName}` : ""}
+                        {award.cancelledAt ? ` · ${formatDate(award.cancelledAt)}` : ""}
+                        {award.cancelReason ? ` · ${award.cancelReason}` : ""}
+                      </span>
+                    )}
                   </td>
                   <td className="px-3 py-2.5 font-bold">
                     {award.kind === "MERIT" ? "+" : "−"}

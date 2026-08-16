@@ -80,6 +80,7 @@ beforeEach(() => {
     label: "교내 봉사활동 우수 참여",
     points: 5,
     status: "ACTIVE",
+    studentProfile: { user: { name: "김민준" } },
   });
   // 고친 행 수를 돌려준다. 1 = 내가 취소했다, 0 = 그 사이 남이 먼저 취소했다.
   cancelAward.mockReset().mockResolvedValue(1);
@@ -211,6 +212,7 @@ describe("cancelAward", () => {
       label: "x",
       points: 5,
       status: "CANCELLED",
+      studentProfile: { user: { name: "김민준" } },
     });
 
     await expect(service.cancelAward(admin, cancelInput)).rejects.toThrow(
@@ -355,10 +357,26 @@ describe("getMyMerit", () => {
     expect(view.awards).toEqual([]);
   });
 
-  it("getMyMerit의 시그니처에 studentProfileId 자리가 없다", () => {
-    // 두 번째 인자는 track이다. 학생 식별자를 넘길 자리가 존재하지 않으므로
-    // URL 파라미터를 바꿔 남의 기록을 보는 경로가 생길 수 없다.
-    expect(service.getMyMerit.length).toBeLessThanOrEqual(3);
+  it("두 번째 인자를 학생 id처럼 넘겨도 세션 학생만 조회한다", async () => {
+    // 시그니처 길이만 재던 예전 단언은 (user, studentProfileId, track) 형태여도
+    // 그대로 통과해서, 검사하려던 것을 실제로 검사하지 못했다. 두 번째 인자가
+    // track이라는 사실을 동작으로 확인한다 — 남의 id를 넣어도 repo에는 세션에서
+    // 유도한 sp-1만 간다.
+    findStudentProfileByUserId.mockResolvedValue({
+      id: "sp-1",
+      user: { name: "김민준" },
+    });
+
+    await service.getMyMerit(student, "SCHOOL");
+
+    expect(findStudentProfileByUserId).toHaveBeenCalledWith(student.id);
+    expect(totals).toHaveBeenCalledWith(
+      expect.objectContaining({ studentProfileId: "sp-1", track: "SCHOOL" }),
+    );
+    // 호출 인자 어디에도 남의 id가 끼어들 자리가 없다.
+    for (const [arg] of totals.mock.calls) {
+      expect(arg.studentProfileId).toBe("sp-1");
+    }
   });
 });
 

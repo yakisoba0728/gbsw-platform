@@ -115,6 +115,9 @@ export async function findAward(id: string) {
       label: true,
       points: true,
       status: true,
+      // 취소 감사로그에 학생 이름을 남기려고 함께 가져온다. id만 남기면
+      // 나중에 로그를 볼 때 누구 기록이 취소됐는지 DB를 따로 뒤져야 한다.
+      studentProfile: { select: { user: { select: { name: true } } } },
     },
   });
 }
@@ -369,4 +372,43 @@ export async function isChildOf(
     select: { id: true },
   });
   return link !== null;
+}
+
+/**
+ * 화면 머리글용 신원 — 이름·학생코드와 **그 학년도의** 학급.
+ *
+ * 학급을 스냅샷하지 않고 그때그때 조인한다. 반이 잘못 올라간 것을 나중에 고치면
+ * 지난 상벌점 화면의 반 표시까지 함께 바로잡힌다 (설계서 "왜 Enrollment가 아니라
+ * year인가" 참고).
+ */
+export async function findStudentHeader(id: string, year: number) {
+  const profile = await prisma.studentProfile.findFirst({
+    where: { id, user: { deletedAt: null } },
+    select: {
+      id: true,
+      studentCode: true,
+      user: { select: { name: true } },
+      enrollments: {
+        where: { year },
+        take: 1,
+        select: {
+          number: true,
+          status: true,
+          schoolClass: { select: { grade: true, classNo: true } },
+        },
+      },
+    },
+  });
+  if (!profile) return null;
+
+  const enrollment = profile.enrollments[0];
+  return {
+    studentProfileId: profile.id,
+    studentCode: profile.studentCode,
+    name: profile.user.name,
+    grade: enrollment?.schoolClass?.grade ?? null,
+    classNo: enrollment?.schoolClass?.classNo ?? null,
+    number: enrollment?.number ?? null,
+    status: enrollment?.status ?? null,
+  };
 }

@@ -117,3 +117,10 @@ export const classRosterSchema = z.object({
 });
 
 export type ClassRosterQuery = z.infer<typeof classRosterSchema>;
+
+/** 한 학생의 내역 내보내기 조건. 학년도는 교내일 때만 의미가 있다. */
+export const studentHistoryExportSchema = z.object({
+  studentProfileId: z.string().trim().min(1),
+  track: trackSchema,
+  year: z.coerce.number().int().min(2000).max(2100).optional(),
+});

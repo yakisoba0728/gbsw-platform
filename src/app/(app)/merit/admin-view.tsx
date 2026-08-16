@@ -1,8 +1,16 @@
 import Link from "next/link";
 import type { SessionUser } from "@/core/auth/session";
-import { MERIT_TRACK_LABELS, MERIT_TRACKS, type MeritTrack } from "@/core/authz/merit-track";
+import {
+  isYearScoped,
+  MERIT_TRACK_LABELS,
+  MERIT_TRACKS,
+  type MeritTrack,
+} from "@/core/authz/merit-track";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
-import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
+import {
+  AcademicYearError,
+  getCurrentYear,
+} from "@/modules/academic-year/academic-year.service";
 import { classRosterSchema } from "@/modules/merit/merit.schema";
 import { getClassRoster, searchStudents } from "@/modules/merit/award.service";
 import { listActiveRules } from "@/modules/merit/rule.service";
@@ -70,6 +78,24 @@ export async function AdminMeritView({
     }
   }
 
+  // 지난 학년도를 보고 있으면 일괄 부여 폼을 감춘다 — 부여는 항상 현재 학년도로
+  // 들어가므로 결과가 이 화면에 나타나지 않는다. hrefWith가 year를 계속 보존하므로
+  // 한 번 들어온 학년도는 탭·반을 옮겨도 따라다닌다.
+  let viewingPast = false;
+  if (
+    isYearScoped(track) &&
+    rosterQuery.success &&
+    rosterQuery.data.year !== undefined &&
+    !noCurrentYear
+  ) {
+    try {
+      viewingPast = rosterQuery.data.year !== (await getCurrentYear());
+    } catch (error) {
+      if (!(error instanceof AcademicYearError)) throw error;
+      viewingPast = true;
+    }
+  }
+
   return (
     <div className="mx-auto max-w-5xl space-y-4">
       <div className="flex items-center gap-2">
@@ -124,6 +150,7 @@ export async function AdminMeritView({
           classNo={rosterQuery.data.classNo}
           track={track}
           year={rosterQuery.data.year}
+          viewingPast={viewingPast}
           rules={rules}
         />
       )}

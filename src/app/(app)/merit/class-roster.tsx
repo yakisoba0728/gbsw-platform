@@ -40,6 +40,7 @@ export function ClassRoster({
   classNo,
   track,
   year,
+  viewingPast,
   rules,
 }: {
   rows: RosterRow[];
@@ -47,6 +48,8 @@ export function ClassRoster({
   classNo: number;
   track: MeritTrack;
   year?: number;
+  /** 지난 학년도를 보고 있는가. true면 부여 폼을 감춘다. */
+  viewingPast: boolean;
   rules: RuleOption[];
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -185,6 +188,16 @@ export function ClassRoster({
           </table>
         </div>
 
+        {/*
+          지난 학년도를 보고 있으면 부여 폼을 아예 감춘다 — 부여는 항상 현재
+          학년도로 들어가므로, 2025년 명단을 보면서 주면 결과가 이 화면에
+          나타나지 않는다. 학생 상세 화면과 같은 처리다.
+        */}
+        {viewingPast ? (
+          <p className="border-t border-line px-5 py-4 text-[13px] text-amber-ink">
+            지난 학년도를 보고 있습니다. 부여는 현재 학년도에만 할 수 있습니다.
+          </p>
+        ) : (
         <div className="flex flex-wrap items-end gap-2.5 border-t border-line px-5 py-4">
           <span className="mr-1 text-[12.5px] font-semibold text-mut">
             {selected.size}명 선택됨
@@ -211,6 +224,7 @@ export function ClassRoster({
             {pending ? "부여하는 중…" : "일괄 부여"}
           </Button>
         </div>
+        )}
 
         {state.error && (
           <p role="alert" className="mx-5 mb-4 rounded-btn bg-rose-soft px-3 py-2.5 text-[13px] font-semibold text-rose">

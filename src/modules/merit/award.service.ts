@@ -141,6 +141,8 @@ export async function cancelAward(
     targetId: award.id,
     metadata: {
       studentProfileId: award.studentProfileId,
+      // 로그 화면이 "누구의 무엇을 취소했나"를 보여주려면 이름이 있어야 한다.
+      studentName: award.studentProfile.user.name,
       track: award.track,
       kind: award.kind,
       label: award.label,
@@ -159,6 +161,23 @@ export async function getStudentMerit(
 ): Promise<StudentMeritView> {
   await assertCan(actor, "merit:read:any");
   return readMerit(studentProfileId, track, year);
+}
+
+/**
+ * 화면 머리글용 신원 — 누구의 화면인지 알려준다.
+ *
+ * 상세 화면에 이름이 없으면 탭을 두 개 열어 놓고 비교하다가 엉뚱한 학생에게
+ * 벌점을 줘도 화면에 아무 반증이 없다. 합계 3칸은 그냥 숫자 세 개일 뿐이다.
+ *
+ * 학급은 **현재 학년도 기준**이다. 지난 학년도 기록을 보고 있어도 "지금 몇 반인가"가
+ * 사람을 식별하는 정보이므로 그쪽이 맞다.
+ */
+export async function getStudentHeader(
+  actor: SessionUser,
+  studentProfileId: string,
+) {
+  await assertCan(actor, "merit:read:any");
+  return repo.findStudentHeader(studentProfileId, await getCurrentYear());
 }
 
 /**

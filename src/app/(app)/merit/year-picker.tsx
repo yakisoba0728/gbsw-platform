@@ -2,14 +2,14 @@ import Link from "next/link";
 
 type Params = Record<string, string | string[] | undefined>;
 
-function hrefWith(params: Params, year: number): string {
+function hrefWith(basePath: string, params: Params, year: number): string {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (typeof value === "string") query.set(key, value);
   }
   query.set("track", "SCHOOL");
   query.set("year", String(year));
-  return `/merit?${query.toString()}`;
+  return `${basePath}?${query.toString()}`;
 }
 
 /**
@@ -21,10 +21,13 @@ export function YearPicker({
   years,
   selected,
   params,
+  basePath = "/merit",
 }: {
   years: number[];
   selected: number | null;
   params: Params;
+  /** 학생 상세(`/merit/students/<id>`)에서도 쓰므로 경로를 받는다. */
+  basePath?: string;
 }) {
   if (years.length === 0) return null;
 
@@ -34,7 +37,7 @@ export function YearPicker({
       {years.map((y) => (
         <Link
           key={y}
-          href={hrefWith(params, y)}
+          href={hrefWith(basePath, params, y)}
           className={
             y === selected
               ? "rounded-full bg-pri px-3.5 py-1.5 text-[12.5px] font-bold text-white"

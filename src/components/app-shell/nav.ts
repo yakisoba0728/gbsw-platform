@@ -29,10 +29,8 @@ export type NavItem = {
 /**
  * 사이드바 / 바텀탭 메뉴.
  *
- * 모듈이 하나 붙을 때마다 여기에 한 줄씩 추가한다. 예를 들어 상벌점 모듈을
- * 만들면 아래를 넣으면 된다 (MeritIcon은 components/icons.tsx에 이미 있다):
- *
- *   { href: "/merit", label: "상벌점", icon: MeritIcon },
+ * 모듈이 하나 붙을 때마다 여기에 한 줄씩 추가한다 — 상벌점이 그 첫 사례다
+ * (조회는 전 역할, 규정 관리는 ADMIN_NAV_ITEMS).
  *
  * 아직 만들지 않은 화면은 링크가 깨지므로 미리 넣지 않는다.
  */

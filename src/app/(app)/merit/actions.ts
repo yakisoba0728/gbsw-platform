@@ -8,13 +8,14 @@ import {
   getCurrentYear,
 } from "@/modules/academic-year/academic-year.service";
 import * as service from "@/modules/merit/award.service";
-import { toRosterSheet } from "@/modules/merit/merit.export";
+import { toHistorySheet, toRosterSheet } from "@/modules/merit/merit.export";
 import { MeritError } from "@/modules/merit/merit.error";
 import {
   awardSchema,
   bulkAwardSchema,
   cancelSchema,
   classRosterSchema,
+  studentHistoryExportSchema,
 } from "@/modules/merit/merit.schema";
 import type { MeritActionState } from "./action-state";
 
@@ -170,6 +171,58 @@ export async function exportClassRosterAction(input: {
     // 예상 못 한 오류는 서버에 남긴다. 화면에는 일반 문구만 나가므로
     // 여기서 흘리면 무엇이 잘못됐는지 아무 데도 남지 않는다.
     console.error("상벌점 내보내기 실패:", error);
+    return { error: "내려받지 못했습니다.", rows: [], filename: "" };
+  }
+}
+
+/**
+ * 한 학생의 내역 내보내기 — 생활기록부 근거처럼 학생 한 명분이 필요할 때 쓴다.
+ * 반별 내보내기와 같은 방식이며, 트랙별 조회 범위(교내=학년도, 기숙사=누적)도
+ * 서비스가 그대로 적용한다.
+ */
+export async function exportStudentHistoryAction(input: {
+  studentProfileId: string;
+  track: MeritTrack;
+  year?: number;
+}): Promise<{ error: string | null; rows: (string | number)[][]; filename: string }> {
+  const actor = await requireAuth();
+
+  const parsed = studentHistoryExportSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: "조회 조건을 확인해 주세요.", rows: [], filename: "" };
+  }
+
+  try {
+    const [header, view] = await Promise.all([
+      service.getStudentHeader(actor, parsed.data.studentProfileId),
+      service.getStudentMerit(
+        actor,
+        parsed.data.studentProfileId,
+        parsed.data.track,
+        parsed.data.year,
+      ),
+    ]);
+    if (!header) {
+      return { error: "학생을 찾을 수 없습니다.", rows: [], filename: "" };
+    }
+
+    const sheet = toHistorySheet(view.awards, {
+      track: parsed.data.track,
+      studentName: header.name,
+    });
+    const trackLabel = MERIT_TRACK_LABELS[parsed.data.track];
+    // 기숙사는 누적이라 학년도가 파일명에 들어가면 거짓말이 된다.
+    const scope = view.year === null ? "누적" : `${view.year}`;
+    return {
+      error: null,
+      rows: sheet,
+      filename: `${header.name}_${trackLabel}상벌점_${scope}.xlsx`,
+    };
+  } catch (error) {
+    if (error instanceof AcademicYearError) {
+      return { error: NO_CURRENT_YEAR_MESSAGE, rows: [], filename: "" };
+    }
+    console.error("상벌점 내역 내보내기 실패:", error);
     return { error: "내려받지 못했습니다.", rows: [], filename: "" };
   }
 }
