@@ -4,9 +4,8 @@ import { useMemo, useState } from "react";
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 import type { MeritTrack } from "@/core/authz/merit-track";
-import { RuleOptions, type RuleOption } from "@/components/merit/rule-options";
+import { RulePicker, type RuleOption } from "@/components/merit/rule-picker";
 import { demeritCellClass, ThresholdHint } from "@/components/merit/demerit-level";
 import { EMPTY_MERIT_STATE } from "./action-state";
 import { bulkAwardAction } from "./actions";
@@ -49,6 +48,9 @@ export function ClassRoster({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>("number");
   const [state, formAction, pending] = useActionState(bulkAwardAction, EMPTY_MERIT_STATE);
+  // 고른 항목은 hidden input이 싣고 가지만, 제출 버튼을 잠그려면 화면도 알아야 한다.
+  // 부여에 성공해도 비우지 않는다 — "점호 지각"을 다음 반에도 그대로 쓰는 흐름이다.
+  const [rule, setRule] = useState<RuleOption | null>(null);
 
   // 일괄 부여가 성공하면 선택을 비운다. 렌더 중 이전 상태와 비교해 처리한다 —
   // useEffect 안에서 곧바로 setState하면 리렌더가 한 번 더 발생한다
@@ -211,27 +213,23 @@ export function ClassRoster({
             지난 학년도를 보고 있습니다. 부여는 현재 학년도에만 할 수 있습니다.
           </p>
         ) : (
-        <div className="flex flex-wrap items-end gap-2.5 border-t border-line px-5 py-4">
-          <span className="mr-1 text-[12.5px] font-semibold text-mut">
+        <div className="space-y-2.5 border-t border-line px-5 py-4">
+          <span className="block text-[12.5px] font-semibold text-mut">
             {selected.size}명 선택됨
           </span>
 
-          <div className="min-w-[220px] flex-[2]">
-            <Select name="ruleId" required defaultValue="" aria-label="부여 항목">
-              <option value="" disabled>
-                항목 선택
-              </option>
-              <RuleOptions rules={rules} />
-            </Select>
-          </div>
+          {/* 항목 고르기는 한 줄을 통째로 쓴다 — 검색 목록이 아래로 펼쳐진다. */}
+          <RulePicker rules={rules} onChange={setRule} />
 
-          <div className="min-w-[160px] flex-[2]">
-            <Input name="note" placeholder="메모 (선택)" aria-label="메모" />
-          </div>
+          <div className="flex flex-wrap items-end gap-2.5">
+            <div className="min-w-[160px] flex-1">
+              <Input name="note" placeholder="메모 (선택)" aria-label="메모" />
+            </div>
 
-          <Button type="submit" disabled={pending || selected.size === 0}>
-            {pending ? "부여하는 중…" : "일괄 부여"}
-          </Button>
+            <Button type="submit" disabled={pending || selected.size === 0 || !rule}>
+              {pending ? "부여하는 중…" : "일괄 부여"}
+            </Button>
+          </div>
         </div>
         )}
 

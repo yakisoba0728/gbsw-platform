@@ -72,7 +72,10 @@ export const ruleIdSchema = z.object({ ruleId: z.string().trim().min(1) });
  */
 export const awardSchema = z.object({
   studentProfileId: z.string().trim().min(1),
-  ruleId: z.string().trim().min(1),
+  // 문구를 붙여 둔다 — 항목 고르기가 select에서 hidden input으로 바뀌면서
+  // 브라우저의 required 검사가 사라졌다. 빈 채로 제출되면 여기가 유일한 방어선인데,
+  // 문구가 없으면 zod의 영문 기본 메시지가 그대로 화면에 나간다.
+  ruleId: z.string().trim().min(1, "부여할 항목을 골라 주세요"),
   note: optionalText(500),
 });
 
@@ -102,7 +105,7 @@ export const bulkAwardSchema = z.object({
     .array(z.string().trim().min(1))
     .min(1, "학생을 선택해 주세요")
     .max(BULK_AWARD_LIMIT, `한 번에 ${BULK_AWARD_LIMIT}명까지 줄 수 있습니다`),
-  ruleId: z.string().trim().min(1),
+  ruleId: z.string().trim().min(1, "부여할 항목을 골라 주세요"),
   note: optionalText(500),
 });
 
