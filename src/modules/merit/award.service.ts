@@ -398,3 +398,51 @@ export async function getChildMerit(
 
   return readMerit(childProfileId, track, year);
 }
+
+// ── 통계 ──────────────────────────────────────────────────────
+
+export type MeritStats = {
+  track: MeritTrack;
+  /** 교내면 보고 있는 학년도, 기숙사면 null(전체 누적). */
+  year: number | null;
+  /** 반 편성 기준 학년도. 기숙사여도 반은 어느 해 기준인지가 필요하다. */
+  rosterYear: number;
+  totals: MeritTotals & { awardCount: number };
+  classes: Awaited<ReturnType<typeof repo.classSummaries>>;
+  topRules: Awaited<ReturnType<typeof repo.topRules>>;
+};
+
+/** 순위 표시는 관리자 화면에만 둔다 — 학생에게 등수를 띄우는 건 별개 결정이다. */
+const TOP_RULE_LIMIT = 10;
+
+export async function getMeritStats(
+  actor: SessionUser,
+  track: MeritTrack,
+  year?: number,
+): Promise<MeritStats> {
+  await assertCan(actor, "merit:read:any");
+
+  // 합계 범위는 트랙 규칙(교내=학년도, 기숙사=누적)을 따르고, 반 편성은 언제나
+  // 어느 학년도의 것인지가 필요하다 — 기숙사가 누적이어도 "지금 2학년 3반"은
+  // 학년도 개념이기 때문이다.
+  const scoped = await scopeYear(track, year);
+  const rosterYear = year ?? (await getCurrentYear());
+
+  const [totalRows, classes, topRules] = await Promise.all([
+    repo.trackTotals({ track, totalsYear: scoped }),
+    repo.classSummaries({ year: rosterYear, track, totalsYear: scoped }),
+    repo.topRules({ track, totalsYear: scoped, limit: TOP_RULE_LIMIT }),
+  ]);
+
+  const totals = sumTotals(totalRows);
+  const awardCount = totalRows.reduce((sum, row) => sum + row._count._all, 0);
+
+  return {
+    track,
+    year: scoped,
+    rosterYear,
+    totals: { ...totals, awardCount },
+    classes,
+    topRules,
+  };
+}

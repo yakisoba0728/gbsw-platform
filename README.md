@@ -5,8 +5,8 @@
 Next.js 16 (App Router) · TypeScript · Prisma 7 + PostgreSQL 18 · Better Auth · Tailwind CSS v4.
 자체 호스팅(Docker Compose), 외부 SaaS 의존 없음, SMTP 불필요.
 
-> **현재 상태:** 뼈대. 인증·권한·감사로그·앱 셸까지 완성되어 있고 업무 모듈은 아직 없다.
-> 상벌점(merit)이 첫 번째로 붙을 모듈이다.
+> **현재 상태:** 인증·권한·감사로그·앱 셸에 더해 **학년도·명단·상벌점**까지 있다.
+> 상벌점이 첫 업무 모듈이며, 새 모듈은 `src/modules/merit/`의 구조를 본보기로 삼는다.
 
 ## 시작하기
 
@@ -20,8 +20,14 @@ openssl rand -base64 32
 npm install
 npm run db:up          # Postgres 18 컨테이너 (호스트 5433 포트)
 npm run db:migrate     # 스키마 적용
+npm run seed:merit     # 상벌점 규정 114개 투입 (1회, 멱등)
 npm run dev            # http://localhost:3000
 ```
+
+> **`npm run seed:merit`은 새로 설치할 때 한 번만 돌린다.** 학교 규정표
+> (교내 73 · 기숙사 41)를 `prisma/seed/merit-rules.data.ts`에서 읽어 넣는다.
+> 규정이 하나라도 있으면 아무것도 하지 않으므로 여러 번 돌려도 안전하다.
+> 이후 규정 추가·수정·비활성은 `/admin/merit/rules` 화면에서 한다.
 
 > **설치 후 확인할 것 (M9):** 마이그레이션이 학년도 2026을 현재 학년도로 심어
 > 둔다. 다른 해에 새로 설치하면 `/admin/students`에서 현재 학년도가 맞는지
@@ -64,6 +70,7 @@ npm run dev            # http://localhost:3000
 | `npm run db:up` | Postgres 컨테이너만 기동 |
 | `npm run db:migrate` | `prisma migrate dev` |
 | `npm run db:test:setup` | 통합 테스트 전용 DB(`gbsw_test`) 생성 + 마이그레이션 |
+| `npm run seed:merit` | 상벌점 규정 초기 투입 (설치 시 1회, 멱등) |
 | `npm run db:studio` | Prisma Studio |
 | `npm run auth:generate` | Better Auth가 기대하는 스키마 생성 (대조용) |
 
