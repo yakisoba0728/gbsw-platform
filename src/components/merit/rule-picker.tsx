@@ -2,6 +2,7 @@
 
 import { useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { cn } from "@/lib/cn";
+import { Input } from "@/components/ui/input";
 import { KindBadge, kindColorClass, signedPoints } from "@/components/merit/kind-badge";
 import {
   filterRules,
@@ -39,8 +40,6 @@ export function RulePicker({
   label?: string;
 }) {
   const baseId = useId();
-  // Input 컴포넌트는 ref를 타입에 열어 두지 않아 여기서는 <input>을 직접 쓴다.
-  // 클래스는 Input과 같은 규격이다 (rounded-field · p-[13px] · text-sm).
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
@@ -138,7 +137,7 @@ export function RulePicker({
     >
       <input type="hidden" name={name} value={selected?.id ?? ""} />
 
-      <input
+      <Input
         ref={inputRef}
         type="text"
         role="combobox"
@@ -160,11 +159,6 @@ export function RulePicker({
         }}
         onFocus={() => setOpen(true)}
         onKeyDown={onKeyDown}
-        className={cn(
-          "w-full rounded-field border border-line bg-surface p-[13px]",
-          "text-sm text-ink outline-none",
-          "disabled:cursor-not-allowed disabled:bg-soft disabled:text-mut",
-        )}
       />
 
       {/*
