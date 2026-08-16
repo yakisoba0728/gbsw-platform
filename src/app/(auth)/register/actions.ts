@@ -4,7 +4,10 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/core/auth/auth";
 import type { Role } from "@/core/authz/roles";
-import { bootstrapSchema } from "@/modules/bootstrap/bootstrap.schema";
+import {
+  type BootstrapInput,
+  bootstrapSchema,
+} from "@/modules/bootstrap/bootstrap.schema";
 import { createInitialAdmin } from "@/modules/bootstrap/bootstrap.service";
 import {
   completeRegistrationSchema,
@@ -36,12 +39,18 @@ export async function createInitialAdminAction(
   const token = String(formData.get("token") ?? "");
 
   // 검증은 경계에서 한 번만. 토큰 소진보다 먼저 해서, 입력 오타로 토큰이 날아가지 않게 한다.
+  //
+  // `satisfies`로 스키마의 키를 전부 읽었는지 컴파일 타임에 못 박는다. 예전에
+  // phone이 필수가 됐을 때 이 목록만 안 따라가서 safeParse가 **항상** 실패했고,
+  // 최초 관리자 생성이 통째로 막혔다 — 폼은 값을 보내고 있었고 타입검사·lint·
+  // 테스트 어디에도 안 걸려서, 새 서버를 세울 때까지 아무도 몰랐다.
   const parsed = bootstrapSchema.safeParse({
     name: formData.get("name"),
     email: formData.get("email"),
+    phone: formData.get("phone"),
     password: formData.get("password"),
     confirmPassword: formData.get("confirmPassword"),
-  });
+  } satisfies Record<keyof BootstrapInput, FormDataEntryValue | null>);
 
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "입력값을 확인해 주세요." };
