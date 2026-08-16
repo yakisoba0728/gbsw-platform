@@ -1,11 +1,14 @@
 import { z } from "zod";
 import {
+  CLASS_NO_RANGE_MESSAGE,
+  GRADE_RANGE_MESSAGE,
   MAX_CLASS_NO,
   MAX_GRADE,
   MAX_NUMBER,
   MIN_CLASS_NO,
   MIN_GRADE,
   MIN_NUMBER,
+  NUMBER_RANGE_MESSAGE,
 } from "@/modules/enrollment/enrollment.schema";
 
 const name = z
@@ -34,9 +37,25 @@ export const createStudentInviteSchema = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "생년월일은 YYYY-MM-DD 형식으로 입력해 주세요.")
     .refine((v) => !Number.isNaN(Date.parse(v)), "존재하지 않는 날짜입니다."),
-  grade: z.number().int().min(MIN_GRADE).max(MAX_GRADE),
-  classNo: z.number().int().min(MIN_CLASS_NO).max(MAX_CLASS_NO),
-  number: z.number().int().min(MIN_NUMBER).max(MAX_NUMBER),
+  // 문구도 enrollment.schema의 상수를 쓴다. 범위 상수만 가져오고 메시지를
+  // 비워 두면 zod의 영문 기본 문구("Too big: expected number to be <=3")가
+  // 그대로 화면에 나간다 — 액션의 `?? "입력값을 확인해 주세요."` 폴백은
+  // issues[0].message가 이미 채워져 있어서 절대 닿지 않는다.
+  grade: z
+    .number()
+    .int(GRADE_RANGE_MESSAGE)
+    .min(MIN_GRADE, GRADE_RANGE_MESSAGE)
+    .max(MAX_GRADE, GRADE_RANGE_MESSAGE),
+  classNo: z
+    .number()
+    .int(CLASS_NO_RANGE_MESSAGE)
+    .min(MIN_CLASS_NO, CLASS_NO_RANGE_MESSAGE)
+    .max(MAX_CLASS_NO, CLASS_NO_RANGE_MESSAGE),
+  number: z
+    .number()
+    .int(NUMBER_RANGE_MESSAGE)
+    .min(MIN_NUMBER, NUMBER_RANGE_MESSAGE)
+    .max(MAX_NUMBER, NUMBER_RANGE_MESSAGE),
   expiresInDays,
 });
 

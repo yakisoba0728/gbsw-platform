@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ForbiddenError } from "@/core/authz/errors";
+import {
+  CLASS_NO_RANGE_MESSAGE,
+  GRADE_RANGE_MESSAGE,
+  NUMBER_RANGE_MESSAGE,
+} from "@/modules/enrollment/enrollment.schema";
 
 /**
  * 초대코드 발급·폐기 액션의 **경계** — 폼의 FormData가 zod 스키마에 닿는 지점.
@@ -139,29 +144,29 @@ describe("createStudentInviteAction — 경계 검증", () => {
   });
 
   /*
-   * **알려진 결함을 못 박아 두는 테스트다.**
+   * 한때 이 셋만 스키마에 문구가 없어 zod의 영문 기본 메시지
+   * ("Too big: expected number to be <=3")가 그대로 화면에 나갔다. 액션의
+   * `?? "입력값을 확인해 주세요."` 폴백은 issues[0].message가 이미 채워져 있어
+   * 절대 닿지 않는다 — 폴백이 있다는 사실이 오히려 안심시켜서 더 오래 남았다.
    *
-   * 학년·반·번호만 스키마에 한글 문구가 없어(invite.schema.ts:37-39) zod의 영문
-   * 기본 메시지가 그대로 화면에 나간다 — 액션의 `?? "입력값을 확인해 주세요."`는
-   * issues[0]에 message가 있으므로 절대 닿지 않는다. 폼에 min/max/required가
-   * 붙어 있어 브라우저가 대개 먼저 막지만, 서버 액션을 직접 부르면 뚫린다.
-   *
-   * 고치는 자리는 스키마 쪽이다(다른 필드처럼 문구를 붙인다). 고치고 나면 이
-   * 테스트가 깨지므로, 그때 "한국어다"로 뒤집으면 된다.
+   * 문구는 enrollment.schema의 상수를 쓴다. 명단 업로드·표 편집이 같은 값을
+   * 검사하므로, 학교가 범위를 넓히면 세 경로의 문구가 함께 따라와야 한다.
    */
-  it("학년·반·번호 범위 오류만 zod 영문 기본 메시지가 새어 나간다 (알려진 결함)", async () => {
-    const cases: Record<string, string>[] = [
-      { grade: "9" },
-      { classNo: "0" },
-      { number: "99" },
+  it("학년·반·번호 범위 오류도 한국어로 알린다", async () => {
+    // 문구를 여기 다시 적지 않는다 — 학교가 범위를 넓히면 이 테스트만 옛 숫자에
+    // 남아, 정작 검증하려던 "세 경로가 같은 문구를 쓴다"를 못 보게 된다.
+    const cases: [Record<string, string>, string][] = [
+      [{ grade: "9" }, GRADE_RANGE_MESSAGE],
+      [{ classNo: "0" }, CLASS_NO_RANGE_MESSAGE],
+      [{ number: "99" }, NUMBER_RANGE_MESSAGE],
     ];
 
-    for (const over of cases) {
+    for (const [over, message] of cases) {
       vi.clearAllMocks();
       const state = await createStudentInviteAction(INITIAL, studentForm(over));
 
       expect(createStudentInvite, JSON.stringify(over)).not.toHaveBeenCalled();
-      expect(state.error, JSON.stringify(over)).toMatch(/^Too (big|small):/);
+      expect(state.error, JSON.stringify(over)).toBe(message);
     }
   });
 
