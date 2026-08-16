@@ -19,6 +19,8 @@ const classSummaries = vi.fn();
 const topRules = vi.fn();
 const listAwardsForChart = vi.fn();
 const listClassRoster = vi.fn();
+const demeritTotalsByStudent = vi.fn();
+const findStudentsWithClass = vi.fn();
 
 vi.mock("@/modules/merit/merit.repo", () => ({
   trackTotals,
@@ -26,6 +28,8 @@ vi.mock("@/modules/merit/merit.repo", () => ({
   topRules,
   listAwardsForChart,
   listClassRoster,
+  demeritTotalsByStudent,
+  findStudentsWithClass,
 }));
 vi.mock("@/core/audit/audit", () => ({ recordAudit: vi.fn() }));
 vi.mock("@/modules/academic-year/academic-year.service", () => ({
@@ -54,6 +58,8 @@ beforeEach(() => {
   classSummaries.mockResolvedValue([]);
   topRules.mockResolvedValue([]);
   listAwardsForChart.mockResolvedValue([]);
+  demeritTotalsByStudent.mockResolvedValue([]);
+  findStudentsWithClass.mockResolvedValue([]);
 });
 
 describe("getMeritStats — 기숙사(누적 트랙)", () => {

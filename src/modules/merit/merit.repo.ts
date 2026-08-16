@@ -630,6 +630,68 @@ export async function trackTotals(params: {
   });
 }
 
+/**
+ * 학생별 **벌점** 합계. 기준 초과 명단이 쓴다.
+ *
+ * **재적이 아니라 부여 쪽에서 모은다.** 명단에서 시작해 학생마다 합계를 붙이면
+ * 그 학년도 재적 행이 없는 학생(반 미배정, 학적 변동 중)이 통째로 빠지는데,
+ * 이 화면이 답해야 하는 질문("선을 넘은 사람이 누구인가")에서 그쪽이야말로
+ * 놓치면 안 되는 사람이다. 소속은 뒤에 붙이고, 없으면 없다고 적는다.
+ *
+ * 순점수가 아니라 벌점 총합만 센다 — 상점으로 덮었다고 규정 위반이 없던 일이
+ * 되지는 않는다 (demeritLevel과 같은 기준).
+ */
+export async function demeritTotalsByStudent(params: {
+  track: MeritTrack;
+  /** null이면 전체 누적(기숙사). */
+  totalsYear: number | null;
+  /** 주면 이 학생들 것만. 반을 골라 보는 화면이 쓴다. */
+  studentProfileIds?: string[];
+}) {
+  return prisma.meritAward.groupBy({
+    by: ["studentProfileId"],
+    where: {
+      track: params.track,
+      kind: "DEMERIT",
+      // 취소된 기록은 빠진다 — 다른 집계 경로와 같은 규칙이다. 취소한 벌점 때문에
+      // 선도위 명단에 오르면 그건 취소가 취소가 아니라는 뜻이 된다.
+      status: "ACTIVE",
+      // 지워진 계정은 명단에 올리지 않는다. groupBy도 관계 조건을 받는다.
+      studentProfile: { user: { deletedAt: null } },
+      ...(params.totalsYear === null ? {} : { year: params.totalsYear }),
+      ...(params.studentProfileIds
+        ? { studentProfileId: { in: params.studentProfileIds } }
+        : {}),
+    },
+    _sum: { points: true },
+  });
+}
+
+/**
+ * 이름·학생코드와 **그 학년도의** 소속. 기준 초과 명단이 id 목록에 신원을 붙인다.
+ * 소속을 스냅샷하지 않고 조인하는 이유는 findStudentHeader와 같다.
+ */
+export async function findStudentsWithClass(ids: string[], year: number) {
+  if (ids.length === 0) return [];
+
+  return prisma.studentProfile.findMany({
+    where: { id: { in: ids }, user: { deletedAt: null } },
+    select: {
+      id: true,
+      studentCode: true,
+      user: { select: { name: true } },
+      enrollments: {
+        where: { year, status: "ENROLLED" },
+        take: 1,
+        select: {
+          number: true,
+          schoolClass: { select: { grade: true, classNo: true } },
+        },
+      },
+    },
+  });
+}
+
 // ── 그래프용 조회 ─────────────────────────────────────────────
 
 /**

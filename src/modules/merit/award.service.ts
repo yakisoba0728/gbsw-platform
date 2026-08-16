@@ -2,7 +2,13 @@ import { randomUUID } from "node:crypto";
 import { recordAudit } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
 import { assertCan, ForbiddenError } from "@/core/authz/errors";
-import { isYearScoped, type MeritTrack } from "@/core/authz/merit-track";
+import {
+  DEMERIT_THRESHOLDS,
+  demeritLevel,
+  isYearScoped,
+  type DemeritLevel,
+  type MeritTrack,
+} from "@/core/authz/merit-track";
 import {
   categoryDistribution,
   monthlyTotals,
@@ -550,7 +556,88 @@ export type MeritStats = {
   totals: MeritTotals & { awardCount: number };
   classes: Awaited<ReturnType<typeof repo.classSummaries>>;
   topRules: Awaited<ReturnType<typeof repo.topRules>>;
+  /** 벌점이 기준(warn) 이상인 학생들 — 벌점 많은 순. 표시 전용이다. */
+  watchList: WatchListRow[];
+  /** 화면에 그대로 적는다 — 학교가 정할 임시값이라 틀리면 바로 보여야 한다. */
+  thresholds: { warn: number; danger: number };
 };
+
+/**
+ * 기준 초과 명단의 한 줄. 소속이 없을 수 있다 (반 미배정·학적 변동 중) —
+ * 그래도 명단에는 오른다.
+ */
+export type WatchListRow = {
+  studentProfileId: string;
+  name: string;
+  studentCode: string;
+  grade: number | null;
+  classNo: number | null;
+  number: number | null;
+  demerit: number;
+  level: DemeritLevel;
+};
+
+/**
+ * 벌점이 기준(warn) 이상인 학생들 — 벌점 많은 순.
+ *
+ * **이 목록이 없으면 "전교에서 선을 넘은 사람이 누구인가"에 답하려고 반 명단을
+ * 하나씩 열어야 한다.** 선도위원회 준비가 매번 하는 일이 그것이다.
+ *
+ * **표시만 한다.** 기준을 넘겨도 회부·통보·상태 변경 같은 것은 하나도 일어나지
+ * 않는다 — 설계서가 알림·자동 조치를 의도적으로 미뤘고, 불이익을 주는 판단은
+ * 사람이 한다. 화면에 기준 숫자를 함께 내보내는 이유도 같다: DEMERIT_THRESHOLDS는
+ * 학교가 정할 값의 임시값이라, 틀린 값이면 화면에서 바로 보여야 한다.
+ */
+async function readWatchList(
+  track: MeritTrack,
+  totalsYear: number | null,
+  rosterYear: number,
+  studentProfileIds?: string[],
+): Promise<WatchListRow[]> {
+  const { warn } = DEMERIT_THRESHOLDS[track];
+
+  const sums = await repo.demeritTotalsByStudent({
+    track,
+    totalsYear,
+    studentProfileIds,
+  });
+
+  // 기준 미만은 여기서 걸러 낸다 — 전교 300명 규모라 애플리케이션 필터로 충분하고,
+  // "기준"이라는 업무 규칙이 서비스에 남는다.
+  const over = sums
+    .map((row) => ({ id: row.studentProfileId, demerit: row._sum.points ?? 0 }))
+    .filter((row) => row.demerit >= warn);
+  if (over.length === 0) return [];
+
+  const students = await repo.findStudentsWithClass(
+    over.map((row) => row.id),
+    rosterYear,
+  );
+  const byId = new Map(students.map((s) => [s.id, s]));
+
+  return over
+    .flatMap((row) => {
+      const student = byId.get(row.id);
+      // 합계는 있는데 신원이 없으면(그 사이 지워진 계정) 줄을 만들지 않는다 —
+      // 이름 없는 줄은 명단으로서 쓸모가 없다.
+      if (!student) return [];
+
+      const enrollment = student.enrollments[0];
+      return [
+        {
+          studentProfileId: student.id,
+          name: student.user.name,
+          studentCode: student.studentCode,
+          grade: enrollment?.schoolClass?.grade ?? null,
+          classNo: enrollment?.schoolClass?.classNo ?? null,
+          number: enrollment?.number ?? null,
+          demerit: row.demerit,
+          level: demeritLevel(track, row.demerit),
+        },
+      ];
+    })
+    .sort((a, b) => b.demerit - a.demerit || a.name.localeCompare(b.name, "ko"));
+}
 
 export type MeritSummary = {
   track: MeritTrack;
@@ -635,7 +722,7 @@ export async function getMeritStats(
 
   // 반에 학생이 하나도 없으면 빈 배열이 되는데, 그대로 넘기면 Prisma의
   // `in: []`가 "아무것도 없음"으로 동작해 의도대로 빈 결과가 나온다.
-  const [totalRows, classes, topRules, chartAwards] = await Promise.all([
+  const [totalRows, classes, topRules, chartAwards, watchList] = await Promise.all([
     repo.trackTotals({ track, totalsYear: scoped, studentProfileIds }),
     repo.classSummaries({ year: rosterYear, track, totalsYear: scoped }),
     repo.topRules({
@@ -645,6 +732,8 @@ export async function getMeritStats(
       studentProfileIds,
     }),
     repo.listAwardsForChart({ track, year: scoped, since, studentProfileIds }),
+    // 반을 골랐으면 그 반 안에서만 본다 — 화면의 다른 숫자와 범위를 맞춘다.
+    readWatchList(track, scoped, rosterYear, studentProfileIds),
   ]);
 
   const totals = sumTotals(totalRows);
@@ -669,6 +758,8 @@ export async function getMeritStats(
       ? classes.filter((c) => c.grade === scope.grade && c.classNo === scope.classNo)
       : classes,
     topRules,
+    watchList,
+    thresholds: DEMERIT_THRESHOLDS[track],
   };
 }
 
