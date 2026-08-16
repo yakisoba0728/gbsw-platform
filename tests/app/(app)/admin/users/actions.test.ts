@@ -1,0 +1,387 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ForbiddenError } from "@/core/authz/errors";
+
+/**
+ * 계정 관리 액션의 **경계** — 폼의 FormData가 zod 스키마(또는 그 자리를 대신하는
+ * `String(formData.get(...))`)에 닿는 지점. (auth)/register/actions.test.ts와
+ * 같은 목적이다.
+ *
+ * FormData는 admin/users/[userId]/user-forms.tsx가 실제로 보내는 name 그대로
+ * 만든다. 이 화면은 폼이 넷이고 **학생인지·재학 중인지에 따라 보내는 필드가
+ * 달라진다**(비학생은 birthDate·학년·반·번호를 아예 안 보내고, 학적이 재학이
+ * 아니면 학년·반·번호만 빠진다) — 세 조합을 모두 세운다.
+ */
+
+const requireAuth = vi.fn(async () => ({ id: "admin-1", role: "ADMIN" }));
+const revalidatePath = vi.fn();
+const redirect = vi.fn(() => {
+  // 실제 next/navigation의 redirect는 예외를 던져 이후 코드를 끊는다.
+  throw new Error("NEXT_REDIRECT");
+});
+
+const updateUser = vi.fn(async () => ({ changed: ["name"] }));
+const setUserActive = vi.fn();
+const resetPassword = vi.fn(async () => ({ tempPassword: "temp-1234-abcd" }));
+const deleteUserPermanently = vi.fn();
+
+vi.mock("next/cache", () => ({ revalidatePath }));
+vi.mock("next/navigation", () => ({ redirect }));
+vi.mock("@/core/auth/session", () => ({ requireAuth }));
+vi.mock("@/modules/admin-users/admin-user.service", () => ({
+  AdminUserError: class AdminUserError extends Error {},
+  updateUser,
+  setUserActive,
+  resetPassword,
+  deleteUserPermanently,
+}));
+
+const { AdminUserError } = await import(
+  "@/modules/admin-users/admin-user.service"
+);
+const {
+  updateUserAction,
+  setUserActiveAction,
+  resetPasswordAction,
+  deleteUserPermanentlyAction,
+} = await import("@/app/(app)/admin/users/actions");
+
+function form(fields: Record<string, string>): FormData {
+  const fd = new FormData();
+  for (const [key, value] of Object.entries(fields)) fd.set(key, value);
+  return fd;
+}
+
+/** EditUserForm이 **재학 중인 학생**에게 그릴 때 보내는 필드 전부. */
+function studentForm(over: Record<string, string> = {}): FormData {
+  return form({
+    userId: "u-1",
+    name: "홍길동",
+    email: "hong@gbsw.hs.kr",
+    phone: "010-1234-5678",
+    birthDate: "2010-03-02",
+    grade: "1",
+    classNo: "2",
+    number: "13",
+    ...over,
+  });
+}
+
+/** EditUserForm이 **비학생**(관리자·학부모)에게 그릴 때 보내는 필드 — 넷뿐이다. */
+function adminForm(over: Record<string, string> = {}): FormData {
+  return form({
+    userId: "u-2",
+    name: "김교사",
+    email: "kim@gbsw.hs.kr",
+    phone: "010-2222-3333",
+    ...over,
+  });
+}
+
+const USER_INITIAL = { error: null, tempPassword: null, targetId: null };
+const UPDATE_INITIAL = { error: null, changed: null };
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+describe("updateUserAction — 경계 검증", () => {
+  it("재학생 폼이 보내는 값 그대로면 서비스까지 도달한다", async () => {
+    const state = await updateUserAction(UPDATE_INITIAL, studentForm());
+
+    expect(updateUser).toHaveBeenCalledWith(expect.anything(), "u-1", {
+      name: "홍길동",
+      email: "hong@gbsw.hs.kr",
+      phone: "010-1234-5678",
+      birthDate: "2010-03-02",
+      grade: 1,
+      classNo: 2,
+      number: 13,
+    });
+    expect(state).toEqual({ error: null, changed: ["name"] });
+  });
+
+  it("비학생 폼은 학적 칸을 아예 안 보낸다 — 그래도 통과해야 한다", async () => {
+    const state = await updateUserAction(UPDATE_INITIAL, adminForm());
+
+    expect(updateUser).toHaveBeenCalledOnce();
+    expect(state.error).toBeNull();
+    const input = updateUser.mock.calls[0]?.[2];
+    expect(input.birthDate).toBe("");
+    expect(input.grade).toBeUndefined();
+    expect(input.classNo).toBeUndefined();
+    expect(input.number).toBeUndefined();
+  });
+
+  it("재학 중이 아닌 학생은 학년·반·번호 칸이 없다 — 생년월일만 온다", async () => {
+    const fd = studentForm();
+    for (const key of ["grade", "classNo", "number"]) fd.delete(key);
+
+    const state = await updateUserAction(UPDATE_INITIAL, fd);
+
+    expect(updateUser).toHaveBeenCalledOnce();
+    expect(state.error).toBeNull();
+    expect(updateUser.mock.calls[0]?.[2].birthDate).toBe("2010-03-02");
+  });
+
+  it("이메일 형식이 틀리면 서비스를 부르지 않고 한국어로 알린다", async () => {
+    const state = await updateUserAction(
+      UPDATE_INITIAL,
+      studentForm({ email: "hong(at)gbsw" }),
+    );
+
+    expect(updateUser).not.toHaveBeenCalled();
+    expect(state.error).toBe("이메일 형식이 올바르지 않습니다.");
+  });
+
+  it("휴대폰 형식이 틀리면 서비스를 부르지 않고 한국어로 알린다", async () => {
+    const state = await updateUserAction(
+      UPDATE_INITIAL,
+      studentForm({ phone: "01012" }),
+    );
+
+    expect(updateUser).not.toHaveBeenCalled();
+    expect(state.error).toBe("휴대폰 번호 형식이 올바르지 않습니다.");
+  });
+
+  it("이름이 비면 서비스를 부르지 않는다", async () => {
+    const state = await updateUserAction(UPDATE_INITIAL, studentForm({ name: " " }));
+
+    expect(updateUser).not.toHaveBeenCalled();
+    expect(state.error).toBe("이름을 입력해 주세요.");
+  });
+
+  it("생년월일 형식이 틀리면 서비스를 부르지 않는다", async () => {
+    const state = await updateUserAction(
+      UPDATE_INITIAL,
+      studentForm({ birthDate: "2010/03/02" }),
+    );
+
+    expect(updateUser).not.toHaveBeenCalled();
+    expect(state.error).toBe("생년월일 형식이 올바르지 않습니다.");
+  });
+
+  it("역할은 스키마에 없다 — 보내도 서비스로 새지 않는다", async () => {
+    await updateUserAction(UPDATE_INITIAL, studentForm({ role: "ADMIN" }));
+
+    expect(updateUser.mock.calls[0]?.[2]).not.toHaveProperty("role");
+  });
+
+  it("바뀐 게 없으면 빈 배열을 그대로 화면에 넘긴다", async () => {
+    updateUser.mockResolvedValueOnce({ changed: [] });
+
+    const state = await updateUserAction(UPDATE_INITIAL, studentForm());
+
+    expect(state.changed).toEqual([]);
+  });
+
+  it("권한 거부를 '저장하지 못했습니다'로 덮지 않는다", async () => {
+    updateUser.mockRejectedValueOnce(new ForbiddenError("user:update"));
+
+    const state = await updateUserAction(UPDATE_INITIAL, studentForm());
+
+    expect(state.error).toBe("이 작업을 할 권한이 없습니다.");
+  });
+
+  it("번호 충돌은 그 이유를 알린다", async () => {
+    updateUser.mockRejectedValueOnce(new AdminUserError("NUMBER_TAKEN"));
+
+    const state = await updateUserAction(UPDATE_INITIAL, studentForm());
+
+    expect(state.error).toBe("이미 그 반에 같은 번호의 학생이 있습니다.");
+  });
+
+  it("사전에 없는 오류는 영문을 화면에 흘리지 않는다", async () => {
+    updateUser.mockRejectedValueOnce(new Error("connect ECONNREFUSED"));
+
+    const state = await updateUserAction(UPDATE_INITIAL, studentForm());
+
+    expect(state.error).toBe("저장하지 못했습니다.");
+  });
+
+  /*
+   * userId만 zod를 안 거친다 (`String(formData.get("userId") ?? "")`).
+   * 지금은 빈 문자열이 서비스까지 흘러가 NOT_FOUND로 되돌아온다 — 화면 문구는
+   * 맞지만 규약("zod 검증은 경계에서 한 번만")에서 벗어난 유일한 묶음이다.
+   */
+  it("userId가 없으면 빈 문자열이 서비스까지 흘러간다 (규약 이탈, 현재 동작)", async () => {
+    const fd = studentForm();
+    fd.delete("userId");
+    updateUser.mockRejectedValueOnce(new AdminUserError("NOT_FOUND"));
+
+    const state = await updateUserAction(UPDATE_INITIAL, fd);
+
+    expect(updateUser).toHaveBeenCalledWith(expect.anything(), "", expect.anything());
+    expect(state.error).toBe("계정을 찾을 수 없습니다.");
+  });
+});
+
+describe("setUserActiveAction — 경계 검증", () => {
+  it("ToggleActiveForm이 보내는 두 hidden input을 읽는다", async () => {
+    await setUserActiveAction(USER_INITIAL, form({ userId: "u-1", active: "false" }));
+
+    expect(setUserActive).toHaveBeenCalledWith(expect.anything(), "u-1", false);
+  });
+
+  it("active=\"true\"만 활성화로 읽는다", async () => {
+    await setUserActiveAction(USER_INITIAL, form({ userId: "u-1", active: "true" }));
+
+    expect(setUserActive).toHaveBeenCalledWith(expect.anything(), "u-1", true);
+  });
+
+  it("성공하면 목록과 상세를 함께 다시 그린다", async () => {
+    await setUserActiveAction(USER_INITIAL, form({ userId: "u-1", active: "true" }));
+
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/users");
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/users/u-1");
+  });
+
+  it("권한 거부를 '상태를 바꾸지 못했습니다'로 덮지 않는다", async () => {
+    setUserActive.mockRejectedValueOnce(new ForbiddenError("user:set-active"));
+
+    const state = await setUserActiveAction(
+      USER_INITIAL,
+      form({ userId: "u-1", active: "false" }),
+    );
+
+    expect(state.error).toBe("이 작업을 할 권한이 없습니다.");
+  });
+
+  it("자기 계정 비활성화는 그 이유를 알린다", async () => {
+    setUserActive.mockRejectedValueOnce(
+      new AdminUserError("CANNOT_DEACTIVATE_SELF"),
+    );
+
+    const state = await setUserActiveAction(
+      USER_INITIAL,
+      form({ userId: "u-1", active: "false" }),
+    );
+
+    expect(state.error).toBe("자기 계정은 비활성화할 수 없습니다.");
+  });
+
+  it("실패하면 화면을 다시 그리지 않는다", async () => {
+    setUserActive.mockRejectedValueOnce(new AdminUserError("NOT_FOUND"));
+
+    await setUserActiveAction(USER_INITIAL, form({ userId: "u-1", active: "false" }));
+
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("resetPasswordAction — 경계 검증", () => {
+  it("ResetPasswordForm이 보내는 userId 하나면 서비스까지 도달한다", async () => {
+    const state = await resetPasswordAction(USER_INITIAL, form({ userId: "u-1" }));
+
+    expect(resetPassword).toHaveBeenCalledWith(expect.anything(), "u-1");
+    expect(state.tempPassword).toBe("temp-1234-abcd");
+    // 화면이 "누구의 임시 비밀번호인지" 가릴 수 있어야 한다.
+    expect(state.targetId).toBe("u-1");
+  });
+
+  it("실패하면 임시 비밀번호를 남기지 않는다", async () => {
+    resetPassword.mockRejectedValueOnce(
+      new AdminUserError("NO_CREDENTIAL_ACCOUNT"),
+    );
+
+    const state = await resetPasswordAction(USER_INITIAL, form({ userId: "u-1" }));
+
+    expect(state.tempPassword).toBeNull();
+    expect(state.error).toBe("비밀번호 로그인을 쓰지 않는 계정입니다.");
+  });
+
+  it("권한 거부를 '비밀번호를 초기화하지 못했습니다'로 덮지 않는다", async () => {
+    resetPassword.mockRejectedValueOnce(new ForbiddenError("user:reset-password"));
+
+    const state = await resetPasswordAction(USER_INITIAL, form({ userId: "u-1" }));
+
+    expect(state.error).toBe("이 작업을 할 권한이 없습니다.");
+  });
+});
+
+describe("deleteUserPermanentlyAction — 경계 검증", () => {
+  it("HardDeleteForm이 보내는 두 필드를 읽는다", async () => {
+    await expect(
+      deleteUserPermanentlyAction(
+        USER_INITIAL,
+        form({ userId: "u-1", confirmName: "홍길동" }),
+      ),
+    ).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(deleteUserPermanently).toHaveBeenCalledWith(
+      expect.anything(),
+      "u-1",
+      "홍길동",
+    );
+  });
+
+  it("성공하면 목록으로 돌려보낸다 — 이 상세 페이지는 이제 없다", async () => {
+    await expect(
+      deleteUserPermanentlyAction(
+        USER_INITIAL,
+        form({ userId: "u-1", confirmName: "홍길동" }),
+      ),
+    ).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(redirect).toHaveBeenCalledWith("/admin/users");
+  });
+
+  /*
+   * redirect()는 특수한 오류를 던져 흐름을 끊는다. try 안에서 부르면 catch가
+   * 그걸 삼켜 "완전히 삭제하지 못했습니다"로 잘못 보고한다 — 액션이 redirect를
+   * try 밖에 둔 이유이고, 안으로 들어가면 이 테스트가 깨진다.
+   */
+  it("redirect의 오류를 '삭제하지 못했습니다'로 삼키지 않는다", async () => {
+    await expect(
+      deleteUserPermanentlyAction(
+        USER_INITIAL,
+        form({ userId: "u-1", confirmName: "홍길동" }),
+      ),
+    ).rejects.toThrow("NEXT_REDIRECT");
+  });
+
+  it("이름이 다르면 서비스가 막고 그 이유를 알린다", async () => {
+    deleteUserPermanently.mockRejectedValueOnce(
+      new AdminUserError("NAME_MISMATCH"),
+    );
+
+    const state = await deleteUserPermanentlyAction(
+      USER_INITIAL,
+      form({ userId: "u-1", confirmName: "홍길자" }),
+    );
+
+    expect(state.error).toBe("입력한 이름이 일치하지 않습니다.");
+    expect(redirect).not.toHaveBeenCalled();
+  });
+
+  it("소프트 삭제되지 않은 계정은 그 이유를 알린다", async () => {
+    deleteUserPermanently.mockRejectedValueOnce(
+      new AdminUserError("NOT_SOFT_DELETED"),
+    );
+
+    const state = await deleteUserPermanentlyAction(
+      USER_INITIAL,
+      form({ userId: "u-1", confirmName: "홍길동" }),
+    );
+
+    expect(state.error).toContain("완전 삭제할 수 있습니다");
+  });
+
+  it("권한 거부를 '완전히 삭제하지 못했습니다'로 덮지 않는다", async () => {
+    deleteUserPermanently.mockRejectedValueOnce(new ForbiddenError("user:delete"));
+
+    const state = await deleteUserPermanentlyAction(
+      USER_INITIAL,
+      form({ userId: "u-1", confirmName: "홍길동" }),
+    );
+
+    expect(state.error).toBe("이 작업을 할 권한이 없습니다.");
+  });
+});
+
+describe("모든 액션이 requireAuth로 시작한다", () => {
+  it("검증 실패로 끝나는 경로에서도 세션을 먼저 확인한다", async () => {
+    await updateUserAction(UPDATE_INITIAL, studentForm({ name: "" }));
+
+    expect(requireAuth).toHaveBeenCalledOnce();
+  });
+});
