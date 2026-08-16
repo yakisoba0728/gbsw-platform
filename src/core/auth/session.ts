@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { can, type Action } from "@/core/authz/can";
@@ -19,7 +20,17 @@ export type SessionUser = {
   mustChangePassword: boolean;
 };
 
-export async function getSessionUser(): Promise<SessionUser | null> {
+/**
+ * 지금 로그인한 사용자. 세션이 없으면 null.
+ *
+ * **한 요청 안에서는 한 번만 조회한다** (React cache) —
+ * academic-year.service.ts의 getCurrentYear와 같은 규약이다. (app)/layout.tsx가
+ * requireAuth()를 부르고 그 아래 페이지·서버액션이 다시 부르므로, 감싸지 않으면
+ * 페이지를 한 번 그릴 때마다 세션 조회가 최소 두 번 돈다. 같은 요청 안에서
+ * 세션이 바뀔 일은 없고, 요청이 끝나면 캐시도 함께 사라지므로 로그아웃·계정
+ * 잠금 직후 다음 요청이 옛 값을 보는 일도 없다.
+ */
+export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   const session = await auth.api.getSession({ headers: await headers() });
   const user = session?.user;
   if (!user) return null;
@@ -33,7 +44,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     deletedAt: user.deletedAt ?? null,
     mustChangePassword: user.mustChangePassword ?? false,
   };
-}
+});
 
 export type RequireAuthOptions = {
   /**
@@ -56,6 +67,12 @@ export type RequireAuthOptions = {
  * mustChangePassword도 여기서 가로챈다 (M12) — 예전엔 (app)/layout.tsx에만
  * 있어서, 강제 변경 대기 상태로도 서버 액션(페이지 트리를 안 거친다)을 직접
  * 호출할 수 있었다. requireAuth를 쓰는 모든 액션이 이 게이트를 함께 받는다.
+ *
+ * **cache()로 감싸지 않는다.** 이 함수의 값어치는 반환값이 아니라 redirect()라는
+ * 부수효과에 있다 — redirect()는 Next 내부의 특수한 오류를 던져 렌더를 끊는데,
+ * 그 "던진다"는 사실까지 캐시가 재생하리라 기대할 근거가 없다. 조회를 줄이는
+ * 일은 위의 getSessionUser가 이미 하고 있으므로(같은 요청 안에서는 한 번),
+ * 여기까지 감싸도 얻을 게 없고 게이트만 불투명해진다. requirePermission도 같다.
  */
 export async function requireAuth(
   options?: RequireAuthOptions,
