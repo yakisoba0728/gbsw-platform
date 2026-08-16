@@ -13,9 +13,10 @@ import { ForbiddenError } from "@/core/authz/errors";
  * 억지로 넣어 보내도 서비스로 새지 않아야 한다.
  */
 
-const requireAuth = vi.fn(async () => ({ id: "stu-1", role: "STUDENT" }));
+// 목은 구현 없이 선언하고 기본값은 beforeEach에서 준다.
+const requireAuth = vi.fn();
 const revalidatePath = vi.fn();
-const createParentInvite = vi.fn(async () => ({ code: "ABCD1234" }));
+const createParentInvite = vi.fn();
 
 vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("@/core/auth/session", () => ({ requireAuth }));
@@ -40,6 +41,8 @@ const INITIAL = { error: null, code: null };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  requireAuth.mockResolvedValue({ id: "stu-1", role: "STUDENT" });
+  createParentInvite.mockResolvedValue({ code: "ABCD1234" });
 });
 
 describe("createParentInviteAction — 경계 검증", () => {

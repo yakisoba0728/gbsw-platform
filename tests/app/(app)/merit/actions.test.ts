@@ -14,18 +14,20 @@ import { MeritError } from "@/modules/merit/merit.error";
  * components/merit/rule-picker.tsx(ruleId).
  */
 
-const requireAuth = vi.fn(async () => ({ id: "admin-1", role: "ADMIN" }));
+// 목은 구현 없이 선언하고 기본값은 beforeEach에서 준다 —
+// tests/modules/**의 서비스 테스트와 같은 방식이다.
+const requireAuth = vi.fn();
 const revalidatePath = vi.fn();
 
 const awardMerit = vi.fn();
-const bulkAwardMerit = vi.fn(async () => ({ count: 3 }));
+const bulkAwardMerit = vi.fn();
 const cancelAward = vi.fn();
-const cancelBatch = vi.fn(async () => ({ count: 3 }));
-const getClassRoster = vi.fn(async () => []);
-const getStudentHeader = vi.fn(async () => ({ name: "홍길동" }));
-const getStudentMerit = vi.fn(async () => ({ awards: [], year: 2026 }));
+const cancelBatch = vi.fn();
+const getClassRoster = vi.fn();
+const getStudentHeader = vi.fn();
+const getStudentMerit = vi.fn();
 
-const getCurrentYear = vi.fn(async () => 2026);
+const getCurrentYear = vi.fn();
 
 vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("@/core/auth/session", () => ({ requireAuth }));
@@ -109,6 +111,13 @@ const INITIAL = { error: null, ok: false, count: null };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  requireAuth.mockResolvedValue({ id: "admin-1", role: "ADMIN" });
+  bulkAwardMerit.mockResolvedValue({ count: 3 });
+  cancelBatch.mockResolvedValue({ count: 3 });
+  getClassRoster.mockResolvedValue([]);
+  getStudentHeader.mockResolvedValue({ name: "홍길동" });
+  getStudentMerit.mockResolvedValue({ awards: [], year: 2026 });
+  getCurrentYear.mockResolvedValue(2026);
 });
 
 describe("awardAction — 경계 검증", () => {

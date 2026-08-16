@@ -14,12 +14,14 @@ import { ForbiddenError } from "@/core/authz/errors";
  * 결함이 이 파일에 있었다.
  */
 
-const requireAuth = vi.fn(async () => ({ id: "admin-1", role: "ADMIN" }));
+// 목은 구현 없이 선언하고 기본값은 beforeEach에서 준다 —
+// tests/modules/**의 서비스 테스트와 같은 방식이다.
+const requireAuth = vi.fn();
 const revalidatePath = vi.fn();
 
-const createStudentInvite = vi.fn(async () => ({ code: "ABCD1234" }));
-const createAdminInvite = vi.fn(async () => ({ code: "ABCD1234" }));
-const createParentInviteFor = vi.fn(async () => ({ code: "ABCD1234" }));
+const createStudentInvite = vi.fn();
+const createAdminInvite = vi.fn();
+const createParentInviteFor = vi.fn();
 const revokeInvite = vi.fn();
 
 vi.mock("next/cache", () => ({ revalidatePath }));
@@ -79,6 +81,10 @@ const INITIAL = { error: null, code: null };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  requireAuth.mockResolvedValue({ id: "admin-1", role: "ADMIN" });
+  createStudentInvite.mockResolvedValue({ code: "ABCD1234" });
+  createAdminInvite.mockResolvedValue({ code: "ABCD1234" });
+  createParentInviteFor.mockResolvedValue({ code: "ABCD1234" });
 });
 
 describe("createStudentInviteAction — 경계 검증", () => {
@@ -144,7 +150,13 @@ describe("createStudentInviteAction — 경계 검증", () => {
    * 테스트가 깨지므로, 그때 "한국어다"로 뒤집으면 된다.
    */
   it("학년·반·번호 범위 오류만 zod 영문 기본 메시지가 새어 나간다 (알려진 결함)", async () => {
-    for (const over of [{ grade: "9" }, { classNo: "0" }, { number: "99" }]) {
+    const cases: Record<string, string>[] = [
+      { grade: "9" },
+      { classNo: "0" },
+      { number: "99" },
+    ];
+
+    for (const over of cases) {
       vi.clearAllMocks();
       const state = await createStudentInviteAction(INITIAL, studentForm(over));
 

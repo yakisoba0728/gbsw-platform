@@ -12,10 +12,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * student-table.tsx가 실제로 만드는 객체 모양 그대로 세운다.
  */
 
-const requireAuth = vi.fn(async () => ({ id: "admin-1", role: "ADMIN" }));
+// 목은 구현 없이 선언하고 기본값은 beforeEach에서 준다.
+const requireAuth = vi.fn();
 const revalidatePath = vi.fn();
 
-const saveEnrollments = vi.fn(async () => ({ saved: 2 }));
+const saveEnrollments = vi.fn();
 const createYear = vi.fn();
 const setCurrentYear = vi.fn();
 
@@ -74,6 +75,8 @@ const YEAR_INITIAL = { error: null, ok: false };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  requireAuth.mockResolvedValue({ id: "admin-1", role: "ADMIN" });
+  saveEnrollments.mockResolvedValue({ saved: 2 });
 });
 
 describe("saveEnrollmentsAction — 경계 검증", () => {

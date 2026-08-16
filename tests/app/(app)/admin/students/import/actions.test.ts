@@ -11,22 +11,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * 통째로 막힌다 — 최초 관리자 생성이 그렇게 100% 실패했다.
  */
 
-const requireAuth = vi.fn(async () => ({ id: "admin-1", role: "ADMIN" }));
+// 목은 구현 없이 선언하고 기본값은 beforeEach에서 준다.
+const requireAuth = vi.fn();
 const revalidatePath = vi.fn();
 
-const previewRoster = vi.fn(async () => ({
-  year: 2026,
-  rows: [],
-  plan: null,
-  notices: [],
-}));
-const applyRosterPlan = vi.fn(async () => ({
-  saved: 2,
-  deleted: 0,
-  invites: [],
-  excludedNewStudents: [],
-}));
-const exportRoster = vi.fn(async () => ({ year: 2026, rows: [] }));
+const previewRoster = vi.fn();
+const applyRosterPlan = vi.fn();
+const exportRoster = vi.fn();
 
 vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("@/core/auth/session", () => ({ requireAuth }));
@@ -95,6 +86,15 @@ const APPLY_INITIAL = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  requireAuth.mockResolvedValue({ id: "admin-1", role: "ADMIN" });
+  previewRoster.mockResolvedValue({ year: 2026, rows: [], plan: null, notices: [] });
+  applyRosterPlan.mockResolvedValue({
+    saved: 2,
+    deleted: 0,
+    invites: [],
+    excludedNewStudents: [],
+  });
+  exportRoster.mockResolvedValue({ year: 2026, rows: [] });
 });
 
 describe("previewRosterAction — 경계 검증", () => {

@@ -12,16 +12,17 @@ import { ForbiddenError } from "@/core/authz/errors";
  * 아니면 학년·반·번호만 빠진다) — 세 조합을 모두 세운다.
  */
 
-const requireAuth = vi.fn(async () => ({ id: "admin-1", role: "ADMIN" }));
+// 목은 구현 없이 선언하고 기본값은 beforeEach에서 준다.
+const requireAuth = vi.fn();
 const revalidatePath = vi.fn();
 const redirect = vi.fn(() => {
   // 실제 next/navigation의 redirect는 예외를 던져 이후 코드를 끊는다.
   throw new Error("NEXT_REDIRECT");
 });
 
-const updateUser = vi.fn(async () => ({ changed: ["name"] }));
+const updateUser = vi.fn();
 const setUserActive = vi.fn();
-const resetPassword = vi.fn(async () => ({ tempPassword: "temp-1234-abcd" }));
+const resetPassword = vi.fn();
 const deleteUserPermanently = vi.fn();
 
 vi.mock("next/cache", () => ({ revalidatePath }));
@@ -82,6 +83,9 @@ const UPDATE_INITIAL = { error: null, changed: null };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  requireAuth.mockResolvedValue({ id: "admin-1", role: "ADMIN" });
+  updateUser.mockResolvedValue({ changed: ["name"] });
+  resetPassword.mockResolvedValue({ tempPassword: "temp-1234-abcd" });
 });
 
 describe("updateUserAction — 경계 검증", () => {

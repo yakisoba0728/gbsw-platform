@@ -21,21 +21,36 @@ vi.mock("@/core/auth/auth", () => ({ auth: { api: { signInEmail } } }));
 vi.mock("@/modules/bootstrap/bootstrap.service", () => ({ createInitialAdmin }));
 
 // 이 액션 파일은 가입·인증 액션도 함께 담고 있다. 그쪽 서비스는 Prisma까지
-// 끌고 오므로 목으로 끊는다 — 부트스트랩 경로와는 무관하다.
+// 끌고 오므로 목으로 끊는다.
+const checkInvite = vi.fn();
+const completeRegistration = vi.fn();
+const requestVerification = vi.fn();
+const confirmCode = vi.fn();
+
 vi.mock("@/modules/registration/registration.service", () => ({
-  RegistrationError: class extends Error {},
-  checkInvite: vi.fn(),
-  completeRegistration: vi.fn(),
-  requestVerification: vi.fn(),
+  RegistrationError: class RegistrationError extends Error {},
+  checkInvite,
+  completeRegistration,
+  requestVerification,
 }));
 vi.mock("@/modules/verification/verification.service", () => ({
-  VerificationError: class extends Error {},
-  confirmCode: vi.fn(),
+  VerificationError: class VerificationError extends Error {},
+  confirmCode,
 }));
 
-const { createInitialAdminAction } = await import(
-  "@/app/(auth)/register/actions"
+const { RegistrationError } = await import(
+  "@/modules/registration/registration.service"
 );
+const { VerificationError } = await import(
+  "@/modules/verification/verification.service"
+);
+const {
+  createInitialAdminAction,
+  checkInviteAction,
+  completeRegistrationAction,
+  requestVerificationAction,
+  confirmVerificationAction,
+} = await import("@/app/(auth)/register/actions");
 
 /** 부트스트랩 폼(bootstrap-form.tsx)이 실제로 보내는 필드 그대로. */
 function bootstrapForm(over: Record<string, string> = {}): FormData {
@@ -55,6 +70,8 @@ function bootstrapForm(over: Record<string, string> = {}): FormData {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  checkInvite.mockResolvedValue({ role: "STUDENT" });
+  requestVerification.mockResolvedValue({ mockCode: undefined });
 });
 
 describe("createInitialAdminAction — 경계 검증", () => {
@@ -129,5 +146,274 @@ describe("createInitialAdminAction — 경계 검증", () => {
     ).rejects.toThrow("NEXT_REDIRECT");
 
     expect(redirect).toHaveBeenCalledWith("/");
+  });
+});
+
+// ── 초대코드 가입 ─────────────────────────────────────────────
+//
+// 이 경로의 폼은 register-flow.tsx다. 1단계(CodeStep)는 `code` 하나,
+// 2단계(ProfileStep)는 `code`(hidden)·`name`·`email`·`phone`·`password`·
+// `confirmPassword`를 보내고 **학생일 때만** `birthDate`를 더 보낸다.
+
+const CODE = "GBSW-A3K9-2M7P";
+
+/** ProfileStep이 학생에게 그릴 때 보내는 필드 전부. */
+function registerForm(over: Record<string, string> = {}): FormData {
+  const fd = new FormData();
+  const fields: Record<string, string> = {
+    code: CODE,
+    name: "홍길동",
+    birthDate: "2010-03-02",
+    email: "hong@gbsw.hs.kr",
+    phone: "010-1234-5678",
+    password: "correct-horse-battery",
+    confirmPassword: "correct-horse-battery",
+    ...over,
+  };
+  for (const [key, value] of Object.entries(fields)) fd.set(key, value);
+  return fd;
+}
+
+describe("checkInviteAction — 경계 검증", () => {
+  it("폼이 보내는 code 하나면 서비스까지 도달한다", async () => {
+    const state = await checkInviteAction(
+      { code: null, role: null, error: null },
+      registerForm(),
+    );
+
+    expect(checkInvite).toHaveBeenCalledWith(CODE);
+    expect(state).toEqual({ code: CODE, role: "STUDENT", error: null });
+  });
+
+  it("코드가 비면 서비스를 부르지 않는다", async () => {
+    const fd = new FormData();
+    fd.set("code", "");
+
+    const state = await checkInviteAction(
+      { code: null, role: null, error: null },
+      fd,
+    );
+
+    expect(checkInvite).not.toHaveBeenCalled();
+    expect(state.error).toBe("가입코드를 입력하세요.");
+  });
+
+  it("실패 원인을 구분해 알리지 않는다 — 코드 대조 실패 사유는 숨긴다", async () => {
+    checkInvite.mockRejectedValueOnce(new RegistrationError("이미 사용된 코드입니다."));
+
+    const state = await checkInviteAction(
+      { code: null, role: null, error: null },
+      registerForm(),
+    );
+
+    expect(state.error).toBe("사용할 수 없는 가입코드입니다.");
+    expect(state.code).toBeNull();
+  });
+});
+
+describe("completeRegistrationAction — 경계 검증", () => {
+  it("폼이 보내는 값 그대로면 서비스까지 도달한다", async () => {
+    await expect(
+      completeRegistrationAction({ error: null }, registerForm()),
+    ).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(completeRegistration).toHaveBeenCalledOnce();
+  });
+
+  it("폼의 일곱 필드를 모두 읽는다 — 하나라도 빠지면 스키마가 막는다", async () => {
+    await expect(
+      completeRegistrationAction({ error: null }, registerForm()),
+    ).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(completeRegistration).toHaveBeenCalledWith({
+      code: CODE,
+      name: "홍길동",
+      birthDate: "2010-03-02",
+      email: "hong@gbsw.hs.kr",
+      phone: "010-1234-5678",
+      password: "correct-horse-battery",
+      confirmPassword: "correct-horse-battery",
+    });
+  });
+
+  it("학생이 아니면 생년월일 칸이 없다 — 그래도 통과해야 한다", async () => {
+    const fd = registerForm();
+    fd.delete("birthDate");
+
+    await expect(
+      completeRegistrationAction({ error: null }, fd),
+    ).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(completeRegistration.mock.calls[0]?.[0].birthDate).toBe("");
+  });
+
+  it("비밀번호 확인이 다르면 서비스를 부르지 않는다", async () => {
+    const state = await completeRegistrationAction(
+      { error: null },
+      registerForm({ confirmPassword: "다른-비밀번호-입니다" }),
+    );
+
+    expect(completeRegistration).not.toHaveBeenCalled();
+    expect(state.error).toBe("비밀번호가 서로 다릅니다.");
+  });
+
+  it("휴대폰 형식이 틀리면 서비스를 부르지 않고 한국어로 알린다", async () => {
+    const state = await completeRegistrationAction(
+      { error: null },
+      registerForm({ phone: "01012" }),
+    );
+
+    expect(completeRegistration).not.toHaveBeenCalled();
+    expect(state.error).toBe("휴대폰 번호 형식이 올바르지 않습니다.");
+  });
+
+  it("생년월일 형식이 틀리면 서비스를 부르지 않는다", async () => {
+    const state = await completeRegistrationAction(
+      { error: null },
+      registerForm({ birthDate: "2010/03/02" }),
+    );
+
+    expect(completeRegistration).not.toHaveBeenCalled();
+    expect(state.error).toBe("생년월일은 YYYY-MM-DD 형식으로 입력해 주세요.");
+  });
+
+  /*
+   * 로그인 이전 화면이라 우리가 문구를 정제해 둔 오류만 그대로 보여준다
+   * (CLAUDE.md 오류 규약의 앞쪽 갈래). 그 밖의 오류는 Prisma 원문 등이
+   * 새지 않게 일반 문구로 덮는다.
+   */
+  it("우리가 던진 오류는 문구를 그대로 보여준다", async () => {
+    completeRegistration.mockRejectedValueOnce(
+      new RegistrationError("이름 또는 생년월일이 코드와 다릅니다."),
+    );
+
+    const state = await completeRegistrationAction({ error: null }, registerForm());
+
+    expect(state.error).toBe("이름 또는 생년월일이 코드와 다릅니다.");
+  });
+
+  it("인증 오류도 정제된 문구를 그대로 보여준다", async () => {
+    completeRegistration.mockRejectedValueOnce(
+      new VerificationError("휴대폰 인증을 먼저 완료해 주세요."),
+    );
+
+    const state = await completeRegistrationAction({ error: null }, registerForm());
+
+    expect(state.error).toBe("휴대폰 인증을 먼저 완료해 주세요.");
+  });
+
+  it("그 밖의 오류는 원문을 감춘다 — 내부 정보가 새면 안 된다", async () => {
+    completeRegistration.mockRejectedValueOnce(
+      new Error("Unique constraint failed on the fields: (`email`)"),
+    );
+
+    const state = await completeRegistrationAction({ error: null }, registerForm());
+
+    expect(state.error).toBe("가입에 실패했습니다.");
+    expect(redirect).not.toHaveBeenCalled();
+  });
+
+  it("성공하면 바로 로그인시킨다", async () => {
+    await expect(
+      completeRegistrationAction({ error: null }, registerForm()),
+    ).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(signInEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: {
+          email: "hong@gbsw.hs.kr",
+          password: "correct-horse-battery",
+        },
+      }),
+    );
+  });
+});
+
+// ── 인증 요청·확인 ────────────────────────────────────────────
+//
+// 이 둘은 폼 중첩이 불가능해 인수를 그대로 받는다(VerifiedField가 직접 호출).
+// FormData 경계는 없지만 safeParse 경계는 그대로 있다.
+
+describe("requestVerificationAction — 경계 검증", () => {
+  it("채널·대상·가입코드가 맞으면 서비스까지 도달한다", async () => {
+    const result = await requestVerificationAction(
+      "PHONE",
+      "010-1234-5678",
+      CODE,
+    );
+
+    expect(requestVerification).toHaveBeenCalledWith(CODE, "PHONE", "010-1234-5678");
+    expect(result.ok).toBe(true);
+  });
+
+  /*
+   * 가입코드를 함께 받는 것이 이 액션의 설계다 (I4) — 유효한 코드 보유자만
+   * 문자·메일 발송을 촉발할 수 있다. 코드 검증이 빠지면 아무나 발송 비용을
+   * 태울 수 있으므로 여기서 못 박는다.
+   */
+  it("가입코드가 비면 발송을 촉발하지 않는다", async () => {
+    const result = await requestVerificationAction("PHONE", "010-1234-5678", "");
+
+    expect(requestVerification).not.toHaveBeenCalled();
+    expect(result.error).toBe("형식을 확인해 주세요.");
+  });
+
+  it("모르는 채널이면 서비스를 부르지 않는다", async () => {
+    const result = await requestVerificationAction("FAX", "010-1234-5678", CODE);
+
+    expect(requestVerification).not.toHaveBeenCalled();
+    expect(result.ok).toBe(false);
+  });
+
+  it("목업 모드의 코드는 그대로 화면까지 전달한다", async () => {
+    requestVerification.mockResolvedValueOnce({ mockCode: "123456" });
+
+    const result = await requestVerificationAction("EMAIL", "a@b.kr", CODE);
+
+    expect(result.mockCode).toBe("123456");
+  });
+
+  it("정제된 문구는 그대로, 그 밖의 오류는 감춘다", async () => {
+    requestVerification.mockRejectedValueOnce(
+      new VerificationError("잠시 후 다시 시도해 주세요."),
+    );
+    expect((await requestVerificationAction("EMAIL", "a@b.kr", CODE)).error).toBe(
+      "잠시 후 다시 시도해 주세요.",
+    );
+
+    requestVerification.mockRejectedValueOnce(new Error("SMTP 535"));
+    expect((await requestVerificationAction("EMAIL", "a@b.kr", CODE)).error).toBe(
+      "인증번호를 보내지 못했습니다.",
+    );
+  });
+});
+
+describe("confirmVerificationAction — 경계 검증", () => {
+  it("여섯 자리면 서비스까지 도달한다", async () => {
+    const result = await confirmVerificationAction("PHONE", "010-1234-5678", "123456");
+
+    expect(confirmCode).toHaveBeenCalledWith("PHONE", "010-1234-5678", "123456");
+    expect(result.ok).toBe(true);
+  });
+
+  it("자릿수가 다르면 서비스를 부르지 않고 한국어로 알린다", async () => {
+    const result = await confirmVerificationAction("PHONE", "010-1234-5678", "12345");
+
+    expect(confirmCode).not.toHaveBeenCalled();
+    expect(result.error).toBe("인증번호 6자리를 입력해 주세요.");
+  });
+
+  it("정제된 문구는 그대로, 그 밖의 오류는 감춘다", async () => {
+    confirmCode.mockRejectedValueOnce(
+      new VerificationError("인증번호가 올바르지 않습니다."),
+    );
+    expect(
+      (await confirmVerificationAction("PHONE", "010-1234-5678", "123456")).error,
+    ).toBe("인증번호가 올바르지 않습니다.");
+
+    confirmCode.mockRejectedValueOnce(new Error("connect ECONNREFUSED"));
+    expect(
+      (await confirmVerificationAction("PHONE", "010-1234-5678", "123456")).error,
+    ).toBe("인증에 실패했습니다.");
   });
 });
