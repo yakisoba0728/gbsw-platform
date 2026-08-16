@@ -131,6 +131,19 @@ export default async function UserDetailPage({
                   <Field label="생년월일">
                     {formatDateInput(profile.birthDate)}
                   </Field>
+                  {/*
+                    명단에서 빠진 학생이면 상벌점 검색으로는 못 찾는다 —
+                    그쪽은 줄 상대를 고르는 자리라 재학생만 보여준다. 계정을
+                    이미 찾아 온 이 화면에서 바로 건너갈 수 있게 둔다.
+                  */}
+                  <Field label="상벌점">
+                    <Link
+                      href={`/merit/students/${profile.id}`}
+                      className="font-semibold text-pri hover:underline"
+                    >
+                      내역 보기
+                    </Link>
+                  </Field>
                 </>
               )}
 

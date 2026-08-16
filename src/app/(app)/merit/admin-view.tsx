@@ -115,6 +115,24 @@ export async function AdminMeritView({
 
       {q && <SearchResults rows={results} track={track} />}
 
+      {/*
+        이 검색은 명단에 있는 학생만 찾는다 — 줄 상대를 고르는 자리이므로
+        그게 맞다. 지난 기록을 다시 꺼내는 일(자퇴생의 벌점 내역을 선도위원회
+        자료로 뽑는 등)은 요구가 반대라 화면을 나눴고, 여기서 그쪽으로 가는
+        길만 둔다. 이 한 줄이 없으면 그 화면은 주소를 직접 쳐야만 닿는다.
+      */}
+      {q && (
+        <p className="text-[12.5px] text-mut">
+          찾는 학생이 없나요?{" "}
+          <Link
+            href={`/merit/students?q=${encodeURIComponent(q)}`}
+            className="font-semibold text-pri hover:underline"
+          >
+            명단에서 빠진 학생까지 찾기
+          </Link>
+        </p>
+      )}
+
       {/* 학년·반 고르기 — 1~3학년, 반은 1~4반(현재 학년당 반 수) */}
       <ClassPicker params={params} track={track} />
 

@@ -13,7 +13,7 @@ export default function ForbiddenPage() {
         </h1>
         <p className="mt-2 text-sm text-mut">
           이 화면을 볼 수 있는 권한이 계정에 없습니다. 필요하다면 관리자에게
-          문의하세요.
+          문의해 주세요.
         </p>
         <Link
           href="/"

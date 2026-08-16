@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAuth } from "@/core/auth/session";
+import { ForbiddenError } from "@/core/authz/errors";
 import { MERIT_TRACK_LABELS, type MeritTrack } from "@/core/authz/merit-track";
 import {
   AcademicYearError,
@@ -45,6 +46,13 @@ const NO_CURRENT_YEAR_MESSAGE =
 function toState(error: unknown): MeritActionState {
   if (error instanceof AcademicYearError) {
     return { error: NO_CURRENT_YEAR_MESSAGE, ok: false, count: null };
+  }
+  // 권한 거부를 일반 폴백에 섞지 않는다. 감사로그에는 authz:denied가 정확히
+  // 남는데 화면만 "처리하지 못했습니다"라고 하면, 권한이 없어서 막힌 사람이
+  // 일시적 장애로 알고 계속 다시 누른다. admin/invites·users가 같은 이유로
+  // FORBIDDEN을 사전에 두고 있다 — 이 파일만 빠져 있었다.
+  if (error instanceof ForbiddenError) {
+    return { error: "이 작업을 할 권한이 없습니다.", ok: false, count: null };
   }
   if (error instanceof MeritError) {
     return { error: MESSAGES[error.message] ?? "처리하지 못했습니다.", ok: false, count: null };
