@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { AriaAttributes, ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
 /**
@@ -20,11 +20,17 @@ import { cn } from "@/lib/cn";
  * 머리글 칸은 `ReactNode`라 `<button>`(정렬 가능한 헤더)을 그대로 넣을 수 있다.
  * 오른쪽 맞춤이 필요하면 `<span className="block text-right">`으로 감싼다 —
  * `<th>`에 클래스를 따로 받는 인자를 두면 열마다 예외가 늘어난다.
+ *
+ * 다만 `aria-sort`만은 예외로 인자를 둔다(`sort`). 정렬 상태는 **`<th>` 자신이
+ * 갖는 속성**이라 headers에 넣은 `<button>` 안으로 내려보낼 수 없다 — 보조기술은
+ * 헤더 셀에서 이 값을 읽는다. 클래스와 달리 열마다 예외가 늘어날 성질의 값도
+ * 아니다(정렬 가능한 열만 값을 갖는다).
  */
 export function TableFrame({
   minWidth,
   cols,
   headers,
+  sort,
   fixed = false,
   className,
   children,
@@ -38,6 +44,12 @@ export function TableFrame({
   /** `<colgroup>`의 열별 클래스. `undefined`면 폭을 지정하지 않는 열이다. */
   cols?: readonly (string | undefined)[];
   headers: readonly ReactNode[];
+  /**
+   * 열별 `aria-sort`. headers와 같은 순서로 늘어놓고, 정렬과 무관한 열은
+   * `undefined`로 비운다. 지금 정렬 중인 열에만 `ascending`/`descending`을 주고
+   * 나머지 정렬 가능한 열은 `none`이다 — 표 하나에 정렬 열은 하나뿐이다.
+   */
+  sort?: readonly (AriaAttributes["aria-sort"] | undefined)[];
   /** 글자 길이와 무관하게 열 폭을 고정한다 (최근 부여·감사로그처럼 넘치는 표). */
   fixed?: boolean;
   className?: string;
@@ -62,6 +74,7 @@ export function TableFrame({
             {headers.map((header, i) => (
               <th
                 key={i}
+                aria-sort={sort?.[i]}
                 className={cn(
                   "py-2.5 font-semibold",
                   tableCellPadding(i, headers.length),

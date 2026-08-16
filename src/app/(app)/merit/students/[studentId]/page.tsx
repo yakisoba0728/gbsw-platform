@@ -7,6 +7,7 @@ import { AwardHistory } from "@/components/merit/award-history";
 import { MeritTotalsCards } from "@/components/merit/merit-totals";
 import { TrackTabs } from "@/components/merit/track-tabs";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
+import { Note } from "@/components/ui/note";
 import { formatDateInput } from "@/lib/datetime";
 import { hrefWith, type SearchParamsInput } from "@/lib/search-params";
 import {
@@ -136,9 +137,9 @@ export default async function StudentMeritPage({
           <MeritTotalsCards totals={view.totals} />
 
           {viewingPast ? (
-            <p className="rounded-card border border-amber-line bg-amber-soft px-4 py-3 text-[13px] text-amber-ink">
+            <Note tone="warn">
               지난 학년도를 보고 있습니다. 부여는 현재 학년도에만 할 수 있습니다.
-            </p>
+            </Note>
           ) : (
             <AwardForm
               studentProfileId={studentId}

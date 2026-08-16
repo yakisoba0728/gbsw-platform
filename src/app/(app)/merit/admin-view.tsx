@@ -2,8 +2,10 @@ import Link from "next/link";
 import type { SessionUser } from "@/core/auth/session";
 import { isYearScoped, type MeritTrack } from "@/core/authz/merit-track";
 import { ChipLink } from "@/components/ui/chip-link";
+import { EmptyState } from "@/components/ui/empty-state";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { SearchForm } from "@/components/ui/search-form";
+import { TableFrame } from "@/components/ui/table";
 import { TrackTabs } from "@/components/merit/track-tabs";
 import { formatDateInput } from "@/lib/datetime";
 import { hrefWith, type SearchParamsInput } from "@/lib/search-params";
@@ -148,28 +150,16 @@ function SearchResults({
   track: MeritTrack;
 }) {
   if (rows.length === 0) {
-    return (
-      <div className="rounded-card border border-line bg-surface p-6 text-center text-[12.5px] text-mut">
-        검색 결과가 없습니다.
-      </div>
-    );
+    return <EmptyState>검색 결과가 없습니다.</EmptyState>;
   }
 
   return (
-    <section className="overflow-x-auto rounded-card border border-line bg-surface">
-      <table className="w-full min-w-[420px] text-left text-sm">
-        <colgroup>
-          <col />
-          <col className="w-[140px]" />
-          <col className="w-[140px]" />
-        </colgroup>
-        <thead>
-          <tr className="border-b border-line2 text-[12px] text-mut">
-            <th className="px-5 py-2.5 font-semibold">이름</th>
-            <th className="px-3 py-2.5 font-semibold">학생코드</th>
-            <th className="px-3 py-2.5 font-semibold">학급</th>
-          </tr>
-        </thead>
+    <section className="rounded-card border border-line bg-surface">
+      <TableFrame
+        minWidth={460}
+        cols={[undefined, "w-[140px]", "w-[168px]"]}
+        headers={["이름", "학생코드", "학급"]}
+      >
         <tbody>
           {rows.map((row) => (
             <tr key={row.studentProfileId} className="border-b border-line2 last:border-0">
@@ -184,7 +174,7 @@ function SearchResults({
               <td className="px-3 py-2.5 font-mono text-[12.5px] text-mut">
                 {row.studentCode}
               </td>
-              <td className="px-3 py-2.5 text-mut">
+              <td className="px-5 py-2.5 text-mut">
                 {row.grade !== null && row.classNo !== null && row.number !== null
                   ? `${row.grade}학년 ${row.classNo}반 ${row.number}번`
                   : "—"}
@@ -192,7 +182,7 @@ function SearchResults({
             </tr>
           ))}
         </tbody>
-      </table>
+      </TableFrame>
     </section>
   );
 }

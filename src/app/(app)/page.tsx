@@ -1,10 +1,14 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { requireAuth, type SessionUser } from "@/core/auth/session";
 import { can } from "@/core/authz/can";
 import { ROLE_LABELS } from "@/core/authz/roles";
 import { MERIT_TRACK_LABELS, type MeritTrack } from "@/core/authz/merit-track";
 import { KindBadge, kindColorClass, signedPoints } from "@/components/merit/kind-badge";
 import { MeritTotalsCards } from "@/components/merit/merit-totals";
+import { EmptyState } from "@/components/ui/empty-state";
+import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
+import { SectionCard } from "@/components/ui/section-card";
 import { formatDate } from "@/lib/datetime";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import {
@@ -60,20 +64,16 @@ export default async function DashboardPage() {
   );
 }
 
-/** 학년도가 없으면 상벌점 요약 자체가 성립하지 않는다 — 카드 하나로 대신한다. */
+/**
+ * 학년도가 없으면 상벌점 요약 자체가 성립하지 않는다 — 카드 하나로 대신한다.
+ *
+ * 공용 안내를 쓴다. 전에는 이 화면만 같은 사정을 자기 안에서 다시 그려서,
+ * "세 화면이 같은 화면을 보여주도록 통일한다"던 컴포넌트가 정작 대시보드는
+ * 통일하지 못했다. 제목("상벌점")은 여기서만 붙는다 — 이 안내가 화면 전체가
+ * 아니라 여러 카드 중 한 칸을 대신하는 자리라서다.
+ */
 function NoYearCard() {
-  return (
-    <section className="rounded-card border border-line bg-surface p-6">
-      <h3 className="text-base font-extrabold text-ink">상벌점</h3>
-      <p className="mt-2 text-sm text-mut">
-        현재 학년도가 설정되어 있지 않습니다.{" "}
-        <Link href="/admin/students" className="font-semibold text-pri hover:underline">
-          학생 관리
-        </Link>
-        에서 학년도를 먼저 만들어 주세요.
-      </p>
-    </section>
-  );
+  return <NoAcademicYearNotice title="상벌점" />;
 }
 
 async function AdminSummary({ user }: { user: SessionUser }) {
@@ -129,20 +129,14 @@ async function AdminSummary({ user }: { user: SessionUser }) {
         />
       </div>
 
-      <section className="rounded-card border border-line bg-surface">
-        <header className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
-          <h3 className="text-base font-extrabold text-ink">최근 부여</h3>
-          <Link
-            href="/merit/recent"
-            className="text-[13px] font-semibold text-pri hover:underline"
-          >
-            전체 보기 →
-          </Link>
-        </header>
+      <SectionCard
+        flush
+        headingLevel={3}
+        title="최근 부여"
+        aside={<CardLink href="/merit/recent">전체 보기</CardLink>}
+      >
         {recent.length === 0 ? (
-          <p className="px-5 py-8 text-center text-[12.5px] text-mut">
-            아직 부여된 상벌점이 없습니다.
-          </p>
+          <EmptyState variant="inside">아직 부여된 상벌점이 없습니다.</EmptyState>
         ) : (
           <ul>
             {recent.map((row) => (
@@ -180,35 +174,26 @@ async function AdminSummary({ user }: { user: SessionUser }) {
             ))}
           </ul>
         )}
-      </section>
+      </SectionCard>
     </>
   );
 }
 
 function AdminTrackCard({ summary }: { summary: MeritSummary }) {
   return (
-    <section className="rounded-card border border-line bg-surface">
-      <header className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
-        <h3 className="text-base font-extrabold text-ink">
-          {TRACK_TITLES[summary.track]}
-        </h3>
-        <Link
-          href={`/merit/stats?track=${summary.track}`}
-          className="text-[13px] font-semibold text-pri hover:underline"
-        >
-          통계 →
-        </Link>
-      </header>
-      <div className="px-5 py-4">
-        <MeritTotalsCards totals={summary.totals} />
-        <p className="mt-3 text-[12px] text-mut">
-          {summary.year === null
-            ? "입학부터 전체 누적"
-            : `${summary.year}학년도`}{" "}
-          · 부여 {summary.totals.awardCount}건
-        </p>
-      </div>
-    </section>
+    <SectionCard
+      headingLevel={3}
+      title={TRACK_TITLES[summary.track]}
+      aside={
+        <CardLink href={`/merit/stats?track=${summary.track}`}>통계</CardLink>
+      }
+    >
+      <MeritTotalsCards totals={summary.totals} />
+      <p className="mt-3 text-[12px] text-mut">
+        {summary.year === null ? "입학부터 전체 누적" : `${summary.year}학년도`} · 부여{" "}
+        {summary.totals.awardCount}건
+      </p>
+    </SectionCard>
   );
 }
 
@@ -284,25 +269,36 @@ function TrackCard({
   view: StudentMeritView;
 }) {
   return (
-    <section className="rounded-card border border-line bg-surface">
-      <header className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
-        <h3 className="text-base font-extrabold text-ink">{TRACK_TITLES[track]}</h3>
-        <Link
-          href={`/merit?track=${track}`}
-          className="text-[13px] font-semibold text-pri hover:underline"
-        >
-          내역 →
-        </Link>
-      </header>
-      <div className="px-5 py-4">
-        <MeritTotalsCards totals={view.totals} />
-        <p className="mt-3 text-[12px] text-mut">
-          {view.year === null
-            ? `${MERIT_TRACK_LABELS[track]}는 입학부터 전체 누적입니다`
-            : `${view.year}학년도 · 매 학년도 새로 시작합니다`}
-        </p>
-      </div>
-    </section>
+    <SectionCard
+      headingLevel={3}
+      title={TRACK_TITLES[track]}
+      aside={<CardLink href={`/merit?track=${track}`}>내역</CardLink>}
+    >
+      <MeritTotalsCards totals={view.totals} />
+      <p className="mt-3 text-[12px] text-mut">
+        {view.year === null
+          ? `${MERIT_TRACK_LABELS[track]}는 입학부터 전체 누적입니다`
+          : `${view.year}학년도 · 매 학년도 새로 시작합니다`}
+      </p>
+    </SectionCard>
+  );
+}
+
+/**
+ * 카드 머리글 오른쪽의 "더 보기" 링크.
+ *
+ * 화살표는 `aria-hidden`으로 감춘다 — 전에는 문자 그대로 두어 화면을 못 보는
+ * 사람에게 "전체 보기 오른쪽 화살표"로 읽혔다. 방향을 알려주는 장식이지
+ * 링크 이름의 일부가 아니다.
+ */
+function CardLink({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="shrink-0 text-[13px] font-semibold text-pri hover:underline"
+    >
+      {children} <span aria-hidden>→</span>
+    </Link>
   );
 }
 

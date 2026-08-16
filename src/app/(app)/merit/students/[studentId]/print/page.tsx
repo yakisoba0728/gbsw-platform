@@ -7,6 +7,7 @@ import {
   isYearScoped,
   MERIT_KIND_LABELS,
   MERIT_TRACK_LABELS,
+  signedNet,
   type MeritKind,
   type MeritTrack,
 } from "@/core/authz/merit-track";
@@ -231,8 +232,7 @@ function Total({
     <div className="rounded-btn border border-line px-3 py-2 text-center">
       <div className="text-[11.5px] text-mut">{label}</div>
       <div className={strong ? "text-[20px] font-extrabold text-ink" : "text-[18px] font-bold text-ink"}>
-        {signed && value >= 0 ? "+" : ""}
-        {value}
+        {signed ? signedNet(value) : value}
       </div>
     </div>
   );

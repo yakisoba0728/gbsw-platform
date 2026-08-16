@@ -1,5 +1,8 @@
 import { CancelButton } from "@/app/(app)/merit/students/[studentId]/cancel-button";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SectionCard } from "@/components/ui/section-card";
+import { TableFrame, tableCellPadding } from "@/components/ui/table";
 import { KindBadge, kindColorClass, signedPoints } from "@/components/merit/kind-badge";
 import { formatDate, isSameKstDate } from "@/lib/datetime";
 import type { StudentMeritView } from "@/modules/merit/award.service";
@@ -25,112 +28,106 @@ export function AwardHistory({
   studentProfileId: string;
 }) {
   if (awards.length === 0) {
-    return (
-      <div className="rounded-card border border-line bg-surface p-8 text-center text-[12.5px] text-mut">
-        내역이 없습니다.
-      </div>
-    );
+    return <EmptyState>내역이 없습니다.</EmptyState>;
   }
 
-  return (
-    <section className="rounded-card border border-line bg-surface">
-      <header className="border-b border-line px-5 py-4">
-        <h2 className="text-base font-extrabold text-ink">부여 내역</h2>
-      </header>
+  // 취소 열이 있고 없고에 따라 마지막 열이 달라진다 — 첫·끝 열만 px-5인
+  // 규칙(tableCellPadding)이 그 자리를 보고 정해지므로 열 수를 세어 둔다.
+  const columns = canCancel ? 7 : 6;
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[560px] text-left text-sm">
-          <colgroup>
-            <col className="w-[112px]" />
-            <col className="w-[68px]" />
-            <col />
-            <col className="w-[64px]" />
-            <col className="w-[88px]" />
-            <col className="w-[76px]" />
-            {canCancel && <col className="w-[64px]" />}
-          </colgroup>
-          <thead>
-            <tr className="border-b border-line2 text-[12px] text-mut">
-              <th className="px-5 py-2.5 font-semibold">발생일</th>
-              <th className="px-3 py-2.5 font-semibold">구분</th>
-              <th className="px-3 py-2.5 font-semibold">항목</th>
-              <th className="px-3 py-2.5 font-semibold">점수</th>
-              <th className="px-3 py-2.5 font-semibold">부여</th>
-              <th className="px-3 py-2.5 font-semibold">상태</th>
-              {canCancel && <th className="px-5 py-2.5 font-semibold">작업</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {awards.map((award) => {
-              const cancelled = award.status === "CANCELLED";
-              return (
-                <tr key={award.id} className="border-b border-line2 last:border-0">
-                  <td className="px-5 py-2.5 whitespace-nowrap text-mut">
-                    {formatDate(award.occurredOn)}
-                    {!isSameKstDate(award.occurredOn, award.createdAt) && (
-                      <span className="block text-[11.5px] text-mut2">
-                        입력 {formatDate(award.createdAt)}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <KindBadge kind={award.kind} />
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <span
-                      className={
-                        cancelled
-                          ? "text-mut line-through"
-                          : "font-semibold text-ink"
-                      }
-                    >
-                      {award.label}
+  return (
+    <SectionCard title="부여 내역" flush>
+      <TableFrame
+        minWidth={canCancel ? 580 : 560}
+        cols={[
+          "w-[112px]",
+          "w-[68px]",
+          undefined,
+          "w-[64px]",
+          "w-[88px]",
+          canCancel ? "w-[76px]" : "w-[92px]",
+          ...(canCancel ? (["w-[76px]"] as const) : []),
+        ]}
+        headers={[
+          "발생일",
+          "구분",
+          "항목",
+          "점수",
+          "부여",
+          "상태",
+          ...(canCancel ? (["작업"] as const) : []),
+        ]}
+      >
+        <tbody>
+          {awards.map((award) => {
+            const cancelled = award.status === "CANCELLED";
+            return (
+              <tr key={award.id} className="border-b border-line2 last:border-0">
+                <td className="px-5 py-2.5 whitespace-nowrap text-mut">
+                  {formatDate(award.occurredOn)}
+                  {!isSameKstDate(award.occurredOn, award.createdAt) && (
+                    <span className="block text-[11.5px] text-mut2">
+                      입력 {formatDate(award.createdAt)}
                     </span>
-                    {award.note && (
-                      <span className="block text-[12px] text-mut">{award.note}</span>
-                    )}
-                    {/*
-                      취소 사유와 취소한 사람. "관리자면 누구나 취소할 수 있다"는
-                      결정의 근거가 바로 이 흔적이므로, DB에만 있고 화면에 없으면
-                      그 근거가 실제로는 없는 것과 같다.
-                    */}
-                    {cancelled && (
-                      <span className="block text-[12px] text-rose">
-                        취소
-                        {award.cancelledByName ? ` · ${award.cancelledByName}` : ""}
-                        {award.cancelledAt ? ` · ${formatDate(award.cancelledAt)}` : ""}
-                        {award.cancelReason ? ` · ${award.cancelReason}` : ""}
-                      </span>
-                    )}
-                  </td>
-                  <td
-                    className={`px-3 py-2.5 font-bold ${
-                      cancelled ? "text-mut" : kindColorClass(award.kind)
-                    }`}
-                  >
-                    {signedPoints(award.kind, award.points)}
-                  </td>
-                  <td className="px-3 py-2.5 text-mut">{award.awardedByName}</td>
-                  <td className="px-3 py-2.5">
-                    {cancelled ? (
-                      <Badge tone="cancelled">취소</Badge>
-                    ) : (
-                      <Badge tone="approved">반영</Badge>
-                    )}
-                  </td>
-                  {canCancel && (
-                    <td className="px-5 py-2.5">
-                      {!cancelled && (
-                        <CancelButton awardId={award.id} studentProfileId={studentProfileId} />
-                      )}
-                    </td>
                   )}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </section>
+                </td>
+                <td className="px-3 py-2.5">
+                  <KindBadge kind={award.kind} />
+                </td>
+                <td className="px-3 py-2.5">
+                  <span
+                    className={
+                      cancelled
+                        ? "text-mut line-through"
+                        : "font-semibold text-ink"
+                    }
+                  >
+                    {award.label}
+                  </span>
+                  {award.note && (
+                    <span className="block text-[12px] text-mut">{award.note}</span>
+                  )}
+                  {/*
+                    취소 사유와 취소한 사람. "관리자면 누구나 취소할 수 있다"는
+                    결정의 근거가 바로 이 흔적이므로, DB에만 있고 화면에 없으면
+                    그 근거가 실제로는 없는 것과 같다.
+                  */}
+                  {cancelled && (
+                    <span className="block text-[12px] text-rose">
+                      취소
+                      {award.cancelledByName ? ` · ${award.cancelledByName}` : ""}
+                      {award.cancelledAt ? ` · ${formatDate(award.cancelledAt)}` : ""}
+                      {award.cancelReason ? ` · ${award.cancelReason}` : ""}
+                    </span>
+                  )}
+                </td>
+                <td
+                  className={`px-3 py-2.5 font-bold ${
+                    cancelled ? "text-mut" : kindColorClass(award.kind)
+                  }`}
+                >
+                  {signedPoints(award.kind, award.points)}
+                </td>
+                <td className="px-3 py-2.5 text-mut">{award.awardedByName}</td>
+                <td className={`${tableCellPadding(5, columns)} py-2.5`}>
+                  {cancelled ? (
+                    <Badge tone="cancelled">취소</Badge>
+                  ) : (
+                    <Badge tone="approved">반영</Badge>
+                  )}
+                </td>
+                {canCancel && (
+                  <td className="px-5 py-2.5">
+                    {!cancelled && (
+                      <CancelButton awardId={award.id} studentProfileId={studentProfileId} />
+                    )}
+                  </td>
+                )}
+              </tr>
+            );
+          })}
+        </tbody>
+      </TableFrame>
+    </SectionCard>
   );
 }

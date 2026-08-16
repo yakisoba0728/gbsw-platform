@@ -9,7 +9,10 @@ import {
 } from "@/core/authz/merit-track";
 import { KindBadge, kindColorClass, signedPoints } from "@/components/merit/kind-badge";
 import { TrackTabs } from "@/components/merit/track-tabs";
+import { EmptyState } from "@/components/ui/empty-state";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
+import { SectionCard } from "@/components/ui/section-card";
+import { TableFrame } from "@/components/ui/table";
 import { hrefWith } from "@/lib/search-params";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import { demeritCellClass, ThresholdHint } from "@/components/merit/demerit-level";
@@ -149,8 +152,7 @@ function Stat({
     <div className="rounded-card border border-line bg-surface px-4 py-3.5">
       <div className="text-[12px] font-semibold text-mut">{label}</div>
       <div className={`mt-1 text-[24px] font-extrabold ${className}`}>
-        {signed && value >= 0 ? "+" : ""}
-        {value}
+        {signed ? signedNet(value) : value}
       </div>
     </div>
   );
@@ -181,82 +183,74 @@ function WatchList({
   const where = scoped ? "이 반" : "전교";
 
   return (
-    <section className="rounded-card border border-line bg-surface">
-      <header className="border-b border-line px-5 py-4">
-        <h2 className="text-base font-extrabold text-ink">기준 초과 학생</h2>
-        {/*
-          기준 숫자를 그대로 적는다. DEMERIT_THRESHOLDS는 학교가 정할 값의
-          임시값이라, 화면에 안 보이면 틀린 값으로 몇 학기가 지나갈 수 있다.
-        */}
-        <p className="mt-1 text-[12px] text-mut">
+    <SectionCard
+      flush
+      title="기준 초과 학생"
+      /*
+        기준 숫자를 그대로 적는다. DEMERIT_THRESHOLDS는 학교가 정할 값의
+        임시값이라, 화면에 안 보이면 틀린 값으로 몇 학기가 지나갈 수 있다.
+      */
+      hint={
+        <>
           {where}에서 벌점 {thresholds.warn}점 이상인 학생입니다 (
           {thresholds.danger}점 이상은 붉은 배경). 상점·상쇄점과 무관하게 벌점
           총합만 셉니다.
-        </p>
+        </>
+      }
+      // 둘째 문단은 controls로 넘긴다 — hint는 <p> 하나라 안에 문단을 또 넣을 수 없다.
+      controls={
         <p className="mt-1 text-[12px] text-mut">
           <strong className="font-bold">보여주기만 합니다</strong> — 기준을 넘어도
           자동으로 회부·통보되는 것은 없습니다. 기준 점수는 학칙·기숙사 규정에
           맞춰 정해야 하는 임시값입니다.
         </p>
-      </header>
-
+      }
+    >
       {rows.length === 0 ? (
-        <p className="p-8 text-center text-[12.5px] text-mut">
+        <EmptyState variant="inside">
           {where}에 벌점 {thresholds.warn}점 이상인 학생이 없습니다.
-        </p>
+        </EmptyState>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[420px] text-left text-sm">
-            <colgroup>
-              <col className="w-[48px]" />
-              <col />
-              <col className="w-[132px]" />
-              <col className="w-[84px]" />
-            </colgroup>
-            <thead>
-              <tr className="border-b border-line2 text-[12px] text-mut">
-                <th className="px-5 py-2.5 font-semibold">#</th>
-                <th className="px-3 py-2.5 font-semibold">이름</th>
-                <th className="px-3 py-2.5 font-semibold">학급</th>
-                <th className="px-5 py-2.5 font-semibold">벌점</th>
+        <TableFrame
+          minWidth={440}
+          cols={["w-[48px]", undefined, "w-[132px]", "w-[84px]"]}
+          headers={["#", "이름", "학급", "벌점"]}
+        >
+          <tbody>
+            {rows.map((row, index) => (
+              <tr
+                key={row.studentProfileId}
+                className="border-b border-line2 last:border-0"
+              >
+                <td className="px-5 py-2.5 text-mut2">{index + 1}</td>
+                <td className="p-0">
+                  <Link
+                    href={`/merit/students/${row.studentProfileId}?track=${track}`}
+                    className="block px-3 py-2.5 font-semibold text-ink hover:text-pri hover:underline"
+                  >
+                    {row.name}
+                  </Link>
+                </td>
+                <td className="px-3 py-2.5 text-mut">
+                  {/*
+                    소속이 없어도 명단에서 빼지 않는다 — 반 미배정·학적 변동 중인
+                    학생이야말로 눈에서 놓치기 쉬운 쪽이다.
+                  */}
+                  {row.grade !== null && row.classNo !== null
+                    ? `${row.grade}학년 ${row.classNo}반${row.number !== null ? ` ${row.number}번` : ""}`
+                    : "소속 미배정"}
+                </td>
+                <td className="px-5 py-2.5">
+                  <span className={demeritCellClass(track, row.demerit)}>
+                    {row.demerit}
+                  </span>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, index) => (
-                <tr
-                  key={row.studentProfileId}
-                  className="border-b border-line2 last:border-0"
-                >
-                  <td className="px-5 py-2.5 text-mut2">{index + 1}</td>
-                  <td className="p-0">
-                    <Link
-                      href={`/merit/students/${row.studentProfileId}?track=${track}`}
-                      className="block px-3 py-2.5 font-semibold text-ink hover:text-pri hover:underline"
-                    >
-                      {row.name}
-                    </Link>
-                  </td>
-                  <td className="px-3 py-2.5 text-mut">
-                    {/*
-                      소속이 없어도 명단에서 빼지 않는다 — 반 미배정·학적 변동 중인
-                      학생이야말로 눈에서 놓치기 쉬운 쪽이다.
-                    */}
-                    {row.grade !== null && row.classNo !== null
-                      ? `${row.grade}학년 ${row.classNo}반${row.number !== null ? ` ${row.number}번` : ""}`
-                      : "소속 미배정"}
-                  </td>
-                  <td className="px-5 py-2.5">
-                    <span className={demeritCellClass(track, row.demerit)}>
-                      {row.demerit}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </TableFrame>
       )}
-    </section>
+    </SectionCard>
   );
 }
 
@@ -269,135 +263,102 @@ function ClassTable({
 }) {
   if (rows.length === 0) {
     return (
-      <div className="rounded-card border border-line bg-surface p-8 text-center text-[12.5px] text-mut">
+      <EmptyState>
         배정된 반이 없습니다. 학생 관리에서 명단을 먼저 반영해 주세요.
-      </div>
+      </EmptyState>
     );
   }
 
   return (
-    <section className="rounded-card border border-line bg-surface">
-      <header className="border-b border-line px-5 py-4">
-        <h2 className="text-base font-extrabold text-ink">반별 현황</h2>
+    <SectionCard
+      flush
+      title="반별 현황"
+      // ThresholdHint가 <p>라 hint(역시 <p>)에는 넣을 수 없다.
+      controls={
         <div className="mt-1">
           <ThresholdHint track={track} />
         </div>
-      </header>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[520px] text-left text-sm">
-          <colgroup>
-            <col className="w-[120px]" />
-            <col className="w-[72px]" />
-            <col className="w-[88px]" />
-            <col className="w-[88px]" />
-            <col className="w-[80px]" />
-            <col className="w-[92px]" />
-            <col />
-          </colgroup>
-          <thead>
-            <tr className="border-b border-line2 text-[12px] text-mut">
-              <th className="px-5 py-2.5 font-semibold">학급</th>
-              <th className="px-3 py-2.5 font-semibold">인원</th>
-              <th className="px-3 py-2.5 font-semibold">상점</th>
-              <th className="px-3 py-2.5 font-semibold">벌점</th>
-              <th className="px-3 py-2.5 font-semibold">상쇄</th>
-              <th className="px-3 py-2.5 font-semibold">순점수</th>
-              <th className="px-5 py-2.5 font-semibold">1인 평균</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr
-                key={`${row.grade}-${row.classNo}`}
-                className="border-b border-line2 last:border-0"
+      }
+    >
+      <TableFrame
+        minWidth={520}
+        cols={[
+          "w-[120px]",
+          "w-[72px]",
+          "w-[88px]",
+          "w-[88px]",
+          "w-[80px]",
+          "w-[92px]",
+          undefined,
+        ]}
+        headers={["학급", "인원", "상점", "벌점", "상쇄", "순점수", "1인 평균"]}
+      >
+        <tbody>
+          {rows.map((row) => (
+            <tr
+              key={`${row.grade}-${row.classNo}`}
+              className="border-b border-line2 last:border-0"
+            >
+              <td className="px-5 py-2.5 font-semibold text-ink">
+                {row.grade}학년 {row.classNo}반
+              </td>
+              <td className="px-3 py-2.5 text-mut">{row.students}</td>
+              <td className="px-3 py-2.5 font-bold text-blue">{row.merit}</td>
+              <td className="px-3 py-2.5">
+                <span className={demeritCellClass(track, row.demerit)}>
+                  {row.demerit}
+                </span>
+              </td>
+              <td
+                className={`px-3 py-2.5 font-bold ${row.offset === 0 ? "text-mut2" : "text-green"}`}
               >
-                <td className="px-5 py-2.5 font-semibold text-ink">
-                  {row.grade}학년 {row.classNo}반
-                </td>
-                <td className="px-3 py-2.5 text-mut">{row.students}</td>
-                <td className="px-3 py-2.5 font-bold text-blue">{row.merit}</td>
-                <td className="px-3 py-2.5">
-                  <span className={demeritCellClass(track, row.demerit)}>
-                    {row.demerit}
-                  </span>
-                </td>
-                <td
-                  className={`px-3 py-2.5 font-bold ${row.offset === 0 ? "text-mut2" : "text-green"}`}
-                >
-                  {row.offset}
-                </td>
-                <td
-                  className={`px-3 py-2.5 font-bold ${row.net >= 0 ? "text-green" : "text-rose"}`}
-                >
-                  {row.net >= 0 ? "+" : ""}
-                  {row.net}
-                </td>
-                <td className="px-5 py-2.5 text-mut">
-                  {row.avgNet >= 0 ? "+" : ""}
-                  {row.avgNet}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
+                {row.offset}
+              </td>
+              <td
+                className={`px-3 py-2.5 font-bold ${row.net >= 0 ? "text-green" : "text-rose"}`}
+              >
+                {signedNet(row.net)}
+              </td>
+              <td className="px-5 py-2.5 text-mut">{signedNet(row.avgNet)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </TableFrame>
+    </SectionCard>
   );
 }
 
 function TopRules({ rows }: { rows: MeritStats["topRules"] }) {
   if (rows.length === 0) {
-    return (
-      <div className="rounded-card border border-line bg-surface p-8 text-center text-[12.5px] text-mut">
-        아직 부여된 상벌점이 없습니다.
-      </div>
-    );
+    return <EmptyState>아직 부여된 상벌점이 없습니다.</EmptyState>;
   }
 
   return (
-    <section className="rounded-card border border-line bg-surface">
-      <header className="border-b border-line px-5 py-4">
-        <h2 className="text-base font-extrabold text-ink">많이 나온 항목</h2>
-        <p className="mt-1 text-[12px] text-mut">상위 {rows.length}개</p>
-      </header>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[480px] text-left text-sm">
-          <colgroup>
-            <col className="w-[68px]" />
-            <col />
-            <col className="w-[80px]" />
-            <col className="w-[88px]" />
-          </colgroup>
-          <thead>
-            <tr className="border-b border-line2 text-[12px] text-mut">
-              <th className="px-5 py-2.5 font-semibold">구분</th>
-              <th className="px-3 py-2.5 font-semibold">항목</th>
-              <th className="px-3 py-2.5 font-semibold">건수</th>
-              <th className="px-5 py-2.5 font-semibold">합계 점수</th>
+    <SectionCard flush title="많이 나온 항목" hint={`상위 ${rows.length}개`}>
+      <TableFrame
+        minWidth={480}
+        cols={["w-[68px]", undefined, "w-[80px]", "w-[88px]"]}
+        headers={["구분", "항목", "건수", "합계 점수"]}
+      >
+        <tbody>
+          {rows.map((row) => (
+            <tr
+              key={`${row.kind}-${row.label}`}
+              className="border-b border-line2 last:border-0"
+            >
+              <td className="px-5 py-2.5">
+                <KindBadge kind={row.kind} />
+              </td>
+              <td className="px-3 py-2.5 text-ink">{row.label}</td>
+              <td className="px-3 py-2.5 font-bold text-ink">{row.count}</td>
+              <td className={`px-5 py-2.5 font-bold ${kindColorClass(row.kind)}`}>
+                {signedPoints(row.kind, row.points)}
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr
-                key={`${row.kind}-${row.label}`}
-                className="border-b border-line2 last:border-0"
-              >
-                <td className="px-5 py-2.5">
-                  <KindBadge kind={row.kind} />
-                </td>
-                <td className="px-3 py-2.5 text-ink">{row.label}</td>
-                <td className="px-3 py-2.5 font-bold text-ink">{row.count}</td>
-                <td
-                  className={`px-5 py-2.5 font-bold ${kindColorClass(row.kind)}`}
-                >
-                  {signedPoints(row.kind, row.points)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
+          ))}
+        </tbody>
+      </TableFrame>
+    </SectionCard>
   );
 }
 

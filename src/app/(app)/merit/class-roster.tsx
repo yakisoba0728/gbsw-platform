@@ -1,10 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { useId, useMemo, useState } from "react";
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input, Label } from "@/components/ui/input";
-import type { MeritTrack } from "@/core/authz/merit-track";
+import { Note } from "@/components/ui/note";
+import { TableFrame, tableCellPadding } from "@/components/ui/table";
+import { signedNet, type MeritTrack } from "@/core/authz/merit-track";
 import { RulePicker, type RuleOption } from "@/components/merit/rule-picker";
 import { demeritCellClass, ThresholdHint } from "@/components/merit/demerit-level";
 import { EMPTY_MERIT_STATE } from "./action-state";
@@ -92,9 +96,9 @@ export function ClassRoster({
 
   if (rows.length === 0) {
     return (
-      <div className="rounded-card border border-line bg-surface p-8 text-center text-[12.5px] text-mut">
+      <EmptyState>
         {grade}학년 {classNo}반에 학생이 없습니다.
-      </div>
+      </EmptyState>
     );
   }
 
@@ -118,94 +122,106 @@ export function ClassRoster({
           <ExportButton grade={grade} classNo={classNo} track={track} year={year} />
         </header>
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[520px] text-left text-sm">
-            <colgroup>
-              <col className="w-[44px]" />
-              <col className="w-[64px]" />
-              <col />
-              <col className="w-[70px]" />
-              <col className="w-[70px]" />
-              <col className="w-[74px]" />
-              <col className="w-[84px]" />
-            </colgroup>
-            <thead>
-              <tr className="border-b border-line2 text-[12px] text-mut">
-                <th className="px-5 py-2.5">
+        <TableFrame
+          minWidth={548}
+          cols={[
+            "w-[44px]",
+            "w-[64px]",
+            undefined,
+            "w-[70px]",
+            "w-[70px]",
+            "w-[74px]",
+            "w-[96px]",
+          ]}
+          /*
+            정렬 상태는 <th> 자신이 갖는 속성이라 아래 <button> 안으로 내려보낼 수
+            없다. 지금 정렬 중이 아닌 쪽도 "none"을 적어 둔다 — 값이 없으면
+            "정렬할 수 있는 열"이라는 사실 자체가 전달되지 않는다.
+          */
+          sort={[
+            undefined,
+            sortKey === "number" ? "ascending" : "none",
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            sortKey === "net" ? "descending" : "none",
+          ]}
+          headers={[
+            <input
+              key="all"
+              type="checkbox"
+              checked={allSelected}
+              onChange={toggleAll}
+              aria-label="전체 선택"
+              className="size-4 accent-pri"
+            />,
+            <SortButton
+              key="number"
+              label="번호"
+              hint="번호 낮은 순"
+              active={sortKey === "number"}
+              onClick={() => setSortKey("number")}
+            />,
+            "이름",
+            "상점",
+            "벌점",
+            /*
+              상쇄점 열은 값이 0이어도 항상 낸다. 표는 행마다 열을 껐다 켤 수
+              없고, 상점 − 벌점이 순점수와 안 맞는 줄이 하나라도 보이면
+              보는 사람이 표 전체를 의심하게 된다.
+            */
+            "상쇄",
+            <SortButton
+              key="net"
+              label="순점수"
+              hint="순점수 높은 순"
+              active={sortKey === "net"}
+              onClick={() => setSortKey("net")}
+            />,
+          ]}
+        >
+          <tbody>
+            {sorted.map((row) => (
+              <tr key={row.studentProfileId} className="border-b border-line2 last:border-0">
+                <td className={`${tableCellPadding(0, COLUMNS)} py-2.5`}>
                   <input
                     type="checkbox"
-                    checked={allSelected}
-                    onChange={toggleAll}
-                    aria-label="전체 선택"
+                    checked={selected.has(row.studentProfileId)}
+                    onChange={() => toggleOne(row.studentProfileId)}
+                    aria-label={`${row.name} 선택`}
                     className="size-4 accent-pri"
                   />
-                </th>
-                <th
-                  className="cursor-pointer px-3 py-2.5 font-semibold select-none"
-                  onClick={() => setSortKey("number")}
+                </td>
+                <td className="px-3 py-2.5 text-mut">{row.number ?? "—"}</td>
+                <td className="px-3 py-2.5">
+                  <Link
+                    href={`/merit/students/${row.studentProfileId}?track=${track}`}
+                    className="font-semibold text-ink hover:text-pri hover:underline"
+                  >
+                    {row.name}
+                  </Link>
+                </td>
+                <td className="px-3 py-2.5 font-bold text-blue">{row.merit}</td>
+                <td className="px-3 py-2.5">
+                  <span className={demeritCellClass(track, row.demerit)}>
+                    {row.demerit}
+                  </span>
+                </td>
+                <td
+                  className={`px-3 py-2.5 font-bold ${row.offset === 0 ? "text-mut2" : "text-green"}`}
                 >
-                  번호
-                </th>
-                <th className="px-3 py-2.5 font-semibold">이름</th>
-                <th className="px-3 py-2.5 font-semibold">상점</th>
-                <th className="px-3 py-2.5 font-semibold">벌점</th>
-                {/*
-                  상쇄점 열은 값이 0이어도 항상 낸다. 표는 행마다 열을 껐다 켤 수
-                  없고, 상점 − 벌점이 순점수와 안 맞는 줄이 하나라도 보이면
-                  보는 사람이 표 전체를 의심하게 된다.
-                */}
-                <th className="px-3 py-2.5 font-semibold">상쇄</th>
-                <th
-                  className="cursor-pointer px-3 py-2.5 font-semibold select-none"
-                  onClick={() => setSortKey("net")}
+                  {row.offset}
+                </td>
+                <td
+                  className={`${tableCellPadding(COLUMNS - 1, COLUMNS)} py-2.5 font-extrabold ${row.net >= 0 ? "text-green" : "text-rose"}`}
                 >
-                  순점수
-                </th>
+                  {signedNet(row.net)}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {sorted.map((row) => (
-                <tr key={row.studentProfileId} className="border-b border-line2 last:border-0">
-                  <td className="px-5 py-2.5">
-                    <input
-                      type="checkbox"
-                      checked={selected.has(row.studentProfileId)}
-                      onChange={() => toggleOne(row.studentProfileId)}
-                      aria-label={`${row.name} 선택`}
-                      className="size-4 accent-pri"
-                    />
-                  </td>
-                  <td className="px-3 py-2.5 text-mut">{row.number ?? "—"}</td>
-                  <td className="px-3 py-2.5">
-                    <a
-                      href={`/merit/students/${row.studentProfileId}?track=${track}`}
-                      className="font-semibold text-ink hover:text-pri hover:underline"
-                    >
-                      {row.name}
-                    </a>
-                  </td>
-                  <td className="px-3 py-2.5 font-bold text-blue">{row.merit}</td>
-                  <td className="px-3 py-2.5">
-                    <span className={demeritCellClass(track, row.demerit)}>
-                      {row.demerit}
-                    </span>
-                  </td>
-                  <td
-                    className={`px-3 py-2.5 font-bold ${row.offset === 0 ? "text-mut2" : "text-green"}`}
-                  >
-                    {row.offset}
-                  </td>
-                  <td
-                    className={`px-3 py-2.5 font-extrabold ${row.net >= 0 ? "text-green" : "text-rose"}`}
-                  >
-                    {row.net >= 0 ? "+" : ""}
-                    {row.net}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </TableFrame>
 
         {/*
           지난 학년도를 보고 있으면 부여 폼을 아예 감춘다 — 부여는 항상 현재
@@ -213,9 +229,9 @@ export function ClassRoster({
           나타나지 않는다. 학생 상세 화면과 같은 처리다.
         */}
         {viewingPast ? (
-          <p className="border-t border-line px-5 py-4 text-[13px] text-amber-ink">
+          <Note tone="warn" className="mx-5 my-4">
             지난 학년도를 보고 있습니다. 부여는 현재 학년도에만 할 수 있습니다.
-          </p>
+          </Note>
         ) : (
         <div className="space-y-2.5 border-t border-line px-5 py-4">
           <span className="block text-[12.5px] font-semibold text-mut">
@@ -251,16 +267,53 @@ export function ClassRoster({
         )}
 
         {state.error && (
-          <p role="alert" className="mx-5 mb-4 rounded-btn bg-rose-soft px-3 py-2.5 text-[13px] font-semibold text-rose">
+          <Note tone="error" className="mx-5 mb-4">
             {state.error}
-          </p>
+          </Note>
         )}
         {state.ok && state.count !== null && (
-          <p className="mx-5 mb-4 rounded-btn bg-green-soft px-3 py-2.5 text-[13px] font-semibold text-green">
+          <Note tone="success" className="mx-5 mb-4">
             {state.count}명에게 부여했습니다.
-          </p>
+          </Note>
         )}
       </section>
     </form>
+  );
+}
+
+/** 표의 열 수. 첫·끝 열 패딩 규칙(tableCellPadding)이 이 값을 본다. */
+const COLUMNS = 7;
+
+/**
+ * 정렬 가능한 머리글.
+ *
+ * 전에는 `<th>`에 `onClick`만 있어서 **마우스 없이는 정렬을 바꿀 수 없었다** —
+ * "순점수 낮은 순"으로 훑을 대체 경로가 화면에 아예 없었다. 실제 조작 대상을
+ * `<button>`으로 만들어 탭 이동과 Enter·Space가 통하게 한다. 정렬 상태 자체는
+ * 바깥 `<th>`의 `aria-sort`가 알린다(TableFrame의 `sort` 인자).
+ */
+function SortButton({
+  label,
+  hint,
+  active,
+  onClick,
+}: {
+  label: string;
+  /** 눌렀을 때 어떤 순서가 되는지. 화면에는 안 보이고 이름에만 붙는다. */
+  hint: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`${label} — ${hint}으로 정렬`}
+      className={`-mx-1 rounded-btn px-1 py-1 font-semibold transition-colors hover:text-pri ${
+        active ? "text-pri" : ""
+      }`}
+    >
+      {label}
+    </button>
   );
 }
