@@ -53,7 +53,15 @@ export async function updateRule(
   });
 }
 
-export async function deactivateRule(id: string): Promise<void> {
+/**
+ * 규정 삭제. **행은 지우지 않고 active를 내린다.**
+ *
+ * 이미 나간 부여가 ruleId를 참조하고(onDelete: Restrict) "이 규정으로 몇 건
+ * 나갔나"를 세려면 원본이 필요하다. 화면에서는 목록에서 사라지므로 삭제와
+ * 구분되지 않는다 — 부여 기록은 label·points를 스냅샷해 두어 규정이 없어져도
+ * "왜 이 점수를 받았는지"가 그대로 남는다.
+ */
+export async function markRuleDeleted(id: string): Promise<void> {
   await prisma.meritRule.update({ where: { id }, data: { active: false } });
 }
 
@@ -93,10 +101,15 @@ function byKindCategoryPoints<
   return a.points - b.points;
 }
 
-/** 비활성 포함 전부. 규정 관리 화면이 쓴다. */
+/**
+ * 규정 관리 화면의 목록. **삭제된 규정은 나오지 않는다.**
+ *
+ * 삭제는 되돌리는 화면이 없다 — 잘못 지웠으면 같은 내용으로 새로 만든다.
+ * 지난 부여 기록은 스냅샷이라 그대로 남는다.
+ */
 export async function listRules(track: MeritTrack) {
   const rules = await prisma.meritRule.findMany({
-    where: { track },
+    where: { track, active: true },
     // 순서는 아래 byKindCategoryPoints가 세운다. 여기서는 결과가 매번 같도록
     // 안정적인 기준만 준다 — 같은 (종류·분류·점수)가 여럿일 때 화면이 흔들리지 않게.
     orderBy: [{ label: "asc" }],
@@ -112,11 +125,7 @@ export async function listRules(track: MeritTrack) {
     },
   });
 
-  // 사용/중지 구분은 유지한 채 각 묶음 안에서 상점 → 벌점 순으로 세운다.
-  return [
-    ...rules.filter((r) => r.active).sort(byKindCategoryPoints),
-    ...rules.filter((r) => !r.active).sort(byKindCategoryPoints),
-  ];
+  return rules.sort(byKindCategoryPoints);
 }
 
 /** 부여 화면의 선택지. 비활성은 빠진다. 여기서도 상점이 먼저다. */

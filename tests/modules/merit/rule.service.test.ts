@@ -4,7 +4,7 @@ import type { SessionUser } from "@/core/auth/session";
 const createRule = vi.fn();
 const findRule = vi.fn();
 const updateRule = vi.fn();
-const deactivateRule = vi.fn();
+const markRuleDeleted = vi.fn();
 const listRules = vi.fn();
 const listActiveRules = vi.fn();
 const recordAudit = vi.fn();
@@ -13,7 +13,7 @@ vi.mock("@/modules/merit/merit.repo", () => ({
   createRule,
   findRule,
   updateRule,
-  deactivateRule,
+  markRuleDeleted,
   listRules,
   listActiveRules,
 }));
@@ -60,7 +60,7 @@ beforeEach(() => {
     active: true,
   });
   updateRule.mockReset().mockResolvedValue(undefined);
-  deactivateRule.mockReset().mockResolvedValue(undefined);
+  markRuleDeleted.mockReset().mockResolvedValue(undefined);
   listRules.mockReset().mockResolvedValue([]);
   listActiveRules.mockReset().mockResolvedValue([]);
   recordAudit.mockReset().mockResolvedValue(undefined);
@@ -148,20 +148,20 @@ describe("updateRule", () => {
   });
 });
 
-describe("deactivateRule", () => {
-  it("관리자는 규정을 비활성한다", async () => {
-    await service.deactivateRule(admin, "r-1");
+describe("deleteRule", () => {
+  it("관리자는 규정을 삭제한다", async () => {
+    await service.deleteRule(admin, "r-1");
 
-    expect(deactivateRule).toHaveBeenCalledWith("r-1");
+    expect(markRuleDeleted).toHaveBeenCalledWith("r-1");
     expect(recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: "merit:rule:deactivate",
+        action: "merit:rule:delete",
         targetId: "r-1",
       }),
     );
   });
 
-  it("이미 비활성이면 아무 일도 하지 않는다 — 감사로그도 안 쌓는다", async () => {
+  it("이미 지워진 규정이면 아무 일도 하지 않는다 — 감사로그도 안 쌓는다", async () => {
     findRule.mockResolvedValue({
       id: "r-1",
       track: "SCHOOL",
@@ -173,15 +173,15 @@ describe("deactivateRule", () => {
       active: false,
     });
 
-    await service.deactivateRule(admin, "r-1");
+    await service.deleteRule(admin, "r-1");
 
-    expect(deactivateRule).not.toHaveBeenCalled();
+    expect(markRuleDeleted).not.toHaveBeenCalled();
     expect(recordAudit).not.toHaveBeenCalled();
   });
 
   it("없는 규정은 RULE_NOT_FOUND", async () => {
     findRule.mockResolvedValue(null);
-    await expect(service.deactivateRule(admin, "r-1")).rejects.toThrow(
+    await expect(service.deleteRule(admin, "r-1")).rejects.toThrow(
       "RULE_NOT_FOUND",
     );
   });

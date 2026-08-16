@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { KindBadge, kindColorClass } from "@/components/merit/kind-badge";
 import { MERIT_KIND_LABELS, meritKindSign, type MeritKind } from "@/core/authz/merit-track";
 import { EMPTY_RULE_FORM_STATE } from "./action-state";
-import { deactivateRuleAction, updateRuleAction } from "./actions";
+import { deleteRuleAction, updateRuleAction } from "./actions";
 
 export type RuleRow = {
   id: string;
@@ -33,8 +33,8 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
     updateRuleAction,
     EMPTY_RULE_FORM_STATE,
   );
-  const [deactivateState, deactivateAction] = useActionState(
-    deactivateRuleAction,
+  const [deleteState, deleteAction] = useActionState(
+    deleteRuleAction,
     EMPTY_RULE_FORM_STATE,
   );
 
@@ -59,14 +59,14 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
   return (
     <section className="rounded-card border border-line bg-surface">
       <form id="rule-edit-form" action={updateAction} className="hidden" />
-      <form id="rule-deactivate-form" action={deactivateAction} className="hidden" />
+      <form id="rule-delete-form" action={deleteAction} className="hidden" />
 
-      {(updateState.error ?? deactivateState.error) && (
+      {(updateState.error ?? deleteState.error) && (
         <p
           role="alert"
           className="mx-5 mt-4 rounded-btn bg-rose-soft px-3 py-2.5 text-[13px] font-semibold text-rose"
         >
-          {updateState.error ?? deactivateState.error}
+          {updateState.error ?? deleteState.error}
         </p>
       )}
 
@@ -77,7 +77,6 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
             <col className="w-[128px]" />
             <col />
             <col className="w-[92px]" />
-            <col className="w-[72px]" />
             <col className="w-[150px]" />
           </colgroup>
           <thead>
@@ -86,14 +85,12 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
               <th className="px-3 py-2.5 font-semibold">분류</th>
               <th className="px-3 py-2.5 font-semibold">항목명</th>
               <th className="px-3 py-2.5 font-semibold">점수</th>
-              <th className="px-3 py-2.5 font-semibold">상태</th>
               <th className="px-5 py-2.5 font-semibold">작업</th>
             </tr>
           </thead>
           <tbody>
             {rules.map((rule) => {
               const editing = editingId === rule.id;
-              const dim = rule.active ? "text-ink" : "text-mut line-through";
 
               return (
                 <tr key={rule.id} className="border-b border-line2 last:border-0">
@@ -101,7 +98,7 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
                     <KindBadge kind={rule.kind} />
                   </td>
 
-                  <td className={`px-3 py-2.5 ${rule.active ? "text-mut" : "text-mut line-through"}`}>
+                  <td className="px-3 py-2.5 text-mut">
                     {editing ? (
                       <Input
                         dense
@@ -116,7 +113,7 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
                     )}
                   </td>
 
-                  <td className={`px-3 py-2.5 font-semibold ${dim}`}>
+                  <td className={`px-3 py-2.5 font-semibold ${"text-ink"}`}>
                     {editing ? (
                       <Input
                         dense
@@ -137,7 +134,7 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
                     그대로 붙여 둔다 — 예전엔 편집을 시작하면 부호가 사라져서
                     상점을 고치는지 벌점을 고치는지 화면에서 알 수 없었다.
                   */}
-                  <td className={`px-3 py-2.5 font-bold ${dim}`}>
+                  <td className={`px-3 py-2.5 font-bold ${"text-ink"}`}>
                     <span className="flex items-center gap-1">
                       <span aria-hidden className={kindColorClass(rule.kind)}>
                         {meritKindSign(rule.kind)}
@@ -161,14 +158,8 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
                     </span>
                   </td>
 
-                  <td className="px-3 py-2.5">
-                    <Badge tone={rule.active ? "approved" : "cancelled"}>
-                      {rule.active ? "사용" : "중지"}
-                    </Badge>
-                  </td>
-
                   <td className="px-5 py-2.5">
-                    {!rule.active ? null : editing ? (
+                    {editing ? (
                       <div className="flex gap-2">
                         <input type="hidden" name="ruleId" value={rule.id} form="rule-edit-form" />
                         {/* 표에 없는 필드(설명)는 그대로 넘긴다 — 안 넘기면 zod가
@@ -203,7 +194,7 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
                         </Button>
                         <Button
                           type="submit"
-                          form="rule-deactivate-form"
+                          form="rule-delete-form"
                           name="ruleId"
                           value={rule.id}
                           variant="danger"
@@ -211,14 +202,17 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
                           onClick={(e) => {
                             if (
                               !confirm(
-                                `"${rule.label}" 규정을 비활성합니다. 이미 준 기록에는 영향이 없습니다.`,
+                                `"${rule.label}" 규정을 삭제합니다.\n\n` +
+                                  `· 목록과 부여 화면에서 사라집니다\n` +
+                                  `· 되돌리는 화면이 없습니다 (다시 쓰려면 새로 만들어야 합니다)\n` +
+                                  `· 이미 준 상벌점 기록은 그대로 남습니다`,
                               )
                             ) {
                               e.preventDefault();
                             }
                           }}
                         >
-                          비활성
+                          삭제
                         </Button>
                       </div>
                     )}

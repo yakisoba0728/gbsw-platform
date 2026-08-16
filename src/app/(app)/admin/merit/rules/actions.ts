@@ -81,7 +81,7 @@ export async function updateRuleAction(
   return { error: null, ok: true };
 }
 
-export async function deactivateRuleAction(
+export async function deleteRuleAction(
   _prev: RuleFormState,
   formData: FormData,
 ): Promise<RuleFormState> {
@@ -91,7 +91,7 @@ export async function deactivateRuleAction(
   if (!parsed.success) return fail("규정을 찾을 수 없습니다.");
 
   try {
-    await service.deactivateRule(actor, parsed.data.ruleId);
+    await service.deleteRule(actor, parsed.data.ruleId);
   } catch (error) {
     return fail(toMessage(error));
   }

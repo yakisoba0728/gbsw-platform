@@ -52,7 +52,11 @@ export const AUDIT_ACTIONS = [
   "enrollment:import",
   "merit:rule:create",
   "merit:rule:update",
+  // 목록에서 지우는 동작. 화면 문구가 "비활성"이던 시절의 값도 남겨 둔다 —
+  // 이미 그 이름으로 저장된 행이 있고 로그는 고쳐 쓰지 않는다
+  // (invite:create:parent와 같은 패턴, 이 파일 상단 주석 참고).
   "merit:rule:deactivate",
+  "merit:rule:delete",
   "merit:award",
   "merit:cancel",
   // can() 검사를 통과 못 해 서비스가 거부했을 때 (I5, core/authz/errors.ts의
@@ -87,7 +91,8 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   "enrollment:import": "명단 일괄 반영",
   "merit:rule:create": "상벌점 규정 추가",
   "merit:rule:update": "상벌점 규정 수정",
-  "merit:rule:deactivate": "상벌점 규정 비활성",
+  "merit:rule:deactivate": "상벌점 규정 삭제",
+  "merit:rule:delete": "상벌점 규정 삭제",
   "merit:award": "상벌점 부여",
   "merit:cancel": "상벌점 취소",
   "authz:denied": "권한 거부",
@@ -113,7 +118,8 @@ const ACTION_TONES: Record<AuditAction, BadgeTone> = {
   "enrollment:import": "info",
   "merit:rule:create": "approved",
   "merit:rule:update": "info",
-  "merit:rule:deactivate": "cancelled",
+  "merit:rule:deactivate": "rejected",
+  "merit:rule:delete": "rejected",
   // 상점·벌점 어느 쪽이든 나오는 액션이라 merit/demerit 톤을 쓰지 않는다 —
   // 색이 실제 종류와 어긋나면 목록을 훑을 때 오히려 오해를 만든다.
   "merit:award": "info",
@@ -269,6 +275,12 @@ function meritSubject(metadata: Record<string, unknown>): string[] {
   return parts;
 }
 
+/** merit:rule:delete — 무엇을 지웠는지. 되돌리는 화면이 없어 로그가 유일한 흔적이다. */
+function meritSubjectSummary(metadata: Record<string, unknown>): string | null {
+  const parts = meritSubject(metadata);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
 function meritAwardSummary(metadata: Record<string, unknown>): string | null {
   const parts = meritSubject(metadata);
   // 일괄 부여였다는 사실만 표시한다 — batchId 자체는 내부 식별자라 화면에선
@@ -326,6 +338,7 @@ const METADATA_FORMATTERS: Partial<
   "invite:create:parent": roleSummary,
   "registration:complete": roleSummary,
   "authz:denied": authzDeniedSummary,
+  "merit:rule:delete": meritSubjectSummary,
   "merit:award": meritAwardSummary,
   "merit:cancel": meritCancelSummary,
   "merit:rule:update": meritRuleUpdateSummary,

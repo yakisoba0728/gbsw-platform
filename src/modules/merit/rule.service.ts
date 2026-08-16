@@ -77,8 +77,16 @@ export async function updateRule(
   });
 }
 
-/** 이미 비활성이면 아무 일도 하지 않는다 — 같은 버튼을 두 번 눌러도 로그가 안 쌓인다. */
-export async function deactivateRule(
+/**
+ * 규정 삭제. 목록에서 사라지고 부여 화면의 선택지에서도 빠진다.
+ *
+ * **행 자체는 남는다** — 이미 나간 부여가 이 규정을 참조하기 때문이다
+ * (repo.markRuleDeleted 설명 참고). 지난 기록은 값을 스냅샷해 두어 그대로다.
+ *
+ * 이미 지워진 규정이면 아무 일도 하지 않는다 — 같은 버튼을 두 번 눌러도
+ * 감사로그가 두 줄 쌓이지 않는다.
+ */
+export async function deleteRule(
   actor: SessionUser,
   ruleId: string,
 ): Promise<void> {
@@ -88,15 +96,20 @@ export async function deactivateRule(
   if (!current) throw new MeritError("RULE_NOT_FOUND");
   if (!current.active) return;
 
-  await repo.deactivateRule(ruleId);
+  await repo.markRuleDeleted(ruleId);
 
   await recordAudit({
     actorUserId: actor.id,
     actorName: actor.name,
-    action: "merit:rule:deactivate",
+    action: "merit:rule:delete",
     targetType: "MeritRule",
     targetId: ruleId,
-    metadata: { track: current.track, label: current.label },
+    metadata: {
+      track: current.track,
+      kind: current.kind,
+      label: current.label,
+      points: current.points,
+    },
   });
 }
 

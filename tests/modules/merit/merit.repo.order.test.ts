@@ -101,17 +101,14 @@ describe("listRules — 종류 → 분류 → 점수", () => {
     expect(rows.map((r) => r.points)).toEqual([1, 10, 60]);
   });
 
-  it("사용 중인 규정이 중지된 것보다 먼저다 — 그 안에서 다시 상점 먼저", async () => {
-    meritRuleFindMany.mockResolvedValue([
-      rule({ id: "off-m", kind: "MERIT", active: false }),
-      rule({ id: "on-d", kind: "DEMERIT", active: true }),
-      rule({ id: "off-d", kind: "DEMERIT", active: false }),
-      rule({ id: "on-m", kind: "MERIT", active: true }),
-    ]);
+  it("삭제된 규정은 질의에서 아예 빠진다 — 목록에 안 나온다", async () => {
+    meritRuleFindMany.mockResolvedValue([]);
 
-    const rows = await listRules("SCHOOL");
+    await listRules("SCHOOL");
 
-    expect(rows.map((r) => r.id)).toEqual(["on-m", "on-d", "off-m", "off-d"]);
+    expect(meritRuleFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { track: "SCHOOL", active: true } }),
+    );
   });
 
   it("모르는 종류가 섞여도 터지지 않고 맨 뒤로 간다", async () => {
