@@ -247,12 +247,77 @@ describe("planRoster()", () => {
     expect(plan.hasBlockingError).toBe(false);
   });
 
-  it("totalStudents는 existing.length다 — 화면(import-form.tsx)과 서비스가 같은 " +
+  it("totalStudents는 재학생 수다 — 화면(import-form.tsx)과 서비스가 같은 " +
     "분모로 대량 삭제 임계를 계산해야 한다 (I-3)", () => {
     const 재학생2 = { ...재학생, studentProfileId: "sp-2", userId: "u-2", studentCode: "BCDF2345" };
     const plan = planRoster([], [재학생, 재학생2]);
 
     expect(plan.totalStudents).toBe(2);
+  });
+
+  describe("totalStudents 분모 — 재학 중인 학생만 센다", () => {
+    function 학생(over: Record<string, unknown>) {
+      return { ...재학생, ...over };
+    }
+
+    it("졸업생은 분모에서 뺀다 — 개교 4년 차면 졸업생이 재학생만큼 쌓이는데, " +
+      "그들까지 세면 대량 삭제 임계가 실제 재적 인원과 무관하게 두 배로 뛴다", () => {
+      const 재학 = Array.from({ length: 10 }, (_, i) =>
+        학생({ studentProfileId: `sp-e${i}`, userId: `u-e${i}`, studentCode: `ENRL${i}` }),
+      );
+      const 졸업 = Array.from({ length: 10 }, (_, i) =>
+        학생({
+          studentProfileId: `sp-g${i}`,
+          userId: `u-g${i}`,
+          studentCode: `GRAD${i}`,
+          status: "GRADUATED",
+          grade: null,
+          classNo: null,
+          number: null,
+        }),
+      );
+
+      const plan = planRoster([], [...재학, ...졸업]);
+
+      expect(plan.totalStudents).toBe(10);
+    });
+
+    it("그 학년도 배정이 아예 없는 학생(status null)도 분모에서 뺀다 — 지난 " +
+      "학년도에 졸업해 올해 배정이 없는 학생이 여기 온다", () => {
+      const 배정없음 = 학생({
+        studentProfileId: "sp-2",
+        userId: "u-2",
+        studentCode: "BCDF2345",
+        status: null,
+        grade: null,
+        classNo: null,
+        number: null,
+      });
+
+      const plan = planRoster([], [재학생, 배정없음]);
+
+      expect(plan.totalStudents).toBe(1);
+    });
+
+    it("아무도 배정을 안 받은 학년도 초에는 분모가 0이 되고, 임계는 절대 하한 " +
+      "10명으로 떨어진다 — 안전한 방향(더 자주 확인을 요구한다)이다", () => {
+      const 배정전 = Array.from({ length: 300 }, (_, i) =>
+        학생({
+          studentProfileId: `sp-n${i}`,
+          userId: `u-n${i}`,
+          studentCode: `NEWY${i}`,
+          status: null,
+          grade: null,
+          classNo: null,
+          number: null,
+        }),
+      );
+
+      const plan = planRoster([], 배정전);
+
+      expect(plan.totalStudents).toBe(0);
+      expect(bulkDeleteThreshold(plan.totalStudents)).toBe(10);
+    });
   });
 
   describe("소프트 삭제된 학생 — 명단에 다시 나타나면 되살아난다", () => {
