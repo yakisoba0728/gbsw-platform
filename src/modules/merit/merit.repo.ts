@@ -412,3 +412,124 @@ export async function findStudentHeader(id: string, year: number) {
     status: enrollment?.status ?? null,
   };
 }
+
+// ── 통계 ──────────────────────────────────────────────────────
+
+/**
+ * 학년·반별 요약. 반 편성은 그 학년도 기준이고, 합계 범위는 트랙 규칙을 따른다
+ * (totalsYear가 null이면 누적 = 기숙사).
+ *
+ * 반 명단과 마찬가지로 학생 목록과 합계를 따로 질의해 잇는다 — groupBy만 쓰면
+ * 기록이 없는 반이 통째로 빠져 "우리 반은 왜 없지"가 된다.
+ */
+export async function classSummaries(params: {
+  year: number;
+  track: MeritTrack;
+  totalsYear: number | null;
+}) {
+  const enrollments = await prisma.enrollment.findMany({
+    where: {
+      year: params.year,
+      status: "ENROLLED",
+      studentProfile: { user: { deletedAt: null } },
+      classId: { not: null },
+    },
+    select: {
+      studentProfileId: true,
+      schoolClass: { select: { grade: true, classNo: true } },
+    },
+  });
+  if (enrollments.length === 0) return [];
+
+  const sums = await prisma.meritAward.groupBy({
+    by: ["studentProfileId", "kind"],
+    where: {
+      studentProfileId: { in: enrollments.map((e) => e.studentProfileId) },
+      track: params.track,
+      // 취소된 기록은 합계에서 빠진다 — 다른 집계 경로와 같은 규칙이다.
+      status: "ACTIVE",
+      ...(params.totalsYear === null ? {} : { year: params.totalsYear }),
+    },
+    _sum: { points: true },
+  });
+
+  const perStudent = new Map<string, { merit: number; demerit: number }>();
+  for (const row of sums) {
+    const cur = perStudent.get(row.studentProfileId) ?? { merit: 0, demerit: 0 };
+    if (row.kind === "MERIT") cur.merit += row._sum.points ?? 0;
+    else if (row.kind === "DEMERIT") cur.demerit += row._sum.points ?? 0;
+    perStudent.set(row.studentProfileId, cur);
+  }
+
+  const byClass = new Map<
+    string,
+    { grade: number; classNo: number; students: number; merit: number; demerit: number }
+  >();
+  for (const e of enrollments) {
+    const grade = e.schoolClass?.grade;
+    const classNo = e.schoolClass?.classNo;
+    if (grade === undefined || classNo === undefined) continue;
+
+    const key = `${grade}-${classNo}`;
+    const cur =
+      byClass.get(key) ?? { grade, classNo, students: 0, merit: 0, demerit: 0 };
+    const mine = perStudent.get(e.studentProfileId);
+    cur.students += 1;
+    cur.merit += mine?.merit ?? 0;
+    cur.demerit += mine?.demerit ?? 0;
+    byClass.set(key, cur);
+  }
+
+  return [...byClass.values()]
+    .map((row) => ({
+      ...row,
+      net: row.merit - row.demerit,
+      // 인원이 0인 반은 위에서 만들어지지 않으므로 나눗셈이 안전하다.
+      avgNet: Math.round(((row.merit - row.demerit) / row.students) * 10) / 10,
+    }))
+    .sort((a, b) => a.grade - b.grade || a.classNo - b.classNo);
+}
+
+/** 많이 나온 항목 순위. 어떤 규정이 실제로 쓰이는지 보여준다. */
+export async function topRules(params: {
+  track: MeritTrack;
+  totalsYear: number | null;
+  limit: number;
+}) {
+  const rows = await prisma.meritAward.groupBy({
+    by: ["label", "kind"],
+    where: {
+      track: params.track,
+      status: "ACTIVE",
+      ...(params.totalsYear === null ? {} : { year: params.totalsYear }),
+    },
+    _count: { _all: true },
+    _sum: { points: true },
+    orderBy: { _count: { label: "desc" } },
+    take: params.limit,
+  });
+
+  return rows.map((row) => ({
+    label: row.label,
+    kind: row.kind,
+    count: row._count._all,
+    points: row._sum.points ?? 0,
+  }));
+}
+
+/** 트랙 전체 합계 — 통계 화면 머리글. */
+export async function trackTotals(params: {
+  track: MeritTrack;
+  totalsYear: number | null;
+}) {
+  return prisma.meritAward.groupBy({
+    by: ["kind"],
+    where: {
+      track: params.track,
+      status: "ACTIVE",
+      ...(params.totalsYear === null ? {} : { year: params.totalsYear }),
+    },
+    _count: { _all: true },
+    _sum: { points: true },
+  });
+}
