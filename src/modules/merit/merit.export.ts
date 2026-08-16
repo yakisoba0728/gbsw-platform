@@ -72,18 +72,38 @@ export type HistoryRow = {
   awardedByName: string;
   status: string;
   cancelReason: string | null;
+  occurredOn: Date;
   createdAt: Date;
 };
 
+/**
+ * 한 학생의 내역 시트.
+ *
+ * **발생일과 입력일을 둘 다 낸다.** 시트는 화면을 떠나 메일과 인쇄물로 돌아다니고,
+ * 거기서 "6월 12일 일을 8월 16일에 넣었다"를 되짚을 수 있는 흔적은 이 두 열뿐이다.
+ * 한 칸으로 합치면 받아 본 사람이 어느 쪽 날짜인지 물어볼 데가 없다.
+ */
 export function toHistorySheet(
   awards: HistoryRow[],
   meta: { track: MeritTrack; studentName: string },
 ): (string | number)[][] {
   return [
     [`${meta.studentName} · ${MERIT_TRACK_LABELS[meta.track]} 상벌점`],
-    ["학년도", "날짜", "구분", "항목", "점수", "메모", "부여자", "상태", "취소사유"],
+    [
+      "학년도",
+      "발생일",
+      "입력일",
+      "구분",
+      "항목",
+      "점수",
+      "메모",
+      "부여자",
+      "상태",
+      "취소사유",
+    ],
     ...awards.map((a) => [
       a.year,
+      formatDate(a.occurredOn),
       formatDate(a.createdAt),
       MERIT_KIND_LABELS[a.kind as MeritKind] ?? a.kind,
       a.label,

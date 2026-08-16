@@ -98,13 +98,14 @@ async function cleanUp(prisma: Awaited<typeof import("../src/core/db/client")>["
 }
 
 async function build(prisma: Awaited<typeof import("../src/core/db/client")>["prisma"]) {
-  const [invites, registration, verification, merit, ruleService] =
+  const [invites, registration, verification, merit, ruleService, datetime] =
     await Promise.all([
       import("../src/modules/invites/invite.service"),
       import("../src/modules/registration/registration.service"),
       import("../src/modules/verification/verification.service"),
       import("../src/modules/merit/award.service"),
       import("../src/modules/merit/rule.service"),
+      import("../src/lib/datetime"),
     ]);
 
   if (!verification.isMockVerification()) {
@@ -233,6 +234,12 @@ async function build(prisma: Awaited<typeof import("../src/core/db/client")>["pr
 
   const awarded: { label: string; count: number }[] = [];
 
+  // 부여는 발생일을 요구한다. 여기서는 전부 오늘로 넣고, 아래 4단계에서 과거로
+  // 흩는다 — 서비스가 "현재 학년도 안, 미래 아님"을 검사하므로 지어낸 날짜를
+  // 서비스에 통과시키려면 학년도 시작일을 여기서 다시 계산해야 하고, 그건 검사
+  // 규칙을 두 벌로 만드는 일이다.
+  const todayKst = datetime.parseDateInputKst(datetime.formatDateInput(new Date()));
+
   // 단건 — 여러 학생에게 서로 다른 항목
   const singles: [name: string, track: "school" | "dorm", needle: string, note: string | null][] =
     [
@@ -251,6 +258,7 @@ async function build(prisma: Awaited<typeof import("../src/core/db/client")>["pr
     await merit.awardMerit(admin, {
       studentProfileId: studentIds.get(name)!,
       ruleId: find(track, needle),
+      occurredOn: todayKst,
       note,
     });
   }
@@ -263,7 +271,10 @@ async function build(prisma: Awaited<typeof import("../src/core/db/client")>["pr
   const bulk = await merit.bulkAwardMerit(admin, {
     studentProfileIds: class2_3,
     ruleId: find("dorm", "인원 점검 시 지각"),
-    note: "6월 12일 점호",
+    occurredOn: todayKst,
+    // 날짜를 메모에 적지 않는다 — 발생일 열이 생기기 전에는 그렇게 새어 나갔고,
+    // 그래서 월별 추이가 엉뚱한 달을 셌다.
+    note: "22시 점호",
   });
   awarded.push({ label: "일괄 부여 (2학년 3반)", count: bulk.count });
 
@@ -272,6 +283,7 @@ async function build(prisma: Awaited<typeof import("../src/core/db/client")>["pr
     await merit.awardMerit(admin, {
       studentProfileId: studentIds.get("정하윤")!,
       ruleId: find("school", needle),
+      occurredOn: todayKst,
       note: null,
     });
   }
@@ -281,7 +293,8 @@ async function build(prisma: Awaited<typeof import("../src/core/db/client")>["pr
   await merit.awardMerit(admin, {
     studentProfileId: studentIds.get("정하윤")!,
     ruleId: find("school", "선도관리위원회 징계후"),
-    note: "6월 선도관리위원회 의결",
+    occurredOn: todayKst,
+    note: "선도관리위원회 의결",
   });
   awarded.push({ label: "상쇄점 (정하윤)", count: 1 });
 
@@ -299,9 +312,13 @@ async function build(prisma: Awaited<typeof import("../src/core/db/client")>["pr
   }
 
   // ── 4. 날짜 흩뿌리기 ──────────────────────────────────────
-  // 여기만 Prisma를 직접 건드린다. 부여는 언제나 "지금"으로 들어가므로(설계상
-  // 학년도를 입력으로 받지 않는다) 월별 추이 그래프가 한 달에 몰린다.
-  // 시연용으로 과거 달에 흩어 놓는다 — 실제 운영에서는 하지 않는 일이다.
+  // 여기만 Prisma를 직접 건드린다. 위에서 전부 오늘로 넣었으므로 그대로 두면
+  // 월별 추이 그래프가 한 달에 몰린다. 시연용으로 과거 달에 흩어 놓는다 —
+  // 실제 운영에서는 하지 않는 일이다.
+  //
+  // **발생일과 입력일을 조금 어긋나게 만든다.** 세 건 중 두 건은 일어난 뒤
+  // 하루·이틀 지나서 입력된 것으로 둔다 — 두 날짜를 나란히 보여주는 화면
+  // (내역 표의 "입력 …", 확인서 각주)이 시연 데이터에서 실제로 보여야 한다.
   const all = await prisma.meritAward.findMany({
     where: { studentProfile: { user: { email: { endsWith: `@${DEMO_DOMAIN}` } } } },
     select: { id: true },
@@ -313,11 +330,19 @@ async function build(prisma: Awaited<typeof import("../src/core/db/client")>["pr
     const when = new Date(now);
     when.setMonth(when.getMonth() - monthsBack);
     when.setDate(Math.min(3 + ((i * 7) % 25), 28));
-    // 이번 달로 흩어진 건이 오늘을 넘지 않게 한다 — 미래에 부여된 기록은
+    // 이번 달로 흩어진 건이 오늘을 넘지 않게 한다 — 미래에 일어난 기록은
     // 화면에서 바로 눈에 띄고, 있을 수 없는 상태다.
+    const occurred = when > now ? now : when;
+
+    const entered = new Date(occurred);
+    entered.setDate(entered.getDate() + (i % 3)); // 0·1·2일 뒤에 입력
+
     await prisma.meritAward.update({
       where: { id: row.id },
-      data: { createdAt: when > now ? now : when },
+      data: {
+        occurredOn: datetime.parseDateInputKst(datetime.formatDateInput(occurred)),
+        createdAt: entered > now ? now : entered,
+      },
     });
   }
 

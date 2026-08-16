@@ -12,7 +12,7 @@ import {
 } from "@/core/authz/merit-track";
 import { signedPoints } from "@/components/merit/kind-badge";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
-import { formatDate, formatDateTime } from "@/lib/datetime";
+import { formatDate, formatDateTime, isSameKstDate } from "@/lib/datetime";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import { getStudentHeader, getStudentMerit } from "@/modules/merit/award.service";
 import { PrintButton } from "./print-button";
@@ -73,6 +73,7 @@ export default async function MeritPrintPage({
   }
 
   const active = view.awards.filter((a) => a.status === "ACTIVE");
+  const backdated = active.filter((a) => !isSameKstDate(a.occurredOn, a.createdAt));
   const scope = isYearScoped(track)
     ? `${view.year}학년도`
     : "입학부터 전체 누적";
@@ -131,7 +132,8 @@ export default async function MeritPrintPage({
           <table className="w-full border-t border-line text-left text-[13px]">
             <thead>
               <tr className="border-b border-line2 text-[11.5px] text-mut">
-                <th className="py-2 font-semibold">날짜</th>
+                {/* 발생일이다. 입력일이 다른 줄에는 * 표시가 붙고 아래 각주가 설명한다. */}
+                <th className="py-2 font-semibold">발생일</th>
                 <th className="py-2 font-semibold">구분</th>
                 <th className="py-2 font-semibold">항목</th>
                 <th className="py-2 text-right font-semibold">점수</th>
@@ -142,7 +144,10 @@ export default async function MeritPrintPage({
               {active.map((award) => (
                 <tr key={award.id} className="border-b border-line2 last:border-0">
                   <td className="py-2 whitespace-nowrap text-mut">
-                    {formatDate(award.createdAt)}
+                    {formatDate(award.occurredOn)}
+                    {!isSameKstDate(award.occurredOn, award.createdAt) && (
+                      <span title={`입력 ${formatDate(award.createdAt)}`}>*</span>
+                    )}
                   </td>
                   <td className="py-2 whitespace-nowrap">
                     {MERIT_KIND_LABELS[award.kind as MeritKind] ?? award.kind}
@@ -163,6 +168,23 @@ export default async function MeritPrintPage({
               ))}
             </tbody>
           </table>
+        )}
+
+        {/*
+          종이에는 툴팁이 없다. 발생일과 입력일이 갈리는 줄이 하나라도 있으면
+          각주로 그 사실과 날짜를 적어 둔다 — 확인서를 받아 든 사람이 "왜 이 날짜냐"를
+          물어볼 데가 없기 때문이다.
+        */}
+        {backdated.length > 0 && (
+          <p className="mt-4 text-[11.5px] text-mut">
+            * 표시한 항목은 일이 일어난 뒤에 입력된 기록입니다 (표의 날짜는 발생일).
+            {backdated.map((award) => (
+              <span key={award.id} className="ml-1">
+                {formatDate(award.occurredOn)} → 입력 {formatDate(award.createdAt)}
+                {";"}
+              </span>
+            ))}
+          </p>
         )}
 
         <footer className="mt-6 border-t border-line pt-3 text-[11.5px] text-mut">

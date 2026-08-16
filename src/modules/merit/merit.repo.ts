@@ -148,6 +148,8 @@ export type NewAward = {
   kind: string;
   label: string;
   points: number;
+  /** 실제로 일어난 날 (KST 자정). 입력 시각은 createdAt이 따로 남긴다. */
+  occurredOn: Date;
   note: string | null;
   awardedByUserId: string;
   awardedByName: string;
@@ -204,6 +206,11 @@ export async function cancelAward(
 /**
  * 한 학생의 내역. **year가 null이면 학년도 조건이 붙지 않는다** — 기숙사(누적)다.
  * 취소된 기록도 돌려준다 (화면에 취소 표시로 남아야 한다).
+ *
+ * **정렬은 발생일 기준이다.** 사람이 읽는 것은 "언제 일어났나"의 시간순이지
+ * "언제 입력됐나"가 아니다 — 지난주 일을 오늘 넣으면 입력순 목록에서는 그것이
+ * 맨 위에 서서, 확인서를 받아 든 사람이 사건 순서를 거꾸로 읽는다.
+ * 같은 날이 여럿이면 입력순으로 가른다 (순서가 매번 흔들리지 않게).
  */
 export async function listAwards(params: {
   studentProfileId: string;
@@ -216,7 +223,7 @@ export async function listAwards(params: {
       track: params.track,
       ...(params.year === null ? {} : { year: params.year }),
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ occurredOn: "desc" }, { createdAt: "desc" }],
     select: {
       id: true,
       year: true,
@@ -229,6 +236,9 @@ export async function listAwards(params: {
       cancelledByName: true,
       cancelledAt: true,
       cancelReason: true,
+      occurredOn: true,
+      // 화면이 "6월 12일에 일어난 일을 8월 16일에 넣었다"를 보여줄 수 있어야
+      // 하므로 입력 시각도 함께 낸다.
       createdAt: true,
     },
   });
@@ -620,6 +630,68 @@ export async function trackTotals(params: {
   });
 }
 
+/**
+ * 학생별 **벌점** 합계. 기준 초과 명단이 쓴다.
+ *
+ * **재적이 아니라 부여 쪽에서 모은다.** 명단에서 시작해 학생마다 합계를 붙이면
+ * 그 학년도 재적 행이 없는 학생(반 미배정, 학적 변동 중)이 통째로 빠지는데,
+ * 이 화면이 답해야 하는 질문("선을 넘은 사람이 누구인가")에서 그쪽이야말로
+ * 놓치면 안 되는 사람이다. 소속은 뒤에 붙이고, 없으면 없다고 적는다.
+ *
+ * 순점수가 아니라 벌점 총합만 센다 — 상점으로 덮었다고 규정 위반이 없던 일이
+ * 되지는 않는다 (demeritLevel과 같은 기준).
+ */
+export async function demeritTotalsByStudent(params: {
+  track: MeritTrack;
+  /** null이면 전체 누적(기숙사). */
+  totalsYear: number | null;
+  /** 주면 이 학생들 것만. 반을 골라 보는 화면이 쓴다. */
+  studentProfileIds?: string[];
+}) {
+  return prisma.meritAward.groupBy({
+    by: ["studentProfileId"],
+    where: {
+      track: params.track,
+      kind: "DEMERIT",
+      // 취소된 기록은 빠진다 — 다른 집계 경로와 같은 규칙이다. 취소한 벌점 때문에
+      // 선도위 명단에 오르면 그건 취소가 취소가 아니라는 뜻이 된다.
+      status: "ACTIVE",
+      // 지워진 계정은 명단에 올리지 않는다. groupBy도 관계 조건을 받는다.
+      studentProfile: { user: { deletedAt: null } },
+      ...(params.totalsYear === null ? {} : { year: params.totalsYear }),
+      ...(params.studentProfileIds
+        ? { studentProfileId: { in: params.studentProfileIds } }
+        : {}),
+    },
+    _sum: { points: true },
+  });
+}
+
+/**
+ * 이름·학생코드와 **그 학년도의** 소속. 기준 초과 명단이 id 목록에 신원을 붙인다.
+ * 소속을 스냅샷하지 않고 조인하는 이유는 findStudentHeader와 같다.
+ */
+export async function findStudentsWithClass(ids: string[], year: number) {
+  if (ids.length === 0) return [];
+
+  return prisma.studentProfile.findMany({
+    where: { id: { in: ids }, user: { deletedAt: null } },
+    select: {
+      id: true,
+      studentCode: true,
+      user: { select: { name: true } },
+      enrollments: {
+        where: { year, status: "ENROLLED" },
+        take: 1,
+        select: {
+          number: true,
+          schoolClass: { select: { grade: true, classNo: true } },
+        },
+      },
+    },
+  });
+}
+
 // ── 그래프용 조회 ─────────────────────────────────────────────
 
 /**
@@ -636,7 +708,7 @@ export async function trackTotals(params: {
 export async function listAwardsForChart(params: {
   track: MeritTrack;
   year: number | null;
-  /** 이 시각 이후만. 기숙사(누적)의 최근 12개월을 자를 때 쓴다. */
+  /** 이 날 이후에 **일어난** 것만. 기숙사(누적)의 최근 12개월을 자를 때 쓴다. */
   since?: Date;
   /** 주면 이 학생들 것만. 반을 골라 보는 화면이 쓴다. */
   studentProfileIds?: string[];
@@ -646,13 +718,16 @@ export async function listAwardsForChart(params: {
       track: params.track,
       status: "ACTIVE",
       ...(params.year === null ? {} : { year: params.year }),
-      ...(params.since ? { createdAt: { gte: params.since } } : {}),
+      // 하한도 발생일로 잡는다. createdAt으로 자르면 축과 기준이 어긋나서,
+      // 축 밖의 행을 실어 왔다가 monthlyTotals가 버리고(헛일) 정작 지난달에
+      // 일어난 일을 오늘 입력한 기록은 하한에 걸려 빠진다.
+      ...(params.since ? { occurredOn: { gte: params.since } } : {}),
       ...(params.studentProfileIds
         ? { studentProfileId: { in: params.studentProfileIds } }
         : {}),
     },
     select: {
-      createdAt: true,
+      occurredOn: true,
       kind: true,
       points: true,
       rule: { select: { category: true } },
@@ -663,6 +738,11 @@ export async function listAwardsForChart(params: {
 /**
  * 최근 부여 흐름. "오늘 무슨 일이 있었나"를 한 눈에 보는 용도라
  * 취소된 것도 포함한다 — 취소 역시 일어난 일이다.
+ *
+ * **여기만 입력순(createdAt)을 유지한다.** 이 화면이 답하는 질문은 "방금 무엇이
+ * 들어왔나"이지 "언제 일어났나"가 아니다 — 발생일순으로 세우면 지난주 일을 방금
+ * 넣은 기록이 목록 아래로 내려가, 잘못 넣은 것을 되돌리러 온 사람이 못 찾는다.
+ * 대신 발생일을 함께 실어 화면이 두 날짜를 나란히 보여준다.
  */
 export async function listRecentAwards(params: { track: MeritTrack; limit: number }) {
   const rows = await prisma.meritAward.findMany({
@@ -676,6 +756,7 @@ export async function listRecentAwards(params: { track: MeritTrack; limit: numbe
       points: true,
       status: true,
       awardedByName: true,
+      occurredOn: true,
       createdAt: true,
       batchId: true,
       studentProfile: {
@@ -691,6 +772,7 @@ export async function listRecentAwards(params: { track: MeritTrack; limit: numbe
     points: row.points,
     status: row.status,
     awardedByName: row.awardedByName,
+    occurredOn: row.occurredOn,
     createdAt: row.createdAt,
     batchId: row.batchId,
     studentProfileId: row.studentProfile.id,

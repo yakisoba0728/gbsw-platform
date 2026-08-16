@@ -413,6 +413,17 @@ model MeritAward {
   label  String
   points Int
 
+  /// **실제로 그 일이 일어난 날.** KST 자정으로 저장한다 (StudentProfile.birthDate와
+  /// 같은 규약 — src/lib/datetime.ts의 parseDateInputKst 하나만 거친다).
+  ///
+  /// createdAt(입력한 시각)과 나누는 이유: 교사는 금요일 일을 월요일에 넣고,
+  /// 사감은 어젯밤 점호를 다음 날 아침에 넣는다. 하나로 두면 그 차이가 메모의
+  /// 자연어("6월 12일 점호")로 새고, 월별 추이는 엉뚱한 달을 세며, 선도위에
+  /// 내는 근거 자료에 틀린 날짜가 박힌다.
+  ///
+  /// createdAt은 그대로 남는다 — 그쪽은 "언제 입력됐나"라는 감사 사실이다.
+  occurredOn DateTime
+
   note String?
 
   /// 계정이 지워지면 null이 된다 — 오등록 완전 삭제를 막지 않기 위해서다.

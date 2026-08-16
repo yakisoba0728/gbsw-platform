@@ -6,6 +6,7 @@ import {
   MERIT_TRACK_LABELS,
 } from "@/core/authz/merit-track";
 import { isRole, ROLE_LABELS } from "@/core/authz/roles";
+import { formatDate } from "@/lib/datetime";
 
 /**
  * 감사로그 화면 전용 라벨 모음. 저장값(recordAudit에 넘긴 action 문자열)은
@@ -283,6 +284,21 @@ function meritSubjectSummary(metadata: Record<string, unknown>): string | null {
 
 function meritAwardSummary(metadata: Record<string, unknown>): string | null {
   const parts = meritSubject(metadata);
+
+  /*
+   * 발생일은 늘 적는다. 로그 줄은 자기 시각(언제 입력됐나)을 이미 옆에 달고
+   * 있으므로, 여기 발생일이 함께 있어야 "6월 12일 일을 8월 16일에 넣었다"가
+   * 한 줄에서 읽힌다. 같은 날이라 겹쳐 보일 때도 빼지 않는다 — 이 함수는
+   * 그 줄의 시각을 모르고, 조건부로 감추면 "안 적힌 것"과 "같은 날"이
+   * 구분되지 않는다.
+   */
+  if (typeof metadata.occurredOn === "string") {
+    const occurredOn = new Date(metadata.occurredOn);
+    if (!Number.isNaN(occurredOn.getTime())) {
+      parts.push(`발생 ${formatDate(occurredOn)}`);
+    }
+  }
+
   // 일괄 부여였다는 사실만 표시한다 — batchId 자체는 내부 식별자라 화면에선
   // 의미가 없다 (enrollment:import의 batch와 같은 처리).
   if (typeof metadata.batchId === "string") parts.push("일괄");

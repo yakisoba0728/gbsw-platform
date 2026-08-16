@@ -15,7 +15,7 @@ function kst(iso: string): Date {
 
 function award(over: Partial<ChartAward> = {}): ChartAward {
   return {
-    createdAt: kst("2026-03-15T10:00:00"),
+    occurredOn: kst("2026-03-15T10:00:00"),
     kind: "MERIT",
     points: 5,
     rule: { category: "교내 환경" },
@@ -89,10 +89,10 @@ describe("monthlyTotals", () => {
     expect(points.filter((p) => p.merit === 0 && p.demerit === 0)).toHaveLength(11);
   });
 
-  it("월 구분이 KST 기준이다 — 밤 11시 부여가 전날로 밀리지 않는다", () => {
+  it("월 구분이 KST 기준이다 — 밤 11시에 일어난 일이 전날로 밀리지 않는다", () => {
     // KST 4월 1일 00:30 = UTC 3월 31일 15:30. UTC로 자르면 3월로 새어 나간다.
     const points = monthlyTotals(
-      [award({ createdAt: kst("2026-04-01T00:30:00"), points: 7 })],
+      [award({ occurredOn: kst("2026-04-01T00:30:00"), points: 7 })],
       axis,
     );
 
@@ -103,7 +103,7 @@ describe("monthlyTotals", () => {
   it("월말 밤 시각도 그 달에 남는다", () => {
     // KST 3월 31일 23:30 = UTC 3월 31일 14:30 — 둘 다 3월이라 안전한 대조군.
     const points = monthlyTotals(
-      [award({ createdAt: kst("2026-03-31T23:30:00"), points: 3 })],
+      [award({ occurredOn: kst("2026-03-31T23:30:00"), points: 3 })],
       axis,
     );
 
@@ -112,7 +112,7 @@ describe("monthlyTotals", () => {
 
   it("축 밖의 기록은 버린다", () => {
     const points = monthlyTotals(
-      [award({ createdAt: kst("2020-05-05T10:00:00"), points: 99 })],
+      [award({ occurredOn: kst("2020-05-05T10:00:00"), points: 99 })],
       axis,
     );
 

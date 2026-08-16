@@ -61,6 +61,8 @@ describe("toHistorySheet", () => {
       cancelledByName: null,
       cancelledAt: null,
       cancelReason: null,
+      // 6월 12일에 일어난 일을 6월 15일에 입력했다 — 두 열이 다른 값이어야 한다.
+      occurredOn: new Date("2026-06-11T15:00:00.000Z"),
       createdAt: new Date("2026-06-15T04:30:00.000Z"),
     },
     {
@@ -75,6 +77,7 @@ describe("toHistorySheet", () => {
       cancelledByName: "이정민",
       cancelledAt: new Date("2026-06-16T04:30:00.000Z"),
       cancelReason: "오기입",
+      occurredOn: new Date("2026-05-27T15:00:00.000Z"),
       createdAt: new Date("2026-05-28T04:30:00.000Z"),
     },
   ];
@@ -83,30 +86,36 @@ describe("toHistorySheet", () => {
     const sheet = toHistorySheet(awards, { track: "SCHOOL", studentName: "김민준" });
     expect(sheet[0]).toEqual(["김민준 · 교내 상벌점"]);
     expect(sheet[1]).toEqual([
-      "학년도", "날짜", "구분", "항목", "점수", "메모", "부여자", "상태", "취소사유",
+      "학년도", "발생일", "입력일", "구분", "항목", "점수", "메모", "부여자", "상태", "취소사유",
     ]);
+  });
+
+  it("발생일과 입력일을 둘 다 낸다 — 시트는 화면을 떠나 돌아다닌다", () => {
+    const sheet = toHistorySheet(awards, { track: "SCHOOL", studentName: "김민준" });
+    expect(sheet[2][1]).toBe("2026. 6. 12.");
+    expect(sheet[2][2]).toBe("2026. 6. 15.");
   });
 
   it("상점·벌점을 한글로 옮긴다", () => {
     const sheet = toHistorySheet(awards, { track: "SCHOOL", studentName: "김민준" });
-    expect(sheet[2][2]).toBe("상점");
-    expect(sheet[3][2]).toBe("벌점");
+    expect(sheet[2][3]).toBe("상점");
+    expect(sheet[3][3]).toBe("벌점");
   });
 
   it("취소된 줄은 상태와 사유가 채워진다", () => {
     const sheet = toHistorySheet(awards, { track: "SCHOOL", studentName: "김민준" });
-    expect(sheet[3][7]).toBe("취소");
-    expect(sheet[3][8]).toBe("오기입");
+    expect(sheet[3][8]).toBe("취소");
+    expect(sheet[3][9]).toBe("오기입");
   });
 
   it("취소 안 된 줄의 사유 칸은 빈 문자열이다 — null이면 엑셀에서 깨진다", () => {
     const sheet = toHistorySheet(awards, { track: "SCHOOL", studentName: "김민준" });
-    expect(sheet[2][8]).toBe("");
-    expect(sheet[2][5]).toBe("학급 청소");
+    expect(sheet[2][9]).toBe("");
+    expect(sheet[2][6]).toBe("학급 청소");
   });
 
   it("메모가 없으면 빈 문자열이다", () => {
     const sheet = toHistorySheet(awards, { track: "DORM", studentName: "김민준" });
-    expect(sheet[3][5]).toBe("");
+    expect(sheet[3][6]).toBe("");
   });
 });

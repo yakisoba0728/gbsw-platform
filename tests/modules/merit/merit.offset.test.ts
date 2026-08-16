@@ -42,6 +42,8 @@ const classSummaries = vi.fn();
 const trackTotals = vi.fn();
 const topRules = vi.fn();
 const listAwardsForChart = vi.fn();
+const demeritTotalsByStudent = vi.fn();
+const findStudentsWithClass = vi.fn();
 
 vi.mock("@/modules/merit/merit.repo", () => ({
   totals,
@@ -52,6 +54,8 @@ vi.mock("@/modules/merit/merit.repo", () => ({
   trackTotals,
   topRules,
   listAwardsForChart,
+  demeritTotalsByStudent,
+  findStudentsWithClass,
 }));
 vi.mock("@/core/audit/audit", () => ({ recordAudit: vi.fn() }));
 vi.mock("@/modules/academic-year/academic-year.service", () => ({
@@ -87,6 +91,8 @@ beforeEach(() => {
   });
   listClassRoster.mockReset().mockResolvedValue([]);
   classSummaries.mockReset().mockResolvedValue([]);
+  demeritTotalsByStudent.mockReset().mockResolvedValue([]);
+  findStudentsWithClass.mockReset().mockResolvedValue([]);
   trackTotals
     .mockReset()
     .mockResolvedValue(MIXED.map((r) => ({ ...r, _count: { _all: 1 } })));

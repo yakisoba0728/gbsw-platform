@@ -55,3 +55,14 @@ export function formatDateInput(value: Date): string {
 export function parseDateInputKst(value: string): Date {
   return new Date(`${value}T00:00:00+09:00`);
 }
+
+/**
+ * 두 시각이 KST 기준 같은 날인가.
+ *
+ * 상벌점의 발생일과 입력일이 갈리는지 판정하는 데 쓴다 — 같으면 화면에 두 번
+ * 적을 이유가 없고, 다르면 반드시 둘 다 보여야 한다. 밀리초를 직접 비교하면
+ * 안 된다 (발생일은 자정, 입력일은 그날 아무 시각이다).
+ */
+export function isSameKstDate(a: Date, b: Date): boolean {
+  return formatDateInput(a) === formatDateInput(b);
+}

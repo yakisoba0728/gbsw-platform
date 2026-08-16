@@ -21,6 +21,11 @@ const service = await import("@/modules/merit/award.service");
 const YEAR = 2026;
 const PAST = YEAR - 1;
 
+// 발생일은 그 학년도(3월~이듬해 2월) 안이어야 한다 — 서비스가 검사한다.
+// 기준 시각도 함께 고정한다 (오늘 날짜에 따라 흔들리지 않게).
+const OCCURRED_ON = new Date("2026-06-12T00:00:00+09:00");
+const NOW = new Date("2026-08-16T10:00:00+09:00");
+
 const made = { users: [] as string[], profiles: [] as string[], rules: [] as string[] };
 
 const admin = {
@@ -128,6 +133,7 @@ describe("repo.createAwards — 일괄 부여 트랜잭션", () => {
       kind: "DEMERIT",
       label: "점호 지각",
       points: 3,
+      occurredOn: OCCURRED_ON,
       note: null,
       awardedByUserId: admin.id,
       awardedByName: "통합테스트",
@@ -161,11 +167,11 @@ describe("service.bulkAwardMerit — 실제 경로", () => {
     const a = await makeStudent("c");
     const b = await makeStudent("d");
 
-    const result = await service.bulkAwardMerit(admin, {
-      studentProfileIds: [a, b],
-      ruleId,
-      note: null,
-    });
+    const result = await service.bulkAwardMerit(
+      admin,
+      { studentProfileIds: [a, b], ruleId, occurredOn: OCCURRED_ON, note: null },
+      NOW,
+    );
     expect(result).toEqual({ count: 2 });
 
     const rows = await prisma.meritAward.findMany({
@@ -191,11 +197,16 @@ describe("service.bulkAwardMerit — 실제 경로", () => {
     const a = await makeStudent("e");
 
     await expect(
-      service.bulkAwardMerit(admin, {
-        studentProfileIds: [a, "존재하지-않는-학생"],
-        ruleId,
-        note: null,
-      }),
+      service.bulkAwardMerit(
+        admin,
+        {
+          studentProfileIds: [a, "존재하지-않는-학생"],
+          ruleId,
+          occurredOn: OCCURRED_ON,
+          note: null,
+        },
+        NOW,
+      ),
     ).rejects.toThrow("STUDENT_NOT_FOUND");
 
     expect(await prisma.meritAward.count({ where: { ruleId } })).toBe(0);
@@ -233,6 +244,7 @@ describe("합계 범위 — 교내는 학년도별, 기숙사는 누적", () => 
             kind: "MERIT",
             label,
             points,
+            occurredOn: OCCURRED_ON,
             note: null,
             awardedByUserId: admin.id,
             awardedByName: "통합테스트",
@@ -278,6 +290,7 @@ describe("합계 범위 — 교내는 학년도별, 기숙사는 누적", () => 
         kind: "DEMERIT",
         label: "복장 불량",
         points: 3,
+        occurredOn: OCCURRED_ON,
         note: null,
         awardedByUserId: admin.id,
         awardedByName: "통합테스트",
@@ -315,6 +328,7 @@ describe("합계 범위 — 교내는 학년도별, 기숙사는 누적", () => 
         kind: "DEMERIT",
         label: "지각",
         points: 1,
+        occurredOn: OCCURRED_ON,
         note: null,
         awardedByUserId: admin.id,
         awardedByName: "통합테스트",
@@ -342,5 +356,67 @@ describe("합계 범위 — 교내는 학년도별, 기숙사는 누적", () => 
     const row = await prisma.meritAward.findUnique({ where: { id: award.id } });
     expect(row?.cancelReason).toBe("첫 번째");
     expect(row?.cancelledByName).toBe(admin.name);
+  });
+});
+
+/**
+ * 기준 초과 명단의 SQL 쪽 조건 — 목으로는 확인할 수 없는 부분이다.
+ *
+ * 서비스 테스트는 repo가 돌려준 합계를 기준으로 거르는 것까지만 본다.
+ * "취소된 벌점은 애초에 합계에 안 들어간다"는 repo의 where 절에 있고, 그게
+ * 빠지면 취소한 벌점 때문에 선도위 명단에 오르는 학생이 생긴다.
+ */
+describe("repo.demeritTotalsByStudent — 취소·종류 거르기", () => {
+  it("취소된 벌점과 상점은 세지 않는다", async () => {
+    const demeritRule = await makeRule({
+      track: "SCHOOL",
+      kind: "DEMERIT",
+      label: "명단용 벌점",
+      points: 10,
+    });
+    const meritRule = await makeRule({
+      track: "SCHOOL",
+      kind: "MERIT",
+      label: "명단용 상점",
+      points: 50,
+    });
+    const student = await makeStudent("w");
+
+    const base = {
+      studentProfileId: student,
+      year: YEAR,
+      track: "SCHOOL",
+      occurredOn: OCCURRED_ON,
+      note: null,
+      awardedByUserId: admin.id,
+      awardedByName: "통합테스트",
+      batchId: null,
+    };
+
+    // 살아 있는 벌점 10 + 취소된 벌점 10 + 상점 50.
+    await prisma.meritAward.create({
+      data: { ...base, ruleId: demeritRule, kind: "DEMERIT", label: "명단용 벌점", points: 10 },
+    });
+    const cancelled = await prisma.meritAward.create({
+      data: { ...base, ruleId: demeritRule, kind: "DEMERIT", label: "명단용 벌점", points: 10 },
+    });
+    await prisma.meritAward.create({
+      data: { ...base, ruleId: meritRule, kind: "MERIT", label: "명단용 상점", points: 50 },
+    });
+    await repo.cancelAward(cancelled.id, {
+      userId: admin.id,
+      name: admin.name,
+      reason: "오기입",
+    });
+
+    const rows = await repo.demeritTotalsByStudent({
+      track: "SCHOOL",
+      totalsYear: YEAR,
+      studentProfileIds: [student],
+    });
+
+    // 살아 있는 벌점 한 건만 — 취소분도 상점도 섞이지 않는다.
+    expect(rows).toHaveLength(1);
+    expect(rows[0]._sum.points).toBe(10);
   });
 });

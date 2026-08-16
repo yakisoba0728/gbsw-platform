@@ -141,6 +141,13 @@ export default async function MeritStatsPage({
 
           <CategoryChart slices={stats.categories} scopeLabel={stats.chartRange} />
 
+          <WatchList
+            rows={stats.watchList}
+            track={track}
+            thresholds={stats.thresholds}
+            scoped={stats.scope !== null}
+          />
+
           <ClassTable rows={stats.classes} track={track} />
           <TopRules rows={stats.topRules} />
         </>
@@ -168,6 +175,110 @@ function Stat({
         {value}
       </div>
     </div>
+  );
+}
+
+/**
+ * 기준 초과 학생 명단.
+ *
+ * 반별 표의 강조는 "그 반 안에서 누가 높은가"까지만 답한다. 선도위원회를 준비할
+ * 때 필요한 것은 **전교에서 선을 넘은 사람 전부**이고, 그러려면 지금까지는 반
+ * 명단을 하나씩 열어 봐야 했다.
+ *
+ * **표시만 한다.** 여기서 회부·통보·상태 변경이 일어나지 않는다 — 불이익을 주는
+ * 판단은 사람이 하고, 화면은 눈에 띄게 해줄 뿐이다.
+ */
+function WatchList({
+  rows,
+  track,
+  thresholds,
+  scoped,
+}: {
+  rows: MeritStats["watchList"];
+  track: MeritTrack;
+  thresholds: { warn: number; danger: number };
+  /** 반을 골라 보는 중인가. 명단의 범위를 문구에 적는다. */
+  scoped: boolean;
+}) {
+  const where = scoped ? "이 반" : "전교";
+
+  return (
+    <section className="rounded-card border border-line bg-surface">
+      <header className="border-b border-line px-5 py-4">
+        <h2 className="text-base font-extrabold text-ink">기준 초과 학생</h2>
+        {/*
+          기준 숫자를 그대로 적는다. DEMERIT_THRESHOLDS는 학교가 정할 값의
+          임시값이라, 화면에 안 보이면 틀린 값으로 몇 학기가 지나갈 수 있다.
+        */}
+        <p className="mt-1 text-[12px] text-mut">
+          {where}에서 벌점 {thresholds.warn}점 이상인 학생입니다 (
+          {thresholds.danger}점 이상은 붉은 배경). 상점·상쇄점과 무관하게 벌점
+          총합만 셉니다.
+        </p>
+        <p className="mt-1 text-[12px] text-mut">
+          <strong className="font-bold">보여주기만 합니다</strong> — 기준을 넘어도
+          자동으로 회부·통보되는 것은 없습니다. 기준 점수는 학칙·기숙사 규정에
+          맞춰 정해야 하는 임시값입니다.
+        </p>
+      </header>
+
+      {rows.length === 0 ? (
+        <p className="p-8 text-center text-[12.5px] text-mut">
+          {where}에 벌점 {thresholds.warn}점 이상인 학생이 없습니다.
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[420px] text-left text-sm">
+            <colgroup>
+              <col className="w-[48px]" />
+              <col />
+              <col className="w-[132px]" />
+              <col className="w-[84px]" />
+            </colgroup>
+            <thead>
+              <tr className="border-b border-line2 text-[12px] text-mut">
+                <th className="px-5 py-2.5 font-semibold">#</th>
+                <th className="px-3 py-2.5 font-semibold">이름</th>
+                <th className="px-3 py-2.5 font-semibold">학급</th>
+                <th className="px-5 py-2.5 font-semibold">벌점</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, index) => (
+                <tr
+                  key={row.studentProfileId}
+                  className="border-b border-line2 last:border-0"
+                >
+                  <td className="px-5 py-2.5 text-mut2">{index + 1}</td>
+                  <td className="p-0">
+                    <Link
+                      href={`/merit/students/${row.studentProfileId}?track=${track}`}
+                      className="block px-3 py-2.5 font-semibold text-ink hover:text-pri hover:underline"
+                    >
+                      {row.name}
+                    </Link>
+                  </td>
+                  <td className="px-3 py-2.5 text-mut">
+                    {/*
+                      소속이 없어도 명단에서 빼지 않는다 — 반 미배정·학적 변동 중인
+                      학생이야말로 눈에서 놓치기 쉬운 쪽이다.
+                    */}
+                    {row.grade !== null && row.classNo !== null
+                      ? `${row.grade}학년 ${row.classNo}반${row.number !== null ? ` ${row.number}번` : ""}`
+                      : "소속 미배정"}
+                  </td>
+                  <td className="px-5 py-2.5">
+                    <span className={demeritCellClass(track, row.demerit)}>
+                      {row.demerit}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }
 
