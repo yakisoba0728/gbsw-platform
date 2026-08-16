@@ -105,9 +105,7 @@ export async function saveEnrollments(
       userId: before.userId,
     };
 
-    const changed = FIELDS.filter(
-      (f) => before[f] !== change[f],
-    ) as unknown as string[];
+    const changed = FIELDS.filter((f) => before[f] !== change[f]);
     if (changed.length === 0) continue;
 
     const active = keepsAccountActive(input.status);

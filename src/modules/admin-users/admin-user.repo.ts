@@ -191,10 +191,6 @@ export async function updateUserAndEnrollment(
   });
 }
 
-export async function setStatus(userId: string, status: string): Promise<void> {
-  await prisma.user.update({ where: { id: userId }, data: { status } });
-}
-
 /**
  * 계정을 활성/비활성으로 바꾼다. 비활성화는 세션 삭제까지 **한 트랜잭션**으로
  * 묶는다 (M11) — 중간에 실패하면 "비활성인데 세션은 살아있음"이 된다.

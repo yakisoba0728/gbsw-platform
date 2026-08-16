@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { emailField, phoneField } from "@/lib/user-fields";
+import { VerificationError } from "./verification.error";
 
 export const VERIFICATION_CHANNELS = ["EMAIL", "PHONE"] as const;
 export type VerificationChannel = (typeof VERIFICATION_CHANNELS)[number];
@@ -26,7 +27,13 @@ export function normalizeTarget(
       : phoneTargetSchema.safeParse(raw);
 
   if (!parsed.success) {
-    throw new Error(parsed.error.issues[0]?.message ?? "형식이 올바르지 않습니다.");
+    // 익명 Error가 아니라 VerificationError를 던진다 — 호출부(register/actions.ts)가
+    // instanceof로 가려 message를 그대로 화면에 보여주므로, 익명 Error면 여기서
+    // 정성껏 만든 한글 문구("휴대폰 번호 형식이 올바르지 않습니다." 등)가
+    // 일반 폴백에 덮여 사라진다.
+    throw new VerificationError(
+      parsed.error.issues[0]?.message ?? "형식이 올바르지 않습니다.",
+    );
   }
   return parsed.data;
 }
@@ -39,5 +46,5 @@ export const requestCodeSchema = z.object({
 export const confirmCodeSchema = z.object({
   channel: channelSchema,
   target: z.string().min(1),
-  code: z.string().regex(/^\d{6}$/, "인증번호 6자리를 입력하세요."),
+  code: z.string().regex(/^\d{6}$/, "인증번호 6자리를 입력해 주세요."),
 });

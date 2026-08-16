@@ -9,8 +9,12 @@ import { z } from "zod";
  * 수정 화면의 변경 감지가 같이 틀어진다.
  */
 
-/** 저장 표기를 010-0000-0000으로 통일한다. */
-export function normalizePhone(value: string): string {
+/**
+ * 저장 표기를 010-0000-0000으로 통일한다.
+ * 내보내지 않는다 — 전화번호를 손보는 경로는 아래 phoneField 하나여야 한다.
+ * 따로 부를 수 있게 열어 두면 검증을 건너뛴 정규화가 생긴다.
+ */
+function normalizePhone(value: string): string {
   const d = value.replaceAll(/\D/g, "");
   return d.length === 11
     ? `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`
@@ -29,7 +33,7 @@ export const phoneField = z
 export const emailField = z
   .string()
   .trim()
-  .min(1, "이메일을 입력하세요.")
+  .min(1, "이메일을 입력해 주세요.")
   .max(200)
   .refine(
     (v) => z.email().safeParse(v).success,

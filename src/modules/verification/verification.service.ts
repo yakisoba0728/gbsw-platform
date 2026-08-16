@@ -1,5 +1,6 @@
 import { createHash, randomInt, timingSafeEqual } from "node:crypto";
 import { readRequestContext } from "@/core/audit/request-context";
+import { VerificationError } from "./verification.error";
 import * as repo from "./verification.repo";
 import {
   normalizeTarget,
@@ -14,7 +15,8 @@ import { sendVerification } from "./verification.sender";
  * 대신 대상별 발송 횟수 제한과 코드 대조 실패 제한으로 남용을 막는다.
  */
 
-export class VerificationError extends Error {}
+/** 실물은 verification.error.ts에 하나뿐이다 — 기존 import 경로를 지키려고 다시 내보낸다. */
+export { VerificationError };
 
 /** 코드 유효시간 */
 const TTL_MINUTES = 5;
@@ -80,7 +82,7 @@ export async function requestCode(
   const recent = await repo.countRecentSends(channel, target, since);
   if (recent >= MAX_SENDS_PER_HOUR) {
     throw new VerificationError(
-      "인증번호를 너무 많이 요청했습니다. 잠시 후 다시 시도하세요.",
+      "인증번호를 너무 많이 요청했습니다. 잠시 후 다시 시도해 주세요.",
     );
   }
 
@@ -92,7 +94,7 @@ export async function requestCode(
     const recentByIp = await repo.countRecentSendsByIp(ip, since);
     if (recentByIp >= MAX_SENDS_PER_HOUR_PER_IP) {
       throw new VerificationError(
-        "인증번호를 너무 많이 요청했습니다. 잠시 후 다시 시도하세요.",
+        "인증번호를 너무 많이 요청했습니다. 잠시 후 다시 시도해 주세요.",
       );
     }
   }
@@ -130,7 +132,9 @@ export async function requestCode(
     );
   }
 
-  return isMockVerification() ? { mockCode: code } : {};
+  // 목업이면 위에서 이미 돌아갔다 — 여기까지 온 건 실제로 발송한 경우뿐이라
+  // 코드를 돌려주지 않는다.
+  return {};
 }
 
 /** 사용자가 입력한 코드를 대조한다. */
