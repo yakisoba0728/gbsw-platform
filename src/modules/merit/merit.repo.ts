@@ -294,7 +294,7 @@ export async function findStudentProfileById(id: string) {
   });
 }
 
-// ── 일괄 부여 ─────────────────────────────────────────────────
+// ── 일괄 부여·취소 ────────────────────────────────────────────
 
 /**
  * 여러 건을 **한 트랜잭션으로** 넣는다. 절반만 들어간 상태를 만들지 않는다.
@@ -315,6 +315,77 @@ export async function createAwards(items: NewAward[]): Promise<{ id: string }[]>
     // 100명 × 1문장. 기본 5초로도 충분하지만 느린 디스크에서 여유를 둔다.
     { timeout: 30_000, maxWait: 5_000 },
   );
+}
+
+/**
+ * 여러 학생을 한 번에 찾는다. 일괄 부여가 쓴다 —
+ * 예전엔 학생 수만큼(최대 100회) 순차로 왕복했다.
+ *
+ * 못 찾은 id가 있으면 결과 길이가 줄어든다. 호출부가 길이로 판별한다.
+ */
+export async function findStudentProfilesByIds(ids: string[]) {
+  return prisma.studentProfile.findMany({
+    where: { id: { in: ids }, user: { deletedAt: null } },
+    select: {
+      id: true,
+      studentCode: true,
+      user: { select: { id: true, name: true } },
+    },
+  });
+}
+
+/** 한 묶음에 속한, 아직 살아 있는 기록들. 일괄 취소가 무엇을 지울지 미리 센다. */
+export async function findBatch(batchId: string) {
+  return prisma.meritAward.findMany({
+    where: { batchId, status: "ACTIVE" },
+    // 순서를 고정한다 — 감사로그를 이 순서로 남기므로 매번 같아야 읽기 좋다.
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      studentProfileId: true,
+      track: true,
+      kind: true,
+      label: true,
+      points: true,
+      // 단건 취소(findAward)와 같은 이유로 이름을 함께 가져온다. 없으면 28명
+      // 묶음의 감사로그 28줄이 전부 똑같아져 누구 기록이 뒤집혔는지 구분되지 않는다.
+      studentProfile: { select: { user: { select: { name: true } } } },
+    },
+  });
+}
+
+/**
+ * 여러 건을 한 번에 취소하고 **실제로 고친 것의 id만** 돌려준다.
+ *
+ * **묶음(batchId)이 아니라 id 목록을 받는다.** 호출부는 미리 조회한 목록을 근거로
+ * 감사로그를 남기는데, 갱신 범위가 그 목록과 다르면 로그와 실제가 어긋난다 —
+ * 목록에 없던 행이 뒤집히면 이름 없는 취소가 되고, 목록에 있던 행이 그 사이 남에게
+ * 취소되면 "내가 취소했다"는 거짓 줄이 남는다. id로 좁히고 결과를 돌려주면 둘 다 없다.
+ *
+ * **ACTIVE인 것만 고친다** — 단건 취소와 같은 이유로, 먼저 취소한 사람의
+ * 이름·사유·시각을 덮지 않는다.
+ */
+export async function cancelAwards(
+  ids: string[],
+  by: { userId: string; name: string; reason: string },
+): Promise<string[]> {
+  if (ids.length === 0) return [];
+
+  const rows = await prisma.meritAward.updateManyAndReturn({
+    where: { id: { in: ids }, status: "ACTIVE" },
+    data: {
+      status: "CANCELLED",
+      cancelledByUserId: by.userId,
+      cancelledByName: by.name,
+      // 한 번의 취소는 한 시각이다 — 행마다 new Date()를 부르면 같은 작업이
+      // 밀리초 단위로 흩어져 로그를 시각으로 묶을 수 없다.
+      cancelledAt: new Date(),
+      cancelReason: by.reason,
+    },
+    select: { id: true },
+  });
+
+  return rows.map((row) => row.id);
 }
 
 // ── 목록 조회 ─────────────────────────────────────────────────
@@ -499,6 +570,51 @@ export async function findStudentHeader(id: string, year: number) {
     number: enrollment?.number ?? null,
     status: enrollment?.status ?? null,
   };
+}
+
+/**
+ * 최근 부여 흐름. "오늘 무슨 일이 있었나"를 한 눈에 보는 용도라
+ * 취소된 것도 포함한다 — 취소 역시 일어난 일이다.
+ *
+ * **여기만 입력순(createdAt)을 유지한다.** 이 화면이 답하는 질문은 "방금 무엇이
+ * 들어왔나"이지 "언제 일어났나"가 아니다 — 발생일순으로 세우면 지난주 일을 방금
+ * 넣은 기록이 목록 아래로 내려가, 잘못 넣은 것을 되돌리러 온 사람이 못 찾는다.
+ * 대신 발생일을 함께 실어 화면이 두 날짜를 나란히 보여준다.
+ */
+export async function listRecentAwards(params: { track: MeritTrack; limit: number }) {
+  const rows = await prisma.meritAward.findMany({
+    where: { track: params.track },
+    orderBy: { createdAt: "desc" },
+    take: params.limit,
+    select: {
+      id: true,
+      kind: true,
+      label: true,
+      points: true,
+      status: true,
+      awardedByName: true,
+      occurredOn: true,
+      createdAt: true,
+      batchId: true,
+      studentProfile: {
+        select: { id: true, user: { select: { name: true } } },
+      },
+    },
+  });
+
+  return rows.map((row) => ({
+    id: row.id,
+    kind: row.kind,
+    label: row.label,
+    points: row.points,
+    status: row.status,
+    awardedByName: row.awardedByName,
+    occurredOn: row.occurredOn,
+    createdAt: row.createdAt,
+    batchId: row.batchId,
+    studentProfileId: row.studentProfile.id,
+    studentName: row.studentProfile.user.name,
+  }));
 }
 
 // ── 통계 ──────────────────────────────────────────────────────
@@ -728,124 +844,6 @@ export async function listAwardsForChart(params: {
       kind: true,
       points: true,
       rule: { select: { category: true } },
-    },
-  });
-}
-
-/**
- * 최근 부여 흐름. "오늘 무슨 일이 있었나"를 한 눈에 보는 용도라
- * 취소된 것도 포함한다 — 취소 역시 일어난 일이다.
- *
- * **여기만 입력순(createdAt)을 유지한다.** 이 화면이 답하는 질문은 "방금 무엇이
- * 들어왔나"이지 "언제 일어났나"가 아니다 — 발생일순으로 세우면 지난주 일을 방금
- * 넣은 기록이 목록 아래로 내려가, 잘못 넣은 것을 되돌리러 온 사람이 못 찾는다.
- * 대신 발생일을 함께 실어 화면이 두 날짜를 나란히 보여준다.
- */
-export async function listRecentAwards(params: { track: MeritTrack; limit: number }) {
-  const rows = await prisma.meritAward.findMany({
-    where: { track: params.track },
-    orderBy: { createdAt: "desc" },
-    take: params.limit,
-    select: {
-      id: true,
-      kind: true,
-      label: true,
-      points: true,
-      status: true,
-      awardedByName: true,
-      occurredOn: true,
-      createdAt: true,
-      batchId: true,
-      studentProfile: {
-        select: { id: true, user: { select: { name: true } } },
-      },
-    },
-  });
-
-  return rows.map((row) => ({
-    id: row.id,
-    kind: row.kind,
-    label: row.label,
-    points: row.points,
-    status: row.status,
-    awardedByName: row.awardedByName,
-    occurredOn: row.occurredOn,
-    createdAt: row.createdAt,
-    batchId: row.batchId,
-    studentProfileId: row.studentProfile.id,
-    studentName: row.studentProfile.user.name,
-  }));
-}
-
-// ── 일괄 취소 ─────────────────────────────────────────────────
-
-/** 한 묶음에 속한, 아직 살아 있는 기록들. 일괄 취소가 무엇을 지울지 미리 센다. */
-export async function findBatch(batchId: string) {
-  return prisma.meritAward.findMany({
-    where: { batchId, status: "ACTIVE" },
-    // 순서를 고정한다 — 감사로그를 이 순서로 남기므로 매번 같아야 읽기 좋다.
-    orderBy: { createdAt: "asc" },
-    select: {
-      id: true,
-      studentProfileId: true,
-      track: true,
-      kind: true,
-      label: true,
-      points: true,
-      // 단건 취소(findAward)와 같은 이유로 이름을 함께 가져온다. 없으면 28명
-      // 묶음의 감사로그 28줄이 전부 똑같아져 누구 기록이 뒤집혔는지 구분되지 않는다.
-      studentProfile: { select: { user: { select: { name: true } } } },
-    },
-  });
-}
-
-/**
- * 여러 건을 한 번에 취소하고 **실제로 고친 것의 id만** 돌려준다.
- *
- * **묶음(batchId)이 아니라 id 목록을 받는다.** 호출부는 미리 조회한 목록을 근거로
- * 감사로그를 남기는데, 갱신 범위가 그 목록과 다르면 로그와 실제가 어긋난다 —
- * 목록에 없던 행이 뒤집히면 이름 없는 취소가 되고, 목록에 있던 행이 그 사이 남에게
- * 취소되면 "내가 취소했다"는 거짓 줄이 남는다. id로 좁히고 결과를 돌려주면 둘 다 없다.
- *
- * **ACTIVE인 것만 고친다** — 단건 취소와 같은 이유로, 먼저 취소한 사람의
- * 이름·사유·시각을 덮지 않는다.
- */
-export async function cancelAwards(
-  ids: string[],
-  by: { userId: string; name: string; reason: string },
-): Promise<string[]> {
-  if (ids.length === 0) return [];
-
-  const rows = await prisma.meritAward.updateManyAndReturn({
-    where: { id: { in: ids }, status: "ACTIVE" },
-    data: {
-      status: "CANCELLED",
-      cancelledByUserId: by.userId,
-      cancelledByName: by.name,
-      // 한 번의 취소는 한 시각이다 — 행마다 new Date()를 부르면 같은 작업이
-      // 밀리초 단위로 흩어져 로그를 시각으로 묶을 수 없다.
-      cancelledAt: new Date(),
-      cancelReason: by.reason,
-    },
-    select: { id: true },
-  });
-
-  return rows.map((row) => row.id);
-}
-
-/**
- * 여러 학생을 한 번에 찾는다. 일괄 부여가 쓴다 —
- * 예전엔 학생 수만큼(최대 100회) 순차로 왕복했다.
- *
- * 못 찾은 id가 있으면 결과 길이가 줄어든다. 호출부가 길이로 판별한다.
- */
-export async function findStudentProfilesByIds(ids: string[]) {
-  return prisma.studentProfile.findMany({
-    where: { id: { in: ids }, user: { deletedAt: null } },
-    select: {
-      id: true,
-      studentCode: true,
-      user: { select: { id: true, name: true } },
     },
   });
 }
