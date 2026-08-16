@@ -26,6 +26,9 @@ describe("applyRoster() — 명단에서 빠지면 소프트 삭제되고, 다�
   const parentUserId = randomUUID();
   const sessionId = randomUUID();
   const studentCode = `ITST${randomUUID().slice(0, 4).toUpperCase()}`;
+  const pendingByStudentCode = `ITPS${randomUUID().slice(0, 8).toUpperCase()}`;
+  const pendingByAdminCode = `ITPA${randomUUID().slice(0, 8).toUpperCase()}`;
+  const usedCode = `ITUS${randomUUID().slice(0, 8).toUpperCase()}`;
   let studentProfileId: string;
   let parentStudentId: string;
 
@@ -96,9 +99,43 @@ describe("applyRoster() — 명단에서 빠지면 소프트 삭제되고, 다�
       data: { parentUserId, studentId: studentProfileId },
     });
     parentStudentId = link.id;
+
+    // 폐기 대상 두 갈래 — 학생이 직접 만든 코드(createdById)와 관리자가 이 학생
+    // 몫으로 만든 코드(studentId). 그리고 건드리면 안 되는 USED 코드 하나.
+    await prisma.invite.createMany({
+      data: [
+        {
+          code: pendingByStudentCode,
+          role: "PARENT",
+          status: "PENDING",
+          createdById: studentUserId,
+          studentId: studentProfileId,
+        },
+        {
+          code: pendingByAdminCode,
+          role: "PARENT",
+          status: "PENDING",
+          createdById: adminId,
+          studentId: studentProfileId,
+        },
+        {
+          code: usedCode,
+          role: "PARENT",
+          status: "USED",
+          createdById: adminId,
+          studentId: studentProfileId,
+          usedById: parentUserId,
+          usedAt: new Date(),
+        },
+      ],
+    });
   });
 
   afterAll(async () => {
+    // Invite.createdBy가 Restrict라 사용자보다 먼저 지워야 한다.
+    await prisma.invite.deleteMany({
+      where: { code: { in: [pendingByStudentCode, pendingByAdminCode, usedCode] } },
+    });
     await prisma.parentStudent.deleteMany({ where: { id: parentStudentId } });
     await prisma.user.deleteMany({
       where: { id: { in: [parentUserId, studentUserId, adminId] } },
@@ -111,7 +148,7 @@ describe("applyRoster() — 명단에서 빠지면 소프트 삭제되고, 다�
 
   it("명단에서 빼면 계정은 살아 있고 deletedAt만 찍힌다 — 세션은 끊기고, " +
     "학부모 연결은 계정이 안 지워지므로 함께 끊기지 않는다", async () => {
-    await applyRoster(YEAR, {
+    const result = await applyRoster(YEAR, {
       assignments: [],
       newStudents: [],
       inviteExpiresAt: null,
@@ -119,6 +156,24 @@ describe("applyRoster() — 명단에서 빠지면 소프트 삭제되고, 다�
       deleteStudentProfileIds: [studentProfileId],
       createdById: adminId,
     });
+
+    // 미사용 코드는 폐기되고, 서비스가 감사로그를 남길 수 있도록 목록으로 돌아온다.
+    // 이미 쓰인 코드는 건드리지 않는다 — 가입 기록이 사라지면 안 된다.
+    const revoked = await prisma.invite.findMany({
+      where: { code: { in: [pendingByStudentCode, pendingByAdminCode, usedCode] } },
+      select: { code: true, status: true, id: true },
+    });
+    const statusByCode = new Map(revoked.map((i) => [i.code, i.status]));
+    expect(statusByCode.get(pendingByStudentCode)).toBe("REVOKED");
+    expect(statusByCode.get(pendingByAdminCode)).toBe("REVOKED");
+    expect(statusByCode.get(usedCode)).toBe("USED");
+
+    const revokedIds = revoked
+      .filter((i) => i.code !== usedCode)
+      .map((i) => i.id)
+      .sort();
+    expect(result.revokedInvites.map((i) => i.id).sort()).toEqual(revokedIds);
+    expect(result.revokedInvites.every((i) => i.role === "PARENT")).toBe(true);
 
     const studentUser = await prisma.user.findUnique({ where: { id: studentUserId } });
     expect(studentUser).not.toBeNull();
