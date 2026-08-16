@@ -219,7 +219,7 @@ export async function applyRosterPlan(
     }
     throw error;
   }
-  const { invites } = applied;
+  const { invites, revokedInvites } = applied;
 
   // 이번 반영으로 되살아난(deletedAt이 지워진) 학생 수 — 이미 소프트 삭제됐던
   // studentProfileId가 다시 배정을 받았다는 뜻이다. "다시 넣으면 돌아온다"는 사실이
@@ -269,6 +269,22 @@ export async function applyRosterPlan(
       action: "user:soft-delete",
       targetType: "User",
       targetId: m.userId,
+    });
+  }
+
+  // 명단에서 빠지면서 함께 폐기된 미사용 초대코드마다 한 줄씩 남긴다.
+  // registration.service.ts가 invite:auto-revoke를 추가한 것과 정확히 같은 이유다 —
+  // 코드가 조용히 죽으면 "왜 이 코드가 안 되느냐"는 물음에 답할 자료가 아무 데도
+  // 없다. 감사로그는 **트랜잭션이 커밋된 뒤에만** 남긴다(이 저장소의 관례).
+  // 코드 값 자체는 남기지 않는다 — invite:create와 같은 처리다.
+  for (const invite of revokedInvites) {
+    await recordAudit({
+      actorUserId: actor.id,
+      actorName: actor.name,
+      action: "invite:revoke:roster",
+      targetType: "Invite",
+      targetId: invite.id,
+      metadata: { role: invite.role },
     });
   }
 

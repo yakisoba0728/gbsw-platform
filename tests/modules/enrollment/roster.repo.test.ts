@@ -8,6 +8,7 @@ const userUpdateMany = vi.fn();
 const sessionDeleteMany = vi.fn();
 const inviteCreate = vi.fn();
 const inviteUpdateMany = vi.fn();
+const inviteFindMany = vi.fn();
 const transaction = vi.fn();
 
 const tx = {
@@ -16,7 +17,7 @@ const tx = {
   studentProfile: { findMany: studentProfileFindMany },
   user: { updateMany: userUpdateMany },
   session: { deleteMany: sessionDeleteMany },
-  invite: { create: inviteCreate, updateMany: inviteUpdateMany },
+  invite: { create: inviteCreate, updateMany: inviteUpdateMany, findMany: inviteFindMany },
 };
 
 vi.mock("@/core/db/client", () => ({
@@ -92,6 +93,7 @@ beforeEach(() => {
   sessionDeleteMany.mockReset().mockResolvedValue({ count: 0 });
   inviteCreate.mockReset().mockResolvedValue(undefined);
   inviteUpdateMany.mockReset().mockResolvedValue({ count: 0 });
+  inviteFindMany.mockReset().mockResolvedValue([]);
   transaction.mockReset().mockImplementation(async (fn: (tx: unknown) => unknown) => fn(tx));
 });
 
@@ -107,6 +109,7 @@ describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
     "계정은 지우지 않고 deletedAt만 찍는다 — 학적·소속·상벌점 기록이 스프레드시트 " +
     "행 하나로 사라지면 안 된다", async () => {
     studentProfileFindMany.mockResolvedValue([{ userId: "u-del-1" }, { userId: "u-del-2" }]);
+    inviteFindMany.mockResolvedValue([{ id: "inv-1", role: "PARENT" }]);
 
     await applyRoster(2026, input({ deleteStudentProfileIds: ["sp-del-1", "sp-del-2"] }));
 
@@ -114,7 +117,7 @@ describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
       where: { id: { in: ["sp-del-1", "sp-del-2"] }, user: { role: "STUDENT" } },
       select: { userId: true },
     });
-    expect(inviteUpdateMany).toHaveBeenCalledWith({
+    expect(inviteFindMany).toHaveBeenCalledWith({
       where: {
         status: "PENDING",
         OR: [
@@ -122,6 +125,10 @@ describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
           { studentId: { in: ["sp-del-1", "sp-del-2"] } },
         ],
       },
+      select: { id: true, role: true },
+    });
+    expect(inviteUpdateMany).toHaveBeenCalledWith({
+      where: { id: { in: ["inv-1"] }, status: "PENDING" },
       data: { status: "REVOKED" },
     });
     expect(userUpdateMany).toHaveBeenCalledWith({
@@ -173,10 +180,43 @@ describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
 
     await applyRoster(2026, input({ deleteStudentProfileIds: ["sp-del-1"] }));
 
-    const call = inviteUpdateMany.mock.calls[0]![0] as {
+    const call = inviteFindMany.mock.calls[0]![0] as {
       where: { OR: { studentId?: { in: string[] } }[] };
     };
     expect(call.where.OR.some((c) => c.studentId?.in.includes("sp-del-1"))).toBe(true);
+  });
+
+  it("폐기한 코드를 돌려준다 — 서비스가 커밋 뒤에 감사로그를 남길 수 있어야 한다. " +
+    "repo는 감사로그를 남기지 않는다(계층 규칙)", async () => {
+    studentProfileFindMany.mockResolvedValue([{ userId: "u-del-1" }]);
+    inviteFindMany.mockResolvedValue([
+      { id: "inv-1", role: "PARENT" },
+      { id: "inv-2", role: "PARENT" },
+    ]);
+
+    const result = await applyRoster(2026, input({ deleteStudentProfileIds: ["sp-del-1"] }));
+
+    expect(result.revokedInvites).toEqual([
+      { id: "inv-1", role: "PARENT" },
+      { id: "inv-2", role: "PARENT" },
+    ]);
+  });
+
+  it("폐기할 코드가 없으면 updateMany를 아예 부르지 않고 빈 배열을 돌려준다", async () => {
+    studentProfileFindMany.mockResolvedValue([{ userId: "u-del-1" }]);
+    inviteFindMany.mockResolvedValue([]);
+
+    const result = await applyRoster(2026, input({ deleteStudentProfileIds: ["sp-del-1"] }));
+
+    expect(inviteUpdateMany).not.toHaveBeenCalled();
+    expect(result.revokedInvites).toEqual([]);
+  });
+
+  it("삭제 대상이 없으면 revokedInvites도 빈 배열이다", async () => {
+    const result = await applyRoster(2026, input({ deleteStudentProfileIds: [] }));
+
+    expect(inviteFindMany).not.toHaveBeenCalled();
+    expect(result.revokedInvites).toEqual([]);
   });
 });
 

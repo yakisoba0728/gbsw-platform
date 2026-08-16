@@ -86,7 +86,7 @@ let codeCounter = 0;
 
 beforeEach(() => {
   listExisting.mockReset().mockResolvedValue([재학생]);
-  applyRoster.mockReset().mockResolvedValue({ invites: [] });
+  applyRoster.mockReset().mockResolvedValue({ invites: [], revokedInvites: [] });
   recordAudit.mockReset();
   codeCounter = 0;
   generateUniqueCode.mockReset().mockImplementation(async () => `GBSWCODE${++codeCounter}`);
@@ -142,6 +142,7 @@ describe("applyRosterPlan()", () => {
     listExisting.mockResolvedValue([]);
     applyRoster.mockResolvedValue({
       invites: [{ name: "김동혁", code: "GBSWCODE1", grade: 1, classNo: 5, number: 7 }],
+      revokedInvites: [],
     });
 
     const newRow = { ...row, studentCode: "" };
@@ -502,6 +503,43 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
       await applyRosterPlan(admin, 2026, [무관한신규줄], ["sp-1"], null);
 
       expect(applyRoster.mock.calls[0]![1].deleteStudentProfileIds).toEqual(["sp-1"]);
+    });
+  });
+
+  describe("폐기된 초대코드 감사로그", () => {
+    it("명단 반영이 폐기한 코드마다 한 줄씩 남긴다 — registration.service.ts가 " +
+      "invite:auto-revoke를 추가한 것과 같은 이유다(왜 이 코드가 죽었는지 답할 " +
+      "방법이 아무 데도 없으면 안 된다)", async () => {
+      applyRoster.mockResolvedValue({
+        invites: [],
+        revokedInvites: [
+          { id: "inv-1", role: "PARENT" },
+          { id: "inv-2", role: "PARENT" },
+        ],
+      });
+
+      await applyRosterPlan(admin, 2026, [무관한신규줄], ["sp-1"], null);
+
+      const revokeLogs = recordAudit.mock.calls
+        .map((c) => c[0])
+        .filter((a) => a.action === "invite:revoke:roster");
+      expect(revokeLogs).toHaveLength(2);
+      expect(revokeLogs[0]).toMatchObject({
+        actorUserId: admin.id,
+        actorName: admin.name,
+        targetType: "Invite",
+        targetId: "inv-1",
+        metadata: { role: "PARENT" },
+      });
+      expect(revokeLogs[1]!.targetId).toBe("inv-2");
+    });
+
+    it("폐기된 코드가 없으면 아무 줄도 남기지 않는다", async () => {
+      await applyRosterPlan(admin, 2026, [무관한신규줄], ["sp-1"], null);
+
+      expect(
+        recordAudit.mock.calls.some((c) => c[0].action === "invite:revoke:roster"),
+      ).toBe(false);
     });
   });
 });

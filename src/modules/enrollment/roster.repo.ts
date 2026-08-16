@@ -150,6 +150,9 @@ export async function applyRoster(year: number, input: ApplyInput) {
   try {
     return await prisma.$transaction(
       async (tx) => {
+        /** 이번 반영이 폐기한 미사용 초대코드. 서비스가 커밋 뒤 감사로그로 옮긴다. */
+        let revokedInvites: { id: string; role: string }[] = [];
+
         // 재배정을 다시 넣기 전에 소프트 삭제부터 끝낸다.
         if (input.deleteStudentProfileIds.length > 0) {
           // listExisting(role: STUDENT)과 트랜잭션 사이에 승격되면 대상이 더는 학생이
@@ -168,7 +171,11 @@ export async function applyRoster(year: number, input: ApplyInput) {
           // 정리해 줬지만, 이제 StudentProfile이 안 지워지므로 명시적으로 막아야
           // 한다. 안 막으면 학부모가 몇 달 뒤에도 그 코드로 가입해 삭제된 학생에게
           // 연결될 수 있다.
-          await tx.invite.updateMany({
+          //
+          // 바꾸기 전에 대상을 먼저 읽는다 — updateMany만으로는 "몇 건"밖에 알 수
+          // 없어 서비스가 감사로그에 무엇을 폐기했는지 적을 수 없다. repo는 감사로그를
+          // 남기지 않으므로(계층 규칙) 목록을 돌려주고, 서비스가 커밋 뒤에 남긴다.
+          revokedInvites = await tx.invite.findMany({
             where: {
               status: "PENDING",
               OR: [
@@ -176,8 +183,17 @@ export async function applyRoster(year: number, input: ApplyInput) {
                 { studentId: { in: input.deleteStudentProfileIds } },
               ],
             },
-            data: { status: "REVOKED" },
+            select: { id: true, role: true },
           });
+
+          if (revokedInvites.length > 0) {
+            // 방금 읽은 id로만 좁힌다 — 돌려준 목록과 실제로 바뀐 행이 정확히 같아야
+            // 감사로그가 사실과 어긋나지 않는다. status 조건은 그대로 둔다(이중 안전).
+            await tx.invite.updateMany({
+              where: { id: { in: revokedInvites.map((i) => i.id) }, status: "PENDING" },
+              data: { status: "REVOKED" },
+            });
+          }
 
           // 명단에서 빠진 학생은 지우지 않고 표시만 한다. 학적·소속·상벌점 기록이
           // 스프레드시트 행 하나로 사라지면 안 된다 — 학교생활기록부의 기재 근거다.
@@ -311,7 +327,7 @@ export async function applyRoster(year: number, input: ApplyInput) {
           });
         }
 
-        return { invites };
+        return { invites, revokedInvites };
       },
       // 전교생 규모 × 학생당 두어 문장. 기본 5초로는 부족하다.
       { timeout: 120_000, maxWait: 10_000 },

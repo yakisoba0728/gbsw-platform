@@ -19,12 +19,15 @@ import { formatDate } from "@/lib/datetime";
  */
 
 /**
- * 실제로 recordAudit에 쓰이는 액션 문자열 13종 + invite:create:parent·
- * account:change-password(코드에는 있지만 이 목록에선 15번째로 함께 관리).
+ * 화면이 아는 감사로그 액션 전부.
  *
- * `invite:create:parent`는 지금 코드의 recordAudit 호출부(invite.service.ts)는
- * 전부 "invite:create"만 남긴다 — 하지만 과거 데이터에 이 값으로 기록된 행이
- * 남아 있어(스키마를 바꾸지 않으므로 지울 수 없다) 라벨은 계속 필요하다.
+ * **개수를 세어 적지 않는다.** 예전엔 "13종 + 2"라고 적혀 있었는데 액션이 늘 때
+ * 아무도 이 줄을 고치지 않아 실제 배열과 어긋났다 — 세어야 알 수 있는 값은
+ * 주석이 아니라 배열이 답한다(`AUDIT_ACTIONS.length`).
+ *
+ * 지금 코드가 안 남기는 값도 남아 있다. `invite:create:parent`는 지금의 recordAudit
+ * 호출부(invite.service.ts)가 전부 "invite:create"만 남기지만, 과거 데이터에 이
+ * 값으로 기록된 행이 있어(불변 로그라 고쳐 쓸 수 없다) 라벨은 계속 필요하다.
  */
 export const AUDIT_ACTIONS = [
   "account:bootstrap",
@@ -37,6 +40,12 @@ export const AUDIT_ACTIONS = [
   // 학생이 직접 폐기하는 invite:revoke와 구분한다 — 행위자가 없다(actorUserId
   // null, actorName은 "(가입 시도자)").
   "invite:auto-revoke",
+  // 명단 반영으로 학생이 명단에서 빠지면서, 그 학생에게 딸린 미사용 코드가 함께
+  // 폐기됐을 때 (roster.service.ts). invite:auto-revoke와 나누는 이유는 원인이
+  // 다르기 때문이다 — 저쪽은 가입 시도자가 2차 요소를 반복해 틀린 사건(행위자
+  // 없음, 이상 징후일 수 있다)이고 이쪽은 관리자가 명단을 올린 결과(행위자
+  // 있음, 일상적인 일)다. 한 이름으로 합치면 로그에서 둘을 못 가른다.
+  "invite:revoke:roster",
   "user:update",
   "user:activate",
   "user:deactivate",
@@ -80,6 +89,7 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   "invite:create:parent": "학부모 코드 발급",
   "invite:revoke": "초대코드 폐기",
   "invite:auto-revoke": "초대코드 자동 폐기",
+  "invite:revoke:roster": "초대코드 폐기 (명단에서 제외)",
   "user:update": "사용자 정보 수정",
   "user:activate": "계정 활성화",
   "user:deactivate": "계정 비활성화",
@@ -107,6 +117,7 @@ const ACTION_TONES: Record<AuditAction, BadgeTone> = {
   "invite:create:parent": "approved",
   "invite:revoke": "cancelled",
   "invite:auto-revoke": "cancelled",
+  "invite:revoke:roster": "cancelled",
   "user:update": "info",
   "user:activate": "approved",
   "user:deactivate": "cancelled",
@@ -352,6 +363,7 @@ const METADATA_FORMATTERS: Partial<
   "academic-year:set-current": setCurrentYearSummary,
   "invite:create": roleSummary,
   "invite:create:parent": roleSummary,
+  "invite:revoke:roster": roleSummary,
   "registration:complete": roleSummary,
   "authz:denied": authzDeniedSummary,
   "merit:rule:delete": meritSubjectSummary,
