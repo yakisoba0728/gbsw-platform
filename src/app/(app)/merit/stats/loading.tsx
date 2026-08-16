@@ -1,21 +1,37 @@
+import {
+  Skeleton,
+  SkeletonScreen,
+  SkeletonStats,
+  SkeletonTable,
+  SkeletonTabs,
+} from "@/components/ui/skeleton";
+
 /**
- * 로딩 스켈레톤. 집계 질의가 도는 동안 빈 화면 대신 뼈대를 보여준다 —
- * 실제로 빨라지지는 않지만 "멈췄나"라는 인상을 없앤다.
+ * `/merit/stats`의 로딩 뼈대.
+ *
+ * 통계 칸은 **다섯 개**다(상점·벌점·상쇄점·순점수·부여 건수). 전에는 세 개를
+ * 그려서, 집계가 도착하면 한 줄이 5칸으로 다시 짜이며 아래 그래프가 통째로
+ * 밀렸다. 이 화면이 상벌점에서 가장 오래 기다리는 화면이라 그 덜컹임이 가장
+ * 길게 보이던 자리이기도 하다.
  */
 export default function Loading() {
   return (
-    <div className="mx-auto max-w-5xl space-y-4" aria-busy="true" aria-live="polite">
-      <span className="sr-only">불러오는 중</span>
-      <div className="flex gap-2">
-        <div className="h-9 w-24 animate-pulse rounded-full bg-soft" />
-        <div className="h-9 w-24 animate-pulse rounded-full bg-soft" />
-      </div>
-      <div className="grid grid-cols-3 gap-3">
-        {[0, 1, 2].map((i) => (
-          <div key={i} className="h-[84px] animate-pulse rounded-card bg-soft" />
-        ))}
-      </div>
-      <div className="h-64 animate-pulse rounded-card bg-soft" />
-    </div>
+    <SkeletonScreen>
+      <SkeletonTabs />
+
+      {/* "2026학년도 집계 · 반 편성 2026학년도" 한 줄 */}
+      <Skeleton className="h-4 w-64 rounded-btn" />
+
+      <SkeletonStats count={5} />
+
+      {/* 월별 추이 · 반별(학생별) 순점수 · 분류별 분포 */}
+      <Skeleton className="h-[236px]" />
+      <Skeleton className="h-[236px]" />
+      <Skeleton className="h-[236px]" />
+
+      {/* 기준 초과 학생 · 반별 현황 · 많이 나온 항목 */}
+      <SkeletonTable rows={4} />
+      <SkeletonTable rows={6} />
+    </SkeletonScreen>
   );
 }

@@ -1,21 +1,44 @@
+import {
+  Skeleton,
+  SkeletonScreen,
+  SkeletonTable,
+  SkeletonTabs,
+} from "@/components/ui/skeleton";
+
 /**
- * 로딩 스켈레톤. 집계 질의가 도는 동안 빈 화면 대신 뼈대를 보여준다 —
- * 실제로 빨라지지는 않지만 "멈췄나"라는 인상을 없앤다.
+ * `/merit`의 로딩 뼈대.
+ *
+ * **이 화면의 관리자 모습에 맞춘다** — 탭 · 검색 폼 · 학년/반 칩 카드 · 반 명단.
+ * 실제로 기다림이 생기는 쪽이 거기다(반을 고르면 명단 집계가 돈다). 전에는 네
+ * 화면이 같은 뼈대를 쓰면서 여기에 통계 카드 세 칸을 그렸는데, 이 화면에는
+ * 통계 칸이 애초에 없어서 내용이 도착할 때 자리가 통째로 튀었다.
  */
 export default function Loading() {
   return (
-    <div className="mx-auto max-w-5xl space-y-4" aria-busy="true" aria-live="polite">
-      <span className="sr-only">불러오는 중</span>
+    <SkeletonScreen>
+      <SkeletonTabs />
+
+      {/* 검색 폼 — 입력칸 + 버튼 */}
       <div className="flex gap-2">
-        <div className="h-9 w-24 animate-pulse rounded-full bg-soft" />
-        <div className="h-9 w-24 animate-pulse rounded-full bg-soft" />
+        <Skeleton className="h-[42px] flex-1 rounded-field" />
+        <Skeleton className="h-[42px] w-[72px] rounded-btn" />
       </div>
-      <div className="grid grid-cols-3 gap-3">
-        {[0, 1, 2].map((i) => (
-          <div key={i} className="h-[84px] animate-pulse rounded-card bg-soft" />
-        ))}
+
+      {/* 학년·반 칩 카드 */}
+      <div className="rounded-card border border-line bg-surface p-4">
+        <div className="flex flex-wrap gap-1.5">
+          {Array.from({ length: 4 }, (_, i) => (
+            <Skeleton key={i} className="h-[30px] w-[68px] rounded-full" />
+          ))}
+        </div>
+        <div className="mt-2.5 flex flex-wrap gap-1.5">
+          {Array.from({ length: 5 }, (_, i) => (
+            <Skeleton key={i} className="h-[30px] w-[60px] rounded-full" />
+          ))}
+        </div>
       </div>
-      <div className="h-64 animate-pulse rounded-card bg-soft" />
-    </div>
+
+      <SkeletonTable />
+    </SkeletonScreen>
   );
 }
