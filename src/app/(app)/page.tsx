@@ -8,14 +8,26 @@ import { MeritTotalsCards } from "@/components/merit/merit-totals";
 import { formatDate } from "@/lib/datetime";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import {
-  getMeritStats,
+  getMeritSummary,
   getMyMerit,
   listMyChildren,
   listRecentAwards,
   getChildMerit,
-  type MeritStats,
+  type MeritSummary,
   type StudentMeritView,
 } from "@/modules/merit/award.service";
+
+/**
+ * 카드 제목은 메뉴(nav.ts)와 같은 이름을 쓴다. MERIT_TRACK_LABELS(교내·기숙사)는
+ * 탭·배지처럼 짧아야 하는 자리용이라 제목으로는 쓰지 않는다.
+ */
+const TRACK_TITLES: Record<MeritTrack, string> = {
+  SCHOOL: "그린마일리지",
+  DORM: "기숙사 상벌점",
+};
+
+/** 대시보드에 남길 최근 부여 줄 수. 넘치면 "전체 보기"로 넘긴다. */
+const RECENT_ROWS = 6;
 
 /**
  * 대시보드. 역할에 따라 다른 요약을 보여준다.
@@ -66,13 +78,28 @@ function NoYearCard() {
 }
 
 async function AdminSummary({ user }: { user: SessionUser }) {
-  let school: MeritStats | null = null;
-  let recent: Awaited<ReturnType<typeof listRecentAwards>> = [];
+  let summaries: MeritSummary[];
+  let recent: (Awaited<ReturnType<typeof listRecentAwards>>[number] & {
+    track: MeritTrack;
+  })[];
   try {
-    [school, recent] = await Promise.all([
-      getMeritStats(user, "SCHOOL"),
+    const [school, dorm, schoolRecent, dormRecent] = await Promise.all([
+      getMeritSummary(user, "SCHOOL"),
+      getMeritSummary(user, "DORM"),
       listRecentAwards(user, "SCHOOL"),
+      listRecentAwards(user, "DORM"),
     ]);
+    summaries = [school, dorm];
+
+    // 트랙별로 받아 와 시간순으로 합친다. "오늘 무슨 일이 있었나"는 교내·기숙사를
+    // 가리지 않는 질문인데, 여기가 교내만 보여주는 바람에 사감은 대시보드에서
+    // 기숙사 숫자를 하나도 볼 수 없었다.
+    recent = [
+      ...schoolRecent.map((row) => ({ ...row, track: "SCHOOL" as const })),
+      ...dormRecent.map((row) => ({ ...row, track: "DORM" as const })),
+    ]
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, RECENT_ROWS);
   } catch (error) {
     if (!(error instanceof AcademicYearError)) throw error;
     return <NoYearCard />;
@@ -80,31 +107,21 @@ async function AdminSummary({ user }: { user: SessionUser }) {
 
   return (
     <>
-      <section className="rounded-card border border-line bg-surface">
-        <header className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
-          <h3 className="text-base font-extrabold text-ink">
-            그린마일리지 {school.year}학년도
-          </h3>
-          <Link
-            href="/merit/stats?track=SCHOOL"
-            className="text-[13px] font-semibold text-pri hover:underline"
-          >
-            통계 →
-          </Link>
-        </header>
-        <div className="px-5 py-4">
-          <MeritTotalsCards totals={school.totals} />
-          <p className="mt-3 text-[12px] text-mut">
-            부여 {school.totals.awardCount}건 · 배정된 반 {school.classes.length}개
-          </p>
-        </div>
-      </section>
+      <div className="grid gap-3 lg:grid-cols-2">
+        {summaries.map((summary) => (
+          <AdminTrackCard key={summary.track} summary={summary} />
+        ))}
+      </div>
 
       <div className="grid gap-3 lg:grid-cols-2">
+        {/*
+         * track을 붙이지 않는다 — 교내로 고정해 두면 사감이 매번 탭을 되돌려야
+         * 한다. 두 화면 모두 안에 트랙 탭이 있다.
+         */}
         <QuickLink
-          href="/merit?track=SCHOOL"
+          href="/merit"
           title="상벌점 부여"
-          hint="반을 골라 여러 명에게 한 번에 줄 수 있습니다"
+          hint="교내·기숙사 탭에서 반을 골라 여러 명에게 한 번에 줄 수 있습니다"
         />
         <QuickLink
           href="/admin/merit/rules"
@@ -117,7 +134,7 @@ async function AdminSummary({ user }: { user: SessionUser }) {
         <header className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
           <h3 className="text-base font-extrabold text-ink">최근 부여</h3>
           <Link
-            href="/merit/recent?track=SCHOOL"
+            href="/merit/recent"
             className="text-[13px] font-semibold text-pri hover:underline"
           >
             전체 보기 →
@@ -129,7 +146,7 @@ async function AdminSummary({ user }: { user: SessionUser }) {
           </p>
         ) : (
           <ul>
-            {recent.slice(0, 6).map((row) => (
+            {recent.map((row) => (
               <li
                 key={row.id}
                 className="flex items-center gap-3 border-b border-line2 px-5 py-2.5 last:border-0"
@@ -137,9 +154,13 @@ async function AdminSummary({ user }: { user: SessionUser }) {
                 <span className="w-[64px] shrink-0 text-[12px] text-mut">
                   {formatDate(row.createdAt)}
                 </span>
+                {/* 합쳐 놓은 목록이라 어느 트랙인지가 줄마다 보여야 한다. */}
+                <span className="w-[38px] shrink-0 text-[11px] font-semibold text-mut2">
+                  {MERIT_TRACK_LABELS[row.track]}
+                </span>
                 <KindBadge kind={row.kind} />
                 <Link
-                  href={`/merit/students/${row.studentProfileId}`}
+                  href={`/merit/students/${row.studentProfileId}?track=${row.track}`}
                   className="shrink-0 font-semibold text-ink hover:text-pri"
                 >
                   {row.studentName}
@@ -165,6 +186,33 @@ async function AdminSummary({ user }: { user: SessionUser }) {
   );
 }
 
+function AdminTrackCard({ summary }: { summary: MeritSummary }) {
+  return (
+    <section className="rounded-card border border-line bg-surface">
+      <header className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
+        <h3 className="text-base font-extrabold text-ink">
+          {TRACK_TITLES[summary.track]}
+        </h3>
+        <Link
+          href={`/merit/stats?track=${summary.track}`}
+          className="text-[13px] font-semibold text-pri hover:underline"
+        >
+          통계 →
+        </Link>
+      </header>
+      <div className="px-5 py-4">
+        <MeritTotalsCards totals={summary.totals} />
+        <p className="mt-3 text-[12px] text-mut">
+          {summary.year === null
+            ? "입학부터 전체 누적"
+            : `${summary.year}학년도`}{" "}
+          · 부여 {summary.totals.awardCount}건
+        </p>
+      </div>
+    </section>
+  );
+}
+
 async function MySummary({ user }: { user: SessionUser }) {
   let school: StudentMeritView;
   let dorm: StudentMeritView;
@@ -180,8 +228,8 @@ async function MySummary({ user }: { user: SessionUser }) {
 
   return (
     <div className="grid gap-3 lg:grid-cols-2">
-      <TrackCard title="그린마일리지" track="SCHOOL" view={school} />
-      <TrackCard title="기숙사 상벌점" track="DORM" view={dorm} />
+      <TrackCard track="SCHOOL" view={school} />
+      <TrackCard track="DORM" view={dorm} />
     </div>
   );
 }
@@ -213,8 +261,8 @@ async function ChildSummary({ user }: { user: SessionUser }) {
     <>
       <p className="text-[13px] font-semibold text-ink">{first.name}</p>
       <div className="grid gap-3 lg:grid-cols-2">
-        <TrackCard title="그린마일리지" track="SCHOOL" view={school} />
-        <TrackCard title="기숙사 상벌점" track="DORM" view={dorm} />
+        <TrackCard track="SCHOOL" view={school} />
+        <TrackCard track="DORM" view={dorm} />
       </div>
       {children.length > 1 && (
         <p className="text-[12px] text-mut">
@@ -230,18 +278,16 @@ async function ChildSummary({ user }: { user: SessionUser }) {
 }
 
 function TrackCard({
-  title,
   track,
   view,
 }: {
-  title: string;
   track: MeritTrack;
   view: StudentMeritView;
 }) {
   return (
     <section className="rounded-card border border-line bg-surface">
       <header className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
-        <h3 className="text-base font-extrabold text-ink">{title}</h3>
+        <h3 className="text-base font-extrabold text-ink">{TRACK_TITLES[track]}</h3>
         <Link
           href={`/merit?track=${track}`}
           className="text-[13px] font-semibold text-pri hover:underline"

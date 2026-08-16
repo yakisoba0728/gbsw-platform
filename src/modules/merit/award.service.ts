@@ -504,6 +504,41 @@ export type MeritStats = {
   topRules: Awaited<ReturnType<typeof repo.topRules>>;
 };
 
+export type MeritSummary = {
+  track: MeritTrack;
+  /** 교내면 보고 있는 학년도, 기숙사면 null(전체 누적). */
+  year: number | null;
+  totals: MeritTotals & { awardCount: number };
+};
+
+/**
+ * 대시보드용 가벼운 요약 — 머리글 숫자만.
+ *
+ * getMeritStats를 쓰지 않는 이유: 그쪽은 월별 추이를 그리려고 해당 범위의 부여
+ * 기록을 **전부** 읽어 오고(listAwardsForChart) 반별 집계까지 낸다. 대시보드는
+ * 트랙 두 개를 나란히 보여주므로 그 무거운 일을 두 번 하게 되는데, 정작 쓰는
+ * 값은 합계와 건수뿐이다. "대시보드에 통계 화면을 다시 만들지 않는다"는 원칙
+ * (app/(app)/page.tsx 머리 주석)이 질의 비용에서도 그대로 성립하게 한다.
+ */
+export async function getMeritSummary(
+  actor: SessionUser,
+  track: MeritTrack,
+): Promise<MeritSummary> {
+  await assertCan(actor, "merit:read:any");
+
+  const scoped = await scopeYear(track);
+  const rows = await repo.trackTotals({ track, totalsYear: scoped });
+
+  return {
+    track,
+    year: scoped,
+    totals: {
+      ...sumTotals(rows),
+      awardCount: rows.reduce((sum, row) => sum + row._count._all, 0),
+    },
+  };
+}
+
 /** 순위 표시는 관리자 화면에만 둔다 — 학생에게 등수를 띄우는 건 별개 결정이다. */
 const TOP_RULE_LIMIT = 10;
 
