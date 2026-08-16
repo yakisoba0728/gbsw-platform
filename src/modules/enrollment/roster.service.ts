@@ -88,6 +88,12 @@ export async function applyRosterPlan(
   saved: number;
   deleted: number;
   invites: Awaited<ReturnType<typeof repo.applyRoster>>["invites"];
+  /**
+   * 신규로 잡혔지만 재학이 아니라 **아무것도 만들어지지 않은** 줄 (I1).
+   * 미리보기는 이들을 "신규 N"으로 세므로 결과에 드러나지 않으면 관리자가
+   * N명이 등록됐다고 믿는다. 화면이 "제외 N건"으로 보여줄 자료다.
+   */
+  excludedNewStudents: { line: number; name: string; status: string | null }[];
 }> {
   await assertMayImport(actor);
 
@@ -193,6 +199,15 @@ export async function applyRosterPlan(
   // ZodError로 막힌다. ENROLLED인 신규만 초대 대상으로 삼는다.
   const eligibleNewStudents = plan.newStudents.filter((r) => r.status === "ENROLLED");
 
+  // 걸러낸 줄은 **반환값과 감사로그 양쪽에 드러낸다.** 이 줄들은 assignments에도
+  // 못 들어간다(studentProfileId가 null이라 만들 배정이 없다) — 즉 확정해도
+  // 아무것도 안 생기고 오류도 안 난다. 미리보기는 이들을 "신규 N"으로 세므로,
+  // 결과에 드러내지 않으면 관리자는 N명이 등록됐다고 믿는다. 몇 건인지만이 아니라
+  // 어느 줄인지까지 준다 — 파일을 고치려면 누가 빠졌는지 알아야 한다.
+  const excludedNewStudents = plan.newStudents
+    .filter((r) => r.status !== "ENROLLED")
+    .map((r) => ({ line: r.line, name: r.name, status: r.status }));
+
   // invite.service.ts의 generateUniqueCode()로 통일한다 (I2) — DB를 확인하고 5회
   // 재시도하는 이 저장소의 공용 규약이다. Set은 이번 배치 안에서의 중복까지 막는다 —
   // generateUniqueCode() 혼자서는 아직 커밋되지 않은 같은 배치의 다른 코드를 볼 수 없다.
@@ -249,6 +264,9 @@ export async function applyRosterPlan(
       newAssignment: plan.newAssignment.length,
       newStudents: plan.newStudents.length,
       invitesIssued: invites.length,
+      // 신규로 잡혔지만 재학이 아니라 아무것도 만들어지지 않은 줄 수. 이름은
+      // 여기 남기지 않는다 — 반환값이 화면에 그 목록을 따로 준다.
+      excludedNew: excludedNewStudents.length,
       softDeleted: plan.missingFromFile.length,
       restored,
     },
@@ -312,5 +330,10 @@ export async function applyRosterPlan(
   // 사실이 묻힌다 (Minor-4). 반환 필드 이름(deleted)은 그대로 둔다 — 화면(ApplyState)이
   // 쓰는 내부 계약이라 감사로그처럼 사용자에게 "삭제"라고 보여주지 않는다(문구는
   // import-form.tsx가 따로 정한다).
-  return { saved: assignments.length, deleted: plan.missingFromFile.length, invites };
+  return {
+    saved: assignments.length,
+    deleted: plan.missingFromFile.length,
+    invites,
+    excludedNewStudents,
+  };
 }

@@ -239,6 +239,9 @@ const IMPORT_COUNT_LABELS: ReadonlyArray<readonly [key: string, label: string]> 
   ["reassign", "재배정"],
   ["statusChange", "학적변동"],
   ["invitesIssued", "초대발급"],
+  // 신규로 잡혔지만 재학이 아니라 아무것도 만들어지지 않은 줄 (roster.service.ts).
+  // "신규 5 · 초대발급 3"만 있으면 나머지 2가 어디로 갔는지 추측해야 한다.
+  ["excludedNew", "신규제외"],
   ["deleted", "삭제"],
   ["softDeleted", "제외"],
   ["restored", "복구"],

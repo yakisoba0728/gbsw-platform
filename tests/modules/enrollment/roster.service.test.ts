@@ -187,6 +187,55 @@ describe("applyRosterPlan()", () => {
     expect(newStudents[0].row.name).toBe("재학이");
   });
 
+  describe("비재학 신규 줄은 흔적 없이 버려지지 않는다", () => {
+    /** 미리보기는 "신규 2"로 세는데 확정하면 계정도 코드도 안 생기는 줄. */
+    function 신규줄들() {
+      listExisting.mockResolvedValue([]);
+      const 재학신규 = { ...row, studentCode: "", name: "재학이", birthDate: "2011-01-01" };
+      const 비재학신규 = {
+        ...row,
+        studentCode: "",
+        name: "유예생",
+        birthDate: "2011-02-02",
+        status: "DEFERRED" as const,
+        grade: null,
+        classNo: null,
+        number: null,
+      };
+      return [재학신규, 비재학신규];
+    }
+
+    it("반영 결과에 제외된 줄을 실어 돌려준다 — 관리자가 '신규 2명이 등록됐다'고 " +
+      "믿는 것을 막는다. 누가 빠졌는지까지 알아야 파일을 고칠 수 있다", async () => {
+      const result = await applyRosterPlan(admin, 2026, 신규줄들(), [], null);
+
+      expect(result.excludedNewStudents).toEqual([
+        { line: 2, name: "유예생", status: "DEFERRED" },
+      ]);
+    });
+
+    it("전부 재학이면 제외 목록은 빈 배열이다", async () => {
+      listExisting.mockResolvedValue([]);
+      const 재학신규 = { ...row, studentCode: "", name: "재학이", birthDate: "2011-01-01" };
+
+      const result = await applyRosterPlan(admin, 2026, [재학신규], [], null);
+
+      expect(result.excludedNewStudents).toEqual([]);
+    });
+
+    it("감사로그 metadata에도 제외 건수가 남는다 — 화면은 한 번 보고 사라지지만 " +
+      "로그는 남는다", async () => {
+      await applyRosterPlan(admin, 2026, 신규줄들(), [], null);
+
+      const summary = recordAudit.mock.calls
+        .map((c) => c[0])
+        .find((a) => a.action === "enrollment:import");
+      expect(summary!.metadata).toMatchObject({ newStudents: 2, excludedNew: 1 });
+      // 이름은 여전히 안 남긴다 — 감사로그가 명단 사본이 되면 안 된다.
+      expect(JSON.stringify(summary)).not.toContain("유예생");
+    });
+  });
+
   it("학적이 안 바뀐 학생은 statusChanged=false로 넘어간다 (C1 회귀 방지)", async () => {
     // row가 재학생과 같은 학생코드·자리면 untouched로 분류된다.
     const 그대로 = { ...row, grade: 1, classNo: 3, number: 3 };
