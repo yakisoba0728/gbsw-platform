@@ -111,16 +111,23 @@ export default async function MeritPrintPage({
           <Row label="집계 범위" value={scope} />
         </dl>
 
-        <div className="grid grid-cols-4 gap-3 py-4">
-          <Total label="상점" value={view.totals.merit} />
-          <Total label="벌점" value={view.totals.demerit} />
-          <Total label="상쇄점" value={view.totals.offset} />
-          <Total
-            label="순점수"
-            value={view.totals.net}
-            signed
-            strong
-          />
+        {/*
+          합계 4칸. **뷰포트가 아니라 자기가 놓인 자리의 폭을 본다** —
+          MeritTotalsCards와 같은 이유이고 같은 기준(@md=448px)이다.
+
+          `grid-cols-4`로 고정하면 375px에서 칸 하나의 내용 폭이 32px까지
+          내려가는데(article의 p-8 32px×2까지 빼고 나면), 거기에 `+120` 같은
+          순점수가 20px 굵은 글씨로 49px를 차지해 칸 테두리를 뚫고 나온다
+          (Tailwind의 grid 트랙은 minmax(0,1fr)이라 잘리지도 않는다).
+          종이(A4 ≈ 794px)에서는 언제나 448px를 넘으므로 4칸 그대로 찍힌다.
+        */}
+        <div className="@container">
+          <div className="grid grid-cols-2 gap-3 py-4 @md:grid-cols-4">
+            <Total label="상점" value={view.totals.merit} />
+            <Total label="벌점" value={view.totals.demerit} />
+            <Total label="상쇄점" value={view.totals.offset} />
+            <Total label="순점수" value={view.totals.net} signed strong />
+          </div>
         </div>
         <p className="pb-4 text-[11.5px] text-mut">
           순점수 = 상점 + 상쇄점 − 벌점. 취소된 기록은 합계에서 빠집니다.
