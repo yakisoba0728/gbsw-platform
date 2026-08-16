@@ -1,0 +1,346 @@
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { prisma } from "@/core/db/client";
+
+/**
+ * 상벌점 통합 테스트 — 실 Postgres(gbsw_test)에 대고 돈다.
+ *
+ * **repo·서비스를 실제로 부른다.** 예전 버전은 이 파일 안에서 prisma.$transaction을
+ * 직접 짜서 확인했는데, 그러면 repo.createAwards를 createMany로 바꾸거나 아예 지워도
+ * 테스트가 통과했다 — Prisma가 트랜잭션을 지원한다는 사실만 확인하고 우리 코드는
+ * 하나도 안 건드리는 테스트였다.
+ *
+ * 감사로그는 목으로 막는다. recordAudit이 요청 컨텍스트(headers)를 읽는데
+ * 테스트에는 요청이 없고, 여기서 확인하려는 것은 감사가 아니라 트랜잭션과
+ * 집계 범위다.
+ */
+vi.mock("@/core/audit/audit", () => ({ recordAudit: vi.fn() }));
+
+const repo = await import("@/modules/merit/merit.repo");
+const service = await import("@/modules/merit/award.service");
+
+const YEAR = 2026;
+const PAST = YEAR - 1;
+
+const made = { users: [] as string[], profiles: [] as string[], rules: [] as string[] };
+
+const admin = {
+  id: "merit-test-admin",
+  name: "통합테스트관리자",
+  email: "merit-test-admin@example.invalid",
+  role: "ADMIN" as const,
+  status: "ACTIVE",
+  deletedAt: null,
+  mustChangePassword: false,
+};
+
+async function makeStudent(suffix: string) {
+  const user = await prisma.user.create({
+    data: {
+      id: `merit-test-u-${suffix}`,
+      name: `통합테스트학생${suffix}`,
+      email: `merit-test-${suffix}@example.invalid`,
+      phone: "010-0000-0000",
+      role: "STUDENT",
+    },
+  });
+  const profile = await prisma.studentProfile.create({
+    data: {
+      userId: user.id,
+      studentCode: `MTEST${suffix}`,
+      birthDate: new Date("2009-03-02"),
+    },
+  });
+  made.users.push(user.id);
+  made.profiles.push(profile.id);
+  return profile.id;
+}
+
+async function makeRule(overrides: {
+  track: string;
+  kind: string;
+  label: string;
+  points: number;
+}) {
+  const rule = await prisma.meritRule.create({ data: overrides });
+  made.rules.push(rule.id);
+  return rule.id;
+}
+
+beforeAll(async () => {
+  // 부여자·취소자는 실제 User 행을 가리켜야 한다 (외래키). 목으로 대체할 수 없는
+  // 부분이라 통합 테스트에서만 만들고 afterAll에서 지운다.
+  await prisma.user.upsert({
+    where: { id: admin.id },
+    create: {
+      id: admin.id,
+      name: admin.name,
+      email: admin.email,
+      phone: "010-0000-0000",
+      role: "ADMIN",
+    },
+    update: {},
+  });
+  made.users.push(admin.id);
+
+  for (const year of [PAST, YEAR]) {
+    await prisma.academicYear.upsert({
+      where: { year },
+      create: { year },
+      update: {},
+    });
+  }
+  // 서비스가 getCurrentYear()로 부여 학년도를 정한다. 시드 행이 이미
+  // isCurrent를 들고 있으므로 값만 확인하고 건드리지 않는다.
+  const current = await prisma.academicYear.findFirst({ where: { isCurrent: true } });
+  if (current?.year !== YEAR) {
+    await prisma.academicYear.updateMany({ data: { isCurrent: false } });
+    await prisma.academicYear.update({
+      where: { year: YEAR },
+      data: { isCurrent: true },
+    });
+  }
+});
+
+afterAll(async () => {
+  await prisma.meritAward.deleteMany({
+    where: { studentProfileId: { in: made.profiles } },
+  });
+  await prisma.studentProfile.deleteMany({ where: { id: { in: made.profiles } } });
+  await prisma.user.deleteMany({ where: { id: { in: made.users } } });
+  await prisma.meritRule.deleteMany({ where: { id: { in: made.rules } } });
+});
+
+describe("repo.createAwards — 일괄 부여 트랜잭션", () => {
+  it("한 건이라도 실패하면 아무것도 남지 않는다", async () => {
+    const ruleId = await makeRule({
+      track: "DORM",
+      kind: "DEMERIT",
+      label: "점호 지각",
+      points: 3,
+    });
+    const a = await makeStudent("a");
+    const b = await makeStudent("b");
+
+    const base = {
+      year: YEAR,
+      ruleId,
+      track: "DORM",
+      kind: "DEMERIT",
+      label: "점호 지각",
+      points: 3,
+      note: null,
+      awardedByUserId: admin.id,
+      awardedByName: "통합테스트",
+      batchId: "batch-rollback",
+    };
+
+    await expect(
+      repo.createAwards([
+        { ...base, studentProfileId: a },
+        { ...base, studentProfileId: b },
+        // 없는 학생 — 외래키 위반으로 트랜잭션 전체가 되감긴다.
+        { ...base, studentProfileId: "존재하지-않는-학생" },
+      ]),
+    ).rejects.toThrow();
+
+    const left = await prisma.meritAward.count({
+      where: { batchId: "batch-rollback" },
+    });
+    expect(left).toBe(0);
+  });
+});
+
+describe("service.bulkAwardMerit — 실제 경로", () => {
+  it("전원에게 들어가고 같은 batchId로 묶인다", async () => {
+    const ruleId = await makeRule({
+      track: "DORM",
+      kind: "DEMERIT",
+      label: "점호 지각 2",
+      points: 3,
+    });
+    const a = await makeStudent("c");
+    const b = await makeStudent("d");
+
+    const result = await service.bulkAwardMerit(admin, {
+      studentProfileIds: [a, b],
+      ruleId,
+      note: null,
+    });
+    expect(result).toEqual({ count: 2 });
+
+    const rows = await prisma.meritAward.findMany({
+      where: { studentProfileId: { in: [a, b] } },
+    });
+    expect(rows).toHaveLength(2);
+    expect(new Set(rows.map((r) => r.batchId)).size).toBe(1);
+    expect(rows[0].batchId).toBeTruthy();
+
+    // 규정 값이 스냅샷됐고, 학년도는 현재 학년도다 (입력으로 받지 않는다).
+    expect(rows[0].label).toBe("점호 지각 2");
+    expect(rows[0].points).toBe(3);
+    expect(rows[0].year).toBe(YEAR);
+  });
+
+  it("한 명이라도 없는 학생이면 아무것도 안 남는다", async () => {
+    const ruleId = await makeRule({
+      track: "DORM",
+      kind: "DEMERIT",
+      label: "점호 지각 3",
+      points: 3,
+    });
+    const a = await makeStudent("e");
+
+    await expect(
+      service.bulkAwardMerit(admin, {
+        studentProfileIds: [a, "존재하지-않는-학생"],
+        ruleId,
+        note: null,
+      }),
+    ).rejects.toThrow("STUDENT_NOT_FOUND");
+
+    expect(await prisma.meritAward.count({ where: { ruleId } })).toBe(0);
+  });
+});
+
+describe("합계 범위 — 교내는 학년도별, 기숙사는 누적", () => {
+  it("service.getStudentMerit이 트랙에 따라 다른 합계를 낸다", async () => {
+    const dormRule = await makeRule({
+      track: "DORM",
+      kind: "MERIT",
+      label: "생활 우수",
+      points: 4,
+    });
+    const schoolRule = await makeRule({
+      track: "SCHOOL",
+      kind: "MERIT",
+      label: "봉사 우수",
+      points: 6,
+    });
+    const student = await makeStudent("f");
+
+    // 두 학년도에 걸쳐 같은 트랙으로 한 건씩 넣는다.
+    for (const [ruleId, track, label, points] of [
+      [dormRule, "DORM", "생활 우수", 4],
+      [schoolRule, "SCHOOL", "봉사 우수", 6],
+    ] as const) {
+      for (const year of [PAST, YEAR]) {
+        await prisma.meritAward.create({
+          data: {
+            studentProfileId: student,
+            year,
+            ruleId,
+            track,
+            kind: "MERIT",
+            label,
+            points,
+            note: null,
+            awardedByUserId: admin.id,
+            awardedByName: "통합테스트",
+            batchId: null,
+          },
+        });
+      }
+    }
+
+    // 기숙사: 학년도 조건 없이 두 해가 다 더해진다.
+    const dorm = await service.getStudentMerit(admin, student, "DORM");
+    expect(dorm.year).toBeNull();
+    expect(dorm.totals.merit).toBe(8);
+    expect(dorm.awards).toHaveLength(2);
+
+    // 교내: 현재 학년도만.
+    const school = await service.getStudentMerit(admin, student, "SCHOOL");
+    expect(school.year).toBe(YEAR);
+    expect(school.totals.merit).toBe(6);
+    expect(school.awards).toHaveLength(1);
+
+    // 교내 + 지난 학년도 명시.
+    const past = await service.getStudentMerit(admin, student, "SCHOOL", PAST);
+    expect(past.year).toBe(PAST);
+    expect(past.totals.merit).toBe(6);
+  });
+
+  it("취소된 기록은 합계에서 빠지되 내역에는 남는다", async () => {
+    const ruleId = await makeRule({
+      track: "SCHOOL",
+      kind: "DEMERIT",
+      label: "복장 불량",
+      points: 3,
+    });
+    const student = await makeStudent("g");
+
+    const award = await prisma.meritAward.create({
+      data: {
+        studentProfileId: student,
+        year: YEAR,
+        ruleId,
+        track: "SCHOOL",
+        kind: "DEMERIT",
+        label: "복장 불량",
+        points: 3,
+        note: null,
+        awardedByUserId: admin.id,
+        awardedByName: "통합테스트",
+        batchId: null,
+      },
+    });
+
+    const before = await service.getStudentMerit(admin, student, "SCHOOL");
+    expect(before.totals.demerit).toBe(3);
+
+    await service.cancelAward(admin, { awardId: award.id, reason: "오기입" });
+
+    const after = await service.getStudentMerit(admin, student, "SCHOOL");
+    expect(after.totals.demerit).toBe(0);
+    expect(after.awards).toHaveLength(1);
+    expect(after.awards[0].status).toBe("CANCELLED");
+    expect(after.awards[0].cancelReason).toBe("오기입");
+  });
+
+  it("두 번째 취소는 0행이 되어 거부된다 (동시 취소 방어)", async () => {
+    const ruleId = await makeRule({
+      track: "SCHOOL",
+      kind: "DEMERIT",
+      label: "지각",
+      points: 1,
+    });
+    const student = await makeStudent("h");
+
+    const award = await prisma.meritAward.create({
+      data: {
+        studentProfileId: student,
+        year: YEAR,
+        ruleId,
+        track: "SCHOOL",
+        kind: "DEMERIT",
+        label: "지각",
+        points: 1,
+        note: null,
+        awardedByUserId: admin.id,
+        awardedByName: "통합테스트",
+        batchId: null,
+      },
+    });
+
+    // repo를 직접 두 번 불러 "사전 검사를 통과한 두 요청"을 흉내 낸다.
+    expect(
+      await repo.cancelAward(award.id, {
+        userId: admin.id,
+        name: admin.name,
+        reason: "첫 번째",
+      }),
+    ).toBe(1);
+    expect(
+      await repo.cancelAward(award.id, {
+        userId: admin.id,
+        name: "다른 사람",
+        reason: "두 번째",
+      }),
+    ).toBe(0);
+
+    // 먼저 쓴 사람의 흔적이 덮이지 않았다.
+    const row = await prisma.meritAward.findUnique({ where: { id: award.id } });
+    expect(row?.cancelReason).toBe("첫 번째");
+    expect(row?.cancelledByName).toBe(admin.name);
+  });
+});

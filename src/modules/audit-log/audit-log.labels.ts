@@ -1,4 +1,10 @@
 import type { BadgeTone } from "@/components/ui/badge";
+import {
+  isMeritKind,
+  isMeritTrack,
+  MERIT_KIND_LABELS,
+  MERIT_TRACK_LABELS,
+} from "@/core/authz/merit-track";
 import { isRole, ROLE_LABELS } from "@/core/authz/roles";
 
 /**
@@ -44,6 +50,11 @@ export const AUDIT_ACTIONS = [
   "academic-year:set-current",
   "enrollment:update",
   "enrollment:import",
+  "merit:rule:create",
+  "merit:rule:update",
+  "merit:rule:deactivate",
+  "merit:award",
+  "merit:cancel",
   // can() 검사를 통과 못 해 서비스가 거부했을 때 (I5, core/authz/errors.ts의
   // assertCan). 정상 사용자가 페이지 가드에 막혀 여기 닿는 일은 없다 — 서버
   // 액션을 직접 호출하는 등 페이지를 건너뛴 시도만 남는다.
@@ -74,6 +85,11 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   "academic-year:set-current": "현재 학년도 변경",
   "enrollment:update": "소속·학적 수정",
   "enrollment:import": "명단 일괄 반영",
+  "merit:rule:create": "상벌점 규정 추가",
+  "merit:rule:update": "상벌점 규정 수정",
+  "merit:rule:deactivate": "상벌점 규정 비활성",
+  "merit:award": "상벌점 부여",
+  "merit:cancel": "상벌점 취소",
   "authz:denied": "권한 거부",
 };
 
@@ -95,6 +111,13 @@ const ACTION_TONES: Record<AuditAction, BadgeTone> = {
   "academic-year:set-current": "info",
   "enrollment:update": "info",
   "enrollment:import": "info",
+  "merit:rule:create": "approved",
+  "merit:rule:update": "info",
+  "merit:rule:deactivate": "cancelled",
+  // 상점·벌점 어느 쪽이든 나오는 액션이라 merit/demerit 톤을 쓰지 않는다 —
+  // 색이 실제 종류와 어긋나면 목록을 훑을 때 오히려 오해를 만든다.
+  "merit:award": "info",
+  "merit:cancel": "cancelled",
   "authz:denied": "rejected",
 };
 
@@ -113,6 +136,8 @@ const TARGET_LABELS: Record<string, string> = {
   Invite: "초대코드",
   StudentProfile: "학생",
   AcademicYear: "학년도",
+  MeritRule: "상벌점 규정",
+  MeritAward: "상벌점",
 };
 
 export function auditTargetLabel(targetType: string): string {
@@ -131,6 +156,10 @@ const FIELD_LABELS: Record<string, string> = {
   classNo: "반",
   number: "번호",
   status: "학적",
+  label: "항목명",
+  points: "점수",
+  category: "분류",
+  description: "설명",
 };
 
 function fieldLabel(key: string): string {
@@ -213,6 +242,79 @@ function authzDeniedSummary(metadata: Record<string, unknown>): string | null {
   return typeof action === "string" ? `시도: ${action}` : null;
 }
 
+/** merit:award — "교내 · 상점 5점 · 교내 봉사활동 우수 참여" */
+/**
+ * 상벌점 기록의 공통 앞부분 — "김민준 · 기숙사 · 벌점 3점 · 점호 지각".
+ *
+ * **학생 이름이 맨 앞에 온다.** 로그를 보는 이유는 대개 "이 학생이 왜"이지
+ * "어떤 규정이 몇 번 나갔나"가 아니다. 이름이 없으면 studentProfileId(cuid)를
+ * 들고 DB를 따로 뒤져야 하는데, 그건 로그 화면이 있는 의미를 없앤다.
+ */
+function meritSubject(metadata: Record<string, unknown>): string[] {
+  const parts: string[] = [];
+
+  if (typeof metadata.studentName === "string") parts.push(metadata.studentName);
+
+  const track = metadata.track;
+  if (isMeritTrack(track)) parts.push(MERIT_TRACK_LABELS[track]);
+
+  const kind = metadata.kind;
+  const points = metadata.points;
+  if (isMeritKind(kind) && typeof points === "number") {
+    parts.push(`${MERIT_KIND_LABELS[kind]} ${points}점`);
+  }
+
+  if (typeof metadata.label === "string") parts.push(metadata.label);
+
+  return parts;
+}
+
+function meritAwardSummary(metadata: Record<string, unknown>): string | null {
+  const parts = meritSubject(metadata);
+  // 일괄 부여였다는 사실만 표시한다 — batchId 자체는 내부 식별자라 화면에선
+  // 의미가 없다 (enrollment:import의 batch와 같은 처리).
+  if (typeof metadata.batchId === "string") parts.push("일괄");
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+/**
+ * merit:cancel — 무엇을 취소했는지까지 보여준다.
+ *
+ * 사유만 남기면 "사유: 오기입"이라는 줄이 뜨는데, 그것만으로는 어느 학생의 어떤
+ * 기록이 뒤집혔는지 알 수 없다. "누구나 취소할 수 있다"는 결정의 근거가 이 로그이므로
+ * 여기서 답이 나와야 한다.
+ */
+function meritCancelSummary(metadata: Record<string, unknown>): string | null {
+  const parts = meritSubject(metadata);
+
+  const reason = metadata.reason;
+  if (typeof reason === "string" && reason.length > 0) parts.push(`사유: ${reason}`);
+
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+/**
+ * merit:rule:update — 바뀐 필드 요약에 점수 전/후를 덧붙인다.
+ *
+ * rule.service.ts는 실제로 바뀐 항목이 없으면 recordAudit 자체를 안 부르므로
+ * changed는 항상 최소 1개다. pointsFrom·pointsTo는 점수가 안 바뀌었어도 함께
+ * 기록되므로(다른 필드만 바뀐 경우), 실제로 다를 때만 전/후를 보여준다 —
+ * 안 그러면 "5→5"처럼 아무 의미 없는 숫자가 늘 따라붙는다.
+ */
+function meritRuleUpdateSummary(metadata: Record<string, unknown>): string | null {
+  const summary = changedSummary(metadata.changed);
+
+  const from = metadata.pointsFrom;
+  const to = metadata.pointsTo;
+  const pointsChanged =
+    typeof from === "number" && typeof to === "number" && from !== to
+      ? `점수 ${from}→${to}`
+      : null;
+
+  const parts = [summary, pointsChanged].filter((p): p is string => p !== null);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
 const METADATA_FORMATTERS: Partial<
   Record<AuditAction, (metadata: Record<string, unknown>) => string | null>
 > = {
@@ -224,6 +326,9 @@ const METADATA_FORMATTERS: Partial<
   "invite:create:parent": roleSummary,
   "registration:complete": roleSummary,
   "authz:denied": authzDeniedSummary,
+  "merit:award": meritAwardSummary,
+  "merit:cancel": meritCancelSummary,
+  "merit:rule:update": meritRuleUpdateSummary,
 };
 
 /**

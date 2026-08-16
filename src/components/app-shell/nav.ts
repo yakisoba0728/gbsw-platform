@@ -3,6 +3,7 @@ import {
   DashboardIcon,
   InviteIcon,
   LogIcon,
+  MeritIcon,
   SettingsIcon,
   UsersIcon,
 } from "@/components/icons";
@@ -28,15 +29,15 @@ export type NavItem = {
 /**
  * 사이드바 / 바텀탭 메뉴.
  *
- * 모듈이 하나 붙을 때마다 여기에 한 줄씩 추가한다. 예를 들어 상벌점 모듈을
- * 만들면 아래를 넣으면 된다 (MeritIcon은 components/icons.tsx에 이미 있다):
- *
- *   { href: "/merit", label: "상벌점", icon: MeritIcon },
+ * 모듈이 하나 붙을 때마다 여기에 한 줄씩 추가한다 — 상벌점이 그 첫 사례다
+ * (조회는 전 역할, 규정 관리는 ADMIN_NAV_ITEMS).
  *
  * 아직 만들지 않은 화면은 링크가 깨지므로 미리 넣지 않는다.
  */
 export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "대시보드", icon: DashboardIcon },
+  // roles를 비운다 — 학생·학부모·관리자가 모두 본다 (각자 보는 내용은 다르다).
+  { href: "/merit", label: "상벌점", icon: MeritIcon },
   {
     href: "/parent-invite",
     label: "학부모 초대",
@@ -66,6 +67,13 @@ export const ADMIN_NAV_ITEMS: NavItem[] = [
     label: "사용자 관리",
     // 학생 관리(UsersIcon: 사람)와 구분한다 — 이쪽은 계정 자체(활성/비활성·권한)를 다룬다.
     icon: SettingsIcon,
+    roles: ["ADMIN"],
+  },
+  {
+    href: "/admin/merit/rules",
+    label: "상벌점 규정",
+    shortLabel: "규정",
+    icon: MeritIcon,
     roles: ["ADMIN"],
   },
   {

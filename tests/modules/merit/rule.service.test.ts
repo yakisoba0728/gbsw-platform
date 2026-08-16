@@ -1,0 +1,206 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { SessionUser } from "@/core/auth/session";
+
+const createRule = vi.fn();
+const findRule = vi.fn();
+const updateRule = vi.fn();
+const deactivateRule = vi.fn();
+const listRules = vi.fn();
+const listActiveRules = vi.fn();
+const recordAudit = vi.fn();
+
+vi.mock("@/modules/merit/merit.repo", () => ({
+  createRule,
+  findRule,
+  updateRule,
+  deactivateRule,
+  listRules,
+  listActiveRules,
+}));
+vi.mock("@/core/audit/audit", () => ({ recordAudit }));
+
+const { MeritError } = await import("@/modules/merit/merit.error");
+const service = await import("@/modules/merit/rule.service");
+
+function user(role: SessionUser["role"], id = "admin-1"): SessionUser {
+  return {
+    id,
+    name: "테스트",
+    email: "t@gbsw.hs.kr",
+    role,
+    status: "ACTIVE",
+    deletedAt: null,
+    mustChangePassword: false,
+  };
+}
+
+const admin = user("ADMIN");
+const student = user("STUDENT", "s-1");
+const parent = user("PARENT", "p-1");
+
+const input = {
+  track: "SCHOOL" as const,
+  kind: "MERIT" as const,
+  label: "교내 봉사활동 우수 참여",
+  points: 5,
+  category: "봉사",
+  description: null,
+};
+
+beforeEach(() => {
+  createRule.mockReset().mockResolvedValue({ id: "r-1" });
+  findRule.mockReset().mockResolvedValue({
+    id: "r-1",
+    track: "SCHOOL",
+    kind: "MERIT",
+    label: "교내 봉사활동 우수 참여",
+    points: 5,
+    category: "봉사",
+    description: null,
+    active: true,
+  });
+  updateRule.mockReset().mockResolvedValue(undefined);
+  deactivateRule.mockReset().mockResolvedValue(undefined);
+  listRules.mockReset().mockResolvedValue([]);
+  listActiveRules.mockReset().mockResolvedValue([]);
+  recordAudit.mockReset().mockResolvedValue(undefined);
+});
+
+describe("createRule", () => {
+  it("관리자는 규정을 추가하고 감사로그가 남는다", async () => {
+    await service.createRule(admin, input);
+
+    expect(createRule).toHaveBeenCalledWith(input);
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: admin.id,
+        action: "merit:rule:create",
+        targetType: "MeritRule",
+        targetId: "r-1",
+        metadata: expect.objectContaining({
+          track: "SCHOOL",
+          kind: "MERIT",
+          points: 5,
+        }),
+      }),
+    );
+  });
+
+  it.each([
+    ["학생", student],
+    ["학부모", parent],
+  ])("%s는 규정을 추가할 수 없다", async (_label, actor) => {
+    await expect(service.createRule(actor, input)).rejects.toThrow("FORBIDDEN");
+    expect(createRule).not.toHaveBeenCalled();
+  });
+});
+
+describe("updateRule", () => {
+  const patch = {
+    ruleId: "r-1",
+    label: "고친 이름",
+    points: 7,
+    category: null,
+    description: null,
+  };
+
+  it("바뀐 항목만 감사로그의 changed에 담는다", async () => {
+    await service.updateRule(admin, patch);
+
+    expect(updateRule).toHaveBeenCalledWith("r-1", {
+      label: "고친 이름",
+      points: 7,
+      category: null,
+      description: null,
+    });
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "merit:rule:update",
+        metadata: expect.objectContaining({
+          changed: expect.arrayContaining(["label", "points", "category"]),
+        }),
+      }),
+    );
+  });
+
+  it("아무것도 안 바뀌었으면 쓰지도, 기록하지도 않는다", async () => {
+    await service.updateRule(admin, {
+      ruleId: "r-1",
+      label: "교내 봉사활동 우수 참여",
+      points: 5,
+      category: "봉사",
+      description: null,
+    });
+
+    expect(updateRule).not.toHaveBeenCalled();
+    expect(recordAudit).not.toHaveBeenCalled();
+  });
+
+  it("없는 규정은 RULE_NOT_FOUND", async () => {
+    findRule.mockResolvedValue(null);
+    await expect(service.updateRule(admin, patch)).rejects.toThrow(MeritError);
+    await expect(service.updateRule(admin, patch)).rejects.toThrow("RULE_NOT_FOUND");
+  });
+
+  it("학생은 규정을 고칠 수 없다", async () => {
+    await expect(service.updateRule(student, patch)).rejects.toThrow("FORBIDDEN");
+    expect(updateRule).not.toHaveBeenCalled();
+  });
+});
+
+describe("deactivateRule", () => {
+  it("관리자는 규정을 비활성한다", async () => {
+    await service.deactivateRule(admin, "r-1");
+
+    expect(deactivateRule).toHaveBeenCalledWith("r-1");
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "merit:rule:deactivate",
+        targetId: "r-1",
+      }),
+    );
+  });
+
+  it("이미 비활성이면 아무 일도 하지 않는다 — 감사로그도 안 쌓는다", async () => {
+    findRule.mockResolvedValue({
+      id: "r-1",
+      track: "SCHOOL",
+      kind: "MERIT",
+      label: "x",
+      points: 5,
+      category: null,
+      description: null,
+      active: false,
+    });
+
+    await service.deactivateRule(admin, "r-1");
+
+    expect(deactivateRule).not.toHaveBeenCalled();
+    expect(recordAudit).not.toHaveBeenCalled();
+  });
+
+  it("없는 규정은 RULE_NOT_FOUND", async () => {
+    findRule.mockResolvedValue(null);
+    await expect(service.deactivateRule(admin, "r-1")).rejects.toThrow(
+      "RULE_NOT_FOUND",
+    );
+  });
+});
+
+describe("조회", () => {
+  it("listRules는 관리자만", async () => {
+    await service.listRules(admin, "SCHOOL");
+    expect(listRules).toHaveBeenCalledWith("SCHOOL");
+
+    await expect(service.listRules(student, "SCHOOL")).rejects.toThrow("FORBIDDEN");
+  });
+
+  it("listActiveRules는 부여 권한으로 막는다 — 규정 관리 권한이 아니다", async () => {
+    await service.listActiveRules(admin, "DORM");
+    expect(listActiveRules).toHaveBeenCalledWith("DORM");
+
+    await expect(service.listActiveRules(parent, "DORM")).rejects.toThrow(
+      "FORBIDDEN",
+    );
+  });
+});
