@@ -8,9 +8,10 @@ import { AwardHistory } from "@/components/merit/award-history";
 import { EnrollmentTag } from "@/components/merit/enrollment-tag";
 import { MeritTotalsCards } from "@/components/merit/merit-totals";
 import { TrackTabs } from "@/components/merit/track-tabs";
+import { Badge } from "@/components/ui/badge";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { Note } from "@/components/ui/note";
-import { formatDateInput } from "@/lib/datetime";
+import { formatDate, formatDateInput } from "@/lib/datetime";
 import { hrefWith, type SearchParamsInput } from "@/lib/search-params";
 import {
   AcademicYearError,
@@ -81,6 +82,10 @@ export default async function StudentMeritPage({
 
   const awardYears = await listAwardYears(actor, studentId);
 
+  // 명단에서 빠진 학생. **조회만 열려 있다** — 부여 경로는 서비스가 그대로 막으므로
+  // (award.service의 findAwardableStudent) 폼을 띄워 봐야 누르는 순간 실패한다.
+  const removed = header?.removedAt != null;
+
   // 과거 학년도를 보고 있으면 부여 폼을 감춘다 — 부여는 항상 현재 학년도로
   // 들어가므로, 지난 해를 보면서 부여하면 결과가 화면에 안 나타나 혼란만 준다.
   // 기숙사(누적)는 "과거"라는 개념이 없어 해당 없다.
@@ -114,9 +119,13 @@ export default async function StudentMeritPage({
 
       {header && (
         <div>
-          <h2 className="text-[22px] font-extrabold tracking-[-0.02em] text-ink">
-            {header.name}
-          </h2>
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            <h2 className="text-[22px] font-extrabold tracking-[-0.02em] text-ink">
+              {header.name}
+            </h2>
+            {/* 사용자 상세와 같은 배지·같은 문구를 쓴다 — 같은 사실이다. */}
+            {removed && <Badge tone="rejected">삭제됨</Badge>}
+          </div>
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <p className="text-[13px] text-mut">
               {[
@@ -134,6 +143,20 @@ export default async function StudentMeritPage({
             <EnrollmentTag status={header.status} />
           </div>
         </div>
+      )}
+
+      {/*
+        명단에서 빠진 학생이라는 사실은 이름 옆 배지만으로는 부족하다 — 이 화면에서
+        평소 있던 부여 폼이 사라지는데, 왜 사라졌는지 적어 두지 않으면 고장으로 읽힌다.
+        문구는 admin/users/[userId]의 "명단에서 빠진 계정"과 같은 어조·같은 사실이다
+        (소프트 삭제가 그 학년도 소속을 실제로 지운다는 것까지).
+      */}
+      {removed && header?.removedAt && (
+        <Note tone="warn">
+          {formatDate(header.removedAt)}에 명단에서 빠진 학생입니다. 지난 상벌점
+          기록과 확인서는 그대로 볼 수 있지만, 새 상벌점은 부여할 수 없습니다.
+          이번 학년도 소속은 남아 있지 않습니다.
+        </Note>
       )}
 
       <TrackTabs current={track} hrefFor={(t) => trackHref(studentId, raw, t)} />
@@ -154,7 +177,8 @@ export default async function StudentMeritPage({
         <>
           <MeritTotalsCards totals={view.totals} />
 
-          {viewingPast ? (
+          {/* 명단에서 빠졌으면 폼 자리를 비운다 — 이유는 위 배너가 이미 적었다. */}
+          {removed ? null : viewingPast ? (
             <Note tone="warn">
               지난 학년도를 보고 있습니다. 부여는 현재 학년도에만 할 수 있습니다.
             </Note>

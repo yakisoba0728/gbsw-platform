@@ -109,6 +109,15 @@ export default async function MeritPrintPage({
             }
           />
           <Row label="집계 범위" value={scope} />
+          {/*
+            명단에서 빠진 학생이면 그 사실을 확인서 본문에 적는다. 화면 배지는
+            종이에 안 찍히는데, 이 확인서가 존재하는 이유가 바로 "이미 명단에 없는
+            학생의 기록을 선도관리위원회에 낸다"는 쓰임이다 — 받아 든 사람이
+            "소속 미배정"만 보고 반 배정을 안 한 재학생으로 읽으면 안 된다.
+          */}
+          {header.removedAt && (
+            <Row label="명단 제외일" value={formatDate(header.removedAt)} />
+          )}
         </dl>
 
         {/*
