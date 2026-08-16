@@ -12,6 +12,7 @@ import { toHistorySheet, toRosterSheet } from "@/modules/merit/merit.export";
 import { MeritError } from "@/modules/merit/merit.error";
 import {
   awardSchema,
+  BULK_AWARD_LIMIT,
   bulkAwardSchema,
   cancelBatchSchema,
   cancelSchema,
@@ -22,13 +23,15 @@ import type { MeritActionState } from "./action-state";
 
 const MESSAGES: Record<string, string> = {
   RULE_NOT_FOUND: "규정을 찾을 수 없습니다. 새로고침 후 다시 시도해 주세요.",
-  RULE_INACTIVE: "비활성된 규정입니다. 다른 항목을 골라 주세요.",
+  // 규정은 화면에서 "삭제"로 통일했다(deleteRule·감사 라벨·확인 문구).
+  // 여기만 "비활성"으로 남으면 사용자가 겪은 적 없는 상태를 가리키게 된다.
+  RULE_INACTIVE: "삭제된 규정입니다. 다른 항목을 골라 주세요.",
   AWARD_NOT_FOUND: "기록을 찾을 수 없습니다. 새로고침 후 다시 시도해 주세요.",
   ALREADY_CANCELLED: "이미 취소된 기록입니다.",
   STUDENT_NOT_FOUND: "학생을 찾을 수 없습니다. 명단이 바뀌었을 수 있습니다.",
   NO_STUDENTS: "학생을 선택해 주세요.",
   BATCH_NOT_FOUND: "취소할 묶음을 찾을 수 없습니다. 이미 취소되었을 수 있습니다.",
-  TOO_MANY_STUDENTS: "한 번에 100명까지 줄 수 있습니다.",
+  TOO_MANY_STUDENTS: `한 번에 ${BULK_AWARD_LIMIT}명까지 줄 수 있습니다.`,
   // 부여는 언제나 현재 학년도로 들어가므로, 그 학년도 밖의 발생일은 넣을 자리가
   // 없다 — 넣어 봐야 월별 추이의 12칸 축 밖이라 화면에서 사라진다.
   OCCURRED_OUT_OF_YEAR:

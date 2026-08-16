@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { MERIT_KINDS, MERIT_TRACKS } from "@/core/authz/merit-track";
 import { parseDateInputKst } from "@/lib/datetime";
+import { MAX_YEAR, MIN_YEAR } from "@/modules/academic-year/academic-year.schema";
 
 /**
  * 서버 액션 경계에서만 쓴다. 서비스는 여기를 통과한 타입을 신뢰한다.
@@ -19,7 +20,7 @@ const optionalText = (max: number) =>
   z
     .preprocess(
       (v) => (v == null ? "" : v),
-      z.string().trim().max(max, `${max}자를 넘을 수 없습니다`),
+      z.string().trim().max(max, `${max}자를 넘을 수 없습니다.`),
     )
     .transform((v) => (v.length === 0 ? null : v));
 
@@ -27,29 +28,32 @@ const optionalText = (max: number) =>
 const positiveInt = z
   .string()
   .trim()
-  .regex(/^\d+$/, "점수는 1 이상의 정수여야 합니다")
+  .regex(/^\d+$/, "점수는 1 이상의 정수여야 합니다.")
   .transform(Number)
-  .refine((n) => n >= 1 && n <= 1000, "점수는 1~1000 사이여야 합니다");
+  .refine((n) => n >= 1 && n <= 1000, "점수는 1~1000 사이여야 합니다.");
 
 /**
  * `<input type="date">`가 보내는 `YYYY-MM-DD` → **KST 자정** Date.
  *
  * 생년월일과 같은 경로를 쓴다 (parseDateInputKst 하나만 거친다) — 날짜만 뜻이
  * 있는 값을 어느 시간대의 자정으로 볼지 갈리면, 화면에는 안 드러나다가 값을
- * 직접 비교하는 순간 어긋난다. 2월 30일 같은 값은 Invalid Date가 되므로
+ * 직접 비교하는 순간 어긋난다. 13월처럼 아예 없는 값은 Invalid Date가 되므로
  * 변환한 뒤에 한 번 더 본다 — 정규식만으로는 안 걸린다.
+ *
+ * (2월 30일 같은 "넘치는 날"은 Date가 3월 2일로 굴려 버려서 여기서 안 걸린다.
+ * <input type="date">가 보내지 않는 값이라 그대로 두지만, 예시로 쓰면 틀린다.)
  */
 const dateInputKst = z
   .string()
   .trim()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "발생일을 골라 주세요")
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "발생일을 골라 주세요.")
   .transform(parseDateInputKst)
-  .refine((value) => !Number.isNaN(value.getTime()), "없는 날짜입니다");
+  .refine((value) => !Number.isNaN(value.getTime()), "없는 날짜입니다.");
 
 export const trackSchema = z.enum(MERIT_TRACKS);
 export const kindSchema = z.enum(MERIT_KINDS);
 
-const labelSchema = z.string().trim().min(1, "항목명을 입력해 주세요").max(200);
+const labelSchema = z.string().trim().min(1, "항목명을 입력해 주세요.").max(200);
 
 export const createRuleSchema = z.object({
   track: trackSchema,
@@ -95,7 +99,7 @@ export const awardSchema = z.object({
   // 문구를 붙여 둔다 — 항목 고르기가 select에서 hidden input으로 바뀌면서
   // 브라우저의 required 검사가 사라졌다. 빈 채로 제출되면 여기가 유일한 방어선인데,
   // 문구가 없으면 zod의 영문 기본 메시지가 그대로 화면에 나간다.
-  ruleId: z.string().trim().min(1, "부여할 항목을 골라 주세요"),
+  ruleId: z.string().trim().min(1, "부여할 항목을 골라 주세요."),
   occurredOn: dateInputKst,
   note: optionalText(500),
 });
@@ -108,7 +112,7 @@ export type AwardInput = z.infer<typeof awardSchema>;
  */
 export const cancelSchema = z.object({
   awardId: z.string().trim().min(1),
-  reason: z.string().trim().min(1, "취소 사유를 입력해 주세요").max(500),
+  reason: z.string().trim().min(1, "취소 사유를 입력해 주세요.").max(500),
 });
 
 export type CancelInput = z.infer<typeof cancelSchema>;
@@ -124,9 +128,9 @@ export const BULK_AWARD_LIMIT = 100;
 export const bulkAwardSchema = z.object({
   studentProfileIds: z
     .array(z.string().trim().min(1))
-    .min(1, "학생을 선택해 주세요")
-    .max(BULK_AWARD_LIMIT, `한 번에 ${BULK_AWARD_LIMIT}명까지 줄 수 있습니다`),
-  ruleId: z.string().trim().min(1, "부여할 항목을 골라 주세요"),
+    .min(1, "학생을 선택해 주세요.")
+    .max(BULK_AWARD_LIMIT, `한 번에 ${BULK_AWARD_LIMIT}명까지 줄 수 있습니다.`),
+  ruleId: z.string().trim().min(1, "부여할 항목을 골라 주세요."),
   // 한 묶음은 같은 날 일어난 일이다 — "점호 지각 5명"이 사람마다 다른 날일 수 없다.
   occurredOn: dateInputKst,
   note: optionalText(500),
@@ -134,27 +138,31 @@ export const bulkAwardSchema = z.object({
 
 export type BulkAwardInput = z.infer<typeof bulkAwardSchema>;
 
+/**
+ * 조회용 학년도. 범위는 학년도 모듈의 상수를 그대로 쓴다 — 여기에 2000·2100을 다시
+ * 적으면 학교가 범위를 넓힐 때 두 곳이 갈린다 (enrollment.schema.ts와 같은 처리).
+ */
+const yearQuery = z.coerce.number().int().min(MIN_YEAR).max(MAX_YEAR).optional();
+
 /** 반별 목록 조회 조건. 학년·반은 명단과 같은 범위(1~3학년)를 쓴다. */
 export const classRosterSchema = z.object({
   grade: z.coerce.number().int().min(1).max(3),
   classNo: z.coerce.number().int().min(1).max(20),
   track: trackSchema,
-  year: z.coerce.number().int().min(2000).max(2100).optional(),
+  year: yearQuery,
 });
-
-export type ClassRosterQuery = z.infer<typeof classRosterSchema>;
 
 /** 한 학생의 내역 내보내기 조건. 학년도는 교내일 때만 의미가 있다. */
 export const studentHistoryExportSchema = z.object({
   studentProfileId: z.string().trim().min(1),
   track: trackSchema,
-  year: z.coerce.number().int().min(2000).max(2100).optional(),
+  year: yearQuery,
 });
 
 /** 묶음 통째로 취소. 사유는 단건과 같은 이유로 필수다. */
 export const cancelBatchSchema = z.object({
   batchId: z.string().trim().min(1),
-  reason: z.string().trim().min(1, "취소 사유를 입력해 주세요").max(500),
+  reason: z.string().trim().min(1, "취소 사유를 입력해 주세요.").max(500),
 });
 
 export type CancelBatchInput = z.infer<typeof cancelBatchSchema>;

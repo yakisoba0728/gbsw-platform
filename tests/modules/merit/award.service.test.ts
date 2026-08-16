@@ -22,6 +22,7 @@ const isChildOf = vi.fn();
 const findBatch = vi.fn();
 const cancelAwards = vi.fn();
 const listAwardYears = vi.fn();
+const listRecentAwards = vi.fn();
 
 vi.mock("@/modules/merit/merit.repo", () => ({
   findRule,
@@ -41,6 +42,7 @@ vi.mock("@/modules/merit/merit.repo", () => ({
   findBatch,
   cancelAwards,
   listAwardYears,
+  listRecentAwards,
 }));
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
 vi.mock("@/modules/academic-year/academic-year.service", () => ({
@@ -121,6 +123,7 @@ beforeEach(() => {
   // 실제로 취소된 것의 id만 돌려준다 — 기본은 넘긴 것 전부가 취소된 경우다.
   cancelAwards.mockReset().mockImplementation(async (ids: string[]) => ids);
   listAwardYears.mockReset().mockResolvedValue([2026, 2025]);
+  listRecentAwards.mockReset().mockResolvedValue([]);
 });
 
 /** 한 묶음에 속한 살아 있는 기록 셋. 학생이 서로 다르다는 것이 요점이다. */
@@ -812,6 +815,46 @@ describe("getClassRoster", () => {
     await expect(
       service.getClassRoster(student, { grade: 1, classNo: 1, track: "SCHOOL" }),
     ).rejects.toThrow("FORBIDDEN");
+  });
+});
+
+/**
+ * 최근 부여 흐름 (/merit/recent).
+ *
+ * **취소된 것도 함께 보여준다** — 이 화면이 답하는 질문은 "방금 무슨 일이 있었나"이고
+ * 취소 역시 일어난 일이다. 목록이 조용히 짧아지면 잘못 넣은 것을 되돌리러 온 사람이
+ * 자기가 방금 한 일을 못 찾는다.
+ */
+describe("listRecentAwards", () => {
+  const ROWS = [
+    { id: "a-1", kind: "MERIT", status: "ACTIVE", batchId: null },
+    { id: "a-2", kind: "DEMERIT", status: "CANCELLED", batchId: "batch-1" },
+  ];
+
+  it("트랙별로 정해진 개수만 가져온다", async () => {
+    await service.listRecentAwards(admin, "DORM");
+
+    expect(listRecentAwards).toHaveBeenCalledWith({ track: "DORM", limit: 30 });
+  });
+
+  it("취소된 기록도 그대로 넘긴다 — 서비스가 거르지 않는다", async () => {
+    listRecentAwards.mockResolvedValue(ROWS);
+
+    expect(await service.listRecentAwards(admin, "SCHOOL")).toEqual(ROWS);
+  });
+
+  it("학생은 볼 수 없다", async () => {
+    await expect(service.listRecentAwards(student, "SCHOOL")).rejects.toThrow(
+      "FORBIDDEN",
+    );
+    expect(listRecentAwards).not.toHaveBeenCalled();
+  });
+
+  it("학부모도 볼 수 없다 — 전교 부여 흐름은 관리자 화면이다", async () => {
+    await expect(
+      service.listRecentAwards(user("PARENT", "p-1"), "SCHOOL"),
+    ).rejects.toThrow("FORBIDDEN");
+    expect(listRecentAwards).not.toHaveBeenCalled();
   });
 });
 

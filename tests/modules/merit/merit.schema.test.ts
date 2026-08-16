@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { MAX_YEAR, MIN_YEAR } from "@/modules/academic-year/academic-year.schema";
 import {
   awardSchema,
+  BULK_AWARD_LIMIT,
+  bulkAwardSchema,
+  cancelSchema,
+  classRosterSchema,
   createRuleSchema,
+  studentHistoryExportSchema,
   updateRuleSchema,
 } from "@/modules/merit/merit.schema";
 
@@ -119,5 +125,79 @@ describe("선택 입력(메모·분류·설명)의 길이", () => {
       note: "   ",
     });
     expect(parsed.note).toBeNull();
+  });
+});
+
+/**
+ * 조회 학년도의 범위.
+ *
+ * 예전엔 2000·2100을 이 파일에 손으로 다시 적었다. 학교가 범위를 넓히면 학년도
+ * 모듈과 여기가 갈리고, 갈렸다는 사실은 "왜 이 해는 안 나오지"로만 드러난다.
+ */
+describe("조회 학년도", () => {
+  const roster = { grade: "2", classNo: "3", track: "SCHOOL" };
+
+  it("학년도 모듈의 범위를 그대로 쓴다", () => {
+    expect(classRosterSchema.safeParse({ ...roster, year: MIN_YEAR }).success).toBe(true);
+    expect(classRosterSchema.safeParse({ ...roster, year: MAX_YEAR }).success).toBe(true);
+    expect(classRosterSchema.safeParse({ ...roster, year: MIN_YEAR - 1 }).success).toBe(
+      false,
+    );
+    expect(classRosterSchema.safeParse({ ...roster, year: MAX_YEAR + 1 }).success).toBe(
+      false,
+    );
+  });
+
+  it("내보내기 조건도 같은 범위다", () => {
+    const base = { studentProfileId: "sp-1", track: "SCHOOL" };
+    expect(studentHistoryExportSchema.safeParse({ ...base, year: MIN_YEAR }).success).toBe(
+      true,
+    );
+    expect(
+      studentHistoryExportSchema.safeParse({ ...base, year: MAX_YEAR + 1 }).success,
+    ).toBe(false);
+  });
+
+  it("학년도는 선택 입력이다 — 없으면 서비스가 현재 학년도로 정한다", () => {
+    expect(classRosterSchema.parse(roster).year).toBeUndefined();
+  });
+});
+
+/**
+ * 화면에 그대로 나가는 문구다. 다른 스키마 파일은 전부 마침표를 찍는데
+ * 여기만 안 찍혀 있어서, 같은 화면에 두 어투가 섞였다.
+ */
+describe("검증 실패 문구", () => {
+  function firstMessage(result: { success: boolean; error?: { issues: { message: string }[] } }) {
+    expect(result.success).toBe(false);
+    return result.error!.issues[0].message;
+  }
+
+  it("모두 마침표로 끝난다", () => {
+    const messages = [
+      firstMessage(createRuleSchema.safeParse({ track: "SCHOOL", kind: "MERIT", label: "", points: "5" })),
+      firstMessage(createRuleSchema.safeParse({ track: "SCHOOL", kind: "MERIT", label: "x", points: "0" })),
+      firstMessage(createRuleSchema.safeParse({ track: "SCHOOL", kind: "MERIT", label: "x", points: "5", category: "가".repeat(51) })),
+      firstMessage(awardSchema.safeParse({ studentProfileId: "sp-1", ruleId: "", occurredOn: "2026-06-12" })),
+      firstMessage(awardSchema.safeParse({ studentProfileId: "sp-1", ruleId: "r-1", occurredOn: "" })),
+      firstMessage(awardSchema.safeParse({ studentProfileId: "sp-1", ruleId: "r-1", occurredOn: "2026-13-01" })),
+      firstMessage(cancelSchema.safeParse({ awardId: "a-1", reason: "" })),
+      firstMessage(bulkAwardSchema.safeParse({ studentProfileIds: [], ruleId: "r-1", occurredOn: "2026-06-12" })),
+    ];
+
+    for (const message of messages) {
+      expect(message, message).toMatch(/\.$/);
+    }
+  });
+
+  /** 상한을 손으로 다시 적으면 스키마를 고쳐도 문구가 옛 숫자로 남는다. */
+  it("인원 상한 문구는 BULK_AWARD_LIMIT에서 만들어진다", () => {
+    const result = bulkAwardSchema.safeParse({
+      studentProfileIds: Array.from({ length: BULK_AWARD_LIMIT + 1 }, (_, i) => `sp-${i}`),
+      ruleId: "r-1",
+      occurredOn: "2026-06-12",
+    });
+
+    expect(firstMessage(result)).toBe(`한 번에 ${BULK_AWARD_LIMIT}명까지 줄 수 있습니다.`);
   });
 });

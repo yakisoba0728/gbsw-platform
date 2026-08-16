@@ -286,11 +286,8 @@ export async function findStudentProfileByUserId(userId: string) {
 export async function findStudentProfileById(id: string) {
   return prisma.studentProfile.findFirst({
     where: { id, user: { deletedAt: null } },
-    select: {
-      id: true,
-      studentCode: true,
-      user: { select: { id: true, name: true } },
-    },
+    // 부여가 쓰는 것은 id(존재 확인)와 이름(감사로그)뿐이다.
+    select: { id: true, user: { select: { name: true } } },
   });
 }
 
@@ -326,11 +323,8 @@ export async function createAwards(items: NewAward[]): Promise<{ id: string }[]>
 export async function findStudentProfilesByIds(ids: string[]) {
   return prisma.studentProfile.findMany({
     where: { id: { in: ids }, user: { deletedAt: null } },
-    select: {
-      id: true,
-      studentCode: true,
-      user: { select: { id: true, name: true } },
-    },
+    // 단건 부여와 같은 것만 쓴다 — id와 감사로그용 이름.
+    select: { id: true, user: { select: { name: true } } },
   });
 }
 
