@@ -38,6 +38,8 @@ export type NavItem = {
  */
 export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "대시보드", icon: DashboardIcon },
+  // roles를 비운다 — 학생·학부모·관리자가 모두 본다 (각자 보는 내용은 다르다).
+  { href: "/merit", label: "상벌점", icon: MeritIcon },
   {
     href: "/parent-invite",
     label: "학부모 초대",
