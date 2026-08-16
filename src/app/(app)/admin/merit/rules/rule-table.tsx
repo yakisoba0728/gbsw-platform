@@ -73,18 +73,18 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
         <table className="w-full min-w-[640px] text-left text-sm">
           <colgroup>
             <col className="w-[76px]" />
+            <col className="w-[128px]" />
             <col />
-            <col className="w-[90px]" />
-            <col className="w-[120px]" />
+            <col className="w-[92px]" />
             <col className="w-[72px]" />
             <col className="w-[150px]" />
           </colgroup>
           <thead>
             <tr className="border-b border-line2 text-[12px] text-mut">
               <th className="px-5 py-2.5 font-semibold">종류</th>
+              <th className="px-3 py-2.5 font-semibold">분류</th>
               <th className="px-3 py-2.5 font-semibold">항목명</th>
               <th className="px-3 py-2.5 font-semibold">점수</th>
-              <th className="px-3 py-2.5 font-semibold">분류</th>
               <th className="px-3 py-2.5 font-semibold">상태</th>
               <th className="px-5 py-2.5 font-semibold">작업</th>
             </tr>
@@ -100,6 +100,21 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
                     <Badge tone={rule.kind === "MERIT" ? "merit" : "demerit"}>
                       {MERIT_KIND_LABELS[rule.kind as MeritKind]}
                     </Badge>
+                  </td>
+
+                  <td className={`px-3 py-2.5 ${rule.active ? "text-mut" : "text-mut line-through"}`}>
+                    {editing ? (
+                      <Input
+                        dense
+                        name="category"
+                        form="rule-edit-form"
+                        defaultValue={rule.category ?? ""}
+                        maxLength={50}
+                        aria-label={`${rule.label} 분류 수정`}
+                      />
+                    ) : (
+                      (rule.category ?? "—")
+                    )}
                   </td>
 
                   <td className={`px-3 py-2.5 font-semibold ${dim}`}>
@@ -150,21 +165,6 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
                         rule.points
                       )}
                     </span>
-                  </td>
-
-                  <td className={`px-3 py-2.5 ${rule.active ? "text-mut" : "text-mut line-through"}`}>
-                    {editing ? (
-                      <Input
-                        dense
-                        name="category"
-                        form="rule-edit-form"
-                        defaultValue={rule.category ?? ""}
-                        maxLength={50}
-                        aria-label={`${rule.label} 분류 수정`}
-                      />
-                    ) : (
-                      (rule.category ?? "—")
-                    )}
                   </td>
 
                   <td className="px-3 py-2.5">

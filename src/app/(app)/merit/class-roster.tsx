@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import type { MeritTrack } from "@/core/authz/merit-track";
+import { RuleOptions, type RuleOption } from "@/components/merit/rule-options";
 import { EMPTY_MERIT_STATE } from "./action-state";
 import { bulkAwardAction } from "./actions";
 import { ExportButton } from "./export-button";
@@ -20,16 +21,7 @@ export type RosterRow = {
   net: number;
 };
 
-export type RuleOption = {
-  id: string;
-  kind: string;
-  label: string;
-  points: number;
-  category: string | null;
-};
-
-const optionLabel = (rule: RuleOption) =>
-  `[${rule.kind === "MERIT" ? "상" : "벌"} ${rule.points}점] ${rule.label}`;
+export type { RuleOption };
 
 type SortKey = "number" | "net";
 
@@ -208,11 +200,7 @@ export function ClassRoster({
               <option value="" disabled>
                 항목 선택
               </option>
-              {rules.map((rule) => (
-                <option key={rule.id} value={rule.id}>
-                  {optionLabel(rule)}
-                </option>
-              ))}
+              <RuleOptions rules={rules} />
             </Select>
           </div>
 

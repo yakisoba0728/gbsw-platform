@@ -4,19 +4,9 @@ import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { RuleOptions, type RuleOption } from "@/components/merit/rule-options";
 import { EMPTY_MERIT_STATE } from "@/app/(app)/merit/action-state";
 import { awardAction } from "@/app/(app)/merit/actions";
-
-type RuleOption = {
-  id: string;
-  kind: string;
-  label: string;
-  points: number;
-  category: string | null;
-};
-
-const optionLabel = (rule: { kind: string; points: number; label: string }) =>
-  `[${rule.kind === "MERIT" ? "상" : "벌"} ${rule.points}점] ${rule.label}`;
 
 /** 시안의 "상벌점 부여" 카드. 항목(select) · 메모(선택) · 부여 버튼. */
 export function AwardForm({
@@ -40,11 +30,7 @@ export function AwardForm({
             <option value="" disabled>
               항목 선택
             </option>
-            {rules.map((rule) => (
-              <option key={rule.id} value={rule.id}>
-                {optionLabel(rule)}
-              </option>
-            ))}
+            <RuleOptions rules={rules} />
           </Select>
         </div>
 

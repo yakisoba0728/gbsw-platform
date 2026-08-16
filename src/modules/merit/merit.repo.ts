@@ -67,20 +67,39 @@ export async function deactivateRule(id: string): Promise<void> {
  */
 const KIND_ORDER: Record<string, number> = { MERIT: 0, DEMERIT: 1 };
 
-function byKindThenPoints<T extends { kind: string; points: number }>(
-  a: T,
-  b: T,
-): number {
+/**
+ * 규정 정렬: **종류 → 분류 → 점수**.
+ *
+ * 학교 규정표가 이 순서로 되어 있고, 읽는 사람도 "상점 중에 교내 환경 항목"처럼
+ * 찾는다. 분류는 한글 가나다순이며 — 원본 표의 분류 순서가 마침 가나다순이라
+ * 표를 그대로 재현한다. 분류가 없는 규정(관리자가 나중에 만든 것)은 맨 뒤로 간다.
+ */
+function byKindCategoryPoints<
+  T extends { kind: string; category: string | null; points: number },
+>(a: T, b: T): number {
   const kind = (KIND_ORDER[a.kind] ?? 9) - (KIND_ORDER[b.kind] ?? 9);
-  return kind !== 0 ? kind : a.points - b.points;
+  if (kind !== 0) return kind;
+
+  // 분류 없음은 맨 뒤. 빈 문자열과 null을 같게 본다.
+  const ca = a.category ?? "";
+  const cb = b.category ?? "";
+  if (ca !== cb) {
+    if (ca === "") return 1;
+    if (cb === "") return -1;
+    const category = ca.localeCompare(cb, "ko");
+    if (category !== 0) return category;
+  }
+
+  return a.points - b.points;
 }
 
 /** 비활성 포함 전부. 규정 관리 화면이 쓴다. */
 export async function listRules(track: MeritTrack) {
   const rules = await prisma.meritRule.findMany({
     where: { track },
-    // 사용 중인 것이 먼저, 그 안에서 분류별로 묶는다. 종류·점수는 아래에서 세운다.
-    orderBy: [{ active: "desc" }, { category: "asc" }],
+    // 순서는 아래 byKindCategoryPoints가 세운다. 여기서는 결과가 매번 같도록
+    // 안정적인 기준만 준다 — 같은 (종류·분류·점수)가 여럿일 때 화면이 흔들리지 않게.
+    orderBy: [{ label: "asc" }],
     select: {
       id: true,
       track: true,
@@ -95,8 +114,8 @@ export async function listRules(track: MeritTrack) {
 
   // 사용/중지 구분은 유지한 채 각 묶음 안에서 상점 → 벌점 순으로 세운다.
   return [
-    ...rules.filter((r) => r.active).sort(byKindThenPoints),
-    ...rules.filter((r) => !r.active).sort(byKindThenPoints),
+    ...rules.filter((r) => r.active).sort(byKindCategoryPoints),
+    ...rules.filter((r) => !r.active).sort(byKindCategoryPoints),
   ];
 }
 
@@ -104,10 +123,10 @@ export async function listRules(track: MeritTrack) {
 export async function listActiveRules(track: MeritTrack) {
   const rules = await prisma.meritRule.findMany({
     where: { track, active: true },
-    orderBy: { category: "asc" },
+    orderBy: { label: "asc" },
     select: { id: true, kind: true, label: true, points: true, category: true },
   });
-  return rules.sort(byKindThenPoints);
+  return rules.sort(byKindCategoryPoints);
 }
 
 // ── 부여 ──────────────────────────────────────────────────────

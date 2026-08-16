@@ -31,7 +31,7 @@ beforeEach(() => {
   meritRuleFindMany.mockReset();
 });
 
-describe("listRules — 상점이 먼저 나온다", () => {
+describe("listRules — 종류 → 분류 → 점수", () => {
   it("벌점이 앞에 담겨 와도 상점을 앞으로 세운다", async () => {
     meritRuleFindMany.mockResolvedValue([
       rule({ id: "d1", kind: "DEMERIT", points: 3 }),
@@ -42,15 +42,58 @@ describe("listRules — 상점이 먼저 나온다", () => {
 
     const rows = await listRules("SCHOOL");
 
-    // 상점(m1 2점 → m2 10점) 다음에 벌점(d2 1점 → d1 3점). 같은 종류 안은 점수순이다.
+    // 상점(m1 2점 → m2 10점) 다음에 벌점(d2 1점 → d1 3점). 분류가 같으면 점수순이다.
     expect(rows.map((r) => r.id)).toEqual(["m1", "m2", "d2", "d1"]);
   });
 
-  it("같은 종류 안에서는 점수가 낮은 것부터다", async () => {
+  it("같은 종류 안에서는 분류가 점수보다 먼저다", async () => {
+    // 점수만 보면 1점짜리가 앞서지만, 분류가 다르면 분류가 이긴다.
     meritRuleFindMany.mockResolvedValue([
-      rule({ id: "a", kind: "MERIT", points: 60 }),
-      rule({ id: "b", kind: "MERIT", points: 1 }),
-      rule({ id: "c", kind: "MERIT", points: 10 }),
+      rule({ id: "b-low", category: "학교 활동", points: 1 }),
+      rule({ id: "a-high", category: "교내 환경", points: 10 }),
+    ]);
+
+    const rows = await listRules("SCHOOL");
+
+    expect(rows.map((r) => r.id)).toEqual(["a-high", "b-low"]);
+  });
+
+  it("분류는 한글 가나다순이다 — 원본 규정표의 순서와 같다", async () => {
+    meritRuleFindMany.mockResolvedValue([
+      rule({ id: "h", category: "학교 활동" }),
+      rule({ id: "g", category: "교내 환경" }),
+      rule({ id: "s", category: "선행 질서" }),
+      rule({ id: "m", category: "명예 표창" }),
+    ]);
+
+    const rows = await listRules("SCHOOL");
+
+    expect(rows.map((r) => r.category)).toEqual([
+      "교내 환경",
+      "명예 표창",
+      "선행 질서",
+      "학교 활동",
+    ]);
+  });
+
+  it("분류가 없는 규정은 맨 뒤로 간다", async () => {
+    meritRuleFindMany.mockResolvedValue([
+      rule({ id: "none", category: null, points: 1 }),
+      rule({ id: "empty", category: "", points: 1 }),
+      rule({ id: "has", category: "교내 환경", points: 9 }),
+    ]);
+
+    const rows = await listRules("SCHOOL");
+
+    expect(rows[0].id).toBe("has");
+    expect(rows.slice(1).map((r) => r.id).sort()).toEqual(["empty", "none"]);
+  });
+
+  it("같은 분류 안에서는 점수가 낮은 것부터다", async () => {
+    meritRuleFindMany.mockResolvedValue([
+      rule({ id: "a", kind: "MERIT", category: "선행 질서", points: 60 }),
+      rule({ id: "b", kind: "MERIT", category: "선행 질서", points: 1 }),
+      rule({ id: "c", kind: "MERIT", category: "선행 질서", points: 10 }),
     ]);
 
     const rows = await listRules("SCHOOL");
