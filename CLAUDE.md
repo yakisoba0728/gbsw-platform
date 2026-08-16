@@ -77,9 +77,10 @@ src/
     audit/audit.ts      recordAudit()
   modules/<모듈>/        <모듈>.schema.ts · <모듈>.repo.ts · <모듈>.service.ts
     merit/               첫 업무 모듈. repo·schema·error는 하나, 서비스는 책임별로
-                          나눈다(rule.service.ts · award.service.ts) — 화면도 같은
-                          경계를 따른다(app/(app)/admin/merit/rules ·
-                          app/(app)/merit).
+                          나눈다(rule.service.ts · award.service.ts ·
+                          stats.service.ts) — 화면도 같은 경계를 따른다
+                          (app/(app)/admin/merit/rules · app/(app)/merit ·
+                          app/(app)/merit/stats).
   app/
     (auth)/             비로그인 — login
     (app)/              로그인 필수 — layout.tsx가 세션 가드 + mustChangePassword 가로채기
