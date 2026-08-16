@@ -1,21 +1,47 @@
+import { Skeleton, SkeletonScreen, SkeletonTabs } from "@/components/ui/skeleton";
+
 /**
- * 로딩 스켈레톤. 집계 질의가 도는 동안 빈 화면 대신 뼈대를 보여준다 —
- * 실제로 빨라지지는 않지만 "멈췄나"라는 인상을 없앤다.
+ * `/admin/merit/rules`의 뼈대 — 트랙 탭 · 규정 추가 폼 · 검색/종류 필터 · 규정 표.
+ *
+ * 전에는 `/merit` 계열 뼈대를 그대로 복사해 **합계 칸 3개**를 그렸는데, 이 화면에는
+ * 합계 칸이 아예 없다. 내용이 도착하면 그 자리가 통째로 사라져 화면이 위로 튀었다.
  */
 export default function Loading() {
   return (
-    <div className="mx-auto max-w-5xl space-y-4" aria-busy="true" aria-live="polite">
-      <span className="sr-only">불러오는 중</span>
-      <div className="flex gap-2">
-        <div className="h-9 w-24 animate-pulse rounded-full bg-soft" />
-        <div className="h-9 w-24 animate-pulse rounded-full bg-soft" />
+    <SkeletonScreen className="mx-auto max-w-5xl space-y-4">
+      <SkeletonTabs />
+
+      {/* 규정 추가 */}
+      <div className="rounded-card border border-line bg-surface p-5">
+        <Skeleton className="h-4 w-20 rounded-btn" />
+        <div className="mt-3.5 flex flex-wrap items-end gap-2.5">
+          <Skeleton className="h-[70px] min-w-[180px] flex-[2] rounded-field" />
+          <Skeleton className="h-[70px] min-w-[100px] flex-1 rounded-field" />
+          <Skeleton className="h-[70px] w-[90px] rounded-field" />
+          <Skeleton className="h-[70px] min-w-[110px] flex-1 rounded-field" />
+          <Skeleton className="h-[70px] min-w-[160px] flex-[2] rounded-field" />
+        </div>
       </div>
-      <div className="grid grid-cols-3 gap-3">
-        {[0, 1, 2].map((i) => (
-          <div key={i} className="h-[84px] animate-pulse rounded-card bg-soft" />
-        ))}
+
+      {/* 검색 + 종류 필터 */}
+      <div className="rounded-card border border-line bg-surface p-4">
+        <Skeleton className="h-11 rounded-field" />
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {Array.from({ length: 5 }, (_, i) => (
+            <Skeleton key={i} className="h-7 w-16 rounded-full" />
+          ))}
+        </div>
+        <Skeleton className="mt-3 h-4 w-16 rounded-btn" />
       </div>
-      <div className="h-64 animate-pulse rounded-card bg-soft" />
-    </div>
+
+      {/* 규정 표 */}
+      <div className="rounded-card border border-line bg-surface">
+        <div className="space-y-3 px-5 py-4">
+          {Array.from({ length: 10 }, (_, i) => (
+            <Skeleton key={i} className="h-8 rounded-btn" />
+          ))}
+        </div>
+      </div>
+    </SkeletonScreen>
   );
 }
