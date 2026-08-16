@@ -112,4 +112,17 @@
     border-color: var(--color-pri);
     box-shadow: 0 0 0 3px --alpha(var(--color-pri) / 15%);
   }
+
+  /*
+   * 모달 <dialog>는 원래 브라우저가 화면 가운데에 띄운다 — UA 스타일시트의
+   * `margin: auto`가 그 일을 한다. Tailwind 리셋이 모든 요소의 margin을 0으로
+   * 만들면서 그게 죽고, showModal()로 연 모달이 왼쪽 위에 처박힌다.
+   * 기본 동작을 여기서 되살린다. 옆에서 밀고 들어오는 서랍처럼 일부러 다른
+   * 자리에 붙일 때는 각자 m-0으로 덮으면 된다 (app-shell/mobile-nav.tsx).
+   */
+  dialog:modal {
+    margin: auto;
+    max-height: 90dvh;
+    max-width: 92vw;
+  }
 }

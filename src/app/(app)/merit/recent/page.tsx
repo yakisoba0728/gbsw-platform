@@ -71,87 +71,115 @@ export default async function RecentAwardsPage({
       ) : (
         <section className="rounded-card border border-line bg-surface">
           <header className="border-b border-line px-5 py-4">
-            <h2 className="text-base font-extrabold text-ink">최근 부여</h2>
-            <p className="mt-1 text-[12px] text-mut">
-              최근 {rows.length}건. 취소된 것도 함께 보여줍니다 — 취소 역시
-              일어난 일입니다.
-            </p>
+            <h2 className="text-base font-extrabold text-ink">최근 부여 {rows.length}건</h2>
           </header>
 
-          <ul>
-            {rows.map((row) => {
-              const cancelled = row.status === "CANCELLED";
-              // 묶음의 첫 줄에만 일괄 취소를 붙인다. 같은 버튼이 30번 뜨면
-              // 무엇을 누르는지가 오히려 흐려진다.
-              const batchSize = row.batchId ? (batchSizes.get(row.batchId) ?? 0) : 0;
-              const showBatchCancel =
-                !cancelled && row.batchId !== null && batchSize > 1 && !seenBatches.has(row.batchId);
-              if (row.batchId) seenBatches.add(row.batchId);
+          {/*
+            표로 그린다. flex 목록이었을 때는 항목명 길이에 따라 점수·부여자가
+            줄마다 다른 자리에 섰다 — 눈으로 세로로 훑을 수가 없었다.
+            colgroup으로 자리를 고정하고, 넘치는 글자는 잘라낸다.
+          */}
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] table-fixed text-left text-sm">
+              <colgroup>
+                <col className="w-[124px]" />
+                <col className="w-[64px]" />
+                <col className="w-[92px]" />
+                <col />
+                <col className="w-[64px]" />
+                <col className="w-[88px]" />
+                <col className="w-[104px]" />
+              </colgroup>
+              <thead>
+                <tr className="border-b border-line2 text-[12px] text-mut">
+                  <th className="px-5 py-2.5 font-semibold">입력</th>
+                  <th className="px-2 py-2.5 font-semibold">구분</th>
+                  <th className="px-2 py-2.5 font-semibold">학생</th>
+                  <th className="px-2 py-2.5 font-semibold">항목</th>
+                  <th className="px-2 py-2.5 text-right font-semibold">점수</th>
+                  <th className="px-2 py-2.5 font-semibold">부여자</th>
+                  <th className="px-5 py-2.5 font-semibold">상태</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => {
+                  const cancelled = row.status === "CANCELLED";
+                  // 묶음의 첫 줄에만 일괄 취소를 붙인다. 같은 버튼이 30번 뜨면
+                  // 무엇을 누르는지가 오히려 흐려진다.
+                  const batchSize = row.batchId ? (batchSizes.get(row.batchId) ?? 0) : 0;
+                  const showBatchCancel =
+                    !cancelled &&
+                    row.batchId !== null &&
+                    batchSize > 1 &&
+                    !seenBatches.has(row.batchId);
+                  if (row.batchId) seenBatches.add(row.batchId);
 
-              return (
-                <li
-                  key={row.id}
-                  className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-line2 px-5 py-3 last:border-0"
-                >
-                  {/*
-                    이 목록만 입력순이다 ("방금 무엇이 들어왔나"를 보는 화면).
-                    그래서 앞에 서는 시각도 입력 시각이고, 발생일이 다른 날이면
-                    그것을 덧붙인다 — 두 날짜가 갈린 기록을 여기서 알아채야
-                    잘못 넣은 것을 바로 되돌릴 수 있다.
-                  */}
-                  <span className="w-[132px] shrink-0 text-[12px] text-mut">
-                    {formatDateTime(row.createdAt)}
-                    {!isSameKstDate(row.occurredOn, row.createdAt) && (
-                      <span className="block text-mut2">
-                        발생 {formatDate(row.occurredOn)}
-                      </span>
-                    )}
-                  </span>
+                  return (
+                    <tr key={row.id} className="border-b border-line2 last:border-0">
+                      {/*
+                        이 목록만 입력순이다 ("방금 무엇이 들어왔나"를 보는 화면).
+                        그래서 앞에 서는 시각도 입력 시각이고, 발생일이 다른 날이면
+                        그것을 덧붙인다 — 두 날짜가 갈린 기록을 여기서 알아채야
+                        잘못 넣은 것을 바로 되돌릴 수 있다.
+                      */}
+                      <td className="px-5 py-2.5 align-top text-[12px] whitespace-nowrap text-mut">
+                        {formatDateTime(row.createdAt)}
+                        {!isSameKstDate(row.occurredOn, row.createdAt) && (
+                          <span className="block text-mut2">
+                            발생 {formatDate(row.occurredOn)}
+                          </span>
+                        )}
+                      </td>
 
-                  <KindBadge kind={row.kind} />
+                      <td className="px-2 py-2.5 align-top">
+                        <KindBadge kind={row.kind} />
+                      </td>
 
-                  <Link
-                    href={`/merit/students/${row.studentProfileId}?track=${track}`}
-                    className="font-semibold text-ink hover:text-pri hover:underline"
-                  >
-                    {row.studentName}
-                  </Link>
+                      <td className="px-2 py-2.5 align-top">
+                        <Link
+                          href={`/merit/students/${row.studentProfileId}?track=${track}`}
+                          className="block truncate font-semibold text-ink hover:text-pri hover:underline"
+                        >
+                          {row.studentName}
+                        </Link>
+                      </td>
 
-                  <span
-                    className={
-                      cancelled
-                        ? "flex-1 text-[13px] text-mut line-through"
-                        : "flex-1 text-[13px] text-ink"
-                    }
-                  >
-                    {row.label}
-                  </span>
+                      <td
+                        className={`truncate px-2 py-2.5 align-top text-[13px] ${
+                          cancelled ? "text-mut line-through" : "text-ink"
+                        }`}
+                        title={row.label}
+                      >
+                        {row.label}
+                      </td>
 
-                  <span
-                    className={`shrink-0 font-bold ${cancelled ? "text-mut" : kindColorClass(row.kind)}`}
-                  >
-                    {signedPoints(row.kind, row.points)}
-                  </span>
+                      <td
+                        className={`px-2 py-2.5 text-right align-top font-bold whitespace-nowrap ${
+                          cancelled ? "text-mut" : kindColorClass(row.kind)
+                        }`}
+                      >
+                        {signedPoints(row.kind, row.points)}
+                      </td>
 
-                  <span className="w-[80px] shrink-0 text-right text-[12px] text-mut">
-                    {row.awardedByName}
-                  </span>
+                      <td className="truncate px-2 py-2.5 align-top text-[12px] text-mut">
+                        {row.awardedByName}
+                      </td>
 
-                  {cancelled ? (
-                    <Badge tone="cancelled">취소</Badge>
-                  ) : batchSize > 1 ? (
-                    <Badge tone="info">일괄 {batchSize}</Badge>
-                  ) : (
-                    <span className="w-[52px]" />
-                  )}
-
-                  {showBatchCancel && row.batchId && (
-                    <CancelBatchButton batchId={row.batchId} count={batchSize} />
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+                      <td className="px-5 py-2.5 align-top">
+                        {cancelled ? (
+                          <Badge tone="cancelled">취소</Badge>
+                        ) : showBatchCancel && row.batchId ? (
+                          // 같은 묶음으로 나간 건수를 버튼에 적는다 — 배지로
+                          // "일괄 4"만 띄우면 그래서 뭘 하라는 건지가 없다.
+                          <CancelBatchButton batchId={row.batchId} count={batchSize} />
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
     </div>

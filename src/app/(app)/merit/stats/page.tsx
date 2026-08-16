@@ -380,9 +380,7 @@ function TopRules({ rows }: { rows: MeritStats["topRules"] }) {
     <section className="rounded-card border border-line bg-surface">
       <header className="border-b border-line px-5 py-4">
         <h2 className="text-base font-extrabold text-ink">많이 나온 항목</h2>
-        <p className="mt-1 text-[12px] text-mut">
-          어떤 규정이 실제로 쓰이는지 보여줍니다. 상위 {rows.length}개.
-        </p>
+        <p className="mt-1 text-[12px] text-mut">상위 {rows.length}개</p>
       </header>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[480px] text-left text-sm">

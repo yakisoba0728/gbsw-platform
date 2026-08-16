@@ -200,7 +200,7 @@ export function ClassNetChart({
   return (
     <ChartCard
       title="반별 순점수"
-      hint={hrefFor ? "반을 누르면 그 반만 봅니다" : "0을 기준으로 좌우로 뻗습니다"}
+      hint={hrefFor ? "누르면 그 반만" : undefined}
     >
       <div className="flex flex-col gap-2">
         {rows.map((row, i) => {
@@ -308,7 +308,7 @@ export function StudentNetChart({
   const scale = scaleToPercent(sorted.map((r) => r.net));
 
   return (
-    <ChartCard title="학생별 순점수" hint="순점수가 낮은 학생부터. 눌러서 상세로 갑니다">
+    <ChartCard title="학생별 순점수" hint="순점수 낮은 순">
       <div className="flex flex-col gap-2">
         {sorted.map((row, i) => {
           const level = demeritLevel(track, row.demerit);

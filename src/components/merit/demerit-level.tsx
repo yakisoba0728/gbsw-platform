@@ -21,8 +21,7 @@ export function ThresholdHint({ track }: { track: MeritTrack }) {
   const { warn, danger } = DEMERIT_THRESHOLDS[track];
   return (
     <p className="text-[12px] text-mut">
-      벌점 {warn}점 이상은 진하게, {danger}점 이상은 붉은 배경으로 표시합니다.
-      기준을 넘어도 자동으로 처리되는 것은 없습니다.
+      벌점 {warn}점↑ 진하게 · {danger}점↑ 붉은 배경 (표시만, 자동 처리 없음)
     </p>
   );
 }
