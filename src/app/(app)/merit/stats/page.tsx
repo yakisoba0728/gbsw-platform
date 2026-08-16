@@ -4,12 +4,13 @@ import { requirePermission } from "@/core/auth/session";
 import {
   isMeritTrack,
   isYearScoped,
-  MERIT_TRACK_LABELS,
-  MERIT_TRACKS,
+  signedNet,
   type MeritTrack,
 } from "@/core/authz/merit-track";
 import { KindBadge, kindColorClass, signedPoints } from "@/components/merit/kind-badge";
+import { TrackTabs } from "@/components/merit/track-tabs";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
+import { hrefWith } from "@/lib/search-params";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import { demeritCellClass, ThresholdHint } from "@/components/merit/demerit-level";
 import {
@@ -50,36 +51,13 @@ export default async function MeritStatsPage({
   }
 
   /** 지금 쿼리를 유지한 채 일부만 바꾼 주소. 트랙 탭과 반 선택이 함께 쓴다. */
-  function hrefWith(patch: Record<string, string | null>): string {
-    const query = new URLSearchParams();
-    for (const [key, value] of Object.entries(raw)) {
-      if (typeof value === "string") query.set(key, value);
-    }
-    for (const [key, value] of Object.entries(patch)) {
-      if (value === null) query.delete(key);
-      else query.set(key, value);
-    }
-    const qs = query.toString();
-    return qs ? `/merit/stats?${qs}` : "/merit/stats";
+  function statsHref(patch: Record<string, string | null>): string {
+    return hrefWith("/merit/stats", raw, patch);
   }
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
-      <div className="flex items-center gap-2">
-        {MERIT_TRACKS.map((t) => (
-          <Link
-            key={t}
-            href={hrefWith({ track: t })}
-            className={
-              t === track
-                ? "rounded-full bg-pri px-4 py-2 text-[13px] font-bold text-white"
-                : "rounded-full border border-line bg-surface px-4 py-2 text-[13px] font-semibold text-mut hover:border-pri hover:text-pri"
-            }
-          >
-            {MERIT_TRACK_LABELS[t]}
-          </Link>
-        ))}
-      </div>
+      <TrackTabs current={track} hrefFor={(t) => statsHref({ track: t })} />
 
       {!stats ? (
         <NoAcademicYearNotice />
@@ -95,7 +73,7 @@ export default async function MeritStatsPage({
               <span className="flex items-center gap-2 rounded-full bg-pri-soft px-3 py-1 text-[12.5px] font-bold text-pri">
                 {stats.scope.grade}학년 {stats.scope.classNo}반만 보는 중
                 <Link
-                  href={hrefWith({ grade: null, classNo: null })}
+                  href={statsHref({ grade: null, classNo: null })}
                   className="text-pri hover:underline"
                 >
                   전교 보기 ✕
@@ -134,7 +112,7 @@ export default async function MeritStatsPage({
               rows={stats.classes}
               track={track}
               hrefFor={(row) =>
-                hrefWith({ grade: String(row.grade), classNo: String(row.classNo) })
+                statsHref({ grade: String(row.grade), classNo: String(row.classNo) })
               }
             />
           )}

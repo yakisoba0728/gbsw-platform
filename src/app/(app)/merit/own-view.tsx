@@ -1,21 +1,18 @@
-import Link from "next/link";
 import { AwardHistory } from "@/components/merit/award-history";
 import { MeritTotalsCards } from "@/components/merit/merit-totals";
-import { MERIT_TRACK_LABELS, MERIT_TRACKS, type MeritTrack } from "@/core/authz/merit-track";
+import { TrackTabs } from "@/components/merit/track-tabs";
+import { ChipLink } from "@/components/ui/chip-link";
+import type { MeritTrack } from "@/core/authz/merit-track";
+import { hrefWith, type SearchParamsInput } from "@/lib/search-params";
 import type { StudentMeritView } from "@/modules/merit/award.service";
 import { YearPicker } from "./year-picker";
 
-type Params = Record<string, string | string[] | undefined>;
+type Params = SearchParamsInput;
 type ChildOption = { studentProfileId: string; name: string };
 
+/** year는 트랙마다 의미가 다르다(교내만 쓴다) — 탭을 옮기면 지운다. */
 function hrefWithTrack(params: Params, track: MeritTrack): string {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    // year는 트랙마다 의미가 다르다(교내만 쓴다) — 탭을 옮기면 지운다.
-    if (typeof value === "string" && key !== "year") query.set(key, value);
-  }
-  query.set("track", track);
-  return `/merit?${query.toString()}`;
+  return hrefWith("/merit", params, { track, year: null });
 }
 
 /** 학생·학부모 본인 조회. Task 6의 MeritTotalsCards·AwardHistory를 그대로 재사용한다. */
@@ -43,21 +40,10 @@ export function OwnMeritView({
         )}
       </div>
 
-      <div className="flex items-center gap-2">
-        {MERIT_TRACKS.map((t) => (
-          <Link
-            key={t}
-            href={hrefWithTrack(params, t)}
-            className={
-              t === view.track
-                ? "rounded-full bg-pri px-4 py-2 text-[13px] font-bold text-white"
-                : "rounded-full border border-line bg-surface px-4 py-2 text-[13px] font-semibold text-mut hover:border-pri hover:text-pri"
-            }
-          >
-            {MERIT_TRACK_LABELS[t]}
-          </Link>
-        ))}
-      </div>
+      <TrackTabs
+        current={view.track}
+        hrefFor={(t) => hrefWithTrack(params, t)}
+      />
 
       {view.track === "SCHOOL" && (
         <YearPicker years={years} selected={view.year} params={params} />
@@ -81,31 +67,23 @@ function ChildPicker({
   selected?: string;
   params: Params;
 }) {
+  // 자녀를 바꾸면 학년도는 버린다 — 기록이 있는 학년도가 자녀마다 다르므로,
+  // 들고 가면 그 해에 기록이 없는 자녀에게 빈 화면이 뜬다.
   function href(id: string): string {
-    const query = new URLSearchParams();
-    for (const [key, value] of Object.entries(params)) {
-      if (typeof value === "string" && key !== "child" && key !== "year") {
-        query.set(key, value);
-      }
-    }
-    query.set("child", id);
-    return `/merit?${query.toString()}`;
+    return hrefWith("/merit", params, { child: id, year: null });
   }
 
   return (
     <div className="flex flex-wrap gap-1.5">
       {options.map((c) => (
-        <Link
+        <ChipLink
           key={c.studentProfileId}
+          size="sm"
           href={href(c.studentProfileId)}
-          className={
-            c.studentProfileId === selected
-              ? "rounded-full bg-pri px-3.5 py-1.5 text-[12.5px] font-bold text-white"
-              : "rounded-full border border-line bg-surface px-3.5 py-1.5 text-[12.5px] font-semibold text-mut hover:border-pri hover:text-pri"
-          }
+          active={c.studentProfileId === selected}
         >
           {c.name}
-        </Link>
+        </ChipLink>
       ))}
     </div>
   );

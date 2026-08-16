@@ -1,13 +1,12 @@
 import Link from "next/link";
 import type { SessionUser } from "@/core/auth/session";
-import {
-  isYearScoped,
-  MERIT_TRACK_LABELS,
-  MERIT_TRACKS,
-  type MeritTrack,
-} from "@/core/authz/merit-track";
+import { isYearScoped, type MeritTrack } from "@/core/authz/merit-track";
+import { ChipLink } from "@/components/ui/chip-link";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
+import { SearchForm } from "@/components/ui/search-form";
+import { TrackTabs } from "@/components/merit/track-tabs";
 import { formatDateInput } from "@/lib/datetime";
+import { hrefWith, type SearchParamsInput } from "@/lib/search-params";
 import {
   AcademicYearError,
   getCurrentYear,
@@ -17,19 +16,15 @@ import { getClassRoster, searchStudents } from "@/modules/merit/award.service";
 import { listActiveRules } from "@/modules/merit/rule.service";
 import { ClassRoster } from "./class-roster";
 
-type Params = Record<string, string | string[] | undefined>;
+type Params = SearchParamsInput;
 
 /**
- * 탭·필터 링크. **다른 쿼리 파라미터를 보존한다** — 반을 고른 채 트랙 탭만 눌러도
- * 그 반이 유지되어야 한다. 보존하지 않으면 탭을 옮길 때마다 반을 다시 골라야 한다.
+ * 탭·필터 링크. **다른 쿼리 파라미터를 하나도 지우지 않는다** — 반을 고른 채
+ * 트랙 탭만 눌러도 그 반이 유지되어야 한다. 이 화면은 학년도까지 보존한다
+ * (지난 학년도를 보는 중이면 탭·반을 옮겨도 그 해에 머문다).
  */
-function hrefWith(params: Params, patch: Record<string, string>): string {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (typeof value === "string") query.set(key, value);
-  }
-  for (const [key, value] of Object.entries(patch)) query.set(key, value);
-  return `/merit?${query.toString()}`;
+function meritHref(params: Params, patch: Record<string, string>): string {
+  return hrefWith("/merit", params, patch);
 }
 
 export async function AdminMeritView({
@@ -99,40 +94,21 @@ export async function AdminMeritView({
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
-      <div className="flex items-center gap-2">
-        {MERIT_TRACKS.map((t) => (
-          <Link
-            key={t}
-            href={hrefWith(params, { track: t })}
-            className={
-              t === track
-                ? "rounded-full bg-pri px-4 py-2 text-[13px] font-bold text-white"
-                : "rounded-full border border-line bg-surface px-4 py-2 text-[13px] font-semibold text-mut hover:border-pri hover:text-pri"
-            }
-          >
-            {MERIT_TRACK_LABELS[t]}
-          </Link>
-        ))}
-      </div>
+      <TrackTabs current={track} hrefFor={(t) => meritHref(params, { track: t })} />
 
       {noCurrentYear && <NoAcademicYearNotice />}
 
-      {/* 검색 — GET 폼이라 결과가 URL에 남고 새로고침·뒤로가기가 자연스럽다 */}
-      <form method="get" className="flex gap-2">
-        <input type="hidden" name="track" value={track} />
-        <input
-          name="q"
-          defaultValue={q}
-          placeholder="이름 또는 학생코드로 검색"
-          className="flex-1 rounded-field border border-line bg-surface px-3.5 py-2.5 text-sm"
-        />
-        <button
-          type="submit"
-          className="rounded-btn bg-pri px-4 py-2.5 text-[13px] font-bold text-white"
-        >
-          검색
-        </button>
-      </form>
+      {/*
+        검색 — GET 폼이라 결과가 URL에 남고 새로고침·뒤로가기가 자연스럽다.
+        트랙만 함께 싣는다: 검색은 전교를 대상으로 하므로 골라 둔 학년·반을
+        들고 가면 "검색했는데 아래에 엉뚱한 반이 남아 있는" 화면이 된다.
+      */}
+      <SearchForm
+        defaultValue={q}
+        placeholder="이름 또는 학생코드로 검색"
+        ariaLabel="학생 이름 또는 학생코드 검색"
+        hidden={{ track }}
+      />
 
       {q && <SearchResults rows={results} track={track} />}
 
@@ -234,33 +210,27 @@ function ClassPicker({ params, track }: { params: Params; track: MeritTrack }) {
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="mr-1 text-[12px] font-semibold text-mut">학년</span>
         {GRADES.map((g) => (
-          <Link
+          <ChipLink
             key={g}
-            href={hrefWith(params, { track, grade: String(g) })}
-            className={
-              grade === String(g)
-                ? "rounded-full bg-pri px-3.5 py-1.5 text-[12.5px] font-bold text-white"
-                : "rounded-full border border-line bg-surface px-3.5 py-1.5 text-[12.5px] font-semibold text-mut hover:border-pri hover:text-pri"
-            }
+            size="sm"
+            href={meritHref(params, { track, grade: String(g) })}
+            active={grade === String(g)}
           >
             {g}학년
-          </Link>
+          </ChipLink>
         ))}
       </div>
       <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
         <span className="mr-1 text-[12px] font-semibold text-mut">반</span>
         {CLASS_NOS.map((c) => (
-          <Link
+          <ChipLink
             key={c}
-            href={hrefWith(params, { track, classNo: String(c) })}
-            className={
-              classNo === String(c)
-                ? "rounded-full bg-pri px-3.5 py-1.5 text-[12.5px] font-bold text-white"
-                : "rounded-full border border-line bg-surface px-3.5 py-1.5 text-[12.5px] font-semibold text-mut hover:border-pri hover:text-pri"
-            }
+            size="sm"
+            href={meritHref(params, { track, classNo: String(c) })}
+            active={classNo === String(c)}
           >
             {c}반
-          </Link>
+          </ChipLink>
         ))}
       </div>
     </section>

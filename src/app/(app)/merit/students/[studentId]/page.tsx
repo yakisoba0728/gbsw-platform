@@ -2,17 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/core/auth/session";
-import {
-  isMeritTrack,
-  isYearScoped,
-  MERIT_TRACK_LABELS,
-  MERIT_TRACKS,
-  type MeritTrack,
-} from "@/core/authz/merit-track";
+import { isMeritTrack, isYearScoped, type MeritTrack } from "@/core/authz/merit-track";
 import { AwardHistory } from "@/components/merit/award-history";
 import { MeritTotalsCards } from "@/components/merit/merit-totals";
+import { TrackTabs } from "@/components/merit/track-tabs";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { formatDateInput } from "@/lib/datetime";
+import { hrefWith, type SearchParamsInput } from "@/lib/search-params";
 import {
   AcademicYearError,
   getCurrentYear,
@@ -29,19 +25,16 @@ import { AwardForm } from "./award-form";
 
 export const metadata: Metadata = { title: "학생 상벌점" };
 
-type Params = Record<string, string | string[] | undefined>;
+type Params = SearchParamsInput;
 
 /** 트랙 탭. **학년도를 보존한다** — 안 그러면 탭을 옮길 때마다 현재 학년도로 튕긴다. */
 function trackHref(studentId: string, params: Params, track: MeritTrack): string {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (typeof value === "string") query.set(key, value);
-  }
-  query.set("track", track);
-  // 기숙사는 누적이라 학년도가 의미 없다. 남겨 두면 교내로 돌아올 때 되살아나
-  // "어느 해를 보고 있었지"를 헷갈리게 만든다.
-  if (track === "DORM") query.delete("year");
-  return `/merit/students/${studentId}?${query.toString()}`;
+  return hrefWith(`/merit/students/${studentId}`, params, {
+    track,
+    // 기숙사는 누적이라 학년도가 의미 없다. 남겨 두면 교내로 돌아올 때 되살아나
+    // "어느 해를 보고 있었지"를 헷갈리게 만든다.
+    ...(track === "DORM" ? { year: null } : {}),
+  });
 }
 
 export default async function StudentMeritPage({
@@ -124,21 +117,7 @@ export default async function StudentMeritPage({
         </div>
       )}
 
-      <div className="flex items-center gap-2">
-        {MERIT_TRACKS.map((t) => (
-          <Link
-            key={t}
-            href={trackHref(studentId, raw, t)}
-            className={
-              t === track
-                ? "rounded-full bg-pri px-4 py-2 text-[13px] font-bold text-white"
-                : "rounded-full border border-line bg-surface px-4 py-2 text-[13px] font-semibold text-mut hover:border-pri hover:text-pri"
-            }
-          >
-            {MERIT_TRACK_LABELS[t]}
-          </Link>
-        ))}
-      </div>
+      <TrackTabs current={track} hrefFor={(t) => trackHref(studentId, raw, t)} />
 
       {/* 교내 탭에서만. 기숙사는 누적이라 고를 학년도가 없다. */}
       {isYearScoped(track) && (

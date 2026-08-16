@@ -1,13 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requirePermission } from "@/core/auth/session";
-import {
-  isMeritTrack,
-  MERIT_TRACK_LABELS,
-  MERIT_TRACKS,
-  type MeritTrack,
-} from "@/core/authz/merit-track";
+import { isMeritTrack, type MeritTrack } from "@/core/authz/merit-track";
 import { KindBadge, kindColorClass, signedPoints } from "@/components/merit/kind-badge";
+import { TrackTabs } from "@/components/merit/track-tabs";
 import { Badge } from "@/components/ui/badge";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { formatDate, formatDateTime, isSameKstDate } from "@/lib/datetime";
@@ -46,21 +42,8 @@ export default async function RecentAwardsPage({
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
-      <div className="flex items-center gap-2">
-        {MERIT_TRACKS.map((t) => (
-          <Link
-            key={t}
-            href={`/merit/recent?track=${t}`}
-            className={
-              t === track
-                ? "rounded-full bg-pri px-4 py-2 text-[13px] font-bold text-white"
-                : "rounded-full border border-line bg-surface px-4 py-2 text-[13px] font-semibold text-mut hover:border-pri hover:text-pri"
-            }
-          >
-            {MERIT_TRACK_LABELS[t]}
-          </Link>
-        ))}
-      </div>
+      {/* 이 화면의 쿼리는 track 하나뿐이라 보존할 것이 없다. */}
+      <TrackTabs current={track} hrefFor={(t) => `/merit/recent?track=${t}`} />
 
       {!rows ? (
         <NoAcademicYearNotice />

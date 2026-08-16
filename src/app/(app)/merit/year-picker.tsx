@@ -1,15 +1,11 @@
-import Link from "next/link";
+import { ChipLink } from "@/components/ui/chip-link";
+import { hrefWith, type SearchParamsInput } from "@/lib/search-params";
 
-type Params = Record<string, string | string[] | undefined>;
+type Params = SearchParamsInput;
 
-function hrefWith(basePath: string, params: Params, year: number): string {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (typeof value === "string") query.set(key, value);
-  }
-  query.set("track", "SCHOOL");
-  query.set("year", String(year));
-  return `${basePath}?${query.toString()}`;
+/** 학년도는 교내에만 있다 — 고르는 순간 트랙도 교내로 못 박는다. */
+function yearHref(basePath: string, params: Params, year: number): string {
+  return hrefWith(basePath, params, { track: "SCHOOL", year: String(year) });
 }
 
 /**
@@ -35,17 +31,14 @@ export function YearPicker({
     <div className="flex flex-wrap items-center gap-1.5">
       <span className="mr-1 text-[12px] font-semibold text-mut">학년도</span>
       {years.map((y) => (
-        <Link
+        <ChipLink
           key={y}
-          href={hrefWith(basePath, params, y)}
-          className={
-            y === selected
-              ? "rounded-full bg-pri px-3.5 py-1.5 text-[12.5px] font-bold text-white"
-              : "rounded-full border border-line bg-surface px-3.5 py-1.5 text-[12.5px] font-semibold text-mut hover:border-pri hover:text-pri"
-          }
+          size="sm"
+          href={yearHref(basePath, params, y)}
+          active={y === selected}
         >
           {y}학년도
-        </Link>
+        </ChipLink>
       ))}
     </div>
   );
