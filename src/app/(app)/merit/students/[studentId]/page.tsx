@@ -157,7 +157,7 @@ export default async function StudentMeritPage({
           <MeritTotalsCards totals={view.totals} />
 
           {viewingPast ? (
-            <p className="rounded-card border border-amber bg-amber-soft px-4 py-3 text-[13px] text-amber-ink">
+            <p className="rounded-card border border-amber-line bg-amber-soft px-4 py-3 text-[13px] text-amber-ink">
               지난 학년도를 보고 있습니다. 부여는 현재 학년도에만 할 수 있습니다.
             </p>
           ) : (

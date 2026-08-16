@@ -124,11 +124,11 @@ export async function AdminMeritView({
           name="q"
           defaultValue={q}
           placeholder="이름 또는 학생코드로 검색"
-          className="flex-1 rounded-input border border-line bg-surface px-3.5 py-2.5 text-sm"
+          className="flex-1 rounded-field border border-line bg-surface px-3.5 py-2.5 text-sm"
         />
         <button
           type="submit"
-          className="rounded-input bg-pri px-4 py-2.5 text-[13px] font-bold text-white"
+          className="rounded-btn bg-pri px-4 py-2.5 text-[13px] font-bold text-white"
         >
           검색
         </button>

@@ -91,11 +91,11 @@ export default async function RulesPage({
             name="q"
             defaultValue={q}
             placeholder="항목명 또는 분류로 검색"
-            className="flex-1 rounded-input border border-line bg-surface px-3.5 py-2.5 text-sm"
+            className="flex-1 rounded-field border border-line bg-surface px-3.5 py-2.5 text-sm"
           />
           <button
             type="submit"
-            className="rounded-input bg-pri px-4 py-2.5 text-[13px] font-bold text-white"
+            className="rounded-btn bg-pri px-4 py-2.5 text-[13px] font-bold text-white"
           >
             검색
           </button>
