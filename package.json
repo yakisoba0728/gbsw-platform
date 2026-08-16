@@ -17,6 +17,7 @@
     "db:studio": "prisma studio",
     "db:test:setup": "bash scripts/setup-test-db.sh",
     "seed:merit": "tsx scripts/seed-merit-rules.ts",
+    "seed:demo": "tsx --conditions=react-server scripts/seed-demo.ts",
     "auth:generate": "npx @better-auth/cli generate --config src/core/auth/auth.ts",
     "postinstall": "prisma generate",
     "verify": "npm run typecheck && npm run lint && npm test"
