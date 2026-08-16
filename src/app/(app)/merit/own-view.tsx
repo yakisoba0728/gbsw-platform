@@ -34,7 +34,13 @@ export function OwnMeritView({
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-extrabold text-ink">{title}</h1>
+        {/*
+          <h2>다. 상단바(app-shell/topbar)가 (app) 안의 모든 화면에 이미 <h1>을
+          그리므로, 여기서 또 <h1>을 두면 화면에 최상위 제목이 둘이 된다 —
+          제목만 훑어 화면 구조를 파악하는 사람에게 어느 쪽이 이 화면인지가
+          흐려진다. 글자 크기는 그대로 둔다(단계와 생김새는 별개다).
+        */}
+        <h2 className="text-xl font-extrabold text-ink">{title}</h2>
         {childOptions && childOptions.length > 1 && (
           <ChildPicker options={childOptions} selected={selectedChild} params={params} />
         )}

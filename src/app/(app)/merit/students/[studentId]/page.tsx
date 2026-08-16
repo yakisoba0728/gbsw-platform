@@ -3,7 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/core/auth/session";
 import { isMeritTrack, isYearScoped, type MeritTrack } from "@/core/authz/merit-track";
+import { ChevronLeftIcon } from "@/components/icons";
 import { AwardHistory } from "@/components/merit/award-history";
+import { EnrollmentTag } from "@/components/merit/enrollment-tag";
 import { MeritTotalsCards } from "@/components/merit/merit-totals";
 import { TrackTabs } from "@/components/merit/track-tabs";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
@@ -98,8 +100,16 @@ export default async function StudentMeritPage({
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
-      <Link href="/merit" className="text-[13px] font-semibold text-mut hover:text-pri">
-        ← 상벌점
+      {/*
+        화살표는 아이콘으로 둔다 — 글자 "←"를 그대로 쓰면 화면을 못 보는
+        사람에게 "왼쪽 화살표 상벌점"으로 읽힌다. 아이콘은 안에서 aria-hidden이다.
+      */}
+      <Link
+        href="/merit"
+        className="inline-flex items-center gap-1 text-[13px] font-semibold text-mut transition-colors hover:text-pri"
+      >
+        <ChevronLeftIcon size={15} />
+        상벌점
       </Link>
 
       {header && (
@@ -107,14 +117,22 @@ export default async function StudentMeritPage({
           <h2 className="text-[22px] font-extrabold tracking-[-0.02em] text-ink">
             {header.name}
           </h2>
-          <p className="mt-1 text-[13px] text-mut">
-            {[
-              header.studentCode,
-              header.grade !== null && header.classNo !== null
-                ? `${header.grade}학년 ${header.classNo}반${header.number !== null ? ` ${header.number}번` : ""}`
-                : "소속 미배정",
-            ].join(" · ")}
-          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <p className="text-[13px] text-mut">
+              {[
+                header.studentCode,
+                header.grade !== null && header.classNo !== null
+                  ? `${header.grade}학년 ${header.classNo}반${header.number !== null ? ` ${header.number}번` : ""}`
+                  : "소속 미배정",
+              ].join(" · ")}
+            </p>
+            {/*
+              아래 부여 폼은 학적을 보지 않는다 — 졸업생에게도 그대로 들어간다.
+              막지는 않되(지난 학년도 기록을 손봐야 할 일이 있다) 무엇을 하고
+              있는지는 머리글에서 보이게 한다.
+            */}
+            <EnrollmentTag status={header.status} />
+          </div>
         </div>
       )}
 

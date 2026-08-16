@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { SearchForm } from "@/components/ui/search-form";
 import { TableFrame } from "@/components/ui/table";
+import { EnrollmentTag } from "@/components/merit/enrollment-tag";
 import { TrackTabs } from "@/components/merit/track-tabs";
 import { formatDateInput } from "@/lib/datetime";
 import { hrefWith, type SearchParamsInput } from "@/lib/search-params";
@@ -175,9 +176,17 @@ function SearchResults({
                 {row.studentCode}
               </td>
               <td className="px-5 py-2.5 text-mut">
-                {row.grade !== null && row.classNo !== null && row.number !== null
-                  ? `${row.grade}학년 ${row.classNo}반 ${row.number}번`
-                  : "—"}
+                <span className="inline-flex flex-wrap items-center gap-1.5">
+                  {row.grade !== null && row.classNo !== null && row.number !== null
+                    ? `${row.grade}학년 ${row.classNo}반 ${row.number}번`
+                    : "—"}
+                  {/*
+                    졸업·자퇴한 학생도 검색에 걸린다(지난 기록을 봐야 하므로).
+                    부여 자체는 학적을 안 보므로, 여기서 보이지 않으면 동명이인을
+                    고를 때 알아챌 방법이 없다.
+                  */}
+                  <EnrollmentTag status={row.status} />
+                </span>
               </td>
             </tr>
           ))}

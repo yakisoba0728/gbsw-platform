@@ -11,6 +11,7 @@ import {
   type MeritKind,
   type MeritTrack,
 } from "@/core/authz/merit-track";
+import { ChevronLeftIcon } from "@/components/icons";
 import { signedPoints } from "@/components/merit/kind-badge";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { formatDate, formatDateTime, isSameKstDate } from "@/lib/datetime";
@@ -201,9 +202,10 @@ function BackLink({ studentId, track }: { studentId: string; track: MeritTrack }
   return (
     <Link
       href={`/merit/students/${studentId}?track=${track}`}
-      className="text-[13px] font-semibold text-mut hover:text-pri"
+      className="inline-flex items-center gap-1 text-[13px] font-semibold text-mut transition-colors hover:text-pri"
     >
-      ← 학생 상벌점
+      <ChevronLeftIcon size={15} />
+      학생 상벌점
     </Link>
   );
 }

@@ -75,11 +75,12 @@ export default async function MeritStatsPage({
             {stats.scope && (
               <span className="flex items-center gap-2 rounded-full bg-pri-soft px-3 py-1 text-[12.5px] font-bold text-pri">
                 {stats.scope.grade}학년 {stats.scope.classNo}반만 보는 중
+                {/* ✕는 "누르면 이 필터가 풀린다"는 장식이다 — 링크 이름에 넣지 않는다. */}
                 <Link
                   href={statsHref({ grade: null, classNo: null })}
                   className="text-pri hover:underline"
                 >
-                  전교 보기 ✕
+                  전교 보기 <span aria-hidden>✕</span>
                 </Link>
               </span>
             )}
