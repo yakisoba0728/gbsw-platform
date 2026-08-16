@@ -130,9 +130,13 @@ describe("applyRoster() — 명단에서 빠지면 소프트 삭제되고, 다�
     });
     expect(profile).not.toBeNull();
 
-    // 그 학년도 배정은 자연히 없어진다 — managedStudentProfileIds 범위로 지우고,
-    // 명단에 없으니 새로 만들지 않는다. Enrollment 행 자체는 이번 학년도 것만
-    // 사라지고, StudentProfile·과거 학년도 기록은 손대지 않는다.
+    // 그 학년도 배정은 없어진다 — managedStudentProfileIds 범위로 지우고, 명단에
+    // 없으니 새로 만들지 않는다. **부작용이 아니라 결정이다**(2026-08-16): 명단에서
+    // 줄을 지웠다는 건 "이 학년도에 애초에 있으면 안 될 사람"이라는 뜻이라 그
+    // 학년도 배정이 없어지는 게 맞다. 자퇴·전출처럼 "있었다가 나갔다"를 남기려면
+    // 줄을 지우는 게 아니라 학적 칸(재학·졸업·자퇴·퇴학·전출·유예)을 바꿔야 하고,
+    // 그 경로는 배정을 지우지 않는다.
+    // StudentProfile·과거 학년도 기록·상벌점은 손대지 않는다.
     const enrollment = await prisma.enrollment.findUnique({
       where: { studentProfileId_year: { studentProfileId, year: YEAR } },
     });
