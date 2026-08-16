@@ -6,8 +6,6 @@ import {
   isMeritTrack,
   MERIT_KIND_LABELS,
   MERIT_KINDS,
-  MERIT_TRACK_LABELS,
-  MERIT_TRACKS,
   type MeritKind,
   type MeritTrack,
 } from "@/core/authz/merit-track";
@@ -16,6 +14,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SearchForm } from "@/components/ui/search-form";
 import { hrefWith } from "@/lib/search-params";
 import { filterRules } from "@/components/merit/rule-filter";
+import { TrackTabs } from "@/components/merit/track-tabs";
 import { listRules } from "@/modules/merit/rule.service";
 import { RuleForm } from "./rule-form";
 import { RuleTable } from "./rule-table";
@@ -49,19 +48,12 @@ export default async function RulesPage({
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
-      <div className="flex items-center gap-2">
-        {MERIT_TRACKS.map((t) => (
-          <ChipLink
-            key={t}
-            // 트랙을 바꾸면 검색 조건은 버린다 — 규정 목록이 트랙별로 아예 달라서
-            // "교내에서 찾던 말"이 기숙사 탭에서 0건으로 남으면 빈 화면처럼 읽힌다.
-            href={`/admin/merit/rules?track=${t}`}
-            active={t === track}
-          >
-            {MERIT_TRACK_LABELS[t]}
-          </ChipLink>
-        ))}
-      </div>
+      {/*
+        트랙을 바꾸면 검색 조건은 버린다 — 규정 목록이 트랙별로 아예 달라서
+        "교내에서 찾던 말"이 기숙사 탭에서 0건으로 남으면 빈 화면처럼 읽힌다.
+        (그래서 hrefWith가 아니라 경로만 새로 쓴다.)
+      */}
+      <TrackTabs current={track} hrefFor={(t) => `${BASE_PATH}?track=${t}`} />
 
       <RuleForm track={track} />
 

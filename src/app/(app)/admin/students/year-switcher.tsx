@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { MAX_YEAR, MIN_YEAR } from "@/modules/academic-year/academic-year.schema";
 import { YEAR_INITIAL } from "./action-state";
 import { createYearAction, setCurrentYearAction } from "./actions";
 
@@ -72,8 +73,10 @@ export function YearSwitcher({
               name="year"
               aria-label="새 학년도"
               placeholder="2027"
-              min={2000}
-              max={2100}
+              // 서버(yearFormSchema)가 쓰는 상수를 그대로 쓴다 — 숫자를 다시
+              // 적으면 학교가 범위를 넓힐 때 브라우저 검사만 옛 값에 남는다.
+              min={MIN_YEAR}
+              max={MAX_YEAR}
               required
             />
           </div>

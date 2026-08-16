@@ -76,6 +76,21 @@ export default async function UserDetailPage({
         사용자 목록
       </Link>
 
+      {/*
+        이 화면에는 카드가 두 규격으로 있다. 섞여 있는 게 아니라 **저장소 전체가
+        쓰는 두 종류**다.
+
+        - `<SectionCard>` = 머리글 띠(제목 + 아래 구분선)를 가진 **내용 섹션**.
+          목록·표·그래프처럼 "무엇의 모음"을 담는다. 아래 활동 기록이 이쪽이다.
+        - `rounded-card … p-5` 한 겹 = **폼/안내 패널**. 제목이 곧 그 폼의 이름이라
+          구분선 띠를 두면 340px 옆 칸에서 무게만 늘어난다. year-switcher ·
+          rule-form · invite-form · award-form · import-form이 모두 이 규격이고,
+          이 화면의 정보 수정·계정 조치·완전 삭제도 같은 종류다.
+
+        맨 위 신원 카드만 예외로 보이는데, 제목이 섹션 이름이 아니라 **사람 이름**
+        (text-xl)이라서다 — SectionCard의 text-base 제목으로 내리면 이 화면이
+        누구의 화면인지가 활동 기록 제목과 같은 크기가 된다.
+      */}
       <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
         <div className="grid gap-5">
           <section className="rounded-card border border-line bg-surface p-5 lg:p-6">

@@ -27,7 +27,7 @@ export function optionLabel(rule: RuleOption): string {
 }
 
 /** 분류 머리글에 종류를 함께 적는다 — 상점·벌점에 같은 분류명이 나올 수 있다. */
-export function groupLabel(kind: string, category: string | null): string {
+function groupLabel(kind: string, category: string | null): string {
   const kindLabel = MERIT_KIND_LABELS[kind as MeritKind] ?? kind;
   return category ? `${kindLabel} · ${category}` : `${kindLabel} · 분류 없음`;
 }
@@ -37,7 +37,7 @@ export function groupLabel(kind: string, category: string | null): string {
  * "점호 지각"처럼 사람이 띄어 쓰는 대로 쳐도 찾히게 하려는 것이다
  * (문자열 그대로 비교하면 "인원 점검 시 지각"이 안 걸린다).
  */
-export function queryTokens(query: string): string[] {
+function queryTokens(query: string): string[] {
   return query.trim().toLowerCase().split(/\s+/).filter(Boolean);
 }
 
@@ -45,7 +45,7 @@ export function queryTokens(query: string): string[] {
  * **항목명과 분류를 함께 본다.** 사감은 "점호"로 찾고 담임은 "봉사"(분류)로
  * 찾는다 — 한쪽만 보면 둘 중 한 사람이 매번 목록을 끝까지 훑게 된다.
  */
-export function matchesQuery(rule: RuleOption, tokens: string[]): boolean {
+function matchesQuery(rule: RuleOption, tokens: string[]): boolean {
   if (tokens.length === 0) return true;
   const haystack = `${rule.label} ${rule.category ?? ""}`.toLowerCase();
   return tokens.every((token) => haystack.includes(token));

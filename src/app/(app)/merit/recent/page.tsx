@@ -6,11 +6,9 @@ import { KindBadge, kindColorClass, signedPoints } from "@/components/merit/kind
 import { TrackTabs } from "@/components/merit/track-tabs";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { SectionCard } from "@/components/ui/section-card";
 import { TableFrame } from "@/components/ui/table";
 import { formatDate, formatDateTime, isSameKstDate } from "@/lib/datetime";
-import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import { listRecentAwards } from "@/modules/merit/award.service";
 import { CancelBatchButton } from "./cancel-batch-button";
 
@@ -26,17 +24,18 @@ export default async function RecentAwardsPage({
   const raw = await searchParams;
   const track: MeritTrack = isMeritTrack(raw.track) ? raw.track : "SCHOOL";
 
-  let rows: Awaited<ReturnType<typeof listRecentAwards>> | null = null;
-  try {
-    rows = await listRecentAwards(actor, track);
-  } catch (error) {
-    if (!(error instanceof AcademicYearError)) throw error;
-  }
+  /*
+   * 다른 상벌점 화면과 달리 AcademicYearError를 잡지 않는다 — listRecentAwards는
+   * getCurrentYear()를 타지 않아서다(트랙만 받아 repo로 바로 내려간다). 잡는
+   * 코드와 NoAcademicYearNotice 분기가 있었지만 닿을 수 없는 길이었고, 학년도가
+   * 없는 것처럼 보이는 화면을 만들 수 있다는 착각만 남겼다.
+   */
+  const rows = await listRecentAwards(actor, track);
 
   // 같은 묶음이 몇 건인지 세어 둔다 — 일괄 취소 버튼에 건수를 적어야
   // "이 버튼이 몇 명을 되돌리는지" 누르기 전에 알 수 있다.
   const batchSizes = new Map<string, number>();
-  for (const row of rows ?? []) {
+  for (const row of rows) {
     if (row.batchId && row.status === "ACTIVE") {
       batchSizes.set(row.batchId, (batchSizes.get(row.batchId) ?? 0) + 1);
     }
@@ -48,9 +47,7 @@ export default async function RecentAwardsPage({
       {/* 이 화면의 쿼리는 track 하나뿐이라 보존할 것이 없다. */}
       <TrackTabs current={track} hrefFor={(t) => `/merit/recent?track=${t}`} />
 
-      {!rows ? (
-        <NoAcademicYearNotice />
-      ) : rows.length === 0 ? (
+      {rows.length === 0 ? (
         <EmptyState>아직 부여된 상벌점이 없습니다.</EmptyState>
       ) : (
         <SectionCard title={`최근 부여 ${rows.length}건`} flush>
