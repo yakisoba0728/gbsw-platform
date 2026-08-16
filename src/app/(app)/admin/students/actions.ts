@@ -16,10 +16,10 @@ import { saveEnrollmentsSchema } from "@/modules/enrollment/enrollment.schema";
 import type { SaveState, YearState } from "./action-state";
 
 const MESSAGES: Record<string, string> = {
-  UNKNOWN_STUDENT: "목록에 없는 학생이 포함됐습니다. 새로고침 후 다시 시도하세요.",
+  UNKNOWN_STUDENT: "목록에 없는 학생이 포함됐습니다. 새로고침 후 다시 시도해 주세요.",
   INCOMPLETE_ENROLLED: "재학인 학생은 학년·반·번호를 모두 채워야 합니다.",
   NUMBER_TAKEN: "같은 반에 같은 번호의 학생이 있습니다.",
-  YEAR_MISMATCH: "학년도가 바뀌었습니다. 새로고침 후 다시 시도하세요.",
+  YEAR_MISMATCH: "학년도가 바뀌었습니다. 새로고침 후 다시 시도해 주세요.",
   CANNOT_DEACTIVATE_SELF: "자기 계정은 비활성화할 수 없습니다.",
 };
 

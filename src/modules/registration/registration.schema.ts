@@ -4,14 +4,14 @@ import { emailField, phoneField } from "@/lib/user-fields";
 export const inviteCodeSchema = z
   .string()
   .trim()
-  .min(1, "가입코드를 입력하세요.")
+  .min(1, "가입코드를 입력해 주세요.")
   .max(32);
 
 const credentials = {
   name: z
     .string()
     .trim()
-    .min(1, "이름을 입력하세요.")
+    .min(1, "이름을 입력해 주세요.")
     .max(50, "이름이 너무 깁니다."),
   email: emailField,
   phone: phoneField,
@@ -34,7 +34,7 @@ export const completeRegistrationSchema = z
     ...credentials,
     birthDate: z
       .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, "생년월일은 YYYY-MM-DD 형식으로 입력하세요.")
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "생년월일은 YYYY-MM-DD 형식으로 입력해 주세요.")
       .optional()
       .or(z.literal("")),
   })

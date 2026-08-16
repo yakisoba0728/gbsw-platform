@@ -17,7 +17,7 @@ import {
  * 역할은 여전히 제외한다 (권한이 통째로 넘어가는 변경이라 별도 절차가 필요하다).
  */
 export const updateUserSchema = z.object({
-  name: z.string().trim().min(1, "이름을 입력하세요.").max(50, "이름이 너무 깁니다."),
+  name: z.string().trim().min(1, "이름을 입력해 주세요.").max(50, "이름이 너무 깁니다."),
   email: emailField,
   phone: phoneField,
 

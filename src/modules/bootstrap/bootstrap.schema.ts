@@ -3,7 +3,7 @@ import { emailField, phoneField } from "@/lib/user-fields";
 
 export const bootstrapSchema = z
   .object({
-    name: z.string().trim().min(1, "이름을 입력하세요.").max(50, "이름이 너무 깁니다."),
+    name: z.string().trim().min(1, "이름을 입력해 주세요.").max(50, "이름이 너무 깁니다."),
     email: emailField,
     phone: phoneField,
     password: z

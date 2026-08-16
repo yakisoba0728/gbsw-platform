@@ -170,7 +170,7 @@ export async function completeRegistration(
     }
     if (error instanceof repo.NumberTakenError) {
       throw new RegistrationError(
-        "이 반·번호에 이미 다른 학생이 있습니다. 관리자에게 문의하세요.",
+        "이 반·번호에 이미 다른 학생이 있습니다. 관리자에게 문의해 주세요.",
       );
     }
     throw error;

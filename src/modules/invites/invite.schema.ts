@@ -11,7 +11,7 @@ import {
 const name = z
   .string()
   .trim()
-  .min(1, "이름을 입력하세요.")
+  .min(1, "이름을 입력해 주세요.")
   .max(50, "이름이 너무 깁니다.");
 
 const expiresInDays = z
@@ -32,7 +32,7 @@ export const createStudentInviteSchema = z.object({
   name,
   birthDate: z
     .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "생년월일은 YYYY-MM-DD 형식으로 입력하세요.")
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "생년월일은 YYYY-MM-DD 형식으로 입력해 주세요.")
     .refine((v) => !Number.isNaN(Date.parse(v)), "존재하지 않는 날짜입니다."),
   grade: z.number().int().min(MIN_GRADE).max(MAX_GRADE),
   classNo: z.number().int().min(MIN_CLASS_NO).max(MAX_CLASS_NO),
@@ -54,7 +54,7 @@ export const createParentInviteSchema = z.object({
 
 /** 관리자가 학생을 지정해 학부모 코드를 발급할 때. */
 export const createParentInviteForSchema = z.object({
-  studentId: z.string().min(1, "학생을 선택하세요."),
+  studentId: z.string().min(1, "학생을 선택해 주세요."),
   name,
   expiresInDays,
 });

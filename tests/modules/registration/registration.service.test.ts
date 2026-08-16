@@ -331,7 +331,7 @@ describe("completeRegistration() — 공통 방어", () => {
     await expect(
       completeRegistration({ ...base, name: "김학생", birthDate: "2010-03-04" }),
     ).rejects.toThrow(
-      "이 반·번호에 이미 다른 학생이 있습니다. 관리자에게 문의하세요.",
+      "이 반·번호에 이미 다른 학생이 있습니다. 관리자에게 문의해 주세요.",
     );
 
     // 실패했으니 코드도 소진되지 않고 감사로그도 남지 않는다.

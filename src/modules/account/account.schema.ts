@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const changePasswordSchema = z
   .object({
-    currentPassword: z.string().min(1, "현재 비밀번호를 입력하세요."),
+    currentPassword: z.string().min(1, "현재 비밀번호를 입력해 주세요."),
     newPassword: z
       .string()
       .min(10, "새 비밀번호는 10자 이상이어야 합니다.")
@@ -15,7 +15,7 @@ export const changePasswordSchema = z
   })
   .refine((v) => v.newPassword !== v.currentPassword, {
     path: ["newPassword"],
-    message: "현재 비밀번호와 다른 비밀번호를 사용하세요.",
+    message: "현재 비밀번호와 다른 비밀번호를 사용해 주세요.",
   });
 
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
