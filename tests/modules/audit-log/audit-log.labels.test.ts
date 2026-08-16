@@ -92,7 +92,7 @@ describe("auditTargetLabel()", () => {
   });
 
   it("모르는 대상 종류는 원본 문자열 그대로 보여준다", () => {
-    expect(auditTargetLabel("MeritAward")).toBe("MeritAward");
+    expect(auditTargetLabel("SchoolClass")).toBe("SchoolClass");
   });
 });
 

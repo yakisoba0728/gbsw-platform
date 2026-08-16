@@ -15,6 +15,10 @@ const EXPECTED: Record<Action, Role[]> = {
   "invite:revoke": ["ADMIN"],
   "invite:create:parent": ["ADMIN", "STUDENT"],
   "audit:read": ["ADMIN"],
+  "merit:rule:manage": ["ADMIN"],
+  "merit:award": ["ADMIN"],
+  "merit:cancel": ["ADMIN"],
+  "merit:read:any": ["ADMIN"],
 };
 
 const ACTIONS = Object.keys(EXPECTED) as Action[];
@@ -54,6 +58,8 @@ describe("can()", () => {
     expect(can({ role: "STUDENT" }, "invite:create")).toBe(false);
     expect(can({ role: "STUDENT" }, "invite:list")).toBe(false);
     expect(can({ role: "STUDENT" }, "student:manage")).toBe(false);
+    expect(can({ role: "STUDENT" }, "merit:award")).toBe(false);
+    expect(can({ role: "STUDENT" }, "merit:read:any")).toBe(false);
   });
 
   it("알 수 없는 역할은 거부한다", () => {

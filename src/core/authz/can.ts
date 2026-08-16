@@ -14,7 +14,11 @@ export type Action =
   | "invite:list"
   | "invite:revoke"
   | "invite:create:parent"
-  | "audit:read";
+  | "audit:read"
+  | "merit:rule:manage"
+  | "merit:award"
+  | "merit:cancel"
+  | "merit:read:any";
 
 /**
  * 액션별 허용 역할.
@@ -35,6 +39,15 @@ export const RULES: Record<Action, Role[]> = {
   "invite:list": [], // 관리자 전용
   "invite:revoke": [], // 관리자 전용
   "audit:read": [], // 관리자 전용
+
+  // 상벌점 — 넷 다 관리자 전용이다.
+  // 취소를 "자기가 준 것만"으로 좁히지 않는다: 교직원 사이에 권한 차등이 없으므로
+  // 등급 없는 소유권 검사는 근거가 없고, 준 사람이 출장·퇴직이면 잘못된 기록을
+  // 아무도 못 고치게 된다. 책임 추적은 필수 사유 + 이름 스냅샷 + 감사로그가 맡는다.
+  "merit:rule:manage": [],
+  "merit:award": [],
+  "merit:cancel": [],
+  "merit:read:any": [],
 
   // 학생은 자기 학부모 코드만 만들 수 있다.
   // 역할 검사만으로는 부족해서 서비스에서 소유권(세션→StudentProfile)을 함께 검사한다.

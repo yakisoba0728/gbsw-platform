@@ -1,4 +1,10 @@
 import type { BadgeTone } from "@/components/ui/badge";
+import {
+  isMeritKind,
+  isMeritTrack,
+  MERIT_KIND_LABELS,
+  MERIT_TRACK_LABELS,
+} from "@/core/authz/merit-track";
 import { isRole, ROLE_LABELS } from "@/core/authz/roles";
 
 /**
@@ -44,6 +50,11 @@ export const AUDIT_ACTIONS = [
   "academic-year:set-current",
   "enrollment:update",
   "enrollment:import",
+  "merit:rule:create",
+  "merit:rule:update",
+  "merit:rule:deactivate",
+  "merit:award",
+  "merit:cancel",
   // can() 검사를 통과 못 해 서비스가 거부했을 때 (I5, core/authz/errors.ts의
   // assertCan). 정상 사용자가 페이지 가드에 막혀 여기 닿는 일은 없다 — 서버
   // 액션을 직접 호출하는 등 페이지를 건너뛴 시도만 남는다.
@@ -74,6 +85,11 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   "academic-year:set-current": "현재 학년도 변경",
   "enrollment:update": "소속·학적 수정",
   "enrollment:import": "명단 일괄 반영",
+  "merit:rule:create": "상벌점 규정 추가",
+  "merit:rule:update": "상벌점 규정 수정",
+  "merit:rule:deactivate": "상벌점 규정 비활성",
+  "merit:award": "상벌점 부여",
+  "merit:cancel": "상벌점 취소",
   "authz:denied": "권한 거부",
 };
 
@@ -95,6 +111,13 @@ const ACTION_TONES: Record<AuditAction, BadgeTone> = {
   "academic-year:set-current": "info",
   "enrollment:update": "info",
   "enrollment:import": "info",
+  "merit:rule:create": "approved",
+  "merit:rule:update": "info",
+  "merit:rule:deactivate": "cancelled",
+  // 상점·벌점 어느 쪽이든 나오는 액션이라 merit/demerit 톤을 쓰지 않는다 —
+  // 색이 실제 종류와 어긋나면 목록을 훑을 때 오히려 오해를 만든다.
+  "merit:award": "info",
+  "merit:cancel": "cancelled",
   "authz:denied": "rejected",
 };
 
@@ -113,6 +136,8 @@ const TARGET_LABELS: Record<string, string> = {
   Invite: "초대코드",
   StudentProfile: "학생",
   AcademicYear: "학년도",
+  MeritRule: "상벌점 규정",
+  MeritAward: "상벌점",
 };
 
 export function auditTargetLabel(targetType: string): string {
@@ -131,6 +156,10 @@ const FIELD_LABELS: Record<string, string> = {
   classNo: "반",
   number: "번호",
   status: "학적",
+  label: "항목명",
+  points: "점수",
+  category: "분류",
+  description: "설명",
 };
 
 function fieldLabel(key: string): string {
@@ -213,6 +242,30 @@ function authzDeniedSummary(metadata: Record<string, unknown>): string | null {
   return typeof action === "string" ? `시도: ${action}` : null;
 }
 
+/** merit:award — "교내 · 상점 5점 · 교내 봉사활동 우수 참여" */
+function meritAwardSummary(metadata: Record<string, unknown>): string | null {
+  const parts: string[] = [];
+
+  const track = metadata.track;
+  if (isMeritTrack(track)) parts.push(MERIT_TRACK_LABELS[track]);
+
+  const kind = metadata.kind;
+  const points = metadata.points;
+  if (isMeritKind(kind) && typeof points === "number") {
+    parts.push(`${MERIT_KIND_LABELS[kind]} ${points}점`);
+  }
+
+  if (typeof metadata.label === "string") parts.push(metadata.label);
+
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+/** merit:cancel — 사유가 필수이므로 항상 보여줄 것이 있다. */
+function meritCancelSummary(metadata: Record<string, unknown>): string | null {
+  const reason = metadata.reason;
+  return typeof reason === "string" && reason.length > 0 ? `사유: ${reason}` : null;
+}
+
 const METADATA_FORMATTERS: Partial<
   Record<AuditAction, (metadata: Record<string, unknown>) => string | null>
 > = {
@@ -224,6 +277,8 @@ const METADATA_FORMATTERS: Partial<
   "invite:create:parent": roleSummary,
   "registration:complete": roleSummary,
   "authz:denied": authzDeniedSummary,
+  "merit:award": meritAwardSummary,
+  "merit:cancel": meritCancelSummary,
 };
 
 /**
