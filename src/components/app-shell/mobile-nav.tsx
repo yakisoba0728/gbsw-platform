@@ -173,7 +173,15 @@ function DrawerItem({
     <div>
       <Link
         href={item.href}
-        aria-current={active ? "page" : undefined}
+        /*
+         * 사이드바(NavGroup)와 같은 규칙 — 현재 페이지는 한 화면에 하나다.
+         * 하위 항목이 맞으면 그쪽이 현재 페이지이고 부모는 아니다.
+         * 강조(active)는 그대로 그룹 전체를 본다: 그건 "지금 이 묶음 안에
+         * 있다"는 표시라서 하위 항목의 현재 표시와 목적이 다르다.
+         */
+        aria-current={
+          current === null && isActive(pathname, item.href) ? "page" : undefined
+        }
         className={cn(
           "flex items-center gap-[11px] rounded-btn px-3 py-2.5 text-sm transition-colors",
           active

@@ -68,8 +68,19 @@ function NavGroup({
     <div>
       <Link
         href={item.href}
-        aria-current={expanded ? "page" : undefined}
-        aria-expanded={expanded}
+        /*
+         * 현재 페이지는 한 화면에 하나다. 전에는 그룹 부모와 하위 항목에
+         * 동시에 붙어서, 스크린리더로 메뉴를 훑으면 "현재 페이지"가 둘 나왔다.
+         * 하위 항목이 하나라도 맞으면 현재 페이지는 그쪽이고, 부모 링크는
+         * 그때 "지금 있는 곳"이 아니라 "그 묶음의 첫 화면으로 가는 길"이다.
+         *
+         * aria-expanded도 뺐다 — 이 링크는 눌러도 접히지 않고 페이지를 옮긴다.
+         * 스크린리더가 "펼침 버튼"이라 안내한 뒤 눌러도 안 접히면, 사용자는
+         * 자기가 뭘 잘못했다고 여기고 같은 자리를 반복해서 누르게 된다.
+         * 펼침 여부는 지금 어느 그룹에 있느냐로 정해지지 조작할 수 있는
+         * 상태가 아니다(위 주석 참고).
+         */
+        aria-current={current === null && isActive(pathname, item.href) ? "page" : undefined}
         className={cn(
           "flex items-center gap-[11px] rounded-btn px-3 py-2.5 text-sm transition-colors",
           expanded

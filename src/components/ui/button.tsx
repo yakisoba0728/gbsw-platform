@@ -26,7 +26,13 @@ const VARIANTS: Record<ButtonVariant, string> = {
   chip: "border-line bg-surface text-mut hover:bg-soft",
 };
 
-/** chip variant는 선택 상태를 별도로 그린다. */
+/**
+ * chip variant는 선택 상태를 별도로 그린다.
+ *
+ * 링크로 된 필터 칩(`ui/chip-link.tsx`)이 이 규격을 그대로 따라간다 —
+ * 두 가지가 화면에서 나란히 서기 때문이다(규정 화면의 종류 칩은 링크,
+ * 초대 화면의 상태 칩은 버튼인데 사용자에겐 똑같은 알약이다).
+ */
 const CHIP_ACTIVE = "border-pri bg-pri text-white hover:bg-pri-press";
 
 const SIZES: Record<ButtonSize, string> = {
@@ -57,6 +63,19 @@ export function Button({
   return (
     <button
       type={type}
+      /*
+       * 선택 상태를 색으로만 알리지 않는다. chip은 전부 "켰다/껐다"를 나타내는
+       * 자리라 8덩어리(초대·사용자·로그·학생 표의 필터)가 여기 한 줄로 해결된다.
+       *
+       * 초대 발급 화면의 학생/관리자/학부모 셋만 성격이 다르다 — 필터가 아니라
+       * 아래 폼을 갈아 끼우는 탭이다. 그래도 aria-pressed를 붙인다: 지금 그
+       * 화면은 선택 상태를 색으로만 전달하고 있고, 제대로 된 탭으로 만들려면
+       * role="tab"·tabpanel·화살표키 이동까지 필요해 이 파일 한 곳에서 끝나지
+       * 않는다. "눌려 있다"는 사실이라도 전달되는 편이 아무것도 없는 것보다 낫다.
+       *
+       * {...props}가 뒤에 오므로 호출부가 명시하면 그쪽이 이긴다.
+       */
+      aria-pressed={isChip ? active : undefined}
       className={cn(
         "inline-flex items-center justify-center gap-1.5 border font-bold leading-tight whitespace-nowrap",
         "transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pri",
