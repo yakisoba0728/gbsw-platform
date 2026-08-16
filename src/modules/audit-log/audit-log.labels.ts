@@ -266,6 +266,28 @@ function meritCancelSummary(metadata: Record<string, unknown>): string | null {
   return typeof reason === "string" && reason.length > 0 ? `사유: ${reason}` : null;
 }
 
+/**
+ * merit:rule:update — 바뀐 필드 요약에 점수 전/후를 덧붙인다.
+ *
+ * rule.service.ts는 실제로 바뀐 항목이 없으면 recordAudit 자체를 안 부르므로
+ * changed는 항상 최소 1개다. pointsFrom·pointsTo는 점수가 안 바뀌었어도 함께
+ * 기록되므로(다른 필드만 바뀐 경우), 실제로 다를 때만 전/후를 보여준다 —
+ * 안 그러면 "5→5"처럼 아무 의미 없는 숫자가 늘 따라붙는다.
+ */
+function meritRuleUpdateSummary(metadata: Record<string, unknown>): string | null {
+  const summary = changedSummary(metadata.changed);
+
+  const from = metadata.pointsFrom;
+  const to = metadata.pointsTo;
+  const pointsChanged =
+    typeof from === "number" && typeof to === "number" && from !== to
+      ? `점수 ${from}→${to}`
+      : null;
+
+  const parts = [summary, pointsChanged].filter((p): p is string => p !== null);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
 const METADATA_FORMATTERS: Partial<
   Record<AuditAction, (metadata: Record<string, unknown>) => string | null>
 > = {
@@ -279,6 +301,7 @@ const METADATA_FORMATTERS: Partial<
   "authz:denied": authzDeniedSummary,
   "merit:award": meritAwardSummary,
   "merit:cancel": meritCancelSummary,
+  "merit:rule:update": meritRuleUpdateSummary,
 };
 
 /**

@@ -3,6 +3,7 @@ import {
   DashboardIcon,
   InviteIcon,
   LogIcon,
+  MeritIcon,
   SettingsIcon,
   UsersIcon,
 } from "@/components/icons";
@@ -66,6 +67,13 @@ export const ADMIN_NAV_ITEMS: NavItem[] = [
     label: "사용자 관리",
     // 학생 관리(UsersIcon: 사람)와 구분한다 — 이쪽은 계정 자체(활성/비활성·권한)를 다룬다.
     icon: SettingsIcon,
+    roles: ["ADMIN"],
+  },
+  {
+    href: "/admin/merit/rules",
+    label: "상벌점 규정",
+    shortLabel: "규정",
+    icon: MeritIcon,
     roles: ["ADMIN"],
   },
   {

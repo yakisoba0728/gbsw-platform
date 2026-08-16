@@ -224,4 +224,26 @@ describe("formatAuditMetadata()", () => {
       formatAuditMetadata("merit:award:create", { points: 3, reason: "지각" }),
     ).toBe("points 3 · reason 지각");
   });
+
+  it("merit:rule:update — 바뀐 필드와 점수 전/후를 함께 보여준다", () => {
+    expect(
+      formatAuditMetadata("merit:rule:update", {
+        changed: ["label", "points"],
+        label: "교내 봉사활동 우수 참여",
+        pointsFrom: 5,
+        pointsTo: 10,
+      }),
+    ).toBe("항목명 · 점수 바뀜 · 점수 5→10");
+  });
+
+  it("merit:rule:update — 점수가 그대로면 전/후를 붙이지 않는다", () => {
+    expect(
+      formatAuditMetadata("merit:rule:update", {
+        changed: ["category"],
+        label: "교내 봉사활동 우수 참여",
+        pointsFrom: 5,
+        pointsTo: 5,
+      }),
+    ).toBe("분류 바뀜");
+  });
 });
