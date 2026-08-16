@@ -11,6 +11,16 @@ export const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
 /** 시안의 `GBSW-0000-0000` 형식을 따른다. */
 export const PREFIX = "GBSW";
+
+/**
+ * 본문 길이. 31^8 ≈ 8.5 × 10^11 이고, 여기에 이름·생년월일 대조와 5회 실패
+ * 폐기가 겹친다 (근거는 generate-invite-code.ts와 초대·가입 설계 문서).
+ *
+ * **혼자 바꿀 수 없는 값이다.** 4-4 표시 묶음(formatInviteCode)과 등록 화면의
+ * 입력 마스크(lib/masks.ts의 formatInviteCodeInput — 본문을 8자에서 자른다)가
+ * 이 길이에 걸려 있다. 여기만 올리면 새 코드가 마스크에서 잘려 가입이 안 되고,
+ * 이미 인쇄해 나눠 준 코드의 표시 묶음도 달라진다.
+ */
 export const BODY_LENGTH = 8;
 
 /** 화면에 보여줄 형태로 끊어준다. `GBSWA3K92M7P` → `GBSW-A3K9-2M7P` */

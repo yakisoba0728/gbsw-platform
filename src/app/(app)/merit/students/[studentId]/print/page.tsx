@@ -11,6 +11,7 @@ import {
   type MeritTrack,
 } from "@/core/authz/merit-track";
 import { signedPoints } from "@/components/merit/kind-badge";
+import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { formatDate, formatDateTime } from "@/lib/datetime";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import { getStudentHeader, getStudentMerit } from "@/modules/merit/award.service";
@@ -43,6 +44,7 @@ export default async function MeritPrintPage({
 
   let view: Awaited<ReturnType<typeof getStudentMerit>> | null = null;
   let header: Awaited<ReturnType<typeof getStudentHeader>> = null;
+  let noCurrentYear = false;
   try {
     [view, header] = await Promise.all([
       getStudentMerit(actor, studentId, track, year),
@@ -50,9 +52,25 @@ export default async function MeritPrintPage({
     ]);
   } catch (error) {
     if (!(error instanceof AcademicYearError)) throw error;
+    // 현재 학년도가 없으면 두 조회가 모두 던진다 — 학생이 있는지조차 모른다.
+    noCurrentYear = true;
   }
 
-  if (!header || !view) notFound();
+  if (!view || !header) {
+    /*
+     * **404는 없는 학생에게만 준다.** 학년도가 아직 없는 것은 전혀 다른 상태이고,
+     * 다른 상벌점 화면은 모두 안내를 띄운다. 여기만 404를 내면 학년도를 만들지
+     * 않은 관리자가 "확인서 링크가 깨졌다"고 읽고 원인을 엉뚱한 데서 찾는다.
+     */
+    if (!noCurrentYear) notFound();
+
+    return (
+      <div className="mx-auto max-w-3xl space-y-4">
+        <BackLink studentId={studentId} track={track} />
+        <NoAcademicYearNotice />
+      </div>
+    );
+  }
 
   const active = view.awards.filter((a) => a.status === "ACTIVE");
   const scope = isYearScoped(track)
@@ -62,12 +80,7 @@ export default async function MeritPrintPage({
   return (
     <div className="mx-auto max-w-3xl">
       <div className="mb-4 flex items-center justify-between gap-3 print:hidden">
-        <Link
-          href={`/merit/students/${studentId}?track=${track}`}
-          className="text-[13px] font-semibold text-mut hover:text-pri"
-        >
-          ← 학생 상벌점
-        </Link>
+        <BackLink studentId={studentId} track={track} />
         <PrintButton />
       </div>
 
@@ -157,6 +170,18 @@ export default async function MeritPrintPage({
         </footer>
       </article>
     </div>
+  );
+}
+
+/** 학년도가 없어 확인서를 못 그리는 경우에도 돌아갈 길은 남는다. */
+function BackLink({ studentId, track }: { studentId: string; track: MeritTrack }) {
+  return (
+    <Link
+      href={`/merit/students/${studentId}?track=${track}`}
+      className="text-[13px] font-semibold text-mut hover:text-pri"
+    >
+      ← 학생 상벌점
+    </Link>
   );
 }
 

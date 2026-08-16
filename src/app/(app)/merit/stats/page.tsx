@@ -139,7 +139,7 @@ export default async function MeritStatsPage({
             />
           )}
 
-          <CategoryChart slices={stats.categories} />
+          <CategoryChart slices={stats.categories} scopeLabel={stats.chartRange} />
 
           <ClassTable rows={stats.classes} track={track} />
           <TopRules rows={stats.topRules} />

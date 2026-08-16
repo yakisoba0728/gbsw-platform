@@ -488,6 +488,15 @@ export async function getChildMerit(
 export type MeritStats = {
   /** 월별 추이 축 설명 — 교내는 학년도(3월~2월), 기숙사는 최근 12개월. */
   axisLabel: string;
+  /**
+   * 그래프(monthly·categories)가 덮는 기간을 짧게 적은 것.
+   *
+   * **머리글 합계(totals)·많이 나온 항목(topRules)의 범위와 다를 수 있다.**
+   * 기숙사는 합계가 입학부터 누적인데 그래프만 최근 12개월로 자르기 때문이다.
+   * 그래서 이 값을 화면이 그래프 옆에 적는다 — 안 적으면 "분류별 분포"의 합이
+   * 머리글 상점·벌점보다 작은 이유가 화면 어디에도 나오지 않는다.
+   */
+  chartRange: string;
   monthly: MonthlyPoint[];
   categories: CategorySlice[];
   /** 반을 골랐으면 그 반. 안 골랐으면 null(전교). */
@@ -503,6 +512,41 @@ export type MeritStats = {
   classes: Awaited<ReturnType<typeof repo.classSummaries>>;
   topRules: Awaited<ReturnType<typeof repo.topRules>>;
 };
+
+export type MeritSummary = {
+  track: MeritTrack;
+  /** 교내면 보고 있는 학년도, 기숙사면 null(전체 누적). */
+  year: number | null;
+  totals: MeritTotals & { awardCount: number };
+};
+
+/**
+ * 대시보드용 가벼운 요약 — 머리글 숫자만.
+ *
+ * getMeritStats를 쓰지 않는 이유: 그쪽은 월별 추이를 그리려고 해당 범위의 부여
+ * 기록을 **전부** 읽어 오고(listAwardsForChart) 반별 집계까지 낸다. 대시보드는
+ * 트랙 두 개를 나란히 보여주므로 그 무거운 일을 두 번 하게 되는데, 정작 쓰는
+ * 값은 합계와 건수뿐이다. "대시보드에 통계 화면을 다시 만들지 않는다"는 원칙
+ * (app/(app)/page.tsx 머리 주석)이 질의 비용에서도 그대로 성립하게 한다.
+ */
+export async function getMeritSummary(
+  actor: SessionUser,
+  track: MeritTrack,
+): Promise<MeritSummary> {
+  await assertCan(actor, "merit:read:any");
+
+  const scoped = await scopeYear(track);
+  const rows = await repo.trackTotals({ track, totalsYear: scoped });
+
+  return {
+    track,
+    year: scoped,
+    totals: {
+      ...sumTotals(rows),
+      awardCount: rows.reduce((sum, row) => sum + row._count._all, 0),
+    },
+  };
+}
 
 /** 순위 표시는 관리자 화면에만 둔다 — 학생에게 등수를 띄우는 건 별개 결정이다. */
 const TOP_RULE_LIMIT = 10;
@@ -529,6 +573,12 @@ export async function getMeritStats(
   const axis = isYearScoped(track)
     ? schoolYearMonths(scoped ?? rosterYear)
     : rollingMonths(now);
+  //
+  // **since는 그래프 조회에만 넘긴다.** 합계(trackTotals)와 많이 나온
+  // 항목(topRules)은 기숙사에서도 누적 그대로 둔다 — 학생 화면·학부모 화면·
+  // 확인서가 모두 누적을 보여주므로 통계 화면만 12개월로 자르면 같은 학생의
+  // 숫자가 화면마다 달라진다. 트랙 정의("기숙사는 입학부터 누적")가 이기는 게
+  // 맞고, 대신 그래프가 덮는 기간을 chartRange로 내보내 화면에 적는다.
   const since = isYearScoped(track) ? undefined : monthStart(axis[0].key);
 
   // 반을 골랐으면 그 반 학생만 대상으로 삼는다. 학생 목록을 먼저 뽑아야
@@ -572,6 +622,7 @@ export async function getMeritStats(
     axisLabel: isYearScoped(track)
       ? `${scoped ?? rosterYear}학년도 (3월~이듬해 2월)`
       : "최근 12개월 (누적)",
+    chartRange: isYearScoped(track) ? `${scoped ?? rosterYear}학년도` : "최근 12개월",
     monthly: monthlyTotals(chartAwards, axis),
     categories: categoryDistribution(chartAwards),
     totals: { ...totals, awardCount },

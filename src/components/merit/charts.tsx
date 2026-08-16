@@ -371,10 +371,23 @@ export function StudentNetChart({
 }
 
 /** 분류별 분포. 무엇 때문에 점수가 오갔는지 보여준다. */
-export function CategoryChart({ slices }: { slices: CategorySlice[] }) {
+/**
+ * scopeLabel은 이 그래프가 덮는 기간이다(MeritStats.chartRange).
+ *
+ * **반드시 적는다.** 기숙사는 머리글 합계가 입학부터 누적인데 이 그래프만 최근
+ * 12개월을 세므로, 적지 않으면 분류별 합이 머리글 상점·벌점이나 "많이 나온
+ * 항목"의 건수보다 작은 이유가 화면 어디에도 나오지 않는다.
+ */
+export function CategoryChart({
+  slices,
+  scopeLabel,
+}: {
+  slices: CategorySlice[];
+  scopeLabel: string;
+}) {
   if (slices.length === 0) {
     return (
-      <ChartCard title="분류별 분포">
+      <ChartCard title="분류별 분포" hint={`${scopeLabel} · 건수 기준`}>
         <Empty>아직 부여된 상벌점이 없습니다.</Empty>
       </ChartCard>
     );
@@ -387,7 +400,11 @@ export function CategoryChart({ slices }: { slices: CategorySlice[] }) {
   return (
     <ChartCard
       title="분류별 분포"
-      hint={hidden > 0 ? `건수 기준 상위 12개 (${hidden}개 더 있음)` : "건수 기준"}
+      hint={
+        hidden > 0
+          ? `${scopeLabel} · 건수 기준 상위 12개 (${hidden}개 더 있음)`
+          : `${scopeLabel} · 건수 기준`
+      }
     >
       <div className="flex flex-col gap-2">
         {top.map((slice, i) => (
