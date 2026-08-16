@@ -59,9 +59,24 @@ export async function listByStudent(studentId: string) {
   });
 }
 
-export async function countActiveByStudent(studentId: string) {
+/**
+ * 아직 **쓸 수 있는** 학부모 코드 수. MAX_ACTIVE_PARENT_INVITES 한도의 분자다.
+ *
+ * 판정 규칙은 `lib/invite-code.ts`의 `isInviteUsable`과 같아야 한다 — 거기서는
+ * 만료된 코드를 못 쓴다고 보는데 여기서만 안 봤다. 그 결과 학생이 쓸 수 없는
+ * 코드 3개가 한도를 계속 차지해 새 코드를 만들지 못하고, 관리자가 손으로 셋을
+ * 폐기해야만 풀렸다. `expiresAt`이 null이면 무기한이라 항상 센다.
+ *
+ * now를 인자로 받는다 — 테스트가 "지금"을 고정할 수 있어야 경계를 검증할 수 있다.
+ */
+export async function countActiveByStudent(studentId: string, now: Date = new Date()) {
   return prisma.invite.count({
-    where: { studentId, status: "PENDING" },
+    where: {
+      studentId,
+      status: "PENDING",
+      // isInviteUsable은 expiresAt <= now를 만료로 본다 — 그 여집합이 gt다.
+      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+    },
   });
 }
 
