@@ -29,9 +29,15 @@ export default function Loading() {
       <Skeleton className="h-[236px]" />
       <Skeleton className="h-[236px]" />
 
-      {/* 기준 초과 학생 · 반별 현황 · 많이 나온 항목 */}
+      {/*
+        표는 **셋**이다 — 기준 초과 학생(WatchList) · 반별 현황(ClassTable) ·
+        많이 나온 항목(TopRules). page.tsx는 셋을 항상 그리는데 여기는 둘만
+        그리고 있었다. 이 파일의 존재 이유가 "뼈대가 화면과 안 맞아 자리가
+        튄다"를 막는 것인데 같은 실수가 작은 규모로 되살아나 있었다.
+      */}
       <SkeletonTable rows={4} />
       <SkeletonTable rows={6} />
+      <SkeletonTable rows={5} />
     </SkeletonScreen>
   );
 }

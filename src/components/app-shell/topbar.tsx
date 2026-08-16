@@ -32,7 +32,10 @@ export function Topbar({
   }
 
   return (
-    <header className="flex h-14 flex-none items-center justify-between border-b border-line bg-surface px-[18px] lg:h-[62px] lg:px-7">
+    // print:hidden — 사이드바·하단탭과 같은 이유다. 이 상단바는 자기 <h1>(제목)을
+    // 그리는데, 확인서(/merit/students/[id]/print)도 자기 <h1>을 그린다. 빼지
+    // 않으면 종이 맨 위에 제목이 둘 찍히고 사용자 이름·로그아웃 버튼까지 남는다.
+    <header className="flex h-14 flex-none items-center justify-between border-b border-line bg-surface px-[18px] lg:h-[62px] lg:px-7 print:hidden">
       <div className="flex min-w-0 items-center gap-2.5">
         {/*
          * 좁은 화면에서는 로고 자리를 메뉴 버튼이 대신한다 — 390px 폭에 로고와
