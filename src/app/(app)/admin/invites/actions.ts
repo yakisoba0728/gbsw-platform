@@ -43,7 +43,6 @@ const MESSAGES: Record<string, string> = {
   CODE_GENERATION_FAILED: "코드를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.",
   TOO_MANY_ACTIVE_INVITES: `이 학생에게 아직 쓰지 않은 코드가 ${MAX_ACTIVE_PARENT_INVITES}개 있습니다.`,
   STUDENT_NOT_FOUND: "해당 학생을 찾을 수 없습니다.",
-  NOT_A_STUDENT: "학생 계정이 아닙니다.",
   NOT_FOUND: "코드를 찾을 수 없습니다.",
   NOT_PENDING: "이미 사용되었거나 폐기된 코드입니다.",
 };
