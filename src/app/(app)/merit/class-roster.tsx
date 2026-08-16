@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, Label } from "@/components/ui/input";
 import type { MeritTrack } from "@/core/authz/merit-track";
 import { RulePicker, type RuleOption } from "@/components/merit/rule-picker";
 import { demeritCellClass, ThresholdHint } from "@/components/merit/demerit-level";
@@ -35,6 +35,7 @@ export function ClassRoster({
   year,
   viewingPast,
   rules,
+  today,
 }: {
   rows: RosterRow[];
   grade: number;
@@ -44,7 +45,10 @@ export function ClassRoster({
   /** 지난 학년도를 보고 있는가. true면 부여 폼을 감춘다. */
   viewingPast: boolean;
   rules: RuleOption[];
+  /** 오늘 날짜(KST, `YYYY-MM-DD`). 서버가 계산해 내려준다 (하이드레이션 불일치 방지). */
+  today: string;
 }) {
+  const fieldId = useId();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>("number");
   const [state, formAction, pending] = useActionState(bulkAwardAction, EMPTY_MERIT_STATE);
@@ -222,6 +226,19 @@ export function ClassRoster({
           <RulePicker rules={rules} onChange={setRule} />
 
           <div className="flex flex-wrap items-end gap-2.5">
+            {/* 한 묶음은 같은 날 일어난 일이다 — 발생일도 하나만 받는다. */}
+            <div className="w-[150px]">
+              <Label htmlFor={`${fieldId}-occurred`}>발생일</Label>
+              <Input
+                id={`${fieldId}-occurred`}
+                type="date"
+                name="occurredOn"
+                defaultValue={today}
+                max={today}
+                required
+              />
+            </div>
+
             <div className="min-w-[160px] flex-1">
               <Input name="note" placeholder="메모 (선택)" aria-label="메모" />
             </div>

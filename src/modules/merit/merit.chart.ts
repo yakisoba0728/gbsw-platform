@@ -9,7 +9,12 @@ import { meritKindDelta } from "@/core/authz/merit-track";
  */
 
 export type ChartAward = {
-  createdAt: Date;
+  /**
+   * **발생일로 센다. 입력 시각(createdAt)이 아니다.**
+   * 금요일 일을 월요일에 넣으면 두 값이 다른 달일 수 있고, 그때 맞는 쪽은
+   * "언제 일어났나"다 — 6월 벌점이 8월 막대에 서면 그래프가 거짓말이 된다.
+   */
+  occurredOn: Date;
   kind: string;
   points: number;
   rule: { category: string | null } | null;
@@ -60,6 +65,21 @@ export function schoolYearMonths(year: number): { key: string; label: string }[]
 }
 
 /**
+ * 학년도가 덮는 기간 — **3월 1일 00:00 KST부터 이듬해 3월 1일 00:00 KST 직전까지.**
+ *
+ * `schoolYearMonths`와 같은 사실을 다른 모양으로 말한 것이고, **둘이 어긋나면
+ * 안 된다.** 부여의 발생일 검증이 이 창을 쓰고 월별 추이는 저 축을 쓰는데,
+ * `monthlyTotals`는 축 밖의 기록을 말없이 버리기 때문이다 — 창이 축보다 넓으면
+ * 검증을 통과한 기록이 그래프에서 조용히 사라진다. (테스트가 둘을 맞춰 본다.)
+ */
+export function schoolYearRange(year: number): { start: Date; endExclusive: Date } {
+  return {
+    start: new Date(`${year}-03-01T00:00:00+09:00`),
+    endExclusive: new Date(`${year + 1}-03-01T00:00:00+09:00`),
+  };
+}
+
+/**
  * 최근 12개월 축 (기숙사처럼 누적이라 학년도 경계가 없는 경우).
  * `now`를 인자로 받는다 — 시간을 함수 안에서 읽으면 테스트가 날짜에 따라 흔들린다.
  */
@@ -91,7 +111,7 @@ export function monthlyTotals(
   }
 
   for (const award of awards) {
-    const { year, month } = kstYearMonth(award.createdAt);
+    const { year, month } = kstYearMonth(award.occurredOn);
     const bucket = buckets.get(monthKey(year, month));
     // 축 밖의 달(범위를 벗어난 기록)은 버린다 — 축을 늘리면 그래프가 못 읽힌다.
     if (!bucket) continue;

@@ -7,6 +7,7 @@ import {
   type MeritTrack,
 } from "@/core/authz/merit-track";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
+import { formatDateInput } from "@/lib/datetime";
 import {
   AcademicYearError,
   getCurrentYear,
@@ -152,6 +153,10 @@ export async function AdminMeritView({
           year={rosterQuery.data.year}
           viewingPast={viewingPast}
           rules={rules}
+          // 오늘 날짜는 서버에서 만든다 — 클라이언트에서 만들면 SSR이 그린 값과
+          // 어긋나 하이드레이션이 깨진다 (시안의 device 토글을 JS로 재현하지
+          // 않는 것과 같은 이유).
+          today={formatDateInput(new Date())}
         />
       )}
     </div>

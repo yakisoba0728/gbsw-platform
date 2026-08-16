@@ -21,6 +21,11 @@ const service = await import("@/modules/merit/award.service");
 const YEAR = 2026;
 const PAST = YEAR - 1;
 
+// 발생일은 그 학년도(3월~이듬해 2월) 안이어야 한다 — 서비스가 검사한다.
+// 기준 시각도 함께 고정한다 (오늘 날짜에 따라 흔들리지 않게).
+const OCCURRED_ON = new Date("2026-06-12T00:00:00+09:00");
+const NOW = new Date("2026-08-16T10:00:00+09:00");
+
 const made = { users: [] as string[], profiles: [] as string[], rules: [] as string[] };
 
 const admin = {
@@ -128,6 +133,7 @@ describe("repo.createAwards — 일괄 부여 트랜잭션", () => {
       kind: "DEMERIT",
       label: "점호 지각",
       points: 3,
+      occurredOn: OCCURRED_ON,
       note: null,
       awardedByUserId: admin.id,
       awardedByName: "통합테스트",
@@ -161,11 +167,11 @@ describe("service.bulkAwardMerit — 실제 경로", () => {
     const a = await makeStudent("c");
     const b = await makeStudent("d");
 
-    const result = await service.bulkAwardMerit(admin, {
-      studentProfileIds: [a, b],
-      ruleId,
-      note: null,
-    });
+    const result = await service.bulkAwardMerit(
+      admin,
+      { studentProfileIds: [a, b], ruleId, occurredOn: OCCURRED_ON, note: null },
+      NOW,
+    );
     expect(result).toEqual({ count: 2 });
 
     const rows = await prisma.meritAward.findMany({
@@ -191,11 +197,16 @@ describe("service.bulkAwardMerit — 실제 경로", () => {
     const a = await makeStudent("e");
 
     await expect(
-      service.bulkAwardMerit(admin, {
-        studentProfileIds: [a, "존재하지-않는-학생"],
-        ruleId,
-        note: null,
-      }),
+      service.bulkAwardMerit(
+        admin,
+        {
+          studentProfileIds: [a, "존재하지-않는-학생"],
+          ruleId,
+          occurredOn: OCCURRED_ON,
+          note: null,
+        },
+        NOW,
+      ),
     ).rejects.toThrow("STUDENT_NOT_FOUND");
 
     expect(await prisma.meritAward.count({ where: { ruleId } })).toBe(0);
@@ -233,6 +244,7 @@ describe("합계 범위 — 교내는 학년도별, 기숙사는 누적", () => 
             kind: "MERIT",
             label,
             points,
+            occurredOn: OCCURRED_ON,
             note: null,
             awardedByUserId: admin.id,
             awardedByName: "통합테스트",
@@ -278,6 +290,7 @@ describe("합계 범위 — 교내는 학년도별, 기숙사는 누적", () => 
         kind: "DEMERIT",
         label: "복장 불량",
         points: 3,
+        occurredOn: OCCURRED_ON,
         note: null,
         awardedByUserId: admin.id,
         awardedByName: "통합테스트",
@@ -315,6 +328,7 @@ describe("합계 범위 — 교내는 학년도별, 기숙사는 누적", () => 
         kind: "DEMERIT",
         label: "지각",
         points: 1,
+        occurredOn: OCCURRED_ON,
         note: null,
         awardedByUserId: admin.id,
         awardedByName: "통합테스트",

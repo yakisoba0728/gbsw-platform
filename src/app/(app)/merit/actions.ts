@@ -29,6 +29,11 @@ const MESSAGES: Record<string, string> = {
   NO_STUDENTS: "학생을 선택해 주세요.",
   BATCH_NOT_FOUND: "취소할 묶음을 찾을 수 없습니다. 이미 취소되었을 수 있습니다.",
   TOO_MANY_STUDENTS: "한 번에 100명까지 줄 수 있습니다.",
+  // 부여는 언제나 현재 학년도로 들어가므로, 그 학년도 밖의 발생일은 넣을 자리가
+  // 없다 — 넣어 봐야 월별 추이의 12칸 축 밖이라 화면에서 사라진다.
+  OCCURRED_OUT_OF_YEAR:
+    "발생일이 현재 학년도(3월 1일 ~ 이듬해 2월 말) 밖입니다. 지난 학년도의 일은 부여할 수 없습니다.",
+  OCCURRED_IN_FUTURE: "발생일이 미래입니다. 오늘까지의 날짜만 고를 수 있습니다.",
 };
 
 const NO_CURRENT_YEAR_MESSAGE =
@@ -54,6 +59,7 @@ export async function awardAction(
   const parsed = awardSchema.safeParse({
     studentProfileId: formData.get("studentProfileId"),
     ruleId: formData.get("ruleId"),
+    occurredOn: formData.get("occurredOn"),
     note: formData.get("note"),
   });
   if (!parsed.success) {
@@ -84,6 +90,7 @@ export async function bulkAwardAction(
     // 체크박스는 같은 name으로 여러 개 온다.
     studentProfileIds: formData.getAll("studentProfileIds").map(String),
     ruleId: formData.get("ruleId"),
+    occurredOn: formData.get("occurredOn"),
     note: formData.get("note"),
   });
   if (!parsed.success) {

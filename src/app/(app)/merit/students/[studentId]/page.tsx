@@ -12,6 +12,7 @@ import {
 import { AwardHistory } from "@/components/merit/award-history";
 import { MeritTotalsCards } from "@/components/merit/merit-totals";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
+import { formatDateInput } from "@/lib/datetime";
 import {
   AcademicYearError,
   getCurrentYear,
@@ -160,7 +161,13 @@ export default async function StudentMeritPage({
               지난 학년도를 보고 있습니다. 부여는 현재 학년도에만 할 수 있습니다.
             </p>
           ) : (
-            <AwardForm studentProfileId={studentId} rules={rules} />
+            <AwardForm
+              studentProfileId={studentId}
+              rules={rules}
+              // 오늘 날짜는 서버에서 만든다 — 클라이언트에서 만들면 SSR이 그린
+              // 값과 어긋나 하이드레이션이 깨진다.
+              today={formatDateInput(new Date())}
+            />
           )}
 
           <AwardHistory awards={view.awards} canCancel studentProfileId={studentId} />

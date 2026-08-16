@@ -84,6 +84,7 @@ describe("선택 입력(메모·분류·설명)의 길이", () => {
     const result = awardSchema.safeParse({
       studentProfileId: "sp-1",
       ruleId: "r-1",
+      occurredOn: "2026-06-12",
       note: "가".repeat(501),
     });
     expect(result.success).toBe(false);
@@ -94,6 +95,7 @@ describe("선택 입력(메모·분류·설명)의 길이", () => {
     const parsed = awardSchema.parse({
       studentProfileId: "sp-1",
       ruleId: "r-1",
+      occurredOn: "2026-06-12",
       note,
     });
     expect(parsed.note).toBe(note);
@@ -103,6 +105,7 @@ describe("선택 입력(메모·분류·설명)의 길이", () => {
     const parsed = awardSchema.parse({
       studentProfileId: "sp-1",
       ruleId: "r-1",
+      occurredOn: "2026-06-12",
       note: null,
     });
     expect(parsed.note).toBeNull();
@@ -112,6 +115,7 @@ describe("선택 입력(메모·분류·설명)의 길이", () => {
     const parsed = awardSchema.parse({
       studentProfileId: "sp-1",
       ruleId: "r-1",
+      occurredOn: "2026-06-12",
       note: "   ",
     });
     expect(parsed.note).toBeNull();

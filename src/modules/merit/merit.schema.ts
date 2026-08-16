@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { MERIT_KINDS, MERIT_TRACKS } from "@/core/authz/merit-track";
+import { parseDateInputKst } from "@/lib/datetime";
 
 /**
  * 서버 액션 경계에서만 쓴다. 서비스는 여기를 통과한 타입을 신뢰한다.
@@ -29,6 +30,21 @@ const positiveInt = z
   .regex(/^\d+$/, "점수는 1 이상의 정수여야 합니다")
   .transform(Number)
   .refine((n) => n >= 1 && n <= 1000, "점수는 1~1000 사이여야 합니다");
+
+/**
+ * `<input type="date">`가 보내는 `YYYY-MM-DD` → **KST 자정** Date.
+ *
+ * 생년월일과 같은 경로를 쓴다 (parseDateInputKst 하나만 거친다) — 날짜만 뜻이
+ * 있는 값을 어느 시간대의 자정으로 볼지 갈리면, 화면에는 안 드러나다가 값을
+ * 직접 비교하는 순간 어긋난다. 2월 30일 같은 값은 Invalid Date가 되므로
+ * 변환한 뒤에 한 번 더 본다 — 정규식만으로는 안 걸린다.
+ */
+const dateInputKst = z
+  .string()
+  .trim()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "발생일을 골라 주세요")
+  .transform(parseDateInputKst)
+  .refine((value) => !Number.isNaN(value.getTime()), "없는 날짜입니다");
 
 export const trackSchema = z.enum(MERIT_TRACKS);
 export const kindSchema = z.enum(MERIT_KINDS);
@@ -69,6 +85,10 @@ export const ruleIdSchema = z.object({ ruleId: z.string().trim().min(1) });
  * 부여 입력. **학년도가 없다** — 항상 getCurrentYear()로 들어간다.
  * 화면의 학년도 선택은 조회 전용이며, 그 값을 여기로 흘리면 지난 학년도를
  * 들여다보던 관리자가 새 벌점을 거기 꽂는 사고가 난다.
+ *
+ * **발생일(occurredOn)은 있다.** 학년도와 달리 세션에서 유도할 수 없는 사실이라서다
+ * — 금요일 일을 월요일에 넣는 사람만이 그 날짜를 안다. 다만 "그 학년도 안이어야
+ * 한다"는 업무 규칙은 서비스가 지킨다 (여기서는 모양만 본다).
  */
 export const awardSchema = z.object({
   studentProfileId: z.string().trim().min(1),
@@ -76,6 +96,7 @@ export const awardSchema = z.object({
   // 브라우저의 required 검사가 사라졌다. 빈 채로 제출되면 여기가 유일한 방어선인데,
   // 문구가 없으면 zod의 영문 기본 메시지가 그대로 화면에 나간다.
   ruleId: z.string().trim().min(1, "부여할 항목을 골라 주세요"),
+  occurredOn: dateInputKst,
   note: optionalText(500),
 });
 
@@ -106,6 +127,8 @@ export const bulkAwardSchema = z.object({
     .min(1, "학생을 선택해 주세요")
     .max(BULK_AWARD_LIMIT, `한 번에 ${BULK_AWARD_LIMIT}명까지 줄 수 있습니다`),
   ruleId: z.string().trim().min(1, "부여할 항목을 골라 주세요"),
+  // 한 묶음은 같은 날 일어난 일이다 — "점호 지각 5명"이 사람마다 다른 날일 수 없다.
+  occurredOn: dateInputKst,
   note: optionalText(500),
 });
 

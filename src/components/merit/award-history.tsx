@@ -1,7 +1,7 @@
 import { CancelButton } from "@/app/(app)/merit/students/[studentId]/cancel-button";
 import { Badge } from "@/components/ui/badge";
 import { KindBadge, kindColorClass, signedPoints } from "@/components/merit/kind-badge";
-import { formatDate } from "@/lib/datetime";
+import { formatDate, isSameKstDate } from "@/lib/datetime";
 import type { StudentMeritView } from "@/modules/merit/award.service";
 
 type AwardRow = StudentMeritView["awards"][number];
@@ -9,7 +9,11 @@ type AwardRow = StudentMeritView["awards"][number];
 /**
  * 부여 내역 표. 관리자 화면(취소 가능)과 학생·학부모 화면(조회만)이 공유한다 —
  * canCancel과 studentProfileId(취소 후 revalidatePath 대상)만 다르게 넘긴다.
- * 열: 날짜 · 구분 · 항목 · 점수 · 부여 · 상태 (+ canCancel이면 작업).
+ * 열: 발생일 · 구분 · 항목 · 점수 · 부여 · 상태 (+ canCancel이면 작업).
+ *
+ * **날짜 칸은 발생일이다.** 다만 입력일이 다른 날이면 그것도 함께 적는다 —
+ * "6월 12일에 일어난 일을 8월 16일에 넣었다"를 기록에서 읽을 수 없으면,
+ * 나중에 날짜를 다투게 됐을 때 화면이 아무 근거도 못 준다.
  */
 export function AwardHistory({
   awards,
@@ -37,7 +41,7 @@ export function AwardHistory({
       <div className="overflow-x-auto">
         <table className="w-full min-w-[560px] text-left text-sm">
           <colgroup>
-            <col className="w-[96px]" />
+            <col className="w-[112px]" />
             <col className="w-[68px]" />
             <col />
             <col className="w-[64px]" />
@@ -47,7 +51,7 @@ export function AwardHistory({
           </colgroup>
           <thead>
             <tr className="border-b border-line2 text-[12px] text-mut">
-              <th className="px-5 py-2.5 font-semibold">날짜</th>
+              <th className="px-5 py-2.5 font-semibold">발생일</th>
               <th className="px-3 py-2.5 font-semibold">구분</th>
               <th className="px-3 py-2.5 font-semibold">항목</th>
               <th className="px-3 py-2.5 font-semibold">점수</th>
@@ -62,7 +66,12 @@ export function AwardHistory({
               return (
                 <tr key={award.id} className="border-b border-line2 last:border-0">
                   <td className="px-5 py-2.5 whitespace-nowrap text-mut">
-                    {formatDate(award.createdAt)}
+                    {formatDate(award.occurredOn)}
+                    {!isSameKstDate(award.occurredOn, award.createdAt) && (
+                      <span className="block text-[11.5px] text-mut2">
+                        입력 {formatDate(award.createdAt)}
+                      </span>
+                    )}
                   </td>
                   <td className="px-3 py-2.5">
                     <KindBadge kind={award.kind} />

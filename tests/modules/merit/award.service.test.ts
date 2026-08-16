@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionUser } from "@/core/auth/session";
+import { parseDateInputKst } from "@/lib/datetime";
+import { schoolYearMonths, schoolYearRange } from "@/modules/merit/merit.chart";
 
 const findRule = vi.fn();
 const createAward = vi.fn();
@@ -111,11 +113,23 @@ beforeEach(() => {
   isChildOf.mockReset().mockResolvedValue(true);
 });
 
-const awardInput = { studentProfileId: "sp-1", ruleId: "r-1", note: null };
+/**
+ * 발생일은 2026학년도(2026-03-01 ~ 2027-02-28) 안이고 NOW보다 앞이다.
+ * 기준 시각을 인자로 넘기는 이유는 오늘 날짜가 바뀌어도 테스트가 안 흔들리게 하기 위해서다.
+ */
+const NOW = new Date("2026-08-16T10:00:00+09:00");
+const OCCURRED_ON = parseDateInputKst("2026-06-12");
+
+const awardInput = {
+  studentProfileId: "sp-1",
+  ruleId: "r-1",
+  occurredOn: OCCURRED_ON,
+  note: null,
+};
 
 describe("awardMerit", () => {
   it("규정 값을 스냅샷해서 넣는다", async () => {
-    await service.awardMerit(admin, awardInput);
+    await service.awardMerit(admin, awardInput, NOW);
 
     expect(createAward).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -135,7 +149,12 @@ describe("awardMerit", () => {
 
   it("학년도는 항상 현재 학년도다 — 입력으로 받지 않는다", async () => {
     getCurrentYear.mockResolvedValue(2027);
-    await service.awardMerit(admin, awardInput);
+    // 발생일 검사는 그 학년도 창을 보므로 함께 옮겨 준다 (검사 자체는 아래에서 따로 본다).
+    await service.awardMerit(
+      admin,
+      { ...awardInput, occurredOn: parseDateInputKst("2027-06-12") },
+      new Date("2027-08-16T10:00:00+09:00"),
+    );
 
     expect(createAward).toHaveBeenCalledWith(
       expect.objectContaining({ year: 2027 }),
@@ -143,7 +162,7 @@ describe("awardMerit", () => {
   });
 
   it("감사로그에 트랙·종류·점수가 남는다", async () => {
-    await service.awardMerit(admin, awardInput);
+    await service.awardMerit(admin, awardInput, NOW);
 
     expect(recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -164,7 +183,7 @@ describe("awardMerit", () => {
   it("비활성 규정으로는 못 준다", async () => {
     findRule.mockResolvedValue({ ...SCHOOL_RULE, active: false });
 
-    await expect(service.awardMerit(admin, awardInput)).rejects.toThrow(
+    await expect(service.awardMerit(admin, awardInput, NOW)).rejects.toThrow(
       "RULE_INACTIVE",
     );
     expect(createAward).not.toHaveBeenCalled();
@@ -172,26 +191,135 @@ describe("awardMerit", () => {
 
   it("없는 규정은 RULE_NOT_FOUND", async () => {
     findRule.mockResolvedValue(null);
-    await expect(service.awardMerit(admin, awardInput)).rejects.toThrow(
+    await expect(service.awardMerit(admin, awardInput, NOW)).rejects.toThrow(
       "RULE_NOT_FOUND",
     );
   });
 
   it("없는 학생은 STUDENT_NOT_FOUND — 소프트 삭제된 학생도 여기 걸린다", async () => {
     findStudentProfileById.mockResolvedValue(null);
-    await expect(service.awardMerit(admin, awardInput)).rejects.toThrow(
+    await expect(service.awardMerit(admin, awardInput, NOW)).rejects.toThrow(
       "STUDENT_NOT_FOUND",
     );
     expect(createAward).not.toHaveBeenCalled();
   });
 
   it("학생은 상벌점을 줄 수 없다", async () => {
-    await expect(service.awardMerit(student, awardInput)).rejects.toThrow(
+    await expect(service.awardMerit(student, awardInput, NOW)).rejects.toThrow(
       "FORBIDDEN",
     );
     expect(createAward).not.toHaveBeenCalled();
   });
+
+  it("발생일을 그대로 넣는다 — 입력 시각(createdAt)과 별개다", async () => {
+    await service.awardMerit(admin, awardInput, NOW);
+
+    expect(createAward).toHaveBeenCalledWith(
+      expect.objectContaining({ occurredOn: OCCURRED_ON }),
+    );
+  });
+
+  it("감사로그에 발생일이 남는다 — 로그 자체의 시각은 '언제 입력됐나'다", async () => {
+    await service.awardMerit(admin, awardInput, NOW);
+
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          occurredOn: OCCURRED_ON.toISOString(),
+        }),
+      }),
+    );
+  });
 });
+
+/**
+ * 발생일 검사.
+ *
+ * **조용히 틀리는 것을 막는 장치다.** 부여는 언제나 현재 학년도로 들어가는데
+ * 월별 추이 축은 그 학년도의 12칸(3월~이듬해 2월)이고, monthlyTotals는 축 밖의
+ * 기록을 말없이 버린다 — 검사가 없으면 "부여했습니다"가 뜬 기록이 어느 화면에도
+ * 안 나타나는 상태가 만들어진다.
+ *
+ * 두 부여 경로(단건·일괄)에 같은 규칙이 걸리는지 함께 본다. 한쪽만 막으면
+ * 반별 목록에서 준 벌점만 그래프에서 사라진다.
+ */
+describe("발생일 검사 (현재 학년도 2026 = 2026-03-01 ~ 2027-02-28)", () => {
+  const cases: [name: string, run: (occurredOn: Date, now?: Date) => Promise<unknown>][] = [
+    ["단건", (occurredOn, now = NOW) => service.awardMerit(admin, { ...awardInput, occurredOn }, now)],
+    [
+      "일괄",
+      (occurredOn, now = NOW) =>
+        service.bulkAwardMerit(
+          admin,
+          // createAwards 목이 2건을 돌려주므로 대상도 2명이어야 짝이 맞는다.
+          { studentProfileIds: ["sp-1", "sp-2"], ruleId: "r-1", occurredOn, note: null },
+          now,
+        ),
+    ],
+  ];
+
+  /** 두 경로를 한 줄로 세는 헬퍼 — 어느 쪽이 돌았든 "썼는가"만 본다. */
+  const writes = () => createAward.mock.calls.length + createAwards.mock.calls.length;
+
+  for (const [name, run] of cases) {
+    it(`${name} — 학년도 첫날(3월 1일)은 통과한다`, async () => {
+      await run(parseDateInputKst("2026-03-01"));
+      expect(writes()).toBe(1);
+    });
+
+    it(`${name} — 학년도 마지막 날(이듬해 2월 28일)도 통과한다`, async () => {
+      // 그 시점에서는 미래가 아니어야 하므로 기준 시각을 함께 옮긴다.
+      await run(parseDateInputKst("2027-02-28"), new Date("2027-02-28T23:00:00+09:00"));
+      expect(writes()).toBe(1);
+    });
+
+    it(`${name} — 학년도 시작 하루 전(2월 28일)은 거부한다`, async () => {
+      await expect(run(parseDateInputKst("2026-02-28"))).rejects.toThrow(
+        "OCCURRED_OUT_OF_YEAR",
+      );
+      expect(writes()).toBe(0);
+    });
+
+    it(`${name} — 학년도가 끝난 다음 날(3월 1일)은 거부한다`, async () => {
+      await expect(
+        run(parseDateInputKst("2027-03-01"), new Date("2027-03-02T10:00:00+09:00")),
+      ).rejects.toThrow("OCCURRED_OUT_OF_YEAR");
+    });
+
+    it(`${name} — 학년도 안이어도 미래면 거부한다`, async () => {
+      // 8월에 다음 1월을 고르면 학년도 창 안이다 — 창만으로는 못 거른다.
+      await expect(run(parseDateInputKst("2027-01-15"))).rejects.toThrow(
+        "OCCURRED_IN_FUTURE",
+      );
+      expect(writes()).toBe(0);
+    });
+
+    it(`${name} — 오늘은 통과한다 (기본값이 오늘이다)`, async () => {
+      await run(parseDateInputKst("2026-08-16"));
+      expect(writes()).toBe(1);
+    });
+  }
+
+  it("월별 추이 축의 첫 달·마지막 달과 창이 어긋나지 않는다", () => {
+    // 이 두 값이 갈리는 순간, 검사를 통과한 기록이 그래프에서 조용히 사라진다.
+    const axis = schoolYearMonths(2026);
+    const { start, endExclusive } = schoolYearRange(2026);
+
+    expect(monthKeyKst(start)).toBe(axis[0].key);
+    expect(monthKeyKst(new Date(endExclusive.getTime() - 1))).toBe(axis[11].key);
+  });
+});
+
+/** KST 기준 `YYYY-MM` — 축의 key와 같은 모양. */
+function monthKeyKst(date: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+  })
+    .format(date)
+    .slice(0, 7);
+}
 
 describe("cancelAward", () => {
   const cancelInput = { awardId: "a-1", reason: "잘못 입력함" };
@@ -400,11 +528,12 @@ describe("bulkAwardMerit", () => {
   const bulk = {
     studentProfileIds: ["sp-1", "sp-2"],
     ruleId: "r-1",
+    occurredOn: OCCURRED_ON,
     note: null,
   };
 
   it("한 번에 여러 건을 넣고 같은 batchId로 묶는다", async () => {
-    await service.bulkAwardMerit(admin, bulk);
+    await service.bulkAwardMerit(admin, bulk, NOW);
 
     expect(createAwards).toHaveBeenCalledTimes(1);
     const items = createAwards.mock.calls[0][0];
@@ -414,7 +543,7 @@ describe("bulkAwardMerit", () => {
   });
 
   it("감사로그는 학생 수만큼 남는다 — 건별 추적이 가능해야 한다", async () => {
-    await service.bulkAwardMerit(admin, bulk);
+    await service.bulkAwardMerit(admin, bulk, NOW);
 
     const meritLogs = recordAudit.mock.calls.filter(
       ([arg]) => arg.action === "merit:award",
@@ -431,14 +560,14 @@ describe("bulkAwardMerit", () => {
       { id: "sp-1", studentCode: "C", user: { id: "u", name: "n" } },
     ]);
 
-    await expect(service.bulkAwardMerit(admin, bulk)).rejects.toThrow(
+    await expect(service.bulkAwardMerit(admin, bulk, NOW)).rejects.toThrow(
       "STUDENT_NOT_FOUND",
     );
     expect(createAwards).not.toHaveBeenCalled();
   });
 
   it("학생 조회는 한 번만 한다 — 예전엔 인원수만큼 순차로 돌았다", async () => {
-    await service.bulkAwardMerit(admin, bulk);
+    await service.bulkAwardMerit(admin, bulk, NOW);
 
     expect(findStudentProfilesByIds).toHaveBeenCalledTimes(1);
     expect(findStudentProfilesByIds).toHaveBeenCalledWith(["sp-1", "sp-2"]);
@@ -446,10 +575,11 @@ describe("bulkAwardMerit", () => {
   });
 
   it("중복 선택은 한 번만 들어간다", async () => {
-    await service.bulkAwardMerit(admin, {
-      ...bulk,
-      studentProfileIds: ["sp-1", "sp-1", "sp-2"],
-    });
+    await service.bulkAwardMerit(
+      admin,
+      { ...bulk, studentProfileIds: ["sp-1", "sp-1", "sp-2"] },
+      NOW,
+    );
 
     expect(createAwards.mock.calls[0][0]).toHaveLength(2);
   });
@@ -457,21 +587,21 @@ describe("bulkAwardMerit", () => {
   it("비활성 규정으로는 일괄도 못 준다", async () => {
     findRule.mockResolvedValue({ ...SCHOOL_RULE, active: false });
 
-    await expect(service.bulkAwardMerit(admin, bulk)).rejects.toThrow(
+    await expect(service.bulkAwardMerit(admin, bulk, NOW)).rejects.toThrow(
       "RULE_INACTIVE",
     );
     expect(createAwards).not.toHaveBeenCalled();
   });
 
   it("학생은 일괄 부여를 할 수 없다", async () => {
-    await expect(service.bulkAwardMerit(student, bulk)).rejects.toThrow(
+    await expect(service.bulkAwardMerit(student, bulk, NOW)).rejects.toThrow(
       "FORBIDDEN",
     );
     expect(createAwards).not.toHaveBeenCalled();
   });
 
   it("돌려주는 건수가 실제로 넣은 수와 같다", async () => {
-    const result = await service.bulkAwardMerit(admin, bulk);
+    const result = await service.bulkAwardMerit(admin, bulk, NOW);
     expect(result).toEqual({ count: 2 });
   });
 });

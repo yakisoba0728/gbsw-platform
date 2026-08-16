@@ -10,7 +10,7 @@ import {
 import { KindBadge, kindColorClass, signedPoints } from "@/components/merit/kind-badge";
 import { Badge } from "@/components/ui/badge";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
-import { formatDateTime } from "@/lib/datetime";
+import { formatDate, formatDateTime, isSameKstDate } from "@/lib/datetime";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import { listRecentAwards } from "@/modules/merit/award.service";
 import { CancelBatchButton } from "./cancel-batch-button";
@@ -93,8 +93,19 @@ export default async function RecentAwardsPage({
                   key={row.id}
                   className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-line2 px-5 py-3 last:border-0"
                 >
+                  {/*
+                    이 목록만 입력순이다 ("방금 무엇이 들어왔나"를 보는 화면).
+                    그래서 앞에 서는 시각도 입력 시각이고, 발생일이 다른 날이면
+                    그것을 덧붙인다 — 두 날짜가 갈린 기록을 여기서 알아채야
+                    잘못 넣은 것을 바로 되돌릴 수 있다.
+                  */}
                   <span className="w-[132px] shrink-0 text-[12px] text-mut">
                     {formatDateTime(row.createdAt)}
+                    {!isSameKstDate(row.occurredOn, row.createdAt) && (
+                      <span className="block text-mut2">
+                        발생 {formatDate(row.occurredOn)}
+                      </span>
+                    )}
                   </span>
 
                   <KindBadge kind={row.kind} />
