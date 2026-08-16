@@ -118,24 +118,38 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
                     )}
                   </td>
 
+                  {/*
+                    부호는 종류가 정하며 고칠 수 없다. 수정 중에도 입력칸 앞에
+                    그대로 붙여 둔다 — 예전엔 편집을 시작하면 부호가 사라져서
+                    상점을 고치는지 벌점을 고치는지 화면에서 알 수 없었다.
+                  */}
                   <td className={`px-3 py-2.5 font-bold ${dim}`}>
-                    {editing ? (
-                      <Input
-                        dense
-                        name="points"
-                        form="rule-edit-form"
-                        defaultValue={String(rule.points)}
-                        inputMode="numeric"
-                        required
-                        className="w-20"
-                        aria-label={`${rule.label} 점수 수정`}
-                      />
-                    ) : (
-                      <>
+                    <span className="flex items-center gap-1">
+                      <span
+                        aria-hidden
+                        className={
+                          rule.kind === "MERIT" ? "text-blue" : "text-rose"
+                        }
+                      >
                         {rule.kind === "MERIT" ? "+" : "−"}
-                        {rule.points}
-                      </>
-                    )}
+                      </span>
+                      {editing ? (
+                        <Input
+                          dense
+                          name="points"
+                          form="rule-edit-form"
+                          defaultValue={String(rule.points)}
+                          inputMode="numeric"
+                          required
+                          className="w-16"
+                          aria-label={`${rule.label} 점수 수정 (${
+                            MERIT_KIND_LABELS[rule.kind as MeritKind]
+                          })`}
+                        />
+                      ) : (
+                        rule.points
+                      )}
+                    </span>
                   </td>
 
                   <td className={`px-3 py-2.5 ${rule.active ? "text-mut" : "text-mut line-through"}`}>

@@ -57,11 +57,30 @@ export async function deactivateRule(id: string): Promise<void> {
   await prisma.meritRule.update({ where: { id }, data: { active: false } });
 }
 
+/**
+ * 종류 정렬 순서. **상점이 먼저다.**
+ *
+ * kind는 문자열 열이라 Prisma의 `kind: "asc"`는 사전순으로 정렬한다 —
+ * "DEMERIT" < "MERIT"이라 벌점이 먼저 나왔다. 규정표는 상점부터 읽는 것이
+ * 자연스럽고 원본 표도 그 순서라, 가져온 뒤 여기서 다시 세운다.
+ * 규정은 전교 통틀어 수백 개 규모라 애플리케이션 정렬로 충분하다.
+ */
+const KIND_ORDER: Record<string, number> = { MERIT: 0, DEMERIT: 1 };
+
+function byKindThenPoints<T extends { kind: string; points: number }>(
+  a: T,
+  b: T,
+): number {
+  const kind = (KIND_ORDER[a.kind] ?? 9) - (KIND_ORDER[b.kind] ?? 9);
+  return kind !== 0 ? kind : a.points - b.points;
+}
+
 /** 비활성 포함 전부. 규정 관리 화면이 쓴다. */
 export async function listRules(track: MeritTrack) {
-  return prisma.meritRule.findMany({
+  const rules = await prisma.meritRule.findMany({
     where: { track },
-    orderBy: [{ active: "desc" }, { kind: "asc" }, { points: "asc" }],
+    // 사용 중인 것이 먼저, 그 안에서 분류별로 묶는다. 종류·점수는 아래에서 세운다.
+    orderBy: [{ active: "desc" }, { category: "asc" }],
     select: {
       id: true,
       track: true,
@@ -73,15 +92,22 @@ export async function listRules(track: MeritTrack) {
       active: true,
     },
   });
+
+  // 사용/중지 구분은 유지한 채 각 묶음 안에서 상점 → 벌점 순으로 세운다.
+  return [
+    ...rules.filter((r) => r.active).sort(byKindThenPoints),
+    ...rules.filter((r) => !r.active).sort(byKindThenPoints),
+  ];
 }
 
-/** 부여 화면의 선택지. 비활성은 빠진다. */
+/** 부여 화면의 선택지. 비활성은 빠진다. 여기서도 상점이 먼저다. */
 export async function listActiveRules(track: MeritTrack) {
-  return prisma.meritRule.findMany({
+  const rules = await prisma.meritRule.findMany({
     where: { track, active: true },
-    orderBy: [{ kind: "asc" }, { points: "asc" }],
+    orderBy: { category: "asc" },
     select: { id: true, kind: true, label: true, points: true, category: true },
   });
+  return rules.sort(byKindThenPoints);
 }
 
 // ── 부여 ──────────────────────────────────────────────────────
