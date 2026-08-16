@@ -16,6 +16,7 @@ import {
   CategoryChart,
   ClassNetChart,
   MonthlyChart,
+  StudentNetChart,
 } from "@/components/merit/charts";
 import { getMeritStats, type MeritStats } from "@/modules/merit/award.service";
 
@@ -35,11 +36,31 @@ export default async function MeritStatsPage({
       ? Number(raw.year)
       : undefined;
 
+  // 반을 골랐으면 그 반만 본다. 둘 다 유효할 때만 적용한다 —
+  // 하나만 있는 중간 상태는 전교로 떨어진다.
+  const grade = numberParam(raw.grade, 1, 3);
+  const classNo = numberParam(raw.classNo, 1, 20);
+  const scope = grade !== null && classNo !== null ? { grade, classNo } : undefined;
+
   let stats: MeritStats | null = null;
   try {
-    stats = await getMeritStats(actor, track, year);
+    stats = await getMeritStats(actor, track, year, new Date(), scope);
   } catch (error) {
     if (!(error instanceof AcademicYearError)) throw error;
+  }
+
+  /** 지금 쿼리를 유지한 채 일부만 바꾼 주소. 트랙 탭과 반 선택이 함께 쓴다. */
+  function hrefWith(patch: Record<string, string | null>): string {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(raw)) {
+      if (typeof value === "string") query.set(key, value);
+    }
+    for (const [key, value] of Object.entries(patch)) {
+      if (value === null) query.delete(key);
+      else query.set(key, value);
+    }
+    const qs = query.toString();
+    return qs ? `/merit/stats?${qs}` : "/merit/stats";
   }
 
   return (
@@ -48,7 +69,7 @@ export default async function MeritStatsPage({
         {MERIT_TRACKS.map((t) => (
           <Link
             key={t}
-            href={`/merit/stats?track=${t}`}
+            href={hrefWith({ track: t })}
             className={
               t === track
                 ? "rounded-full bg-pri px-4 py-2 text-[13px] font-bold text-white"
@@ -64,11 +85,24 @@ export default async function MeritStatsPage({
         <NoAcademicYearNotice />
       ) : (
         <>
-          <p className="text-[13px] text-mut">
-            {isYearScoped(track)
-              ? `${stats.year}학년도 집계 · 반 편성 ${stats.rosterYear}학년도`
-              : `입학부터 전체 누적 · 반 편성 ${stats.rosterYear}학년도`}
-          </p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <p className="text-[13px] text-mut">
+              {isYearScoped(track)
+                ? `${stats.year}학년도 집계 · 반 편성 ${stats.rosterYear}학년도`
+                : `입학부터 전체 누적 · 반 편성 ${stats.rosterYear}학년도`}
+            </p>
+            {stats.scope && (
+              <span className="flex items-center gap-2 rounded-full bg-pri-soft px-3 py-1 text-[12.5px] font-bold text-pri">
+                {stats.scope.grade}학년 {stats.scope.classNo}반만 보는 중
+                <Link
+                  href={hrefWith({ grade: null, classNo: null })}
+                  className="text-pri hover:underline"
+                >
+                  전교 보기 ✕
+                </Link>
+              </span>
+            )}
+          </div>
 
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
             <Stat label="상점" value={stats.totals.merit} className="text-blue" />
@@ -88,7 +122,23 @@ export default async function MeritStatsPage({
           </div>
 
           <MonthlyChart points={stats.monthly} axisLabel={stats.axisLabel} />
-          <ClassNetChart rows={stats.classes} />
+
+          {stats.scope && stats.students ? (
+            <StudentNetChart
+              rows={stats.students}
+              track={track}
+              hrefFor={(id) => `/merit/students/${id}?track=${track}`}
+            />
+          ) : (
+            <ClassNetChart
+              rows={stats.classes}
+              track={track}
+              hrefFor={(row) =>
+                hrefWith({ grade: String(row.grade), classNo: String(row.classNo) })
+              }
+            />
+          )}
+
           <CategoryChart slices={stats.categories} />
 
           <ClassTable rows={stats.classes} track={track} />
@@ -262,4 +312,15 @@ function TopRules({ rows }: { rows: MeritStats["topRules"] }) {
       </div>
     </section>
   );
+}
+
+/** searchParams의 숫자 하나. 범위 밖이거나 숫자가 아니면 null(=조건 없음)이다. */
+function numberParam(
+  value: string | string[] | undefined,
+  min: number,
+  max: number,
+): number | null {
+  if (typeof value !== "string" || !/^\d+$/.test(value)) return null;
+  const n = Number(value);
+  return n >= min && n <= max ? n : null;
 }

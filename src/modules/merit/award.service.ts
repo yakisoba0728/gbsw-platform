@@ -490,6 +490,10 @@ export type MeritStats = {
   axisLabel: string;
   monthly: MonthlyPoint[];
   categories: CategorySlice[];
+  /** 반을 골랐으면 그 반. 안 골랐으면 null(전교). */
+  scope: { grade: number; classNo: number } | null;
+  /** 반을 골랐을 때만 채워진다 — 학생별 막대를 그린다. */
+  students: Awaited<ReturnType<typeof repo.listClassRoster>> | null;
   track: MeritTrack;
   /** 교내면 보고 있는 학년도, 기숙사면 null(전체 누적). */
   year: number | null;
@@ -509,6 +513,8 @@ export async function getMeritStats(
   year?: number,
   /** 최근 12개월 축의 기준 시각. 인자로 받아야 테스트가 날짜에 안 흔들린다. */
   now: Date = new Date(),
+  /** 주면 그 반만 본다 — 담임이 자기 반만 보는 화면. */
+  scope?: { grade: number; classNo: number },
 ): Promise<MeritStats> {
   await assertCan(actor, "merit:read:any");
 
@@ -525,11 +531,31 @@ export async function getMeritStats(
     : rollingMonths(now);
   const since = isYearScoped(track) ? undefined : monthStart(axis[0].key);
 
+  // 반을 골랐으면 그 반 학생만 대상으로 삼는다. 학생 목록을 먼저 뽑아야
+  // 나머지 질의에 넘길 수 있어서 이 조회만 앞선다.
+  const classRoster = scope
+    ? await repo.listClassRoster({
+        year: rosterYear,
+        grade: scope.grade,
+        classNo: scope.classNo,
+        track,
+        totalsYear: scoped,
+      })
+    : null;
+  const studentProfileIds = classRoster?.map((r) => r.studentProfileId);
+
+  // 반에 학생이 하나도 없으면 빈 배열이 되는데, 그대로 넘기면 Prisma의
+  // `in: []`가 "아무것도 없음"으로 동작해 의도대로 빈 결과가 나온다.
   const [totalRows, classes, topRules, chartAwards] = await Promise.all([
-    repo.trackTotals({ track, totalsYear: scoped }),
+    repo.trackTotals({ track, totalsYear: scoped, studentProfileIds }),
     repo.classSummaries({ year: rosterYear, track, totalsYear: scoped }),
-    repo.topRules({ track, totalsYear: scoped, limit: TOP_RULE_LIMIT }),
-    repo.listAwardsForChart({ track, year: scoped, since }),
+    repo.topRules({
+      track,
+      totalsYear: scoped,
+      limit: TOP_RULE_LIMIT,
+      studentProfileIds,
+    }),
+    repo.listAwardsForChart({ track, year: scoped, since, studentProfileIds }),
   ]);
 
   const totals = sumTotals(totalRows);
@@ -539,13 +565,19 @@ export async function getMeritStats(
     track,
     year: scoped,
     rosterYear,
+    scope: scope ?? null,
+    students: classRoster,
+    // 반을 골랐으면 그 반만 표에 남긴다 — 다른 반이 함께 보이면 무엇을 보고
+    // 있는지가 흐려진다.
     axisLabel: isYearScoped(track)
       ? `${scoped ?? rosterYear}학년도 (3월~이듬해 2월)`
       : "최근 12개월 (누적)",
     monthly: monthlyTotals(chartAwards, axis),
     categories: categoryDistribution(chartAwards),
     totals: { ...totals, awardCount },
-    classes,
+    classes: scope
+      ? classes.filter((c) => c.grade === scope.grade && c.classNo === scope.classNo)
+      : classes,
     topRules,
   };
 }

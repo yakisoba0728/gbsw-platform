@@ -573,6 +573,7 @@ export async function topRules(params: {
   track: MeritTrack;
   totalsYear: number | null;
   limit: number;
+  studentProfileIds?: string[];
 }) {
   const rows = await prisma.meritAward.groupBy({
     by: ["label", "kind"],
@@ -580,6 +581,9 @@ export async function topRules(params: {
       track: params.track,
       status: "ACTIVE",
       ...(params.totalsYear === null ? {} : { year: params.totalsYear }),
+      ...(params.studentProfileIds
+        ? { studentProfileId: { in: params.studentProfileIds } }
+        : {}),
     },
     _count: { _all: true },
     _sum: { points: true },
@@ -599,6 +603,7 @@ export async function topRules(params: {
 export async function trackTotals(params: {
   track: MeritTrack;
   totalsYear: number | null;
+  studentProfileIds?: string[];
 }) {
   return prisma.meritAward.groupBy({
     by: ["kind"],
@@ -606,6 +611,9 @@ export async function trackTotals(params: {
       track: params.track,
       status: "ACTIVE",
       ...(params.totalsYear === null ? {} : { year: params.totalsYear }),
+      ...(params.studentProfileIds
+        ? { studentProfileId: { in: params.studentProfileIds } }
+        : {}),
     },
     _count: { _all: true },
     _sum: { points: true },
@@ -630,6 +638,8 @@ export async function listAwardsForChart(params: {
   year: number | null;
   /** 이 시각 이후만. 기숙사(누적)의 최근 12개월을 자를 때 쓴다. */
   since?: Date;
+  /** 주면 이 학생들 것만. 반을 골라 보는 화면이 쓴다. */
+  studentProfileIds?: string[];
 }) {
   return prisma.meritAward.findMany({
     where: {
@@ -637,6 +647,9 @@ export async function listAwardsForChart(params: {
       status: "ACTIVE",
       ...(params.year === null ? {} : { year: params.year }),
       ...(params.since ? { createdAt: { gte: params.since } } : {}),
+      ...(params.studentProfileIds
+        ? { studentProfileId: { in: params.studentProfileIds } }
+        : {}),
     },
     select: {
       createdAt: true,

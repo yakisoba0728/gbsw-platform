@@ -98,12 +98,11 @@ async function cleanUp(prisma: Awaited<typeof import("../src/core/db/client")>["
 }
 
 async function build(prisma: Awaited<typeof import("../src/core/db/client")>["prisma"]) {
-  const [invites, registration, verification, enrollment, merit, ruleService] =
+  const [invites, registration, verification, merit, ruleService] =
     await Promise.all([
       import("../src/modules/invites/invite.service"),
       import("../src/modules/registration/registration.service"),
       import("../src/modules/verification/verification.service"),
-      import("../src/modules/enrollment/enrollment.service"),
       import("../src/modules/merit/award.service"),
       import("../src/modules/merit/rule.service"),
     ]);
