@@ -3,6 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeftIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SectionCard } from "@/components/ui/section-card";
 import { requirePermission } from "@/core/auth/session";
 import { isRole, ROLE_LABELS } from "@/core/authz/roles";
 import { formatDate, formatDateInput, formatDateTime } from "@/lib/datetime";
@@ -10,6 +12,11 @@ import {
   AdminUserError,
   getUserDetail,
 } from "@/modules/admin-users/admin-user.service";
+import {
+  auditActionLabel,
+  auditActionTone,
+  formatAuditMetadata,
+} from "@/modules/audit-log/audit-log.labels";
 import {
   EditUserForm,
   HardDeleteForm,
@@ -73,7 +80,8 @@ export default async function UserDetailPage({
         <div className="grid gap-5">
           <section className="rounded-card border border-line bg-surface p-5 lg:p-6">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-              <h1 className="text-xl font-extrabold text-ink">{user.name}</h1>
+              {/* 제목은 h2부터 시작한다 — h1은 상단바가 (app) 모든 화면에 이미 그린다. */}
+              <h2 className="text-xl font-extrabold text-ink">{user.name}</h2>
               {deleted && <Badge tone="rejected">삭제됨</Badge>}
               <Badge tone={active ? "approved" : "cancelled"}>
                 {active ? "활성" : "비활성"}
@@ -130,26 +138,27 @@ export default async function UserDetailPage({
             </dl>
           </section>
 
-          <section className="rounded-card border border-line bg-surface">
-            <header className="border-b border-line px-5 py-4">
-              <h2 className="text-base font-extrabold text-ink">활동 기록</h2>
-              <p className="mt-0.5 text-[12px] text-mut">
-                이 사용자가 한 일과, 이 사용자를 대상으로 한 일 최근 20건
-              </p>
-            </header>
-
+          <SectionCard
+            title="활동 기록"
+            hint="이 사용자가 한 일과, 이 사용자를 대상으로 한 일 최근 20건"
+            flush
+          >
             {audit.length === 0 ? (
-              <p className="px-5 py-8 text-center text-sm text-mut">
-                기록이 없습니다.
-              </p>
+              <EmptyState variant="inside">기록이 없습니다.</EmptyState>
             ) : (
               <ul className="divide-y divide-line2">
                 {audit.map((entry) => (
                   <li key={entry.id} className="px-5 py-3 text-sm">
                     <div className="flex flex-wrap items-baseline gap-x-3">
-                      <span className="font-semibold text-ink">
-                        {entry.action}
-                      </span>
+                      {/*
+                        전에는 `user:reset-password`·`authz:denied` 같은 영문
+                        원본을 그대로 그렸다. /admin/logs가 쓰는 라벨 계층을 이
+                        화면만 건너뛰고 있었다 — 같은 기록이 화면마다 다르게
+                        보이면 관리자가 둘을 같은 일로 읽지 못한다.
+                      */}
+                      <Badge tone={auditActionTone(entry.action)}>
+                        {auditActionLabel(entry.action)}
+                      </Badge>
                       <span className="text-[12px] text-mut">
                         {formatDateTime(entry.createdAt)}
                       </span>
@@ -161,12 +170,19 @@ export default async function UserDetailPage({
                       {entry.actorUserId === user.id
                         ? "본인이 실행"
                         : `${entry.actorName} 실행`}
+                      {/* 무엇을 대상으로 한 일인지는 metadata에만 있다 —
+                          로그 화면과 같은 포맷터로 함께 보여준다. */}
+                      {formatAuditMetadata(entry.action, entry.metadata) && (
+                        <span className="block">
+                          {formatAuditMetadata(entry.action, entry.metadata)}
+                        </span>
+                      )}
                     </p>
                   </li>
                 ))}
               </ul>
             )}
-          </section>
+          </SectionCard>
         </div>
 
         <div className="grid content-start gap-5">
@@ -178,10 +194,18 @@ export default async function UserDetailPage({
                 <h2 className="mb-1 text-base font-extrabold text-ink">
                   명단에서 빠진 계정
                 </h2>
+                {/*
+                  소프트 삭제는 그 학년도 Enrollment를 **실제로 지운다**
+                  (roster.repo의 enrollment.deleteMany). 전에는 "학적·소속·기록은
+                  그대로 남아 있으며"라고 적어 있었는데, 이번 학년도 소속만은
+                  사실이 아니었다. 자퇴·전출을 기록하는 올바른 방법은 명단에서
+                  줄을 지우는 게 아니라 학적 칸을 바꾸는 것이다.
+                */}
                 <p className="text-[12.5px] text-mut">
-                  정보 수정·비밀번호 초기화·활성화를 할 수 없습니다. 학적·소속·기록은
-                  그대로 남아 있으며, 다음 명단 반영에 이 학생이 다시 포함되면 계정이
-                  자동으로 되살아납니다.
+                  정보 수정·비밀번호 초기화·활성화를 할 수 없습니다. 계정과 학생
+                  정보, 지난 학년도 소속, 상벌점 기록은 그대로 남지만 이번 학년도
+                  소속은 사라집니다. 다음 명단 반영에 이 학생이 다시 포함되면
+                  계정이 자동으로 되살아납니다.
                 </p>
               </section>
 
