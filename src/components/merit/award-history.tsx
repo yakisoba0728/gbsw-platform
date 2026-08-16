@@ -38,7 +38,7 @@ export function AwardHistory({
   return (
     <SectionCard title="부여 내역" flush>
       <TableFrame
-        minWidth={canCancel ? 580 : 560}
+        minWidth={canCancel ? 604 : 560}
         cols={[
           "w-[112px]",
           "w-[68px]",
@@ -46,7 +46,8 @@ export function AwardHistory({
           "w-[64px]",
           "w-[88px]",
           canCancel ? "w-[76px]" : "w-[92px]",
-          ...(canCancel ? (["w-[76px]"] as const) : []),
+          // 취소 버튼이 표 안 작은 글씨에서 Button size="sm"으로 커졌다.
+          ...(canCancel ? (["w-[104px]"] as const) : []),
         ]}
         headers={[
           "발생일",
