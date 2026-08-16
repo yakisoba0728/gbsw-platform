@@ -119,12 +119,20 @@ export async function findAward(id: string) {
   });
 }
 
+/**
+ * 취소. **ACTIVE인 행만 고친다** — 서비스의 사전 검사와 이 갱신 사이는 원자적이지
+ * 않아서, 두 관리자가 같은 기록의 취소를 동시에 누르면 둘 다 검사를 통과한다.
+ * 그대로 두면 나중 쓰기가 먼저 쓴 사람의 이름·사유·시각을 덮는다 — 하필 "누구나
+ * 취소할 수 있다"를 정당화하는 바로 그 기록이다.
+ *
+ * 실제로 고친 행 수를 돌려준다. 0이면 그 사이에 남이 먼저 취소했다는 뜻이다.
+ */
 export async function cancelAward(
   id: string,
   by: { userId: string; name: string; reason: string },
-): Promise<void> {
-  await prisma.meritAward.update({
-    where: { id },
+): Promise<number> {
+  const result = await prisma.meritAward.updateMany({
+    where: { id, status: "ACTIVE" },
     data: {
       status: "CANCELLED",
       cancelledByUserId: by.userId,
@@ -133,6 +141,7 @@ export async function cancelAward(
       cancelReason: by.reason,
     },
   });
+  return result.count;
 }
 
 /**
@@ -313,8 +322,10 @@ export async function searchStudents(query: string, year: number) {
       id: true,
       studentCode: true,
       user: { select: { name: true } },
+      // 재학인 줄만 학급으로 쓴다. 졸업·전출 학생의 마지막 자리가 남아 있으면
+      // 검색 결과에 지금도 그 반인 것처럼 보인다.
       enrollments: {
-        where: { year },
+        where: { year, status: "ENROLLED" },
         take: 1,
         select: {
           number: true,

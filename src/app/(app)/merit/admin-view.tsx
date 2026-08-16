@@ -113,7 +113,12 @@ export async function AdminMeritView({
       <ClassPicker params={params} track={track} />
 
       {roster && rosterQuery.success && (
+        // key가 없으면 반을 바꿔도 같은 자리의 같은 컴포넌트라 React가 다시
+        // 마운트하지 않는다 — 체크해 둔 학생 id(selected)가 그대로 남고, 화면에는
+        // 새 반이 보이는데 hidden input은 이전 반 학생을 실어 보낸다. 즉 화면에
+        // 없는 학생에게 벌점이 들어간다. 반·트랙·학년도가 바뀌면 새 컴포넌트다.
         <ClassRoster
+          key={`${track}-${rosterQuery.data.year ?? "current"}-${rosterQuery.data.grade}-${rosterQuery.data.classNo}`}
           rows={roster}
           grade={rosterQuery.data.grade}
           classNo={rosterQuery.data.classNo}

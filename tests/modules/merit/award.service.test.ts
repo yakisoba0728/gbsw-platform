@@ -81,7 +81,8 @@ beforeEach(() => {
     points: 5,
     status: "ACTIVE",
   });
-  cancelAward.mockReset().mockResolvedValue(undefined);
+  // 고친 행 수를 돌려준다. 1 = 내가 취소했다, 0 = 그 사이 남이 먼저 취소했다.
+  cancelAward.mockReset().mockResolvedValue(1);
   listAwards.mockReset().mockResolvedValue([]);
   totals.mockReset().mockResolvedValue([]);
   findStudentProfileByUserId.mockReset().mockResolvedValue({
@@ -242,6 +243,28 @@ describe("cancelAward", () => {
     await expect(service.cancelAward(student, cancelInput)).rejects.toThrow(
       "FORBIDDEN",
     );
+  });
+
+  /**
+   * 사전 검사(findAward)와 갱신 사이는 원자적이지 않다. 두 관리자가 같은 기록의
+   * 취소를 동시에 누르면 둘 다 검사를 통과하고, repo가 ACTIVE인 행만 고치므로
+   * 나중 사람은 0을 받는다. 그때 감사로그까지 남기면 "두 사람이 취소했다"는
+   * 거짓 기록이 생긴다.
+   */
+  it("그 사이 남이 먼저 취소했으면(0행) 실패하고 감사로그를 남기지 않는다", async () => {
+    cancelAward.mockResolvedValue(0);
+
+    await expect(service.cancelAward(admin, cancelInput)).rejects.toThrow(
+      MeritError,
+    );
+    await expect(service.cancelAward(admin, cancelInput)).rejects.toThrow(
+      "ALREADY_CANCELLED",
+    );
+
+    const cancelLogs = recordAudit.mock.calls.filter(
+      ([arg]) => arg.action === "merit:cancel",
+    );
+    expect(cancelLogs).toHaveLength(0);
   });
 });
 

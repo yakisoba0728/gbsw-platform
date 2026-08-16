@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  awardSchema,
   createRuleSchema,
   updateRuleSchema,
 } from "@/modules/merit/merit.schema";
@@ -65,5 +66,54 @@ describe("updateRuleSchema", () => {
     expect(
       updateRuleSchema.safeParse({ label: "x", points: "1" }).success,
     ).toBe(false);
+  });
+});
+
+/**
+ * 선택 입력의 길이 초과는 **오류**여야 한다. 예전엔 `.catch(null)`이 붙어 있어서
+ * 한계를 넘긴 메모가 조용히 null이 됐다 — 화면에는 "부여했습니다"가 뜨고 메모만
+ * 사라지는, 아무도 눈치채지 못하는 실패였다.
+ */
+describe("선택 입력(메모·분류·설명)의 길이", () => {
+  it("분류가 50자를 넘으면 거부한다 — 조용히 버리지 않는다", () => {
+    const result = createRuleSchema.safeParse({ ...valid, category: "가".repeat(51) });
+    expect(result.success).toBe(false);
+  });
+
+  it("메모가 500자를 넘으면 거부한다", () => {
+    const result = awardSchema.safeParse({
+      studentProfileId: "sp-1",
+      ruleId: "r-1",
+      note: "가".repeat(501),
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("한계 안의 값은 그대로 통과한다", () => {
+    const note = "가".repeat(500);
+    const parsed = awardSchema.parse({
+      studentProfileId: "sp-1",
+      ruleId: "r-1",
+      note,
+    });
+    expect(parsed.note).toBe(note);
+  });
+
+  it("칸이 아예 없으면(null) null로 떨어진다 — 폼에 그 입력이 없는 경우다", () => {
+    const parsed = awardSchema.parse({
+      studentProfileId: "sp-1",
+      ruleId: "r-1",
+      note: null,
+    });
+    expect(parsed.note).toBeNull();
+  });
+
+  it("공백만 있으면 null이다", () => {
+    const parsed = awardSchema.parse({
+      studentProfileId: "sp-1",
+      ruleId: "r-1",
+      note: "   ",
+    });
+    expect(parsed.note).toBeNull();
   });
 });

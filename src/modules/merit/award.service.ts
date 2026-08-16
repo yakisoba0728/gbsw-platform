@@ -124,11 +124,14 @@ export async function cancelAward(
   if (!award) throw new MeritError("AWARD_NOT_FOUND");
   if (award.status !== "ACTIVE") throw new MeritError("ALREADY_CANCELLED");
 
-  await repo.cancelAward(award.id, {
+  // 사전 검사와 갱신 사이에 남이 먼저 취소했으면 0이 온다. 그때 감사로그까지
+  // 남기면 "두 사람이 취소했다"는 거짓 기록이 생긴다.
+  const cancelled = await repo.cancelAward(award.id, {
     userId: actor.id,
     name: actor.name,
     reason: input.reason,
   });
+  if (cancelled === 0) throw new MeritError("ALREADY_CANCELLED");
 
   await recordAudit({
     actorUserId: actor.id,

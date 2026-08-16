@@ -6,15 +6,21 @@ import { MERIT_KINDS, MERIT_TRACKS } from "@/core/authz/merit-track";
  * FormData에서 오므로 입력은 전부 문자열이다 — 숫자 변환도 여기서 한다.
  */
 
-/** 빈 문자열은 null로. 안 그러면 "선택 안 함"과 "빈 값"이 DB에서 갈린다. */
+/**
+ * 선택 입력 문자열. 빈 문자열은 null로 — 안 그러면 "선택 안 함"과 "빈 값"이
+ * DB에서 갈린다. 폼에 칸이 아예 없으면 FormData.get이 null을 주므로 그것도 받는다.
+ *
+ * **길이 초과는 오류로 낸다.** 예전엔 `.catch(null)`이 붙어 있어서 600자짜리 메모가
+ * 조용히 null이 됐다 — 화면에는 "부여했습니다"가 뜨고 메모만 사라지는, 아무도
+ * 눈치채지 못하는 종류의 실패였다.
+ */
 const optionalText = (max: number) =>
   z
-    .string()
-    .trim()
-    .max(max)
-    .transform((v) => (v.length === 0 ? null : v))
-    .nullable()
-    .catch(null);
+    .preprocess(
+      (v) => (v == null ? "" : v),
+      z.string().trim().max(max, `${max}자를 넘을 수 없습니다`),
+    )
+    .transform((v) => (v.length === 0 ? null : v));
 
 /** "5" → 5. 소수·0·음수·빈 값은 거부한다. 부호는 kind가 정한다. */
 const positiveInt = z
