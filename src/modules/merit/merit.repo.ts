@@ -283,7 +283,19 @@ export async function findStudentProfileByUserId(userId: string) {
   });
 }
 
-export async function findStudentProfileById(id: string) {
+/**
+ * **부여 대상**을 찾는다 — 명단에 남아 있는 학생만.
+ *
+ * 이름에 "Awardable"을 박아 둔 이유: 조회 경로는 명단에서 빠진 학생도 보지만
+ * (findStudentHeader·searchStudents) 부여는 열지 않는다. 명단에 없는 학생에게
+ * 새 상벌점을 주는 것은 조회와 전혀 다른 일이고, 그 경계가 이 함수와 아래
+ * findAwardableStudents 둘의 where 절 전부다. `findStudentProfileById`라는
+ * 이름이었을 때는 이 조건이 왜 붙어 있는지 호출부에서 읽히지 않았다.
+ *
+ * 화면(반별 목록·검색)이 이미 걸러도 서버 액션을 직접 부르면 아무 id나 보낼 수
+ * 있으므로, 마지막 방어선은 여기다.
+ */
+export async function findAwardableStudent(id: string) {
   return prisma.studentProfile.findFirst({
     where: { id, user: { deletedAt: null } },
     // 부여가 쓰는 것은 id(존재 확인)와 이름(감사로그)뿐이다.
@@ -315,12 +327,13 @@ export async function createAwards(items: NewAward[]): Promise<{ id: string }[]>
 }
 
 /**
- * 여러 학생을 한 번에 찾는다. 일괄 부여가 쓴다 —
+ * 여러 **부여 대상**을 한 번에 찾는다. 일괄 부여가 쓴다 —
  * 예전엔 학생 수만큼(최대 100회) 순차로 왕복했다.
+ * 조건은 단건(findAwardableStudent)과 같다: 명단에 남아 있는 학생만.
  *
  * 못 찾은 id가 있으면 결과 길이가 줄어든다. 호출부가 길이로 판별한다.
  */
-export async function findStudentProfilesByIds(ids: string[]) {
+export async function findAwardableStudents(ids: string[]) {
   return prisma.studentProfile.findMany({
     where: { id: { in: ids }, user: { deletedAt: null } },
     // 단건 부여와 같은 것만 쓴다 — id와 감사로그용 이름.
@@ -462,11 +475,27 @@ export async function listClassRoster(params: {
   }));
 }
 
-/** 이름 또는 학생코드로 찾는다. 30명에서 자른다. */
-export async function searchStudents(query: string, year: number) {
+/**
+ * 이름 또는 학생코드로 찾는다. 30명에서 자른다.
+ *
+ * **명단에서 빠진(소프트 삭제된) 학생은 옵트인해야 나온다.** 기본이 지금과 같아야
+ * 하는 이유는 이 필터를 넣은 이유 그대로다 — 자퇴생이 재학생 사이에 조용히 끼면
+ * 상벌점을 줄 상대를 고르는 자리에서 동명이인 사고가 난다. 대신 옵션을 켜면
+ * 나오고, 화면은 deletedAt으로 "삭제됨"을 적는다.
+ *
+ * 옵션에 기본값을 두지 않는다 — 호출부가 매번 어느 쪽인지 적게 한다.
+ */
+export async function searchStudents(
+  query: string,
+  year: number,
+  options: { includeRemoved: boolean },
+) {
   return prisma.studentProfile.findMany({
     where: {
-      user: { deletedAt: null, role: "STUDENT" },
+      user: {
+        ...(options.includeRemoved ? {} : { deletedAt: null }),
+        role: "STUDENT",
+      },
       OR: [
         { user: { name: { contains: query, mode: "insensitive" } } },
         { studentCode: { contains: query, mode: "insensitive" } },
@@ -477,7 +506,9 @@ export async function searchStudents(query: string, year: number) {
     select: {
       id: true,
       studentCode: true,
-      user: { select: { name: true } },
+      // deletedAt은 옵트인 여부와 상관없이 낸다 — 켠 화면만 배지를 그릴 수 있으면
+      // 되지만, 조건부 select는 타입이 갈려 호출부가 두 갈래가 된다.
+      user: { select: { name: true, deletedAt: true } },
       // **학적으로 거르지 않는다.** 재학인 줄만 가져오면 졸업·자퇴 학생은 재적 줄이
       // 통째로 빠져, 화면이 "반 미배정"과 "졸업"을 구분할 수 없다. 소속을 재학인
       // 줄에서만 쓰는 규칙은 서비스가 지킨다 (findStudentHeader와 같은 방식).
@@ -540,14 +571,21 @@ export async function isChildOf(
  * 다만 소속은 재학 여부와 무관하게 그 학년도 줄 그대로 낸다 — 머리글은 학적을
  * 나란히 적을 자리가 있어서 "3학년 1반 · 졸업"으로 읽히기 때문이다. 한 줄에
  * 욱여넣는 검색 결과 쪽은 반대로 소속을 비운다.
+ *
+ * **deletedAt으로 거르지 않는다.** 목록(반 명단·통계·검색 기본)에서만 빼고 상세는
+ * 보여준다 — admin-users의 `findDetail`과 같은 규칙이다. 걸러 버리면 상세가
+ * `notFound()`로 떨어져, 자퇴생의 MeritAward 행이 DB에 그대로 있는데도 닿는 경로가
+ * 하나도 없어진다(감사 M-2). 대신 명단 제외일을 `removedAt`으로 내보내 화면이
+ * "삭제됨"과 그 날짜를 적게 한다. 부여는 여전히 막힌다 — findAwardableStudent가
+ * 따로 있고 그쪽은 조건을 그대로 들고 있다.
  */
 export async function findStudentHeader(id: string, year: number) {
   const profile = await prisma.studentProfile.findFirst({
-    where: { id, user: { deletedAt: null } },
+    where: { id },
     select: {
       id: true,
       studentCode: true,
-      user: { select: { name: true } },
+      user: { select: { name: true, deletedAt: true } },
       enrollments: {
         where: { year },
         take: 1,
@@ -570,6 +608,8 @@ export async function findStudentHeader(id: string, year: number) {
     classNo: enrollment?.schoolClass?.classNo ?? null,
     number: enrollment?.number ?? null,
     status: enrollment?.status ?? null,
+    /** 명단에서 빠진 날. null이면 명단에 남아 있는 학생이다. */
+    removedAt: profile.user.deletedAt,
   };
 }
 

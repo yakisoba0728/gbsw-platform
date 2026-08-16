@@ -120,9 +120,11 @@ export async function awardMerit(
   if (!rule) throw new MeritError("RULE_NOT_FOUND");
   if (!rule.active) throw new MeritError("RULE_INACTIVE");
 
-  // 화면(반별 목록·검색)은 소프트 삭제된 학생을 내놓지 않지만, 서버 액션을
-  // 직접 부르면 아무 id나 보낼 수 있다. repo가 deletedAt까지 보고 거른다.
-  const student = await repo.findStudentProfileById(input.studentProfileId);
+  // **부여는 명단에 있는 학생에게만 한다.** 조회는 명단에서 빠진 학생도 열려 있지만
+  // (getStudentHeader·searchStudents의 includeRemoved) 부여는 열지 않는다 — 명단에
+  // 없는 사람에게 새 상벌점을 주는 것은 조회와 전혀 다른 일이다. 그 경계가
+  // findAwardableStudent라는 이름과 그 where 절에 있다.
+  const student = await repo.findAwardableStudent(input.studentProfileId);
   if (!student) throw new MeritError("STUDENT_NOT_FOUND");
 
   const year = await getCurrentYear();
@@ -286,6 +288,12 @@ export async function getStudentMerit(
  *
  * 학급은 **현재 학년도 기준**이다. 지난 학년도 기록을 보고 있어도 "지금 몇 반인가"가
  * 사람을 식별하는 정보이므로 그쪽이 맞다.
+ *
+ * **명단에서 빠진 학생도 돌려준다** (`removedAt`이 그 날짜를 싣는다). 예전에는 repo가
+ * 걸러서 null이 왔고, 상세 화면이 그대로 `notFound()`로 떨어져 자퇴생의 벌점 내역에
+ * 닿는 경로가 아예 없었다(감사 M-2). 이 함수를 지나는 곳은 상세·확인서·내보내기
+ * 셋뿐이고 전부 `merit:read:any`(=관리자)를 요구한다. 화면은 removedAt으로
+ * "삭제됨"을 알리고 부여 폼을 감춘다.
  */
 export async function getStudentHeader(
   actor: SessionUser,
@@ -360,7 +368,8 @@ export async function bulkAwardMerit(
 
   // DB에 쓰기 전에 전부 확인한다 — 절반만 들어가는 상태를 만들지 않는다.
   // 한 번에 조회한다: 예전엔 학생 수만큼 순차 왕복(최대 100회)이었다.
-  const found = await repo.findStudentProfilesByIds(ids);
+  // 단건과 같은 조건이다 — 명단에서 빠진 학생은 여기서 걸려 묶음 전체가 거부된다.
+  const found = await repo.findAwardableStudents(ids);
   if (found.length !== ids.length) throw new MeritError("STUDENT_NOT_FOUND");
 
   // 넘어온 순서를 지킨다 — 감사로그를 이 순서로 남기므로 화면 선택 순서와 맞는다.
@@ -452,15 +461,26 @@ export async function getClassRoster(
  *
  * 소속은 재학인 줄에서만 쓴다. 졸업생의 마지막 자리를 그대로 보이면 지금도 그 반인
  * 것처럼 읽히기 때문이다 — 학적은 따로 내보내므로 화면이 "졸업"이라고 적을 수 있다.
+ *
+ * **명단에서 빠진(소프트 삭제된) 학생은 `includeRemoved`를 켜야 나온다.** 기본이
+ * 지금과 같아야 상벌점을 줄 상대를 고르는 자리(부여 화면의 검색)가 안 흔들린다 —
+ * 켜는 자리는 지난 기록을 찾으러 온 화면(`/merit/students`) 하나뿐이다.
+ * 어느 쪽이든 `merit:read:any`를 요구하므로 학생·학부모는 여기까지 오지 못한다.
  */
-export async function searchStudents(actor: SessionUser, query: string) {
+export async function searchStudents(
+  actor: SessionUser,
+  query: string,
+  options: { includeRemoved?: boolean } = {},
+) {
   await assertCan(actor, "merit:read:any");
 
   const trimmed = query.trim();
   if (trimmed.length === 0) return [];
 
   const year = await getCurrentYear();
-  const rows = await repo.searchStudents(trimmed, year);
+  const rows = await repo.searchStudents(trimmed, year, {
+    includeRemoved: options.includeRemoved ?? false,
+  });
 
   return rows.map((row) => {
     const enrollment = row.enrollments[0];
@@ -475,6 +495,10 @@ export async function searchStudents(actor: SessionUser, query: string) {
       // 그 학년도 재적 줄이 아예 없으면 null — 아직 아무 학적도 아니다
       // (enrollment.repo.listByYear와 같은 표기).
       status: enrollment?.status ?? null,
+      // 명단에서 빠진 날. 소프트 삭제는 그 학년도 Enrollment를 실제로 지우므로
+      // 이 학생들은 소속·학적이 전부 비어 있다 — 화면이 그 빈칸을 "삭제됨"으로
+      // 설명할 유일한 재료다.
+      removedAt: row.user.deletedAt,
     };
   });
 }

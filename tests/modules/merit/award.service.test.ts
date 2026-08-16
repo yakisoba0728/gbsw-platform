@@ -10,8 +10,8 @@ const cancelAward = vi.fn();
 const listAwards = vi.fn();
 const totals = vi.fn();
 const findStudentProfileByUserId = vi.fn();
-const findStudentProfileById = vi.fn();
-const findStudentProfilesByIds = vi.fn();
+const findAwardableStudent = vi.fn();
+const findAwardableStudents = vi.fn();
 const recordAudit = vi.fn();
 const getCurrentYear = vi.fn();
 const createAwards = vi.fn();
@@ -23,6 +23,7 @@ const findBatch = vi.fn();
 const cancelAwards = vi.fn();
 const listAwardYears = vi.fn();
 const listRecentAwards = vi.fn();
+const findStudentHeader = vi.fn();
 
 vi.mock("@/modules/merit/merit.repo", () => ({
   findRule,
@@ -32,8 +33,8 @@ vi.mock("@/modules/merit/merit.repo", () => ({
   listAwards,
   totals,
   findStudentProfileByUserId,
-  findStudentProfileById,
-  findStudentProfilesByIds,
+  findAwardableStudent,
+  findAwardableStudents,
   createAwards,
   listClassRoster,
   searchStudents,
@@ -43,6 +44,7 @@ vi.mock("@/modules/merit/merit.repo", () => ({
   cancelAwards,
   listAwardYears,
   listRecentAwards,
+  findStudentHeader,
 }));
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
 vi.mock("@/modules/academic-year/academic-year.service", () => ({
@@ -102,13 +104,13 @@ beforeEach(() => {
     id: "sp-1",
     user: { name: "김민준" },
   });
-  findStudentProfileById.mockReset().mockResolvedValue({
+  findAwardableStudent.mockReset().mockResolvedValue({
     id: "sp-1",
     studentCode: "K7M2XQ4A",
     user: { id: "u-1", name: "김민준" },
   });
   // 일괄 부여는 한 번에 조회한다 — 넘긴 id 전부를 찾은 것으로 기본 설정한다.
-  findStudentProfilesByIds
+  findAwardableStudents
     .mockReset()
     .mockImplementation(async (ids: string[]) =>
       ids.map((id) => ({ id, studentCode: "CODE", user: { id: `u-${id}`, name: `학생${id}` } })),
@@ -124,7 +126,20 @@ beforeEach(() => {
   cancelAwards.mockReset().mockImplementation(async (ids: string[]) => ids);
   listAwardYears.mockReset().mockResolvedValue([2026, 2025]);
   listRecentAwards.mockReset().mockResolvedValue([]);
+  findStudentHeader.mockReset().mockResolvedValue(HEADER);
 });
+
+/** 화면 머리글. removedAt이 null이면 명단에 남아 있는 학생이다. */
+const HEADER = {
+  studentProfileId: "sp-1",
+  studentCode: "K7M2XQ4A",
+  name: "김민준",
+  grade: 2,
+  classNo: 3,
+  number: 7,
+  status: "ENROLLED",
+  removedAt: null,
+};
 
 /** 한 묶음에 속한 살아 있는 기록 셋. 학생이 서로 다르다는 것이 요점이다. */
 const BATCH_AWARDS = [
@@ -241,7 +256,7 @@ describe("awardMerit", () => {
   });
 
   it("없는 학생은 STUDENT_NOT_FOUND — 소프트 삭제된 학생도 여기 걸린다", async () => {
-    findStudentProfileById.mockResolvedValue(null);
+    findAwardableStudent.mockResolvedValue(null);
     await expect(service.awardMerit(admin, awardInput, NOW)).rejects.toThrow(
       "STUDENT_NOT_FOUND",
     );
@@ -728,7 +743,7 @@ describe("bulkAwardMerit", () => {
 
   it("한 명이라도 없는 학생이면 아무것도 넣지 않는다", async () => {
     // 한 번에 조회하므로 "못 찾음"은 결과 길이가 모자란 것으로 나타난다.
-    findStudentProfilesByIds.mockResolvedValue([
+    findAwardableStudents.mockResolvedValue([
       { id: "sp-1", studentCode: "C", user: { id: "u", name: "n" } },
     ]);
 
@@ -741,9 +756,9 @@ describe("bulkAwardMerit", () => {
   it("학생 조회는 한 번만 한다 — 예전엔 인원수만큼 순차로 돌았다", async () => {
     await service.bulkAwardMerit(admin, bulk, NOW);
 
-    expect(findStudentProfilesByIds).toHaveBeenCalledTimes(1);
-    expect(findStudentProfilesByIds).toHaveBeenCalledWith(["sp-1", "sp-2"]);
-    expect(findStudentProfileById).not.toHaveBeenCalled();
+    expect(findAwardableStudents).toHaveBeenCalledTimes(1);
+    expect(findAwardableStudents).toHaveBeenCalledWith(["sp-1", "sp-2"]);
+    expect(findAwardableStudent).not.toHaveBeenCalled();
   });
 
   it("중복 선택은 한 번만 들어간다", async () => {
@@ -871,7 +886,7 @@ describe("searchStudents", () => {
     return {
       id: "sp-1",
       studentCode: "K7M2XQ4A",
-      user: { name: "김민준" },
+      user: { name: "김민준", deletedAt: null },
       enrollments: [
         { number: 7, status: "ENROLLED", schoolClass: { grade: 2, classNo: 3 } },
       ],
@@ -891,6 +906,7 @@ describe("searchStudents", () => {
         classNo: 3,
         number: 7,
         status: "ENROLLED",
+        removedAt: null,
       },
     ]);
   });
@@ -935,7 +951,9 @@ describe("searchStudents", () => {
   it("현재 학년도 기준으로 찾는다", async () => {
     await service.searchStudents(admin, "  김민준  ");
 
-    expect(searchStudents).toHaveBeenCalledWith("김민준", 2026);
+    expect(searchStudents).toHaveBeenCalledWith("김민준", 2026, {
+      includeRemoved: false,
+    });
   });
 
   it("빈 검색어는 조회하지 않는다", async () => {
@@ -946,6 +964,88 @@ describe("searchStudents", () => {
   it("학생은 남을 검색할 수 없다", async () => {
     await expect(service.searchStudents(student, "김")).rejects.toThrow("FORBIDDEN");
     expect(searchStudents).not.toHaveBeenCalled();
+  });
+
+  /**
+   * 명단에서 빠진 학생을 섞는 것은 **명시적으로 요청했을 때만**이다.
+   * 반 명단·통계와 마찬가지로, 기본 결과가 조용히 늘어나면 그 필터를 넣은
+   * 이유(자퇴생이 재학생 사이에 끼는 것)가 그대로 되살아난다.
+   */
+  describe("명단에서 빠진 학생 (감사 M-2)", () => {
+    it("기본은 옵트인하지 않은 것으로 넘긴다", async () => {
+      await service.searchStudents(admin, "김민준");
+
+      expect(searchStudents).toHaveBeenCalledWith("김민준", 2026, {
+        includeRemoved: false,
+      });
+    });
+
+    it("요청하면 그대로 넘긴다", async () => {
+      await service.searchStudents(admin, "김민준", { includeRemoved: true });
+
+      expect(searchStudents).toHaveBeenCalledWith("김민준", 2026, {
+        includeRemoved: true,
+      });
+    });
+
+    it("명단 제외일을 removedAt으로 낸다 — 화면이 '삭제됨'을 적을 근거다", async () => {
+      const removedAt = new Date("2026-08-01T00:00:00Z");
+      searchStudents.mockResolvedValue([
+        found({ user: { name: "김민준", deletedAt: removedAt }, enrollments: [] }),
+      ]);
+
+      const [row] = await service.searchStudents(admin, "김민준", {
+        includeRemoved: true,
+      });
+
+      expect(row.removedAt).toEqual(removedAt);
+      // 소프트 삭제는 그 학년도 Enrollment를 실제로 지운다 — 소속은 비어 있다.
+      expect(row.grade).toBeNull();
+      expect(row.status).toBeNull();
+    });
+
+    it("관리자만 볼 수 있다 — 옵트인해도 학생·학부모는 막힌다", async () => {
+      await expect(
+        service.searchStudents(student, "김", { includeRemoved: true }),
+      ).rejects.toThrow("FORBIDDEN");
+      await expect(
+        service.searchStudents(user("PARENT", "p-1"), "김", { includeRemoved: true }),
+      ).rejects.toThrow("FORBIDDEN");
+      expect(searchStudents).not.toHaveBeenCalled();
+    });
+  });
+});
+
+/**
+ * 화면 머리글 — 감사 M-2가 막혀 있던 자리다.
+ *
+ * `findStudentHeader`가 null을 주면 상세 화면이 `notFound()`로 떨어져서,
+ * 자퇴생의 벌점 내역이 DB에 그대로 있는데도 볼 방법이 없었다. 목록에서만 빼고
+ * 상세는 배지와 함께 보여준다 — admin-users의 `findDetail`과 같은 규칙이다.
+ */
+describe("getStudentHeader", () => {
+  it("관리자만 볼 수 있다", async () => {
+    await expect(service.getStudentHeader(student, "sp-1")).rejects.toThrow(
+      "FORBIDDEN",
+    );
+    await expect(
+      service.getStudentHeader(user("PARENT", "p-1"), "sp-1"),
+    ).rejects.toThrow("FORBIDDEN");
+    expect(findStudentHeader).not.toHaveBeenCalled();
+  });
+
+  it("현재 학년도 기준으로 소속을 낸다", async () => {
+    expect(await service.getStudentHeader(admin, "sp-1")).toEqual(HEADER);
+    expect(findStudentHeader).toHaveBeenCalledWith("sp-1", 2026);
+  });
+
+  it("명단에서 빠진 학생도 removedAt과 함께 돌아온다", async () => {
+    const removedAt = new Date("2026-08-01T00:00:00Z");
+    findStudentHeader.mockResolvedValue({ ...HEADER, status: null, removedAt });
+
+    const header = await service.getStudentHeader(admin, "sp-1");
+
+    expect(header?.removedAt).toEqual(removedAt);
   });
 });
 
