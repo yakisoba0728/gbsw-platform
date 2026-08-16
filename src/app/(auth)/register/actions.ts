@@ -84,7 +84,7 @@ export async function checkInviteAction(
 ): Promise<CheckInviteState> {
   const parsed = inviteCodeSchema.safeParse(formData.get("code"));
   if (!parsed.success) {
-    return { code: null, role: null, error: "가입코드를 입력하세요." };
+    return { code: null, role: null, error: "가입코드를 입력해 주세요." };
   }
 
   try {

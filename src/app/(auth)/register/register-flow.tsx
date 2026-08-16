@@ -58,7 +58,7 @@ function CodeStep({
         가입코드 확인
       </h1>
       <p className="mb-[26px] text-[13.5px] text-mut">
-        발급받은 가입코드를 입력하세요.
+        발급받은 가입코드를 입력해 주세요.
       </p>
 
       <Label htmlFor="code">가입코드</Label>

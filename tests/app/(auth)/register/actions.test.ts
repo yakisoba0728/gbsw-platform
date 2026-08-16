@@ -195,7 +195,7 @@ describe("checkInviteAction — 경계 검증", () => {
     );
 
     expect(checkInvite).not.toHaveBeenCalled();
-    expect(state.error).toBe("가입코드를 입력하세요.");
+    expect(state.error).toBe("가입코드를 입력해 주세요.");
   });
 
   it("실패 원인을 구분해 알리지 않는다 — 코드 대조 실패 사유는 숨긴다", async () => {

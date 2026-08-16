@@ -157,7 +157,7 @@ export function EditUserForm({ user }: { user: EditableUser }) {
             // 곳) 한 곳에서만 한다.
             <p className="mb-[13px] text-[11.5px] text-mut">
               재학 중이 아니라 학년·반·번호는 여기서 고칠 수 없습니다. 학적을
-              바꾸려면 학생 관리에서 진행하세요.
+              바꾸려면 학생 관리에서 진행해 주세요.
             </p>
           )}
         </>
@@ -203,7 +203,7 @@ export function ResetPasswordForm({ user }: { user: EditableUser }) {
             {state.tempPassword}
           </p>
           <p className="mt-1 text-[11.5px] text-mut">
-            지금 전달하세요. 이 화면을 벗어나면 다시 볼 수 없습니다.
+            지금 전달해 주세요. 이 화면을 벗어나면 다시 볼 수 없습니다.
           </p>
         </div>
       )}
@@ -270,7 +270,7 @@ export function HardDeleteForm({ user }: { user: EditableUser }) {
 
       <Label htmlFor="confirmName">
         확인을 위해 이름(<span className="font-bold text-ink">{user.name}</span>)을
-        그대로 입력하세요
+        그대로 입력해 주세요
       </Label>
       <Input
         id="confirmName"

@@ -56,7 +56,7 @@ export function LoginForm({ disabled = false }: { disabled?: boolean }) {
         로그인
       </h1>
       <p className="mb-[26px] text-[13.5px] text-mut">
-        학교 계정으로 로그인하세요.
+        학교 계정으로 로그인해 주세요.
       </p>
 
       <Label htmlFor="email">이메일</Label>
