@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
+import { Select } from "@/components/ui/select";
 import { INVITE_FORM_INITIAL, type InviteFormState } from "./action-state";
 import {
   createAdminInviteAction,
@@ -85,11 +86,14 @@ function ParentForm({ students }: { students: StudentOption[] }) {
         className="mb-2"
       />
 
-      <select
+      {/* 위 "학생 찾기"는 목록을 좁히는 칸이라 이 목록의 라벨이 아니다 —
+          접근성 이름을 따로 준다. */}
+      <Select
         name="studentId"
         size={6}
         required
-        className="mb-[15px] w-full rounded-field border border-line bg-surface p-2 text-sm text-ink outline-none focus-visible:border-pri"
+        aria-label="학생 선택"
+        className="mb-[15px]"
       >
         {matched.length === 0 ? (
           <option disabled>조건에 맞는 학생이 없습니다</option>
@@ -100,7 +104,7 @@ function ParentForm({ students }: { students: StudentOption[] }) {
             </option>
           ))
         )}
-      </select>
+      </Select>
 
       <Label htmlFor="p-name">학부모님 이름</Label>
       <Input id="p-name" name="name" required maxLength={50} className="mb-[15px]" />

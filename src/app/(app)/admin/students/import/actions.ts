@@ -117,7 +117,7 @@ export async function applyRosterAction(
   try {
     parsedJson = JSON.parse(String(formData.get("rows") ?? "[]"));
   } catch {
-    return { error: "반영할 내용을 읽지 못했습니다.", saved: null, deleted: null, invites: [] };
+    return { error: "반영할 내용을 읽지 못했습니다.", saved: null, deleted: null, excludedNew: [], invites: [] };
   }
 
   // "zod 검증은 경계에서 한 번만" — 미리보기가 돌려준 값을 그대로 믿지 않는다 (I3).
@@ -128,13 +128,14 @@ export async function applyRosterAction(
       error: rowsParsed.error.issues[0]?.message ?? "반영할 내용을 확인해 주세요.",
       saved: null,
       deleted: null,
+      excludedNew: [],
       invites: [],
     };
   }
 
   const yearParsed = yearFormSchema.safeParse({ year: formData.get("year") });
   if (!yearParsed.success) {
-    return { error: "학년도가 올바르지 않습니다.", saved: null, deleted: null, invites: [] };
+    return { error: "학년도가 올바르지 않습니다.", saved: null, deleted: null, excludedNew: [], invites: [] };
   }
 
   // 미리보기가 보여준 삭제 대상 id 목록을 hidden input(JSON 문자열)으로 받는다 (I-2).
@@ -145,13 +146,13 @@ export async function applyRosterAction(
   try {
     confirmedDeletionIdsJson = JSON.parse(String(formData.get("confirmedDeletionIds") ?? "[]"));
   } catch {
-    return { error: "삭제 확인 정보를 읽지 못했습니다.", saved: null, deleted: null, invites: [] };
+    return { error: "삭제 확인 정보를 읽지 못했습니다.", saved: null, deleted: null, excludedNew: [], invites: [] };
   }
   const confirmedDeletionIdsParsed = confirmedDeletionIdsSchema.safeParse(
     confirmedDeletionIdsJson,
   );
   if (!confirmedDeletionIdsParsed.success) {
-    return { error: "삭제 확인 정보를 읽지 못했습니다.", saved: null, deleted: null, invites: [] };
+    return { error: "삭제 확인 정보를 읽지 못했습니다.", saved: null, deleted: null, excludedNew: [], invites: [] };
   }
 
   // 대량 삭제(I-3) 확인 입력. 임계를 넘지 않으면 화면에 입력칸이 없어 빈 문자열이
@@ -166,12 +167,17 @@ export async function applyRosterAction(
       error: MESSAGES.DELETION_COUNT_MISMATCH,
       saved: null,
       deleted: null,
+      excludedNew: [],
       invites: [],
     };
   }
 
   try {
-    const { saved, deleted, invites } = await applyRosterPlan(
+    // excludedNewStudents를 구조분해에서 빠뜨리면 서비스가 애써 돌려준 값이
+    // 여기서 조용히 버려진다 — 비재학 신규 줄은 계정이 안 만들어지는데
+    // 미리보기는 "신규 N"으로 세므로, 화면까지 닿지 않으면 관리자는 N명이
+    // 등록됐다고 믿는다.
+    const { saved, deleted, invites, excludedNewStudents } = await applyRosterPlan(
       actor,
       yearParsed.data.year,
       rowsParsed.data,
@@ -179,19 +185,26 @@ export async function applyRosterAction(
       deletionCountParsed.data,
     );
     revalidatePath("/admin/students");
-    return { error: null, saved, deleted, invites };
+    return {
+      error: null,
+      saved,
+      deleted,
+      excludedNew: excludedNewStudents,
+      invites,
+    };
   } catch (error) {
     if (error instanceof AcademicYearError) {
-      return { error: NO_CURRENT_YEAR_MESSAGE, saved: null, deleted: null, invites: [] };
+      return { error: NO_CURRENT_YEAR_MESSAGE, saved: null, deleted: null, excludedNew: [], invites: [] };
     }
     if (error instanceof RosterError) {
       return {
         error: MESSAGES[error.message] ?? "반영하지 못했습니다.",
         saved: null,
         deleted: null,
+        excludedNew: [],
         invites: [],
       };
     }
-    return { error: "반영하지 못했습니다.", saved: null, deleted: null, invites: [] };
+    return { error: "반영하지 못했습니다.", saved: null, deleted: null, excludedNew: [], invites: [] };
   }
 }

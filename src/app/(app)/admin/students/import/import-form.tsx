@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useActionState, useState, useTransition } from "react";
-import writeXlsxFile from "write-excel-file/browser";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
+import { SectionCard } from "@/components/ui/section-card";
+import { TableFrame, tableCellPadding } from "@/components/ui/table";
 import {
   ENROLLMENT_STATUS_LABELS,
   type EnrollmentStatus,
@@ -32,7 +34,22 @@ const TEMPLATE_ROWS: (string | number | null)[][] = [
   ["", "이example", "2008-11-20", null, null, null, "졸업"],
 ];
 
+/**
+ * xlsx writer는 쓰는 순간에만 내려받는다.
+ *
+ * 정적 import면 `/admin/students/import`를 **열기만 해도** zip/xlsx writer가
+ * 통째로 따라온다. 이 화면에서 xlsx가 필요한 시점은 셋(빈 서식·전체 명단·
+ * 초대코드 목록)뿐이고 전부 사용자가 단추를 눌러야 도달하는 경로다. 게다가
+ * 브라우저 전용 진입점이라 서버 번들에 들어가면 터진다.
+ * (merit/export-button.tsx가 같은 이유로 같은 방식을 쓴다.)
+ */
+async function loadXlsxWriter() {
+  const { default: writeXlsxFile } = await import("write-excel-file/browser");
+  return writeXlsxFile;
+}
+
 async function downloadTemplate() {
+  const writeXlsxFile = await loadXlsxWriter();
   const sheetData = toStyledSheetData(TEMPLATE_ROWS);
   await writeXlsxFile(sheetData, {
     columns: ROSTER_COLUMN_WIDTHS.slice(0, ROSTER_COLUMNS.length).map((width) => ({ width })),
@@ -50,6 +67,7 @@ async function downloadInvites(
   }[],
   year: number,
 ) {
+  const writeXlsxFile = await loadXlsxWriter();
   const rows: (string | number | null)[][] = [
     ["이름", "초대코드", "학년", "반", "번호"],
     ...invites.map((i) => [i.name, formatInviteCode(i.code), i.grade, i.classNo, i.number]),
@@ -146,6 +164,7 @@ function UploadCard({
         setExportError(result.error ?? "명단을 내려받지 못했습니다.");
         return;
       }
+      const writeXlsxFile = await loadXlsxWriter();
       const sheetData = toStyledSheetData(result.rows, {
         infoColumnCount: ROSTER_INFO_COLUMNS.length,
       });
@@ -179,15 +198,16 @@ function UploadCard({
           <Button type="button" size="sm" onClick={downloadRoster} disabled={exporting}>
             {exporting ? "받는 중…" : "전체 명단 내려받기"}
           </Button>
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
             onClick={() => {
               void downloadTemplate();
             }}
-            className="text-[12px] font-semibold text-pri hover:underline"
           >
             빈 서식 내려받기 (신규 등록용)
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -247,27 +267,28 @@ function PreviewCard({
   const applied = applyState.saved !== null && !applyState.error;
   const issueCount = plan.errorRows.length + plan.needsAttention.length;
   const deleteCount = plan.missingFromFile.length;
-  // "10명 또는 전체 학생의 10% 중 큰 쪽" — roster.plan.ts와 정확히 같은 계산이어야
+  // "10명 또는 재학생의 10% 중 큰 쪽" — roster.plan.ts와 정확히 같은 계산이어야
   // 화면이 입력칸을 보여주는 조건과 서버가 건수를 요구하는 조건이 어긋나지 않는다.
   const bulkThreshold = bulkDeleteThreshold(plan.totalStudents);
   const requiresCountConfirmation = deleteCount > bulkThreshold;
   const countConfirmationMatches = Number(typedDeleteCount) === deleteCount;
 
   return (
-    <section className="rounded-card border border-line bg-surface">
-      <header className="border-b border-line px-5 py-4">
-        <h2 className="text-base font-extrabold text-ink">미리보기</h2>
-        <p className="mt-0.5 text-[12px] text-mut">{year}학년도 기준입니다.</p>
-        {notices.map((notice) => (
-          // 경고색이지만 알림은 필요하다 — 파일 전체에 걸리는 주의(학생코드 열
-          // 없음 등)라 놓치면 잘못된 확정으로 이어진다. Note는 error에만 role을
-          // 자동으로 붙이므로 여기서 명시한다.
+    <SectionCard
+      title="미리보기"
+      hint={`${year}학년도 기준입니다.`}
+      controls={
+        // 경고색이지만 알림은 필요하다 — 파일 전체에 걸리는 주의(학생코드 열
+        // 없음 등)라 놓치면 잘못된 확정으로 이어진다. Note는 error에만 role을
+        // 자동으로 붙이므로 여기서 명시한다.
+        notices.map((notice) => (
           <Note key={notice} tone="warn" role="alert" className="mt-2">
             {notice}
           </Note>
-        ))}
-      </header>
-
+        ))
+      }
+      flush
+    >
       {/* 미리보기 맨 위에, 접지 않고 펼친 채로 보여준다. 위험색(rose)이 아니라
           경고색(amber)을 쓴다 — 되돌릴 수 있는 동작이다(다음 명단에 다시 넣으면
           돌아온다). 그래도 건수 직접 입력 확인은 그대로 둔다 — 되돌릴 수 있어도
@@ -282,10 +303,19 @@ function PreviewCard({
               {deleteCount}명
             </span>
           </div>
+          {/*
+            소프트 삭제는 그 학년도 Enrollment를 **실제로 지운다**
+            (roster.repo의 enrollment.deleteMany). "소속은 그대로 남는다"는
+            약속은 지난 학년도에만 맞다. 자퇴·전출을 남기는 올바른 방법은
+            줄을 지우는 게 아니라 학적 칸을 바꾸는 것이라, 그 길을 문구가
+            직접 가리킨다.
+          */}
           <p className="mt-1 text-[12.5px] font-semibold text-amber-ink">
             명단에 없는 학생입니다. 확정하면 계정이 비활성화되고 목록·로그인에서
-            빠집니다 — 학적·소속·상벌점 기록은 그대로 남고, 다음 명단에 다시
-            포함하면 계정이 자동으로 되살아납니다.
+            빠지며, 이번 학년도 소속도 함께 사라집니다. 학생 정보와 지난 학년도
+            소속, 상벌점 기록은 그대로 남고, 다음 명단에 다시 포함하면 계정이
+            자동으로 되살아납니다. 자퇴·전출을 기록하려면 줄을 지우지 말고 학적
+            칸을 바꿔 주세요.
           </p>
           <ul className="mt-3 divide-y divide-line2">
             {plan.missingFromFile.map((s) => (
@@ -387,16 +417,52 @@ function PreviewCard({
         )}
 
         {applied ? (
-          // 확정에 성공하면 폼이 통째로 사라져 포커스가 <body>로 떨어진다 —
-          // 이 결과만은 알림으로도 전달돼야 한다. Note는 error에만 role을
-          // 자동으로 붙이므로 여기서 명시한다.
-          <Note tone="success" role="status">
-            {/* Minor-4: 제외 건수가 반영 건수 안에 묻히면 몇 명이 빠졌는지 이
-                문구만 보고는 알 수 없다 — 제외가 있을 때만 따로 덧붙인다. */}
-            {applyState.deleted && applyState.deleted > 0
-              ? `${applyState.saved}건 반영, ${applyState.deleted}명 명단에서 제외했습니다.`
-              : `${applyState.saved}건 반영했습니다.`}
-          </Note>
+          <>
+            {/* 확정에 성공하면 폼이 통째로 사라져 포커스가 <body>로 떨어진다 —
+                이 결과만은 알림으로도 전달돼야 한다. 배너 둘을 한 영역에 묶어
+                한 번에 읽히게 한다 (줄 목록은 길어서 밖에 둔다). */}
+            <div role="status">
+              <Note tone="success">
+                {/* Minor-4: 제외 건수가 반영 건수 안에 묻히면 몇 명이 빠졌는지 이
+                    문구만 보고는 알 수 없다 — 제외가 있을 때만 따로 덧붙인다. */}
+                {applyState.deleted && applyState.deleted > 0
+                  ? `${applyState.saved}건 반영, ${applyState.deleted}명 명단에서 제외했습니다.`
+                  : `${applyState.saved}건 반영했습니다.`}
+              </Note>
+
+              {/* 재학이 아닌 신규 줄은 아무것도 만들어지지 않는다 (I1) —
+                  studentInviteMetaSchema가 학년·반·번호를 필수로 요구해서 코드를
+                  만들어도 가입이 영원히 막히기 때문이다. 미리보기는 이들을
+                  "신규 N"으로 세므로, 여기서 말하지 않으면 관리자는 N명이
+                  등록됐다고 믿는다. */}
+              {applyState.excludedNew.length > 0 && (
+                <Note tone="warn" className="mt-3">
+                  {applyState.excludedNew.length}건은 계정과 초대코드를 만들지
+                  않았습니다 — 재학이 아닌 신규 줄입니다. 등록하려면 학적을 재학으로
+                  바꿔 다시 올려 주세요.
+                </Note>
+              )}
+            </div>
+
+            {applyState.excludedNew.length > 0 && (
+              <ul className="mt-2 divide-y divide-line2">
+                {applyState.excludedNew.map((row) => (
+                  <li
+                    key={row.line}
+                    className="flex items-center justify-between py-2 text-[13px]"
+                  >
+                    <span className="font-semibold text-ink">
+                      <span className="font-semibold text-amber-ink">
+                        {row.line}행
+                      </span>{" "}
+                      {row.name || "(이름 없음)"}
+                    </span>
+                    <span className="text-mut">{statusLabel(row.status)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
         ) : (
           <form action={applyAction} className="flex flex-col gap-3">
             <input type="hidden" name="rows" value={JSON.stringify(rows)} />
@@ -435,14 +501,18 @@ function PreviewCard({
                   {deleteCount}명은 대량 제외입니다. 잘못된 파일을 올렸을 때 마지막
                   방어선이 되도록, 뺄 인원 수를 직접 입력해야 확정할 수 있습니다.
                 </span>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  value={typedDeleteCount}
-                  onChange={(e) => setTypedDeleteCount(e.target.value)}
-                  placeholder="뺄 인원 수"
-                  className="w-40 rounded-btn border border-amber-ink bg-surface px-3 py-2 text-[13px] font-semibold text-ink"
-                />
+                {/* 폭은 바깥에서 준다 — cn()이 tailwind-merge가 아니라 Input의
+                    w-full을 className으로 덮을 수 없다. */}
+                <div className="w-40">
+                  <Input
+                    dense
+                    type="number"
+                    inputMode="numeric"
+                    value={typedDeleteCount}
+                    onChange={(e) => setTypedDeleteCount(e.target.value)}
+                    placeholder="뺄 인원 수"
+                  />
+                </div>
               </label>
             )}
             <div className="flex justify-end">
@@ -481,7 +551,7 @@ function PreviewCard({
           </Link>
         </div>
       )}
-    </section>
+    </SectionCard>
   );
 }
 
@@ -499,53 +569,57 @@ function InvitesResult({
   year: number;
 }) {
   return (
-    <div className="border-t border-line px-5 py-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="text-sm font-extrabold text-ink">발급된 초대코드</h3>
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          onClick={() => {
-            void downloadInvites(invites, year);
-          }}
-        >
-          코드 목록 xlsx 받기
-        </Button>
+    // 표는 카드 안쪽 여백 밖에 둔다 — TableFrame의 셀 여백 규칙(첫·끝 열 px-5)이
+    // 곧 카드 여백과 같은 눈금이라, 바깥에서 px-5를 한 번 더 주면 첫 열만 두 번
+    // 밀려 다른 표들과 세로줄이 어긋난다.
+    <div className="border-t border-line py-4">
+      <div className="px-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-sm font-extrabold text-ink">발급된 초대코드</h3>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              void downloadInvites(invites, year);
+            }}
+          >
+            코드 목록 xlsx 받기
+          </Button>
+        </div>
+        <p className="mt-1 text-[12px] text-mut">
+          코드는{" "}
+          <Link href="/admin/invites" className="font-semibold text-pri hover:underline">
+            초대 관리
+          </Link>
+          에서도 다시 확인할 수 있습니다. 한 번에 내려받으려면 지금 받아 두세요.
+        </p>
       </div>
-      <p className="mt-1 text-[12px] text-mut">
-        코드는{" "}
-        <Link href="/admin/invites" className="font-semibold text-pri hover:underline">
-          초대 관리
-        </Link>
-        에서도 다시 확인할 수 있습니다. 한 번에 내려받으려면 지금 받아 두세요.
-      </p>
 
-      <div className="mt-3 overflow-x-auto">
-        <table className="w-full min-w-[520px] text-left text-sm">
-          <thead>
-            <tr className="border-b border-line2 text-[12px] text-mut">
-              <th className="py-2 pr-3 font-semibold">이름</th>
-              <th className="py-2 pr-3 font-semibold">소속</th>
-              <th className="py-2 font-semibold">초대코드</th>
+      <TableFrame minWidth={520} headers={INVITE_HEADERS} className="mt-3">
+        <tbody>
+          {invites.map((invite) => (
+            <tr key={invite.code} className="border-b border-line2 last:border-0">
+              <td className={`${inviteCell(0)} font-semibold text-ink`}>
+                {invite.name}
+              </td>
+              <td className={`${inviteCell(1)} text-mut`}>{seatLabel(invite)}</td>
+              <td className={`${inviteCell(2)} font-mono text-[12.5px] text-ink`}>
+                {formatInviteCode(invite.code)}
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {invites.map((invite) => (
-              <tr key={invite.code} className="border-b border-line2 last:border-0">
-                <td className="py-2 pr-3 font-semibold text-ink">{invite.name}</td>
-                <td className="py-2 pr-3 text-mut">{seatLabel(invite)}</td>
-                <td className="py-2 font-mono text-[12.5px] text-ink">
-                  {formatInviteCode(invite.code)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+          ))}
+        </tbody>
+      </TableFrame>
     </div>
   );
 }
+
+const INVITE_HEADERS = ["이름", "소속", "초대코드"] as const;
+
+/** 본문 셀의 좌우 여백. 머리글과 같은 규칙을 써야 세로줄이 맞는다. */
+const inviteCell = (index: number) =>
+  `${tableCellPadding(index, INVITE_HEADERS.length)} py-2`;
 
 function IssueGroup({
   title,
