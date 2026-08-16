@@ -315,6 +315,25 @@ export async function searchStudents(actor: SessionUser, query: string) {
   });
 }
 
+/**
+ * 이 학생에게 기록이 있는 학년도들 (내림차순). 교내 탭의 학년도 선택지에 쓴다.
+ *
+ * **이 함수 자체는 권한을 검사하지 않는다** — studentProfileId가 이미 이 요청
+ * 안에서 검증된 자리에서만 부른다. 학부모 조회는 getChildMerit이 소유권을
+ * 확인에 성공한 뒤에만, 학생 본인 조회는 아래 listMyAwardYears가 세션에서
+ * 유도한 id만 넘긴다 — 둘 다 URL의 studentProfileId를 그대로 받지 않는다.
+ */
+export async function listAwardYears(studentProfileId: string): Promise<number[]> {
+  return repo.listAwardYears(studentProfileId);
+}
+
+/** 본인 조회. studentProfileId를 인자로 받지 않는다 — getMyMerit과 같은 이유. */
+export async function listMyAwardYears(sessionUser: SessionUser): Promise<number[]> {
+  const profile = await repo.findStudentProfileByUserId(sessionUser.id);
+  if (!profile) return [];
+  return repo.listAwardYears(profile.id);
+}
+
 /** 로그인한 학부모의 자녀들. 화면의 자녀 선택에 쓴다. */
 export async function listMyChildren(sessionUser: SessionUser) {
   const links = await repo.listChildren(sessionUser.id);

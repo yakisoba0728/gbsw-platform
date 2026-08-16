@@ -118,6 +118,7 @@ export async function AdminMeritView({
           grade={rosterQuery.data.grade}
           classNo={rosterQuery.data.classNo}
           track={track}
+          year={rosterQuery.data.year}
           rules={rules}
         />
       )}

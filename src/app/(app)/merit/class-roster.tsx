@@ -8,6 +8,7 @@ import { Select } from "@/components/ui/select";
 import type { MeritTrack } from "@/core/authz/merit-track";
 import { EMPTY_MERIT_STATE } from "./action-state";
 import { bulkAwardAction } from "./actions";
+import { ExportButton } from "./export-button";
 
 export type RosterRow = {
   studentProfileId: string;
@@ -38,12 +39,14 @@ export function ClassRoster({
   grade,
   classNo,
   track,
+  year,
   rules,
 }: {
   rows: RosterRow[];
   grade: number;
   classNo: number;
   track: MeritTrack;
+  year?: number;
   rules: RuleOption[];
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -100,10 +103,13 @@ export function ClassRoster({
 
       <section className="rounded-card border border-line bg-surface">
         <header className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
-          <h2 className="text-base font-extrabold text-ink">
-            {grade}학년 {classNo}반
-          </h2>
-          <span className="text-[12px] text-mut">{rows.length}명</span>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-base font-extrabold text-ink">
+              {grade}학년 {classNo}반
+            </h2>
+            <span className="text-[12px] text-mut">{rows.length}명</span>
+          </div>
+          <ExportButton grade={grade} classNo={classNo} track={track} year={year} />
         </header>
 
         <div className="overflow-x-auto">

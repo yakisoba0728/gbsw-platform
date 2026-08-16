@@ -2,10 +2,20 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAuth } from "@/core/auth/session";
-import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
+import { MERIT_TRACK_LABELS, type MeritTrack } from "@/core/authz/merit-track";
+import {
+  AcademicYearError,
+  getCurrentYear,
+} from "@/modules/academic-year/academic-year.service";
 import * as service from "@/modules/merit/award.service";
+import { toRosterSheet } from "@/modules/merit/merit.export";
 import { MeritError } from "@/modules/merit/merit.error";
-import { awardSchema, bulkAwardSchema, cancelSchema } from "@/modules/merit/merit.schema";
+import {
+  awardSchema,
+  bulkAwardSchema,
+  cancelSchema,
+  classRosterSchema,
+} from "@/modules/merit/merit.schema";
 import type { MeritActionState } from "./action-state";
 
 const MESSAGES: Record<string, string> = {
@@ -118,4 +128,48 @@ export async function cancelAction(
   const studentProfileId = String(formData.get("studentProfileId") ?? "");
   if (studentProfileId) revalidatePath(`/merit/students/${studentProfileId}`);
   return { error: null, ok: true, count: null };
+}
+
+/**
+ * 내보내기. 명단 내보내기와 같은 방식 — 서버는 행렬만 돌려주고
+ * 클라이언트가 xlsx를 만든다. <form action>이 아니라 버튼 클릭에서 직접 부르므로
+ * useActionState를 쓰지 않는다.
+ */
+export async function exportClassRosterAction(input: {
+  grade: number;
+  classNo: number;
+  track: MeritTrack;
+  year?: number;
+}): Promise<{ error: string | null; rows: (string | number)[][]; filename: string }> {
+  const actor = await requireAuth();
+
+  const parsed = classRosterSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: "조회 조건을 확인해 주세요.", rows: [], filename: "" };
+  }
+
+  try {
+    const year = parsed.data.year ?? (await getCurrentYear());
+    const rows = await service.getClassRoster(actor, parsed.data);
+    const sheet = toRosterSheet(rows, {
+      track: parsed.data.track,
+      year,
+      grade: parsed.data.grade,
+      classNo: parsed.data.classNo,
+    });
+    const trackLabel = MERIT_TRACK_LABELS[parsed.data.track];
+    return {
+      error: null,
+      rows: sheet,
+      filename: `${year}_${parsed.data.grade}학년${parsed.data.classNo}반_${trackLabel}상벌점.xlsx`,
+    };
+  } catch (error) {
+    if (error instanceof AcademicYearError) {
+      return { error: NO_CURRENT_YEAR_MESSAGE, rows: [], filename: "" };
+    }
+    // 예상 못 한 오류는 서버에 남긴다. 화면에는 일반 문구만 나가므로
+    // 여기서 흘리면 무엇이 잘못됐는지 아무 데도 남지 않는다.
+    console.error("상벌점 내보내기 실패:", error);
+    return { error: "내려받지 못했습니다.", rows: [], filename: "" };
+  }
 }

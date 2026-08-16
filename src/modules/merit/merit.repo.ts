@@ -326,6 +326,18 @@ export async function searchStudents(query: string, year: number) {
   });
 }
 
+/** 이 학생에게 기록이 있는 학년도들 (내림차순). 학년도 선택지에 쓴다.
+ * 교내(SCHOOL)만 학년도 개념이 있다 — 기숙사는 누적이라 조건에 넣지 않는다. */
+export async function listAwardYears(studentProfileId: string): Promise<number[]> {
+  const rows = await prisma.meritAward.findMany({
+    where: { studentProfileId, track: "SCHOOL" },
+    distinct: ["year"],
+    orderBy: { year: "desc" },
+    select: { year: true },
+  });
+  return rows.map((r) => r.year);
+}
+
 /** 학부모의 자녀들. ParentStudent 연결이 곧 권한이다. */
 export async function listChildren(parentUserId: string) {
   return prisma.parentStudent.findMany({
