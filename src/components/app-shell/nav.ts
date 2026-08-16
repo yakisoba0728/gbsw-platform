@@ -60,6 +60,7 @@ export const NAV_ITEMS: NavItem[] = [
       // (isChildActive와 DEFAULT_PARAMS 참고).
       { href: "/merit?track=SCHOOL", label: "그린마일리지" },
       { href: "/merit?track=DORM", label: "기숙사 상벌점" },
+      { href: "/merit/recent", label: "최근 부여", roles: ["ADMIN"] },
       { href: "/merit/stats", label: "통계", roles: ["ADMIN"] },
       { href: "/admin/merit/rules", label: "항목 관리", roles: ["ADMIN"] },
     ],

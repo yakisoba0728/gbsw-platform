@@ -4,15 +4,19 @@ import { requirePermission } from "@/core/auth/session";
 import {
   isMeritTrack,
   isYearScoped,
-  MERIT_KIND_LABELS,
   MERIT_TRACK_LABELS,
   MERIT_TRACKS,
-  type MeritKind,
   type MeritTrack,
 } from "@/core/authz/merit-track";
 import { KindBadge, kindColorClass, signedPoints } from "@/components/merit/kind-badge";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
+import { demeritCellClass, ThresholdHint } from "@/components/merit/demerit-level";
+import {
+  CategoryChart,
+  ClassNetChart,
+  MonthlyChart,
+} from "@/components/merit/charts";
 import { getMeritStats, type MeritStats } from "@/modules/merit/award.service";
 
 export const metadata: Metadata = { title: "상벌점 통계" };
@@ -83,7 +87,11 @@ export default async function MeritStatsPage({
             />
           </div>
 
-          <ClassTable rows={stats.classes} />
+          <MonthlyChart points={stats.monthly} axisLabel={stats.axisLabel} />
+          <ClassNetChart rows={stats.classes} />
+          <CategoryChart slices={stats.categories} />
+
+          <ClassTable rows={stats.classes} track={track} />
           <TopRules rows={stats.topRules} />
         </>
       )}
@@ -113,7 +121,13 @@ function Stat({
   );
 }
 
-function ClassTable({ rows }: { rows: MeritStats["classes"] }) {
+function ClassTable({
+  rows,
+  track,
+}: {
+  rows: MeritStats["classes"];
+  track: MeritTrack;
+}) {
   if (rows.length === 0) {
     return (
       <div className="rounded-card border border-line bg-surface p-8 text-center text-[12.5px] text-mut">
@@ -126,6 +140,9 @@ function ClassTable({ rows }: { rows: MeritStats["classes"] }) {
     <section className="rounded-card border border-line bg-surface">
       <header className="border-b border-line px-5 py-4">
         <h2 className="text-base font-extrabold text-ink">반별 현황</h2>
+        <div className="mt-1">
+          <ThresholdHint track={track} />
+        </div>
       </header>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[520px] text-left text-sm">
@@ -160,7 +177,11 @@ function ClassTable({ rows }: { rows: MeritStats["classes"] }) {
                 </td>
                 <td className="px-3 py-2.5 text-mut">{row.students}</td>
                 <td className="px-3 py-2.5 font-bold text-blue">{row.merit}</td>
-                <td className="px-3 py-2.5 font-bold text-rose">{row.demerit}</td>
+                <td className="px-3 py-2.5">
+                  <span className={demeritCellClass(track, row.demerit)}>
+                    {row.demerit}
+                  </span>
+                </td>
                 <td
                   className={`px-3 py-2.5 font-bold ${row.offset === 0 ? "text-mut2" : "text-green"}`}
                 >

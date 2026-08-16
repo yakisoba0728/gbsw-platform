@@ -155,7 +155,7 @@ export function Sidebar({ role }: { role: Role | null }) {
   }
 
   return (
-    <aside className="hidden w-60 flex-none flex-col border-r border-line bg-surface px-4 py-5 lg:flex">
+    <aside className="hidden w-60 flex-none flex-col border-r border-line bg-surface px-4 py-5 lg:flex print:hidden">
       <div className="flex items-center gap-2.5 px-1.5 pb-5">
         <Image src="/brand/gbsw-logo.webp" alt="" width={36} height={36} />
         <span>

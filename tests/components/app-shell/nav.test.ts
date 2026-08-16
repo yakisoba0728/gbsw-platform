@@ -12,14 +12,12 @@ import {
 const merit = NAV_ITEMS.find((item) => item.href === "/merit") as NavItem;
 const q = (search: string) => new URLSearchParams(search);
 
-const child = (label: string) =>
-  merit.children!.find((c) => c.label === label)!;
-
 describe("상벌점 메뉴 구성", () => {
-  it("하위 메뉴 넷을 갖는다", () => {
+  it("하위 메뉴 다섯을 갖는다", () => {
     expect(merit.children?.map((c) => c.label)).toEqual([
       "그린마일리지",
       "기숙사 상벌점",
+      "최근 부여",
       "통계",
       "항목 관리",
     ]);
@@ -29,7 +27,7 @@ describe("상벌점 메뉴 구성", () => {
     expect(merit.roles).toBeUndefined();
   });
 
-  it("통계와 항목 관리는 관리자만 본다", () => {
+  it("최근 부여·통계·항목 관리는 관리자만 본다", () => {
     expect(visibleChildren(merit, "STUDENT").map((c) => c.label)).toEqual([
       "그린마일리지",
       "기숙사 상벌점",
@@ -38,7 +36,7 @@ describe("상벌점 메뉴 구성", () => {
       "그린마일리지",
       "기숙사 상벌점",
     ]);
-    expect(visibleChildren(merit, "ADMIN")).toHaveLength(4);
+    expect(visibleChildren(merit, "ADMIN")).toHaveLength(5);
   });
 
   it("로그인 전(role null)에는 역할 제한이 걸린 하위 메뉴가 안 보인다", () => {
@@ -147,6 +145,7 @@ describe("메뉴 링크가 실제 화면을 가리킨다", () => {
   it.each([
     ["/merit", "src/app/(app)/merit/page.tsx"],
     ["/merit/stats", "src/app/(app)/merit/stats/page.tsx"],
+    ["/merit/recent", "src/app/(app)/merit/recent/page.tsx"],
     ["/admin/merit/rules", "src/app/(app)/admin/merit/rules/page.tsx"],
   ])("%s → %s", async (_href, file) => {
     const { existsSync } = await import("node:fs");
