@@ -202,12 +202,15 @@ export default async function UserDetailPage({
                 </p>
               </SectionCard>
 
-              {/* 되돌릴 수 없는 유일한 동작이라 다른 조치와 섞지 않는다.
-                  SectionCard에 위험 규격이 없어 이 카드만 손으로 그린다. */}
-              <section className="rounded-card border border-rose-line bg-surface p-5">
-                <h3 className="mb-1 text-lg font-semibold text-rose">완전 삭제</h3>
+              {/* 되돌릴 수 없는 유일한 동작이라 다른 조치와 섞지 않는다. */}
+              <SectionCard
+                variant="panel"
+                tone="danger"
+                headingLevel={3}
+                title="완전 삭제"
+              >
                 <HardDeleteForm user={editable} />
-              </section>
+              </SectionCard>
             </>
           ) : (
             <>

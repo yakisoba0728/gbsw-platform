@@ -241,8 +241,11 @@ HTTPS는 별도 리버스 프록시에서 처리하고, 운영에서는 `BETTER_
 | 문서 | 내용 |
 |---|---|
 | [`CLAUDE.md`](CLAUDE.md) | 레이어링 규칙 · 오류 규약 · 새 모듈 체크리스트 |
-| `docs/design/` | 디자인 규격 · 반응형 실측 감사 |
-| `docs/reviews/` | 코드베이스 감사 기록 |
+| [`docs/design/`](docs/design/2026-08-17-redesign-spec.md) | 디자인 규격 · 반응형 실측 감사 |
+| [`docs/reviews/`](docs/reviews/README.md) | 감사 기록 (날짜가 붙은 스냅샷) |
+
+감사 문서는 **그 시점의 기록**이라 이후에 고쳐 쓰지 않는다. 현재 상태를 알려면 코드를
+봐야 하고, 각 문서가 무엇을 전제했는지는 [`docs/reviews/README.md`](docs/reviews/README.md)에 정리해 두었다.
 
 **규약 예외 둘** — `bootstrap` 모듈은 `can()` 없이 쓰기를 수행한다(사용자 0명 시점이라 역할
 권한이 성립하지 않는다). `verification` 모듈은 `recordAudit`을 남기지 않는다(5분짜리 인증코드의

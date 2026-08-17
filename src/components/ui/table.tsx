@@ -123,12 +123,8 @@ export function DataTable<Row>({
   rows: readonly Row[];
   rowKey: (row: Row) => string;
   columns: readonly Column<Row>[];
-  /**
-   * 좁은 폭에서 어떻게 굽히는가. 기본은 지금까지의 동작(가로 스크롤).
-   * `cards-always`는 어느 폭에서도 표를 그리지 않는다 — 길이가 제각각인 자유
-   * 텍스트처럼 애초에 열로 세울 수 없는 목록이 쓴다.
-   */
-  narrow?: "scroll" | "cards" | "cards-always";
+  /** 좁은 폭에서 어떻게 굽히는가. 기본은 지금까지의 동작(가로 스크롤). */
+  narrow?: "scroll" | "cards";
   fixed?: boolean;
   className?: string;
   rowClassName?: (row: Row) => string;
@@ -189,8 +185,6 @@ export function DataTable<Row>({
         ))}
     </ul>
   );
-
-  if (narrow === "cards-always") return cards;
 
   return (
     <>

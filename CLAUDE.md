@@ -149,6 +149,30 @@ tests/                  core/ · modules/ — 구조를 src/와 맞춘다
 
 문구 규칙(한 문장 · 완충어 금지 · 용어 고정표)도 같은 문서 §3에 있다.
 
+### 화면을 만들기 전에 있는 것부터 찾는다
+
+같은 모양을 손으로 다시 그리면 규격이 갈라진다. 아래는 이미 있다.
+
+| 필요한 것 | 쓸 것 |
+|---|---|
+| 제목 달린 카드 | `SectionCard` — 머리글 띠가 필요 없으면 `variant="panel"`, 되돌릴 수 없는 동작이면 `tone="danger"` |
+| 표 | `DataTable` — 폰에서 카드로 바뀌어야 하면 `narrow="cards"`. 열마다 `card` 자리를 고른다 |
+| 표(직접 조립) | `TableFrame` — 셀 구성이 제각각이라 열을 데이터로 못 쓸 때만 |
+| 버튼 모양의 링크 | `buttonClass({ … })` — `<Link>`는 `<button>`이 아니라 `Button`을 못 쓴다 |
+| 아이콘만 있는 버튼 | `Button size="icon"` (또는 `buttonClass({ size: "icon" })`) |
+| 뒤로 가기 | `BackLink` |
+| 방금 발급된 코드·임시 비밀번호 | `SecretPanel` |
+| 합계 한 칸 | `StatTile` |
+| 결과·오류 배너 | `Note` — `tone="error"`면 `role="alert"`이 자동으로 붙는다 |
+| 빈 상태 | `EmptyState` — 이미 카드 안이면 `variant="inside"` |
+
+**카드 안쪽 여백은 세 가지뿐이다.** 표를 담으면 `flush`, 폼·안내는 `p-5`,
+페이지 대표 카드는 `p-8`. 그 외 값을 새로 만들지 않는다.
+
+**폭에 따른 재배치는 `@container`로 한다.** 같은 블록이 전폭에도 서고 대시보드의
+절반 폭 카드 안에도 서기 때문에 뷰포트 폭(`lg:`)으로는 옳게 굽지 않는다.
+`lg:`는 앱 셸(사이드바↔하단탭)과 표↔카드 전환에만 쓴다.
+
 ## 주의점
 
 - **Prisma 7**: 생성자는 `prisma-client`, 출력은 `src/generated/prisma`(gitignore됨),
