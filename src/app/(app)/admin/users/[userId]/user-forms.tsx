@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { Note } from "@/components/ui/note";
+import { SecretPanel } from "@/components/ui/secret-panel";
 import { formatPhone } from "@/lib/masks";
 import {
   UPDATE_USER_INITIAL,
@@ -190,15 +191,12 @@ export function ResetPasswordForm({ user }: { user: EditableUser }) {
       {state.error && <Note tone="error" className="mt-3">{state.error}</Note>}
 
       {state.tempPassword && (
-        <div className="mt-3 rounded-btn border border-pri-line bg-pri-soft px-4 py-3">
-          <p className="text-xs font-medium text-pri-ink">임시 비밀번호</p>
-          <p className="mt-1 font-mono text-title font-semibold text-ink">
-            {state.tempPassword}
-          </p>
-          <p className="mt-1 text-xs text-mut">
-            지금 전달해 주세요. 이 화면을 벗어나면 다시 볼 수 없습니다.
-          </p>
-        </div>
+        <SecretPanel
+          label="임시 비밀번호"
+          value={state.tempPassword}
+          note="지금 전달해 주세요. 이 화면을 벗어나면 다시 볼 수 없습니다."
+          className="mt-3"
+        />
       )}
     </form>
   );

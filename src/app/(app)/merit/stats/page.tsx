@@ -10,10 +10,12 @@ import {
 } from "@/core/authz/merit-track";
 import { KindBadge, kindColorClass, signedPoints } from "@/components/merit/kind-badge";
 import { TrackTabs } from "@/components/merit/track-tabs";
+import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { SectionCard } from "@/components/ui/section-card";
-import { TableFrame } from "@/components/ui/table";
+import { StatTile } from "@/components/ui/stat-tile";
+import { DataTable, type Column } from "@/components/ui/table";
 import { hrefWith } from "@/lib/search-params";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import { demeritCellClass, ThresholdHint } from "@/components/merit/demerit-level";
@@ -61,6 +63,9 @@ export default async function MeritStatsPage({
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
+      {/* h1은 상단바가 (app)의 모든 화면에 이미 그린다 — 여기는 h2고 카드는 h3다. */}
+      <h2 className="text-title font-semibold text-ink">상벌점 통계</h2>
+
       <TrackTabs current={track} hrefFor={(t) => statsHref({ track: t })} />
 
       {!stats ? (
@@ -74,7 +79,7 @@ export default async function MeritStatsPage({
                 : `입학부터 전체 누적 · 반 편성 ${stats.rosterYear}학년도`}
             </p>
             {stats.scope && (
-              <span className="flex items-center gap-2 rounded-full border border-pri-line bg-pri-soft px-3 py-1 text-xs font-medium text-pri-ink">
+              <Badge tone="info" dot={false}>
                 {stats.scope.grade}학년 {stats.scope.classNo}반만 보는 중
                 {/* ✕는 "누르면 이 필터가 풀린다"는 장식이다 — 링크 이름에 넣지 않는다. */}
                 <Link
@@ -83,25 +88,39 @@ export default async function MeritStatsPage({
                 >
                   전교 보기 <span aria-hidden>✕</span>
                 </Link>
-              </span>
+              </Badge>
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-            <Stat label="상점" value={stats.totals.merit} className="text-blue" />
-            <Stat label="벌점" value={stats.totals.demerit} className="text-rose" />
-            <Stat label="상쇄점" value={stats.totals.offset} className="text-green" />
-            <Stat
-              label="순점수"
-              value={stats.totals.net}
-              signed
-              className={stats.totals.net >= 0 ? "text-green" : "text-rose"}
-            />
-            <Stat
-              label="부여 건수"
-              value={stats.totals.awardCount}
-              className="text-ink"
-            />
+          {/* 뷰포트가 아니라 놓인 자리의 폭을 본다 — MeritTotalsCards와 같은 기준이다. */}
+          <div className="@container">
+            <div className="grid grid-cols-2 gap-3 @md:grid-cols-3 @2xl:grid-cols-5">
+              <StatTile
+                label="상점"
+                value={stats.totals.merit}
+                valueClassName="text-blue"
+              />
+              <StatTile
+                label="벌점"
+                value={stats.totals.demerit}
+                valueClassName="text-rose"
+              />
+              <StatTile
+                label="상쇄점"
+                value={stats.totals.offset}
+                valueClassName="text-green"
+              />
+              <StatTile
+                label="순점수"
+                value={signedNet(stats.totals.net)}
+                valueClassName={stats.totals.net >= 0 ? "text-green" : "text-rose"}
+              />
+              <StatTile
+                label="부여 건수"
+                value={stats.totals.awardCount}
+                valueClassName="text-ink"
+              />
+            </div>
           </div>
 
           <MonthlyChart points={stats.monthly} axisLabel={stats.axisLabel} />
@@ -139,27 +158,6 @@ export default async function MeritStatsPage({
   );
 }
 
-function Stat({
-  label,
-  value,
-  signed,
-  className,
-}: {
-  label: string;
-  value: number;
-  signed?: boolean;
-  className: string;
-}) {
-  return (
-    <div className="rounded-card border border-line bg-surface px-4 py-3.5">
-      <div className="text-xs font-medium text-mut">{label}</div>
-      <div className={`mt-1 text-title font-semibold ${className}`}>
-        {signed ? signedNet(value) : value}
-      </div>
-    </div>
-  );
-}
-
 /** 기준을 넘긴 학생 명단. 표시만 하며 회부·통보는 일어나지 않는다. */
 function WatchList({
   rows,
@@ -175,9 +173,59 @@ function WatchList({
 }) {
   const where = scoped ? "이 반" : "전교";
 
+  // 순위는 셀 함수가 볼 수 없다(행만 받는다) — 미리 붙여 둔다.
+  const ranked = rows.map((row, index) => ({ ...row, rank: index + 1 }));
+
+  const columns: Column<(typeof ranked)[number]>[] = [
+    {
+      key: "rank",
+      header: "#",
+      width: "w-[48px]",
+      cell: (row) => <span className="text-mut2">{row.rank}</span>,
+    },
+    {
+      key: "name",
+      header: "이름",
+      card: "title",
+      cell: (row) => (
+        <Link
+          href={`/merit/students/${row.studentProfileId}?track=${track}`}
+          className="inline-flex min-h-9 items-center font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink lg:min-h-0"
+        >
+          {row.name}
+        </Link>
+      ),
+    },
+    {
+      key: "class",
+      header: "학급",
+      width: "w-[132px]",
+      card: "meta",
+      cardLabel: false,
+      cell: (row) => (
+        <span className="text-mut">
+          {/* 소속이 없어도 명단에서 빼지 않는다 — 반 미배정 학생이 놓치기 쉽다. */}
+          {row.grade !== null && row.classNo !== null
+            ? `${row.grade}학년 ${row.classNo}반${row.number !== null ? ` ${row.number}번` : ""}`
+            : "소속 미배정"}
+        </span>
+      ),
+    },
+    {
+      key: "demerit",
+      header: "벌점",
+      width: "w-[84px]",
+      card: "trailing",
+      cell: (row) => (
+        <span className={demeritCellClass(thresholds, row.demerit)}>{row.demerit}</span>
+      ),
+    },
+  ];
+
   return (
     <SectionCard
       flush
+      headingLevel={3}
       title="기준 초과 학생"
       // 기준 숫자를 적는다 — 관리자가 설정에서 바꾸는 값이라 안 보이면 명단 길이가 설명되지 않는다.
       hint={
@@ -205,41 +253,13 @@ function WatchList({
           {where}에 벌점 {thresholds.warn}점 이상인 학생이 없습니다.
         </EmptyState>
       ) : (
-        <TableFrame
+        <DataTable
           minWidth={440}
-          cols={["w-[48px]", undefined, "w-[132px]", "w-[84px]"]}
-          headers={["#", "이름", "학급", "벌점"]}
-        >
-          <tbody>
-            {rows.map((row, index) => (
-              <tr
-                key={row.studentProfileId}
-                className="border-b border-line2 last:border-0"
-              >
-                <td className="px-5 py-2.5 text-mut2">{index + 1}</td>
-                <td className="p-0">
-                  <Link
-                    href={`/merit/students/${row.studentProfileId}?track=${track}`}
-                    className="block px-3 py-2.5 font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
-                  >
-                    {row.name}
-                  </Link>
-                </td>
-                <td className="px-3 py-2.5 text-mut">
-                  {/* 소속이 없어도 명단에서 빼지 않는다 — 반 미배정 학생이 놓치기 쉽다. */}
-                  {row.grade !== null && row.classNo !== null
-                    ? `${row.grade}학년 ${row.classNo}반${row.number !== null ? ` ${row.number}번` : ""}`
-                    : "소속 미배정"}
-                </td>
-                <td className="px-5 py-2.5">
-                  <span className={demeritCellClass(thresholds, row.demerit)}>
-                    {row.demerit}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </TableFrame>
+          narrow="cards"
+          rows={ranked}
+          rowKey={(row) => row.studentProfileId}
+          columns={columns}
+        />
       )}
     </SectionCard>
   );
@@ -256,9 +276,75 @@ function ClassTable({
     return <EmptyState>배정된 반이 없습니다.</EmptyState>;
   }
 
+  const columns: Column<MeritStats["classes"][number]>[] = [
+    {
+      key: "class",
+      header: "학급",
+      width: "w-[120px]",
+      card: "title",
+      cell: (row) => (
+        <span className="font-medium text-ink">
+          {row.grade}학년 {row.classNo}반
+        </span>
+      ),
+    },
+    {
+      key: "students",
+      header: "인원",
+      width: "w-[72px]",
+      card: "meta",
+      cell: (row) => <span className="text-mut">{row.students}</span>,
+    },
+    {
+      key: "merit",
+      header: "상점",
+      width: "w-[88px]",
+      card: "meta",
+      cell: (row) => <span className="font-medium text-blue">{row.merit}</span>,
+    },
+    {
+      key: "demerit",
+      header: "벌점",
+      width: "w-[88px]",
+      card: "meta",
+      cell: (row) => (
+        <span className={demeritCellClass(thresholds, row.demerit)}>{row.demerit}</span>
+      ),
+    },
+    {
+      key: "offset",
+      header: "상쇄",
+      width: "w-[80px]",
+      card: "meta",
+      cell: (row) => (
+        <span className={`font-medium ${row.offset === 0 ? "text-mut2" : "text-green"}`}>
+          {row.offset}
+        </span>
+      ),
+    },
+    {
+      key: "net",
+      header: "순점수",
+      width: "w-[92px]",
+      card: "trailing",
+      cell: (row) => (
+        <span className={`font-medium ${row.net >= 0 ? "text-green" : "text-rose"}`}>
+          {signedNet(row.net)}
+        </span>
+      ),
+    },
+    {
+      key: "avgNet",
+      header: "1인 평균",
+      card: "meta",
+      cell: (row) => <span className="text-mut">{signedNet(row.avgNet)}</span>,
+    },
+  ];
+
   return (
     <SectionCard
       flush
+      headingLevel={3}
       title="반별 현황"
       // ThresholdHint가 <p>라 hint(역시 <p>) 안에 넣을 수 없다.
       controls={
@@ -267,50 +353,13 @@ function ClassTable({
         </div>
       }
     >
-      <TableFrame
+      <DataTable
         minWidth={520}
-        cols={[
-          "w-[120px]",
-          "w-[72px]",
-          "w-[88px]",
-          "w-[88px]",
-          "w-[80px]",
-          "w-[92px]",
-          undefined,
-        ]}
-        headers={["학급", "인원", "상점", "벌점", "상쇄", "순점수", "1인 평균"]}
-      >
-        <tbody>
-          {rows.map((row) => (
-            <tr
-              key={`${row.grade}-${row.classNo}`}
-              className="border-b border-line2 last:border-0"
-            >
-              <td className="px-5 py-2.5 font-medium text-ink">
-                {row.grade}학년 {row.classNo}반
-              </td>
-              <td className="px-3 py-2.5 text-mut">{row.students}</td>
-              <td className="px-3 py-2.5 font-medium text-blue">{row.merit}</td>
-              <td className="px-3 py-2.5">
-                <span className={demeritCellClass(thresholds, row.demerit)}>
-                  {row.demerit}
-                </span>
-              </td>
-              <td
-                className={`px-3 py-2.5 font-medium ${row.offset === 0 ? "text-mut2" : "text-green"}`}
-              >
-                {row.offset}
-              </td>
-              <td
-                className={`px-3 py-2.5 font-medium ${row.net >= 0 ? "text-green" : "text-rose"}`}
-              >
-                {signedNet(row.net)}
-              </td>
-              <td className="px-5 py-2.5 text-mut">{signedNet(row.avgNet)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </TableFrame>
+        narrow="cards"
+        rows={rows}
+        rowKey={(row) => `${row.grade}-${row.classNo}`}
+        columns={columns}
+      />
     </SectionCard>
   );
 }
@@ -320,31 +369,50 @@ function TopRules({ rows }: { rows: MeritStats["topRules"] }) {
     return <EmptyState>부여된 상벌점이 없습니다.</EmptyState>;
   }
 
+  const columns: Column<MeritStats["topRules"][number]>[] = [
+    {
+      key: "kind",
+      header: "구분",
+      width: "w-[68px]",
+      card: "meta",
+      cardLabel: false,
+      cell: (row) => <KindBadge kind={row.kind} />,
+    },
+    {
+      key: "label",
+      header: "항목",
+      card: "title",
+      cell: (row) => <span className="text-ink">{row.label}</span>,
+    },
+    {
+      key: "count",
+      header: "건수",
+      width: "w-[80px]",
+      card: "meta",
+      cell: (row) => <span className="font-medium text-ink">{row.count}</span>,
+    },
+    {
+      key: "points",
+      header: "합계 점수",
+      width: "w-[88px]",
+      card: "trailing",
+      cell: (row) => (
+        <span className={`font-medium ${kindColorClass(row.kind)}`}>
+          {signedPoints(row.kind, row.points)}
+        </span>
+      ),
+    },
+  ];
+
   return (
-    <SectionCard flush title="많이 나온 항목" hint={`상위 ${rows.length}개`}>
-      <TableFrame
+    <SectionCard flush headingLevel={3} title="많이 나온 항목" hint={`상위 ${rows.length}개`}>
+      <DataTable
         minWidth={480}
-        cols={["w-[68px]", undefined, "w-[80px]", "w-[88px]"]}
-        headers={["구분", "항목", "건수", "합계 점수"]}
-      >
-        <tbody>
-          {rows.map((row) => (
-            <tr
-              key={`${row.kind}-${row.label}`}
-              className="border-b border-line2 last:border-0"
-            >
-              <td className="px-5 py-2.5">
-                <KindBadge kind={row.kind} />
-              </td>
-              <td className="px-3 py-2.5 text-ink">{row.label}</td>
-              <td className="px-3 py-2.5 font-medium text-ink">{row.count}</td>
-              <td className={`px-5 py-2.5 font-medium ${kindColorClass(row.kind)}`}>
-                {signedPoints(row.kind, row.points)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </TableFrame>
+        narrow="cards"
+        rows={rows}
+        rowKey={(row) => `${row.kind}-${row.label}`}
+        columns={columns}
+      />
     </SectionCard>
   );
 }

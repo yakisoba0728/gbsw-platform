@@ -12,6 +12,7 @@ import {
 import { ChipLink } from "@/components/ui/chip-link";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SearchForm } from "@/components/ui/search-form";
+import { SectionCard } from "@/components/ui/section-card";
 import { hrefWith } from "@/lib/search-params";
 import { filterRules } from "@/components/merit/rule-filter";
 import { TrackTabs } from "@/components/merit/track-tabs";
@@ -50,7 +51,7 @@ export default async function RulesPage({
 
       <RuleForm track={track} />
 
-      <section className="rounded-card border border-line bg-surface p-4">
+      <SectionCard variant="panel" title="규정 찾기">
         {/* 지금 보는 트랙·종류를 함께 실어야 검색과 동시에 필터가 풀리지 않는다. */}
         <SearchForm
           defaultValue={q}
@@ -96,7 +97,7 @@ export default async function RulesPage({
             </>
           )}
         </p>
-      </section>
+      </SectionCard>
 
       {filtering && rules.length === 0 ? (
         <EmptyState>조건에 맞는 규정이 없습니다.</EmptyState>

@@ -2,6 +2,7 @@
 
 import { useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { cn } from "@/lib/cn";
+import { buttonClass } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { KindBadge, kindColorClass, signedPoints } from "@/components/merit/kind-badge";
 import {
@@ -160,7 +161,7 @@ export function RulePicker({
           <button
             type="button"
             onClick={clear}
-            className="rounded-btn border border-line-strong bg-surface px-2.5 py-1 text-xs font-medium text-ink hover:bg-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+            className={buttonClass({ variant: "secondary", size: "sm" })}
           >
             변경
           </button>

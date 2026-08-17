@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input, Label } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
-import { TableFrame, tableCellPadding } from "@/components/ui/table";
+import { SectionCard } from "@/components/ui/section-card";
+import { DataTable, type Column } from "@/components/ui/table";
 import {
   signedNet,
   type DemeritThresholds,
@@ -107,119 +108,130 @@ export function ClassRoster({
     );
   }
 
+  const columns: Column<RosterRow>[] = [
+    {
+      key: "select",
+      header: (
+        <SelectBox checked={allSelected} onChange={toggleAll} label="전체 선택" />
+      ),
+      width: "w-[44px]",
+      // 카드에서는 이름 오른쪽에 선다 — 여러 칸을 title로 쌓으면 이름 위에 얹힌다.
+      card: "trailing",
+      cell: (row) => (
+        <SelectBox
+          checked={selected.has(row.studentProfileId)}
+          onChange={() => toggleOne(row.studentProfileId)}
+          label={`${row.name} 선택`}
+        />
+      ),
+    },
+    {
+      key: "number",
+      header: (
+        <SortButton
+          label="번호"
+          hint="번호 낮은 순"
+          active={sortKey === "number"}
+          onClick={() => setSortKey("number")}
+        />
+      ),
+      // 정렬 상태는 <th>의 속성이라 위 <button>으로 내려보낼 수 없다.
+      // 정렬 중이 아닌 쪽도 "none"을 적는다 — 없으면 정렬 가능한 열임이 안 전달된다.
+      sort: sortKey === "number" ? "ascending" : "none",
+      width: "w-[64px]",
+      card: "meta",
+      cell: (row) => <span className="font-mono text-mut">{row.number ?? "—"}</span>,
+    },
+    {
+      key: "name",
+      header: "이름",
+      card: "title",
+      cell: (row) => (
+        <Link
+          href={`/merit/students/${row.studentProfileId}?track=${track}`}
+          className="inline-flex min-h-9 items-center font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink lg:min-h-0"
+        >
+          {row.name}
+        </Link>
+      ),
+    },
+    {
+      key: "merit",
+      header: "상점",
+      width: "w-[70px]",
+      cell: (row) => <span className="font-medium text-blue">{row.merit}</span>,
+    },
+    {
+      key: "demerit",
+      header: "벌점",
+      width: "w-[70px]",
+      card: "meta",
+      cell: (row) => (
+        <span className={demeritCellClass(thresholds, row.demerit)}>{row.demerit}</span>
+      ),
+    },
+    {
+      // 상쇄 열은 0이어도 항상 낸다 — 상점 − 벌점이 순점수와 안 맞아 보이면 표를 의심하게 된다.
+      key: "offset",
+      header: "상쇄",
+      width: "w-[74px]",
+      cell: (row) => (
+        <span
+          className={`font-medium ${row.offset === 0 ? "text-mut2" : "text-green"}`}
+        >
+          {row.offset}
+        </span>
+      ),
+    },
+    {
+      key: "net",
+      header: (
+        <SortButton
+          label="순점수"
+          hint="순점수 높은 순"
+          active={sortKey === "net"}
+          onClick={() => setSortKey("net")}
+        />
+      ),
+      sort: sortKey === "net" ? "descending" : "none",
+      width: "w-[96px]",
+      card: "meta",
+      cell: (row) => (
+        <span
+          className={`font-medium ${row.net >= 0 ? "text-green" : "text-rose"}`}
+        >
+          {signedNet(row.net)}
+        </span>
+      ),
+    },
+  ];
+
   return (
     <form action={formAction}>
       {[...selected].map((id) => (
         <input key={id} type="hidden" name="studentProfileIds" value={id} />
       ))}
 
-      <section className="rounded-card border border-line bg-surface">
-        <header className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
-          <div className="flex items-center gap-2.5">
-            <h2 className="text-lg font-semibold text-ink">
-              {grade}학년 {classNo}반
-            </h2>
-            <span className="text-xs text-mut">{rows.length}명</span>
-          </div>
-          <div className="hidden lg:block">
+      <SectionCard
+        flush
+        title={`${grade}학년 ${classNo}반`}
+        hint={`${rows.length}명`}
+        controls={
+          <div className="mt-1">
             <ThresholdHint thresholds={thresholds} />
           </div>
+        }
+        aside={
           <ExportButton grade={grade} classNo={classNo} track={track} year={year} />
-        </header>
-
-        <TableFrame
+        }
+      >
+        <DataTable
           minWidth={548}
-          cols={[
-            "w-[44px]",
-            "w-[64px]",
-            undefined,
-            "w-[70px]",
-            "w-[70px]",
-            "w-[74px]",
-            "w-[96px]",
-          ]}
-          // 정렬 상태는 <th>의 속성이라 아래 <button>으로 내려보낼 수 없다.
-          // 정렬 중이 아닌 쪽도 "none"을 적는다 — 없으면 정렬 가능한 열임이 안 전달된다.
-          sort={[
-            undefined,
-            sortKey === "number" ? "ascending" : "none",
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            sortKey === "net" ? "descending" : "none",
-          ]}
-          headers={[
-            <input
-              key="all"
-              type="checkbox"
-              checked={allSelected}
-              onChange={toggleAll}
-              aria-label="전체 선택"
-              className="size-4 accent-pri"
-            />,
-            <SortButton
-              key="number"
-              label="번호"
-              hint="번호 낮은 순"
-              active={sortKey === "number"}
-              onClick={() => setSortKey("number")}
-            />,
-            "이름",
-            "상점",
-            "벌점",
-            // 상쇄 열은 0이어도 항상 낸다 — 상점 − 벌점이 순점수와 안 맞아 보이면 표를 의심하게 된다.
-            "상쇄",
-            <SortButton
-              key="net"
-              label="순점수"
-              hint="순점수 높은 순"
-              active={sortKey === "net"}
-              onClick={() => setSortKey("net")}
-            />,
-          ]}
-        >
-          <tbody>
-            {sorted.map((row) => (
-              <tr key={row.studentProfileId} className="border-b border-line2 last:border-0">
-                <td className={`${tableCellPadding(0, COLUMNS)} py-2.5`}>
-                  <input
-                    type="checkbox"
-                    checked={selected.has(row.studentProfileId)}
-                    onChange={() => toggleOne(row.studentProfileId)}
-                    aria-label={`${row.name} 선택`}
-                    className="size-4 accent-pri"
-                  />
-                </td>
-                <td className="px-3 py-2.5 font-mono text-mut">{row.number ?? "—"}</td>
-                <td className="px-3 py-2.5">
-                  <Link
-                    href={`/merit/students/${row.studentProfileId}?track=${track}`}
-                    className="font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
-                  >
-                    {row.name}
-                  </Link>
-                </td>
-                <td className="px-3 py-2.5 font-medium text-blue">{row.merit}</td>
-                <td className="px-3 py-2.5">
-                  <span className={demeritCellClass(thresholds, row.demerit)}>
-                    {row.demerit}
-                  </span>
-                </td>
-                <td
-                  className={`px-3 py-2.5 font-medium ${row.offset === 0 ? "text-mut2" : "text-green"}`}
-                >
-                  {row.offset}
-                </td>
-                <td
-                  className={`${tableCellPadding(COLUMNS - 1, COLUMNS)} py-2.5 font-medium ${row.net >= 0 ? "text-green" : "text-rose"}`}
-                >
-                  {signedNet(row.net)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </TableFrame>
+          narrow="cards"
+          rows={sorted}
+          rowKey={(row) => row.studentProfileId}
+          columns={columns}
+        />
 
         {/* 지난 학년도를 보고 있으면 부여 폼을 감춘다 — 부여는 현재 학년도로만 들어간다. */}
         {viewingPast ? (
@@ -227,37 +239,53 @@ export function ClassRoster({
             부여는 현재 학년도에만 할 수 있습니다.
           </Note>
         ) : (
-        <div className="space-y-2.5 border-t border-line px-5 py-4">
-          <span className="block text-xs font-medium text-mut">
-            {selected.size}명 선택됨
-          </span>
-
-          {/* 항목 고르기는 한 줄을 통째로 쓴다 — 검색 목록이 아래로 펼쳐진다. */}
-          <RulePicker rules={rules} onChange={setRule} />
-
-          <div className="flex flex-wrap items-end gap-2.5">
-            {/* 한 묶음은 같은 날 일어난 일이다 — 발생일도 하나만 받는다. */}
-            <div className="w-[150px]">
-              <Label htmlFor={`${fieldId}-occurred`}>발생일</Label>
-              <Input
-                id={`${fieldId}-occurred`}
-                type="date"
-                name="occurredOn"
-                defaultValue={today}
-                max={today}
-                required
-              />
+          <div className="@container space-y-2.5 border-t border-line px-5 py-4">
+            <div className="flex flex-wrap items-center gap-x-3">
+              {/* 카드 목록에는 표 머리글이 없다 — 전체 선택을 여기 다시 낸다. */}
+              <label className="inline-flex items-center gap-2 py-2.5 text-xs font-medium text-mut lg:hidden">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={toggleAll}
+                  className="size-4 accent-pri"
+                />
+                전체 선택
+              </label>
+              <span className="text-xs font-medium text-mut">
+                {selected.size}명 선택됨
+              </span>
             </div>
 
-            <div className="min-w-[160px] flex-1">
-              <Input name="note" placeholder="메모 (선택)" aria-label="메모" />
-            </div>
+            {/* 항목 고르기는 한 줄을 통째로 쓴다 — 검색 목록이 아래로 펼쳐진다. */}
+            <RulePicker rules={rules} onChange={setRule} />
 
-            <Button type="submit" disabled={pending || selected.size === 0 || !rule}>
-              {pending ? "부여하는 중…" : "일괄 부여"}
-            </Button>
+            <div className="flex flex-col gap-2.5 @md:flex-row @md:flex-wrap @md:items-end">
+              {/* 한 묶음은 같은 날 일어난 일이다 — 발생일도 하나만 받는다. */}
+              <div className="@md:w-[150px]">
+                <Label htmlFor={`${fieldId}-occurred`}>발생일</Label>
+                <Input
+                  id={`${fieldId}-occurred`}
+                  type="date"
+                  name="occurredOn"
+                  defaultValue={today}
+                  max={today}
+                  required
+                />
+              </div>
+
+              <div className="@md:min-w-[160px] @md:flex-1">
+                <Input name="note" placeholder="메모 (선택)" aria-label="메모" />
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full @md:w-auto"
+                disabled={pending || selected.size === 0 || !rule}
+              >
+                {pending ? "부여하는 중…" : "일괄 부여"}
+              </Button>
+            </div>
           </div>
-        </div>
         )}
 
         {state.error && (
@@ -270,13 +298,37 @@ export function ClassRoster({
             {state.count}명에게 부여했습니다.
           </Note>
         )}
-      </section>
+      </SectionCard>
     </form>
   );
 }
 
-/** 표의 열 수. 첫·끝 열 패딩 규칙(tableCellPadding)이 이 값을 본다. */
-const COLUMNS = 7;
+/**
+ * 명단 체크박스. `<label>`이 감싸 실제 탭 영역을 36px로 넓힌다 — 상자 자체는
+ * 16px이고 사감은 어두운 복도에서 이걸 누른다.
+ */
+function SelectBox({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  /** 접근 가능한 이름. <label>에 글자가 없으므로 input이 직접 갖는다. */
+  label: string;
+}) {
+  return (
+    <label className="-m-2.5 inline-flex cursor-pointer p-2.5">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onChange}
+        aria-label={label}
+        className="size-4 accent-pri"
+      />
+    </label>
+  );
+}
 
 /**
  * 정렬 가능한 머리글. 조작 대상이 <button>이라야 탭 이동과 Enter·Space가 통한다.
@@ -299,7 +351,7 @@ function SortButton({
       type="button"
       onClick={onClick}
       aria-label={`${label} — ${hint}으로 정렬`}
-      className={`-mx-1 rounded-btn px-1 py-1 font-medium transition-colors hover:text-ink ${
+      className={`-mx-2 -my-1 rounded-btn px-2 py-2.5 font-medium transition-colors hover:text-ink ${
         active ? "text-ink underline decoration-line-strong underline-offset-2" : ""
       }`}
     >

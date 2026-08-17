@@ -18,8 +18,9 @@ export default function Loading() {
         </div>
       </div>
 
-      {/* 검색 + 종류 필터 */}
-      <div className="rounded-card border border-line bg-surface p-4">
+      {/* 규정 찾기 — 제목 + 검색 + 종류 필터 */}
+      <div className="rounded-card border border-line bg-surface p-5">
+        <Skeleton className="mb-4 h-5 w-20 rounded-btn" />
         <Skeleton className="h-11 rounded-field" />
         <div className="mt-3 flex flex-wrap gap-1.5">
           {Array.from({ length: 5 }, (_, i) => (
@@ -29,8 +30,11 @@ export default function Loading() {
         <Skeleton className="mt-3 h-4 w-16 rounded-btn" />
       </div>
 
-      {/* 규정 표 */}
+      {/* 규정 목록 — 머리글 띠 + 표 */}
       <div className="rounded-card border border-line bg-surface">
+        <div className="border-b border-line px-5 py-4">
+          <Skeleton className="h-5 w-20 rounded-btn" />
+        </div>
         <div className="space-y-3 px-5 py-4">
           {Array.from({ length: 10 }, (_, i) => (
             <Skeleton key={i} className="h-8 rounded-btn" />

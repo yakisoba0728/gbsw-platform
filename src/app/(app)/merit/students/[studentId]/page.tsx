@@ -3,12 +3,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/core/auth/session";
 import { isMeritTrack, isYearScoped, type MeritTrack } from "@/core/authz/merit-track";
-import { ChevronLeftIcon } from "@/components/icons";
 import { AwardHistory } from "@/components/merit/award-history";
 import { EnrollmentTag } from "@/components/merit/enrollment-tag";
 import { MeritTotalsCards } from "@/components/merit/merit-totals";
 import { TrackTabs } from "@/components/merit/track-tabs";
+import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
+import { buttonClass } from "@/components/ui/button";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { Note } from "@/components/ui/note";
 import { formatDate, formatDateInput } from "@/lib/datetime";
@@ -98,14 +99,7 @@ export default async function StudentMeritPage({
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
-      {/* 화살표는 아이콘으로 둔다 — 글자 "←"는 "왼쪽 화살표 상벌점"으로 읽힌다. */}
-      <Link
-        href="/merit"
-        className="inline-flex items-center gap-1 text-caption font-medium text-mut transition-colors hover:text-ink"
-      >
-        <ChevronLeftIcon size={15} />
-        상벌점
-      </Link>
+      <BackLink href="/merit">상벌점</BackLink>
 
       {header && (
         <div>
@@ -182,7 +176,7 @@ export default async function StudentMeritPage({
             />
             <Link
               href={`/merit/students/${studentId}/print?track=${track}${year ? `&year=${year}` : ""}`}
-              className="inline-flex h-9 items-center rounded-btn border border-line-strong bg-surface px-4 text-sm font-medium text-ink transition-colors hover:bg-soft"
+              className={buttonClass({ variant: "secondary" })}
             >
               확인서
             </Link>

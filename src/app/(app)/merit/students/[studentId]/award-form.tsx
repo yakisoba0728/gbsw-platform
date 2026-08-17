@@ -4,6 +4,7 @@ import { useActionState, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
+import { SectionCard } from "@/components/ui/section-card";
 import { RulePicker, type RuleOption } from "@/components/merit/rule-picker";
 import { EMPTY_MERIT_STATE } from "@/app/(app)/merit/action-state";
 import { awardAction } from "@/app/(app)/merit/actions";
@@ -25,19 +26,22 @@ export function AwardForm({
   const [rule, setRule] = useState<RuleOption | null>(null);
 
   return (
-    <section className="rounded-card border border-line bg-surface p-5">
-      <h2 className="mb-3.5 text-lg font-semibold text-ink">상벌점 부여</h2>
-
+    <SectionCard
+      variant="panel"
+      title="상벌점 부여"
+      headingLevel={3}
+      className="@container"
+    >
       {/* 항목 고르기는 한 줄을 통째로 쓴다 — 검색 목록이 아래로 펼쳐진다. */}
       <form action={formAction} className="space-y-2.5">
         <input type="hidden" name="studentProfileId" value={studentProfileId} />
 
         <RulePicker rules={rules} onChange={setRule} />
 
-        <div className="flex flex-wrap items-end gap-2.5">
+        <div className="flex flex-col gap-2.5 @md:flex-row @md:flex-wrap @md:items-end">
           {/* 발생일은 고칠 수 있어야 한다 — 금요일 일을 월요일에 넣는다.
               max로 미래를 막고, 학년도 창 검사는 서버가 한다. */}
-          <div className="w-[150px]">
+          <div className="@md:w-[150px]">
             <Label htmlFor={`${fieldId}-occurred`}>발생일</Label>
             <Input
               id={`${fieldId}-occurred`}
@@ -49,11 +53,15 @@ export function AwardForm({
             />
           </div>
 
-          <div className="min-w-[160px] flex-1">
+          <div className="@md:min-w-[160px] @md:flex-1">
             <Input name="note" placeholder="메모 (선택)" aria-label="메모" />
           </div>
 
-          <Button type="submit" disabled={pending || rules.length === 0 || !rule}>
+          <Button
+            type="submit"
+            className="w-full @md:w-auto"
+            disabled={pending || rules.length === 0 || !rule}
+          >
             {pending ? "부여하는 중…" : "부여"}
           </Button>
         </div>
@@ -74,6 +82,6 @@ export function AwardForm({
           부여했습니다.
         </Note>
       )}
-    </section>
+    </SectionCard>
   );
 }

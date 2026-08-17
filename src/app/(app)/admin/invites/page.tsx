@@ -112,9 +112,12 @@ export default async function InvitesPage() {
   });
 
   return (
-    <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[360px_1fr]">
-      <InviteForm students={options} />
-      <InviteTable rows={invites.map(toRow)} />
+    // 두 단이 서는 기준은 뷰포트가 아니라 이 자리의 폭이다.
+    <div className="@container mx-auto max-w-7xl">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 @2xl:grid-cols-[360px_1fr]">
+        <InviteForm students={options} />
+        <InviteTable rows={invites.map(toRow)} />
+      </div>
     </div>
   );
 }

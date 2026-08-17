@@ -1,14 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { requirePermission } from "@/core/auth/session";
-import { ChevronLeftIcon } from "@/components/icons";
-import { Badge } from "@/components/ui/badge";
-import { EmptyState } from "@/components/ui/empty-state";
+import { BackLink } from "@/components/ui/back-link";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { SearchForm } from "@/components/ui/search-form";
-import { TableFrame } from "@/components/ui/table";
-import { EnrollmentTag } from "@/components/merit/enrollment-tag";
-import { formatDate } from "@/lib/datetime";
+import { StudentSearchResults } from "@/components/merit/student-search-results";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import { searchStudents } from "@/modules/merit/award.service";
 
@@ -43,13 +38,7 @@ export default async function RemovedStudentSearchPage({
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
-      <Link
-        href="/merit"
-        className="inline-flex items-center gap-1 text-caption font-medium text-mut transition-colors hover:text-ink"
-      >
-        <ChevronLeftIcon size={15} />
-        상벌점
-      </Link>
+      <BackLink href="/merit">상벌점</BackLink>
 
       <div>
         {/* 제목은 h2부터 — h1은 상단바가 (app) 모든 화면에 이미 그린다. */}
@@ -69,65 +58,13 @@ export default async function RemovedStudentSearchPage({
 
       {noCurrentYear && <NoAcademicYearNotice />}
 
-      {q && !noCurrentYear && <Results rows={results} />}
+      {q && !noCurrentYear && (
+        <StudentSearchResults
+          rows={results}
+          hrefFor={(row) => `/merit/students/${row.studentProfileId}`}
+          headingLevel={3}
+        />
+      )}
     </div>
-  );
-}
-
-/**
- * 열: 이름 · 학생코드 · 학급 — 상벌점 화면의 검색 결과와 같은 구성이다.
- * 제외일은 학급 칸에 적는다. 빠진 학생은 그 칸이 언제나 비어 있어서다.
- */
-function Results({ rows }: { rows: Awaited<ReturnType<typeof searchStudents>> }) {
-  if (rows.length === 0) {
-    return <EmptyState>검색 결과가 없습니다.</EmptyState>;
-  }
-
-  return (
-    <section className="rounded-card border border-line bg-surface">
-      <TableFrame
-        minWidth={460}
-        cols={[undefined, "w-[140px]", "w-[168px]"]}
-        headers={["이름", "학생코드", "학급"]}
-      >
-        <tbody>
-          {rows.map((row) => (
-            <tr
-              key={row.studentProfileId}
-              className="border-b border-line2 last:border-0"
-            >
-              <td className="p-0">
-                <Link
-                  href={`/merit/students/${row.studentProfileId}`}
-                  className="flex flex-wrap items-center gap-2 px-5 py-2.5 font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
-                >
-                  {row.name}
-                  {/* 사용자 상세와 같은 배지·같은 문구를 쓴다 — 같은 사실이다. */}
-                  {row.removedAt && <Badge tone="rejected">삭제됨</Badge>}
-                </Link>
-              </td>
-              <td className="px-3 py-2.5 font-mono text-xs text-mut">
-                {row.studentCode}
-              </td>
-              <td className="px-5 py-2.5 text-mut">
-                {row.removedAt ? (
-                  <span className="font-mono whitespace-nowrap">
-                    {formatDate(row.removedAt)} 명단 제외
-                  </span>
-                ) : (
-                  <span className="inline-flex flex-wrap items-center gap-1.5">
-                    {row.grade !== null && row.classNo !== null && row.number !== null
-                      ? `${row.grade}학년 ${row.classNo}반 ${row.number}번`
-                      : "—"}
-                    {/* 졸업·자퇴는 명단에 남아 있는 상태다 — 삭제와 다르다. */}
-                    <EnrollmentTag status={row.status} />
-                  </span>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </TableFrame>
-    </section>
   );
 }

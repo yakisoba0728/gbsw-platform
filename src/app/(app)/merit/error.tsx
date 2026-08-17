@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { Button, buttonClass } from "@/components/ui/button";
 
 /**
  * 상벌점 화면이 던졌을 때의 안내. 이 파일이 없으면 앱 셸까지 사라진다.
@@ -34,10 +34,7 @@ export default function MeritError({
         <Button type="button" onClick={retry}>
           다시 시도
         </Button>
-        <Link
-          href="/"
-          className="inline-flex h-9 items-center justify-center rounded-btn border border-line-strong bg-surface px-4 text-sm font-medium text-ink transition-colors hover:bg-soft"
-        >
+        <Link href="/" className={buttonClass({ variant: "secondary" })}>
           대시보드
         </Link>
       </div>

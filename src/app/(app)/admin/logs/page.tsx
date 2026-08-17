@@ -6,7 +6,7 @@ import { isRole, ROLE_LABELS } from "@/core/authz/roles";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionCard } from "@/components/ui/section-card";
-import { TableFrame, tableCellPadding } from "@/components/ui/table";
+import { DataTable, type Column } from "@/components/ui/table";
 import { hrefWith } from "@/lib/search-params";
 import {
   auditActionLabel,
@@ -20,10 +20,76 @@ import { LogFilters } from "./log-filters";
 
 export const metadata: Metadata = { title: "감사로그" };
 
-const HEADERS = ["시각", "행위자", "동작", "대상", "접속", "상세"] as const;
+type LogEntry = Awaited<ReturnType<typeof readAuditLog>>["entries"][number];
 
-/** 본문 셀의 좌우 여백. 머리글과 같은 규칙을 써야 세로줄이 맞는다. */
-const cell = (index: number) => `${tableCellPadding(index, HEADERS.length)} py-3`;
+/**
+ * `fixed`가 상세 열을 지킨다 — auto 배치에서는 시각 열이 남는 폭을 먼저 가져가
+ * 상세가 164→120px로 줄었다. 대신 시각은 접혀야 한다 (nowrap이면 옆 열을 덮는다).
+ */
+const COLUMNS: readonly Column<LogEntry>[] = [
+  {
+    key: "createdAt",
+    header: "시각",
+    width: "w-[188px]",
+    cell: (entry) => (
+      <span className="font-mono text-mut">{formatDateTime(entry.createdAt)}</span>
+    ),
+  },
+  {
+    key: "actor",
+    header: "행위자",
+    width: "w-[148px]",
+    cell: (entry) => (
+      <>
+        <span className="block truncate text-ink">{entry.actorName}</span>
+        <span className="block truncate text-xs text-mut">
+          {entry.actor
+            ? isRole(entry.actor.role)
+              ? ROLE_LABELS[entry.actor.role]
+              : entry.actor.email
+            : "삭제된 계정"}
+        </span>
+      </>
+    ),
+  },
+  {
+    key: "action",
+    header: "동작",
+    width: "w-[132px]",
+    cell: (entry) => (
+      <Badge tone={auditActionTone(entry.action)}>
+        {auditActionLabel(entry.action)}
+      </Badge>
+    ),
+  },
+  {
+    key: "target",
+    header: "대상",
+    width: "w-[76px]",
+    cell: (entry) => (
+      <span className="text-mut">{auditTargetLabel(entry.targetType)}</span>
+    ),
+  },
+  {
+    key: "ip",
+    header: "접속",
+    width: "w-[132px]",
+    cell: (entry) => (
+      <span className="font-mono text-mut" title={entry.userAgent ?? undefined}>
+        {entry.ip ?? "—"}
+      </span>
+    ),
+  },
+  {
+    key: "metadata",
+    header: "상세",
+    cell: (entry) => (
+      <span className="block text-xs break-words text-mut">
+        {formatAuditMetadata(entry.action, entry.metadata) ?? "—"}
+      </span>
+    ),
+  },
+];
 
 export default async function LogsPage({
   searchParams,
@@ -60,61 +126,18 @@ export default async function LogsPage({
       {entries.length === 0 ? (
         <EmptyState variant="inside">조건에 맞는 기록이 없습니다.</EmptyState>
       ) : (
-        // 시각 열은 nowrap이라 좁으면 옆 열을 덮는다. 상세가 남는 폭을 가져간다.
-        <TableFrame
+        <DataTable
           minWidth={840}
           fixed
-          cols={[
-            "w-[188px]",
-            "w-[148px]",
-            "w-[132px]",
-            "w-[76px]",
-            "w-[132px]",
-            undefined,
-          ]}
-          headers={HEADERS}
-        >
-          <tbody>
-            {entries.map((entry) => (
-              <tr key={entry.id} className="border-b border-line2 last:border-0">
-                <td className={`${cell(0)} font-mono whitespace-nowrap text-mut`}>
-                  {formatDateTime(entry.createdAt)}
-                </td>
-                <td className={cell(1)}>
-                  <span className="block truncate text-ink">{entry.actorName}</span>
-                  <span className="block truncate text-xs text-mut">
-                    {entry.actor
-                      ? isRole(entry.actor.role)
-                        ? ROLE_LABELS[entry.actor.role]
-                        : entry.actor.email
-                      : "삭제된 계정"}
-                  </span>
-                </td>
-                <td className={cell(2)}>
-                  <Badge tone={auditActionTone(entry.action)}>
-                    {auditActionLabel(entry.action)}
-                  </Badge>
-                </td>
-                <td className={`${cell(3)} text-mut`}>
-                  {auditTargetLabel(entry.targetType)}
-                </td>
-                <td
-                  className={`${cell(4)} font-mono text-mut`}
-                  title={entry.userAgent ?? undefined}
-                >
-                  {entry.ip ?? "—"}
-                </td>
-                <td className={`${cell(5)} text-xs break-words text-mut`}>
-                  {formatAuditMetadata(entry.action, entry.metadata) ?? "—"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </TableFrame>
+          rows={entries}
+          rowKey={(entry) => entry.id}
+          columns={COLUMNS}
+        />
       )}
 
       {pageCount > 1 && (
-        <nav className="flex items-center justify-between border-t border-line px-5 py-3.5 text-caption">
+        // px-3 + 링크의 px-2 = 표의 px-5. 링크가 자기 터치 영역을 갖는다.
+        <nav className="flex items-center justify-between border-t border-line px-3 py-1.5 text-caption">
           <PageLink page={page - 1} disabled={page <= 1} params={raw}>
             이전
           </PageLink>
@@ -141,14 +164,17 @@ function PageLink({
   params: Record<string, string | string[] | undefined>;
   children: React.ReactNode;
 }) {
+  // 손가락으로 누르는 자리라 글자만큼이 아니라 36px을 차지한다.
+  const box = "inline-flex min-h-9 items-center px-2";
+
   if (disabled) {
-    return <span className="text-mut2">{children}</span>;
+    return <span className={`${box} text-mut2`}>{children}</span>;
   }
 
   return (
     <Link
       href={hrefWith("/admin/logs", params, { page: String(page) })}
-      className="font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
+      className={`${box} font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink`}
     >
       {children}
     </Link>

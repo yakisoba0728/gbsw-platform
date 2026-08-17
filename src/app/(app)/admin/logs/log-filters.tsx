@@ -1,9 +1,8 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { SearchForm } from "@/components/ui/search-form";
 import { auditActionLabel } from "@/modules/audit-log/audit-log.labels";
 import { AUDIT_PERIODS, type AuditPeriod } from "@/modules/audit-log/audit-log.schema";
 
@@ -29,7 +28,6 @@ export function LogFilters({
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  const [actorInput, setActorInput] = useState(actor);
 
   function apply(next: Record<string, string>) {
     const query = new URLSearchParams(params.toString());
@@ -81,23 +79,16 @@ export function LogFilters({
         ))}
       </div>
 
-      <form
+      {/* 검색은 GET으로 보낸다 — 지금 고른 기간·동작은 hidden으로 함께 실어야
+          검색과 동시에 필터가 풀리지 않는다. */}
+      <SearchForm
+        name="actor"
+        defaultValue={actor}
+        placeholder="행위자 이름 · 이메일"
+        ariaLabel="행위자 이름 · 이메일 검색"
+        hidden={{ period, action: action || null }}
         className="mt-2.5 flex gap-2"
-        action={() => apply({ actor: actorInput })}
-      >
-        <Input
-          dense
-          name="actor"
-          value={actorInput}
-          onChange={(e) => setActorInput(e.currentTarget.value)}
-          aria-label="행위자 이름 · 이메일 검색"
-          placeholder="행위자 이름 · 이메일"
-          className="min-w-0 flex-1"
-        />
-        <Button type="submit" variant="secondary" size="sm" className="shrink-0">
-          검색
-        </Button>
-      </form>
+      />
     </>
   );
 }

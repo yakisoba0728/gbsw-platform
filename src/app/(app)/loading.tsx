@@ -7,11 +7,14 @@ import { Skeleton, SkeletonScreen } from "@/components/ui/skeleton";
 export default function Loading() {
   return (
     <SkeletonScreen>
-      <Skeleton className="h-[104px]" />
+      <Skeleton className="h-[116px]" />
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        <Skeleton className="h-[176px]" />
-        <Skeleton className="h-[176px]" />
+      {/* 화면과 같은 컨테이너 질의를 써야 내용이 도착할 때 단이 안 바뀐다. */}
+      <div className="@container">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 @2xl:grid-cols-2">
+          <Skeleton className="h-[176px]" />
+          <Skeleton className="h-[176px]" />
+        </div>
       </div>
 
       <Skeleton className="h-[220px]" />

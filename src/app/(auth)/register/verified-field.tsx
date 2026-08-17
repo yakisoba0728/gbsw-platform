@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { MaskedInput } from "@/components/ui/masked-input";
+import { Note } from "@/components/ui/note";
 import { formatVerificationCode } from "@/lib/masks";
 import {
   confirmVerificationAction,
@@ -127,8 +129,8 @@ export function VerifiedField({
         )}
 
         {verified ? (
-          <span className="flex shrink-0 items-center rounded-btn border border-green-line bg-green-soft px-3 text-xs font-medium text-green">
-            확인됨
+          <span className="flex shrink-0 items-center">
+            <Badge tone="approved">확인됨</Badge>
           </span>
         ) : (
           <Button
@@ -157,7 +159,9 @@ export function VerifiedField({
             onValueChange={setCode}
             className="min-w-0 flex-1 font-mono"
           />
+          {/* 이 화면의 초록은 가입 버튼 하나다. */}
           <Button
+            variant="secondary"
             size="sm"
             onClick={confirm}
             disabled={pending || code.length !== 6}
@@ -175,9 +179,9 @@ export function VerifiedField({
       )}
 
       {error && (
-        <p role="alert" className="mt-1.5 text-xs font-medium text-rose">
+        <Note tone="error" className="mt-1.5">
           {error}
-        </p>
+        </Note>
       )}
     </div>
   );

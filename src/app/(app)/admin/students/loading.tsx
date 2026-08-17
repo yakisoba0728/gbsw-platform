@@ -3,7 +3,7 @@ import { Skeleton, SkeletonScreen } from "@/components/ui/skeleton";
 /** `/admin/students`의 뼈대 — 명단 반영 링크 · 학년도 카드 · 학생 표. */
 export default function Loading() {
   return (
-    <SkeletonScreen className="grid gap-5">
+    <SkeletonScreen className="flex flex-col gap-4">
       <div className="flex justify-end">
         <Skeleton className="h-4 w-24 rounded-btn" />
       </div>

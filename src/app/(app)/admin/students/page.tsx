@@ -41,7 +41,8 @@ export default async function StudentsPage() {
   const currentYear = years.find((y) => y.isCurrent)?.year;
 
   return (
-    <div className="grid gap-5">
+    // grid로 두면 암시적 열이 max-content라 표의 minWidth가 페이지를 밀어낸다.
+    <div className="flex flex-col gap-4">
       <div className="flex justify-end">
         <Link
           href="/admin/students/import"

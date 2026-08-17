@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
+import { SectionCard } from "@/components/ui/section-card";
 import { TableFrame, tableCellPadding } from "@/components/ui/table";
 import { KindBadge, kindColorClass } from "@/components/merit/kind-badge";
 import { MERIT_KIND_LABELS, meritKindSign, type MeritKind } from "@/core/authz/merit-track";
@@ -55,7 +56,7 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
   }
 
   return (
-    <section className="rounded-card border border-line bg-surface">
+    <SectionCard flush title="규정 목록" aside={<span className="text-xs text-mut">{rules.length}개</span>}>
       <form id="rule-edit-form" action={updateAction} className="hidden" />
       <form id="rule-delete-form" action={deleteAction} className="hidden" />
 
@@ -150,7 +151,14 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
                         value={rule.description ?? ""}
                         form="rule-edit-form"
                       />
-                      <Button type="submit" form="rule-edit-form" size="sm" disabled={updating}>
+                      {/* 이 화면을 연 목적은 규정 추가다 — 인라인 편집의 저장은 취소와 짝이다. */}
+                      <Button
+                        type="submit"
+                        form="rule-edit-form"
+                        variant="secondary"
+                        size="sm"
+                        disabled={updating}
+                      >
                         {updating ? "저장 중…" : "저장"}
                       </Button>
                       <Button
@@ -179,6 +187,7 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
                         value={rule.id}
                         variant="danger"
                         size="sm"
+                        // ConfirmDialog는 사유 입력이 필수인데 삭제 액션은 사유를 받지 않는다.
                         onClick={(e) => {
                           if (
                             !confirm(
@@ -202,6 +211,6 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
           })}
         </tbody>
       </TableFrame>
-    </section>
+    </SectionCard>
   );
 }

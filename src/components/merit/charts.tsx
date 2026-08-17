@@ -27,7 +27,8 @@ function ChartCard({
   children: React.ReactNode;
 }) {
   return (
-    <SectionCard title={title} hint={hint}>
+    // 통계 화면은 페이지 <h2> 아래에 카드를 늘어놓는다 — 카드 제목은 h3다.
+    <SectionCard title={title} hint={hint} headingLevel={3}>
       {children}
     </SectionCard>
   );
@@ -81,7 +82,9 @@ export function MonthlyChart({
       {!hasData ? (
         <Empty>부여된 상벌점이 없습니다.</Empty>
       ) : (
-        <div className="flex items-stretch gap-1 overflow-x-auto pt-14">
+        // 위 여백은 말풍선 자리다. 터치 기기에는 hover가 없어 좁은 폭에서는 빈 칸이다.
+        <div className="@container">
+          <div className="flex items-stretch gap-1 overflow-x-auto pt-4 @md:pt-14">
           {points.map((point, i) => {
             const empty = !point.merit && !point.demerit && !point.offset;
             return (
@@ -143,6 +146,7 @@ export function MonthlyChart({
               </div>
             );
           })}
+          </div>
         </div>
       )}
       <Legend

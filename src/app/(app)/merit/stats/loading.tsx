@@ -13,6 +13,9 @@ import {
 export default function Loading() {
   return (
     <SkeletonScreen>
+      {/* 페이지 제목 */}
+      <Skeleton className="h-7 w-40 rounded-btn" />
+
       <SkeletonTabs />
 
       {/* "2026학년도 집계 · 반 편성 2026학년도" 한 줄 */}

@@ -1,3 +1,4 @@
+import { StatTile } from "@/components/ui/stat-tile";
 import { signedNet } from "@/core/authz/merit-track";
 import type { MeritTotals } from "@/modules/merit/award.service";
 
@@ -18,34 +19,17 @@ export function MeritTotalsCards({ totals }: { totals: MeritTotals }) {
             : "grid grid-cols-3 gap-3"
         }
       >
-        <Card label="상점" value={String(totals.merit)} className="text-blue" />
-        <Card label="벌점" value={String(totals.demerit)} className="text-rose" />
+        <StatTile label="상점" value={totals.merit} valueClassName="text-blue" />
+        <StatTile label="벌점" value={totals.demerit} valueClassName="text-rose" />
         {showOffset && (
-          <Card label="상쇄점" value={String(totals.offset)} className="text-green" />
+          <StatTile label="상쇄점" value={totals.offset} valueClassName="text-green" />
         )}
-        <Card
+        <StatTile
           label="순점수"
           value={signedNet(totals.net)}
-          className={totals.net >= 0 ? "text-green" : "text-rose"}
+          valueClassName={totals.net >= 0 ? "text-green" : "text-rose"}
         />
       </div>
-    </div>
-  );
-}
-
-function Card({
-  label,
-  value,
-  className,
-}: {
-  label: string;
-  value: string;
-  className: string;
-}) {
-  return (
-    <div className="rounded-card border border-line bg-surface px-4 py-3.5">
-      <div className="text-xs font-medium text-mut">{label}</div>
-      <div className={`mt-1 text-title font-semibold ${className}`}>{value}</div>
     </div>
   );
 }

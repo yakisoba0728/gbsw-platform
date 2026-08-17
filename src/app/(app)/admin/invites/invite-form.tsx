@@ -4,6 +4,8 @@ import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
+import { SectionCard } from "@/components/ui/section-card";
+import { SecretPanel } from "@/components/ui/secret-panel";
 import { Select } from "@/components/ui/select";
 import { INVITE_FORM_INITIAL, type InviteFormState } from "./action-state";
 import {
@@ -24,13 +26,12 @@ export function InviteForm({ students }: { students: StudentOption[] }) {
   const [target, setTarget] = useState<Target>("STUDENT");
 
   return (
-    <section className="rounded-card border border-line bg-surface p-5 lg:p-6">
-      <h2 className="text-lg font-semibold text-ink">초대코드 발급</h2>
-      <p className="mt-1 text-caption text-mut">
-        학부모 코드는 학생 본인도 만들 수 있습니다.
-      </p>
-
-      <div className="mt-4 mb-5 flex gap-1.5">
+    <SectionCard
+      variant="panel"
+      title="초대코드 발급"
+      hint="학부모 코드는 학생 본인도 만들 수 있습니다."
+    >
+      <div className="mb-5 flex gap-1.5">
         <Button
           variant="chip"
           size="sm"
@@ -60,7 +61,7 @@ export function InviteForm({ students }: { students: StudentOption[] }) {
       {target === "STUDENT" && <StudentForm />}
       {target === "ADMIN" && <AdminForm />}
       {target === "PARENT" && <ParentForm students={students} />}
-    </section>
+    </SectionCard>
   );
 }
 
@@ -131,12 +132,7 @@ function Result({ state }: { state: InviteFormState }) {
   if (!state.code) return null;
 
   return (
-    <div className="mt-4 rounded-btn border border-pri-line bg-pri-soft px-4 py-3">
-      <p className="text-xs font-medium text-pri-ink">발급된 초대코드</p>
-      <p className="mt-1 font-mono text-title font-semibold text-ink">
-        {state.code}
-      </p>
-    </div>
+    <SecretPanel label="발급된 초대코드" value={state.code} className="mt-4" />
   );
 }
 

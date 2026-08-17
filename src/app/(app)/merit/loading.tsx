@@ -20,8 +20,9 @@ export default function Loading() {
         <Skeleton className="h-[42px] w-[72px] rounded-btn" />
       </div>
 
-      {/* 학년·반 칩 카드 */}
-      <div className="rounded-card border border-line bg-surface p-4">
+      {/* 반 고르기 카드 — 제목 + 학년·반 칩 */}
+      <div className="rounded-card border border-line bg-surface p-5">
+        <Skeleton className="mb-4 h-5 w-20 rounded-btn" />
         <div className="flex flex-wrap gap-1.5">
           {Array.from({ length: 4 }, (_, i) => (
             <Skeleton key={i} className="h-[30px] w-[68px] rounded-full" />

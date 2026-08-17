@@ -2,7 +2,7 @@ import type { ComponentProps } from "react";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionCard } from "@/components/ui/section-card";
-import { TableFrame, tableCellPadding } from "@/components/ui/table";
+import { DataTable, type Column } from "@/components/ui/table";
 import { CancelButton } from "@/components/merit/cancel-button";
 import { KindBadge, kindColorClass, signedPoints } from "@/components/merit/kind-badge";
 import { formatDate, isSameKstDate } from "@/lib/datetime";
@@ -14,7 +14,7 @@ type AwardRow = StudentMeritView["awards"][number];
 type CancelProps = ComponentProps<typeof CancelButton>;
 
 /**
- * 부여 내역 표. 관리자 화면(취소 가능)과 학생·학부모 화면(조회만)이 공유하며,
+ * 부여 내역. 관리자 화면(취소 가능)과 학생·학부모 화면(조회만)이 공유하며,
  * 취소 가능 여부는 액션의 유무로 판단한다. 날짜 칸은 발생일이고, 입력일이 다른
  * 날이면 함께 적는다 — 나중에 날짜를 다툴 때 화면이 줄 수 있는 유일한 근거다.
  */
@@ -36,102 +36,122 @@ export function AwardHistory({
     return <EmptyState>내역이 없습니다.</EmptyState>;
   }
 
-  // 취소 열이 있고 없고에 따라 마지막 열이 달라진다 — 첫·끝 열만 px-5인
-  // 규칙(tableCellPadding)이 그 자리를 보고 정해지므로 열 수를 세어 둔다.
-  const columns = canCancel ? 7 : 6;
+  const columns: Column<AwardRow>[] = [
+    {
+      key: "occurredOn",
+      header: "발생일",
+      width: "w-[112px]",
+      // 카드에서는 라벨이 없다 — 날짜 모양 자체가 무슨 값인지 말한다.
+      card: "meta",
+      cardLabel: false,
+      cell: (award) => (
+        <span className="font-mono whitespace-nowrap text-mut">
+          {formatDate(award.occurredOn)}
+          {!isSameKstDate(award.occurredOn, award.createdAt) && (
+            <span className="block text-xs text-mut2">
+              입력 {formatDate(award.createdAt)}
+            </span>
+          )}
+        </span>
+      ),
+    },
+    {
+      // 카드에서는 빠진다 — 점수의 부호와 색이 이미 상점·벌점을 말한다.
+      key: "kind",
+      header: "구분",
+      width: "w-[68px]",
+      cell: (award) => <KindBadge kind={award.kind} />,
+    },
+    {
+      key: "label",
+      header: "항목",
+      card: "title",
+      cell: (award) => {
+        const cancelled = award.status === "CANCELLED";
+        return (
+          <>
+            <span
+              className={cancelled ? "text-mut line-through" : "font-medium text-ink"}
+            >
+              {award.label}
+            </span>
+            {award.note && <span className="block text-xs text-mut">{award.note}</span>}
+            {/* "관리자면 누구나 취소할 수 있다"의 근거가 이 흔적이다 — 화면에 낸다. */}
+            {cancelled && (
+              <span className="block text-xs text-rose">
+                취소
+                {award.cancelledByName ? ` · ${award.cancelledByName}` : ""}
+                {award.cancelledAt ? ` · ${formatDate(award.cancelledAt)}` : ""}
+                {award.cancelReason ? ` · ${award.cancelReason}` : ""}
+              </span>
+            )}
+          </>
+        );
+      },
+    },
+    {
+      key: "points",
+      header: "점수",
+      width: "w-[64px]",
+      card: "trailing",
+      cell: (award) => (
+        <span
+          className={`font-medium ${
+            award.status === "CANCELLED" ? "text-mut" : kindColorClass(award.kind)
+          }`}
+        >
+          {signedPoints(award.kind, award.points)}
+        </span>
+      ),
+    },
+    {
+      key: "awardedBy",
+      header: "부여",
+      width: "w-[88px]",
+      card: "meta",
+      cell: (award) => <span className="text-mut">{award.awardedByName}</span>,
+    },
+    {
+      // 카드에서는 빠진다 — 취소선과 항목 아래 취소 줄이 같은 사실을 이미 적는다.
+      key: "status",
+      header: "상태",
+      width: canCancel ? "w-[76px]" : "w-[92px]",
+      cell: (award) =>
+        award.status === "CANCELLED" ? (
+          <Badge tone="cancelled">취소</Badge>
+        ) : (
+          <Badge tone="approved">반영</Badge>
+        ),
+    },
+  ];
+
+  if (cancelAction !== undefined && initialState !== undefined) {
+    columns.push({
+      key: "actions",
+      header: "작업",
+      width: "w-[104px]",
+      card: "actions",
+      cell: (award) =>
+        award.status === "CANCELLED" ? null : (
+          <CancelButton
+            awardId={award.id}
+            studentProfileId={studentProfileId}
+            cancelAction={cancelAction}
+            initialState={initialState}
+          />
+        ),
+    });
+  }
 
   return (
-    <SectionCard title="부여 내역" flush>
-      <TableFrame
+    <SectionCard title="부여 내역" headingLevel={3} flush>
+      <DataTable
         minWidth={canCancel ? 604 : 560}
-        cols={[
-          "w-[112px]",
-          "w-[68px]",
-          undefined,
-          "w-[64px]",
-          "w-[88px]",
-          canCancel ? "w-[76px]" : "w-[92px]",
-          ...(canCancel ? (["w-[104px]"] as const) : []),
-        ]}
-        headers={[
-          "발생일",
-          "구분",
-          "항목",
-          "점수",
-          "부여",
-          "상태",
-          ...(canCancel ? (["작업"] as const) : []),
-        ]}
-      >
-        <tbody>
-          {awards.map((award) => {
-            const cancelled = award.status === "CANCELLED";
-            return (
-              <tr key={award.id} className="border-b border-line2 last:border-0">
-                <td className="px-5 py-2.5 font-mono whitespace-nowrap text-mut">
-                  {formatDate(award.occurredOn)}
-                  {!isSameKstDate(award.occurredOn, award.createdAt) && (
-                    <span className="block text-xs text-mut2">
-                      입력 {formatDate(award.createdAt)}
-                    </span>
-                  )}
-                </td>
-                <td className="px-3 py-2.5">
-                  <KindBadge kind={award.kind} />
-                </td>
-                <td className="px-3 py-2.5">
-                  <span
-                    className={
-                      cancelled ? "text-mut line-through" : "font-medium text-ink"
-                    }
-                  >
-                    {award.label}
-                  </span>
-                  {award.note && (
-                    <span className="block text-xs text-mut">{award.note}</span>
-                  )}
-                  {/* "관리자면 누구나 취소할 수 있다"의 근거가 이 흔적이다 — 화면에 낸다. */}
-                  {cancelled && (
-                    <span className="block text-xs text-rose">
-                      취소
-                      {award.cancelledByName ? ` · ${award.cancelledByName}` : ""}
-                      {award.cancelledAt ? ` · ${formatDate(award.cancelledAt)}` : ""}
-                      {award.cancelReason ? ` · ${award.cancelReason}` : ""}
-                    </span>
-                  )}
-                </td>
-                <td
-                  className={`px-3 py-2.5 font-medium ${
-                    cancelled ? "text-mut" : kindColorClass(award.kind)
-                  }`}
-                >
-                  {signedPoints(award.kind, award.points)}
-                </td>
-                <td className="px-3 py-2.5 text-mut">{award.awardedByName}</td>
-                <td className={`${tableCellPadding(5, columns)} py-2.5`}>
-                  {cancelled ? (
-                    <Badge tone="cancelled">취소</Badge>
-                  ) : (
-                    <Badge tone="approved">반영</Badge>
-                  )}
-                </td>
-                {cancelAction !== undefined && initialState !== undefined && (
-                  <td className="px-5 py-2.5">
-                    {!cancelled && (
-                      <CancelButton
-                        awardId={award.id}
-                        studentProfileId={studentProfileId}
-                        cancelAction={cancelAction}
-                        initialState={initialState}
-                      />
-                    )}
-                  </td>
-                )}
-              </tr>
-            );
-          })}
-        </tbody>
-      </TableFrame>
+        narrow="cards"
+        rows={awards}
+        rowKey={(award) => award.id}
+        columns={columns}
+      />
     </SectionCard>
   );
 }

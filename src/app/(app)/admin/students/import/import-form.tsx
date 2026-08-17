@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
 import { SectionCard } from "@/components/ui/section-card";
-import { TableFrame, tableCellPadding } from "@/components/ui/table";
+import { DataTable, type Column } from "@/components/ui/table";
 import {
   ENROLLMENT_STATUS_LABELS,
   type EnrollmentStatus,
@@ -153,24 +153,19 @@ function UploadCard({
   }
 
   return (
-    <section className="rounded-card border border-line bg-surface p-5">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-semibold text-ink">명단 반영</h2>
-          <p className="mt-1 text-caption text-mut">
-            파일이 곧 전교생 완성본입니다. 줄을 지우면 그 학생이 명단에서 빠집니다.
-          </p>
-          <p className="mt-1 text-caption font-medium text-rose">
-            학생코드 열은 학생을 알아보는 유일한 기준입니다. 비우면 같은 학생도 새
-            학생으로 등록됩니다.
-          </p>
-          <p className="mt-1 text-caption text-mut">
-            이름·생년월일은 대조용이라 여기서 고쳐도 반영되지 않습니다.
-          </p>
-        </div>
-
+    <SectionCard
+      variant="panel"
+      title="명단 반영"
+      hint="파일이 곧 전교생 완성본입니다. 줄을 지우면 그 학생이 명단에서 빠집니다."
+      aside={
         <div className="flex shrink-0 flex-col items-end gap-1.5">
-          <Button type="button" size="sm" onClick={downloadRoster} disabled={exporting}>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={downloadRoster}
+            disabled={exporting}
+          >
             {exporting ? "내보내는 중…" : "전체 명단 내보내기"}
           </Button>
           <Button
@@ -184,7 +179,15 @@ function UploadCard({
             빈 서식 내보내기
           </Button>
         </div>
-      </div>
+      }
+    >
+      <p className="text-caption font-medium text-rose">
+        학생코드 열은 학생을 알아보는 유일한 기준입니다. 비우면 같은 학생도 새
+        학생으로 등록됩니다.
+      </p>
+      <p className="mt-1 text-caption text-mut">
+        이름·생년월일은 대조용이라 여기서 고쳐도 반영되지 않습니다.
+      </p>
 
       {exportError && (
         <Note tone="error" className="mt-3">
@@ -201,7 +204,8 @@ function UploadCard({
           aria-label="명단 파일"
           className="flex-1 text-sm text-ink file:mr-3 file:rounded-btn file:border file:border-line file:bg-soft file:px-3.5 file:py-2 file:text-caption file:font-medium file:text-ink"
         />
-        <Button type="submit" size="sm" disabled={pending}>
+        {/* 이 화면을 연 목적은 확정이다 — 여기까지는 전부 그 앞의 단계다. */}
+        <Button type="submit" variant="secondary" size="sm" disabled={pending}>
           {pending ? "읽는 중…" : "미리보기"}
         </Button>
       </form>
@@ -211,7 +215,7 @@ function UploadCard({
           {state.error}
         </Note>
       )}
-    </section>
+    </SectionCard>
   );
 }
 
@@ -258,7 +262,7 @@ function PreviewCard({
       {deleteCount > 0 && (
         <div className="border-b border-amber-line bg-amber-soft px-5 py-4">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="text-sm font-semibold text-amber-ink">
+            <h3 className="text-lg font-semibold text-amber-ink">
               명단에서 빠지는 학생
             </h3>
             <Badge tone="pending" dot={false}>
@@ -478,13 +482,7 @@ function InvitesResult({
   invites,
   year,
 }: {
-  invites: {
-    name: string;
-    code: string;
-    grade: number | null;
-    classNo: number | null;
-    number: number | null;
-  }[];
+  invites: IssuedInvite[];
   year: number;
 }) {
   return (
@@ -493,7 +491,7 @@ function InvitesResult({
     <div className="border-t border-line py-4">
       <div className="px-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-sm font-semibold text-ink">발급된 초대코드</h3>
+          <h3 className="text-lg font-semibold text-ink">발급된 초대코드</h3>
           <Button
             type="button"
             variant="secondary"
@@ -517,30 +515,46 @@ function InvitesResult({
         </p>
       </div>
 
-      <TableFrame minWidth={520} headers={INVITE_HEADERS} className="mt-3">
-        <tbody>
-          {invites.map((invite) => (
-            <tr key={invite.code} className="border-b border-line2 last:border-0">
-              <td className={`${inviteCell(0)} font-medium text-ink`}>
-                {invite.name}
-              </td>
-              <td className={`${inviteCell(1)} text-mut`}>{seatLabel(invite)}</td>
-              <td className={`${inviteCell(2)} font-mono text-caption text-ink`}>
-                {formatInviteCode(invite.code)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </TableFrame>
+      <DataTable
+        minWidth={520}
+        rows={invites}
+        rowKey={(invite) => invite.code}
+        columns={INVITE_COLUMNS}
+        className="mt-3"
+      />
     </div>
   );
 }
 
-const INVITE_HEADERS = ["이름", "소속", "초대코드"] as const;
+type IssuedInvite = {
+  name: string;
+  code: string;
+  grade: number | null;
+  classNo: number | null;
+  number: number | null;
+};
 
-/** 본문 셀의 좌우 여백. 머리글과 같은 규칙을 써야 세로줄이 맞는다. */
-const inviteCell = (index: number) =>
-  `${tableCellPadding(index, INVITE_HEADERS.length)} py-2`;
+const INVITE_COLUMNS: readonly Column<IssuedInvite>[] = [
+  {
+    key: "name",
+    header: "이름",
+    cell: (invite) => <span className="font-medium text-ink">{invite.name}</span>,
+  },
+  {
+    key: "seat",
+    header: "소속",
+    cell: (invite) => <span className="text-mut">{seatLabel(invite)}</span>,
+  },
+  {
+    key: "code",
+    header: "초대코드",
+    cell: (invite) => (
+      <span className="font-mono text-caption text-ink">
+        {formatInviteCode(invite.code)}
+      </span>
+    ),
+  },
+];
 
 function IssueGroup({
   title,

@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/core/auth/session";
 import {
@@ -11,8 +10,8 @@ import {
   type MeritKind,
   type MeritTrack,
 } from "@/core/authz/merit-track";
-import { ChevronLeftIcon } from "@/components/icons";
 import { signedPoints } from "@/components/merit/kind-badge";
+import { BackLink } from "@/components/ui/back-link";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { formatDate, formatDateTime, isSameKstDate } from "@/lib/datetime";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
@@ -60,7 +59,7 @@ export default async function MeritPrintPage({
 
     return (
       <div className="mx-auto max-w-3xl space-y-4">
-        <BackLink studentId={studentId} track={track} />
+        <StudentBackLink studentId={studentId} track={track} />
         <NoAcademicYearNotice />
       </div>
     );
@@ -75,7 +74,7 @@ export default async function MeritPrintPage({
   return (
     <div className="mx-auto max-w-3xl">
       <div className="mb-4 flex items-center justify-between gap-3 print:hidden">
-        <BackLink studentId={studentId} track={track} />
+        <StudentBackLink studentId={studentId} track={track} />
         <PrintButton />
       </div>
 
@@ -191,15 +190,11 @@ export default async function MeritPrintPage({
 }
 
 /** 학년도가 없어 확인서를 못 그리는 경우에도 돌아갈 길은 남는다. */
-function BackLink({ studentId, track }: { studentId: string; track: MeritTrack }) {
+function StudentBackLink({ studentId, track }: { studentId: string; track: MeritTrack }) {
   return (
-    <Link
-      href={`/merit/students/${studentId}?track=${track}`}
-      className="inline-flex items-center gap-1 text-caption font-medium text-mut transition-colors hover:text-ink"
-    >
-      <ChevronLeftIcon size={15} />
+    <BackLink href={`/merit/students/${studentId}?track=${track}`}>
       학생 상벌점
-    </Link>
+    </BackLink>
   );
 }
 

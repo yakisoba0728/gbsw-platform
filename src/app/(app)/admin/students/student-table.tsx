@@ -29,8 +29,8 @@ export type StudentRow = {
 
 const HEADERS = ["이름", "학년", "반", "번호", "학적", "계정"] as const;
 
-/** 본문 셀의 좌우 여백. 머리글과 같은 규칙을 써야 세로줄이 맞는다. */
-const cell = (index: number) => `${tableCellPadding(index, HEADERS.length)} py-2`;
+/** 본문 셀의 여백. 머리글과 같은 규칙을 써야 세로줄이 맞는다. */
+const cell = (index: number) => `${tableCellPadding(index, HEADERS.length)} py-2.5`;
 
 /** 편집 중인 값. 표시용 문자열로 들고 있다가 보낼 때 숫자로 바꾼다. */
 type Draft = {

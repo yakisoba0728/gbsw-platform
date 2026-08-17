@@ -4,12 +4,13 @@ import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
+import { SectionCard } from "@/components/ui/section-card";
 import { Select } from "@/components/ui/select";
 import { MERIT_KIND_LABELS, MERIT_KINDS, type MeritTrack } from "@/core/authz/merit-track";
 import { EMPTY_RULE_FORM_STATE } from "./action-state";
 import { createRuleAction } from "./actions";
 
-/** 규정 추가 카드 — 한 줄에 나란히, 오른쪽 끝에 추가 버튼. */
+/** 규정 추가 카드. 넓으면 한 줄에 나란히 서고, 좁으면 칸마다 한 줄을 쓴다. */
 export function RuleForm({ track }: { track: MeritTrack }) {
   const [state, formAction, pending] = useActionState(
     createRuleAction,
@@ -17,14 +18,15 @@ export function RuleForm({ track }: { track: MeritTrack }) {
   );
 
   return (
-    <section className="rounded-card border border-line bg-surface p-5">
-      <h2 className="mb-3.5 text-lg font-semibold text-ink">규정 추가</h2>
-
-      <form action={formAction} className="flex flex-wrap items-end gap-2.5">
+    <SectionCard variant="panel" title="규정 추가" className="@container">
+      <form
+        action={formAction}
+        className="flex flex-col gap-2.5 @xl:flex-row @xl:flex-wrap @xl:items-end"
+      >
         {/* track은 생성 시 고정 — 지금 보고 있는 탭 그대로 들어간다. */}
         <input type="hidden" name="track" value={track} />
 
-        <div className="min-w-[180px] flex-[2]">
+        <div className="@xl:min-w-[180px] @xl:flex-[2]">
           <Label htmlFor="rf-label">항목명</Label>
           <Input
             id="rf-label"
@@ -35,7 +37,7 @@ export function RuleForm({ track }: { track: MeritTrack }) {
           />
         </div>
 
-        <div className="min-w-[100px] flex-1">
+        <div className="@xl:min-w-[100px] @xl:flex-1">
           <Label htmlFor="rf-kind">종류</Label>
           <Select id="rf-kind" name="kind" defaultValue="MERIT">
             {MERIT_KINDS.map((k) => (
@@ -46,7 +48,7 @@ export function RuleForm({ track }: { track: MeritTrack }) {
           </Select>
         </div>
 
-        <div className="w-[90px]">
+        <div className="@xl:w-[90px]">
           <Label htmlFor="rf-points">점수</Label>
           <Input
             id="rf-points"
@@ -57,17 +59,17 @@ export function RuleForm({ track }: { track: MeritTrack }) {
           />
         </div>
 
-        <div className="min-w-[110px] flex-1">
+        <div className="@xl:min-w-[110px] @xl:flex-1">
           <Label htmlFor="rf-category">분류 (선택)</Label>
           <Input id="rf-category" name="category" maxLength={50} />
         </div>
 
-        <div className="min-w-[160px] flex-[2]">
+        <div className="@xl:min-w-[160px] @xl:flex-[2]">
           <Label htmlFor="rf-description">설명 (선택)</Label>
           <Input id="rf-description" name="description" maxLength={500} />
         </div>
 
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" className="w-full @xl:w-auto" disabled={pending}>
           {pending ? "저장 중…" : "저장"}
         </Button>
       </form>
@@ -77,6 +79,6 @@ export function RuleForm({ track }: { track: MeritTrack }) {
           {state.error}
         </Note>
       )}
-    </section>
+    </SectionCard>
   );
 }

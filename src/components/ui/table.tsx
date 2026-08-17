@@ -83,7 +83,7 @@ export type CardSlot = "title" | "trailing" | "meta" | "actions";
 export type Column<Row> = {
   key: string;
   header: ReactNode;
-  cell: (row: Row) => ReactNode;
+  cell: (row: Row, index: number) => ReactNode;
   /** `<colgroup>`용 폭 클래스. */
   width?: string;
   sort?: AriaAttributes["aria-sort"];
@@ -95,6 +95,11 @@ export type Column<Row> = {
   card?: CardSlot;
   /** `card: "meta"`일 때 값 앞 라벨. 기본은 header, `false`면 라벨 없음. */
   cardLabel?: ReactNode | false;
+  /**
+   * `<th>`·`<td>`에 함께 붙는 클래스. 정렬·색처럼 **열 전체의 성질**을 여기 적는다.
+   * 행마다 래퍼로 감싸면 같은 말을 행 수만큼 되풀이하게 된다.
+   */
+  className?: string;
 };
 
 /**
@@ -118,8 +123,12 @@ export function DataTable<Row>({
   rows: readonly Row[];
   rowKey: (row: Row) => string;
   columns: readonly Column<Row>[];
-  /** 좁은 폭에서 어떻게 굽히는가. 기본은 지금까지의 동작(가로 스크롤). */
-  narrow?: "scroll" | "cards";
+  /**
+   * 좁은 폭에서 어떻게 굽히는가. 기본은 지금까지의 동작(가로 스크롤).
+   * `cards-always`는 어느 폭에서도 표를 그리지 않는다 — 길이가 제각각인 자유
+   * 텍스트처럼 애초에 열로 세울 수 없는 목록이 쓴다.
+   */
+  narrow?: "scroll" | "cards" | "cards-always";
   fixed?: boolean;
   className?: string;
   rowClassName?: (row: Row) => string;
@@ -128,13 +137,21 @@ export function DataTable<Row>({
     <TableFrame
       minWidth={minWidth}
       cols={columns.map((c) => c.width)}
-      headers={columns.map((c) => c.header)}
+      headers={columns.map((c) =>
+        c.className ? (
+          <span key={c.key} className={cn("block", c.className)}>
+            {c.header}
+          </span>
+        ) : (
+          c.header
+        ),
+      )}
       sort={columns.map((c) => c.sort)}
       fixed={fixed}
       className={className}
     >
       <tbody>
-        {rows.map((row) => (
+        {rows.map((row, index) => (
           <tr
             key={rowKey(row)}
             className={cn("border-b border-line2 last:border-0", rowClassName?.(row))}
@@ -142,9 +159,13 @@ export function DataTable<Row>({
             {columns.map((column, i) => (
               <td
                 key={column.key}
-                className={cn(tableCellPadding(i, columns.length), "py-2.5")}
+                className={cn(
+                  tableCellPadding(i, columns.length),
+                  "py-2.5",
+                  column.className,
+                )}
               >
-                {column.cell(row)}
+                {column.cell(row, index)}
               </td>
             ))}
           </tr>
@@ -153,20 +174,27 @@ export function DataTable<Row>({
     </TableFrame>
   );
 
-  if (narrow !== "cards") return table;
+  if (narrow === "scroll") return table;
 
-  return (
-    <>
-      <ul className="lg:hidden">
-        {rows.map((row) => (
+  const cards = (
+    <ul>
+        {rows.map((row, index) => (
           <CardRow
             key={rowKey(row)}
             row={row}
+            index={index}
             columns={columns}
             className={rowClassName?.(row)}
           />
         ))}
-      </ul>
+    </ul>
+  );
+
+  if (narrow === "cards-always") return cards;
+
+  return (
+    <>
+      <div className="lg:hidden">{cards}</div>
       <div className="hidden lg:block">{table}</div>
     </>
   );
@@ -178,14 +206,23 @@ export function DataTable<Row>({
  */
 function CardRow<Row>({
   row,
+  index,
   columns,
   className,
 }: {
   row: Row;
+  index: number;
   columns: readonly Column<Row>[];
   className?: string;
 }) {
-  const pick = (slot: CardSlot) => columns.filter((c) => c.card === slot);
+  const pick = (slot: CardSlot) =>
+    columns
+      .filter((c) => c.card === slot)
+      .map((c) => ({ key: c.key, label: c.cardLabel ?? c.header, node: c.cell(row, index) }))
+      // ② 렌더 결과로 판정한다. 열 개수로 세면 셀이 전부 null인 행(취소된 부여의
+      //    작업 칸)에도 빈 자리가 생긴다.
+      .filter((c) => c.node !== null && c.node !== undefined && c.node !== false);
+
   const meta = pick("meta");
   const actions = pick("actions");
 
@@ -194,12 +231,12 @@ function CardRow<Row>({
       <div className="flex items-baseline justify-between gap-3">
         <div className="min-w-0">
           {pick("title").map((c) => (
-            <div key={c.key}>{c.cell(row)}</div>
+            <div key={c.key}>{c.node}</div>
           ))}
         </div>
         <div className="flex shrink-0 items-baseline gap-2">
           {pick("trailing").map((c) => (
-            <div key={c.key}>{c.cell(row)}</div>
+            <div key={c.key}>{c.node}</div>
           ))}
         </div>
       </div>
@@ -208,10 +245,8 @@ function CardRow<Row>({
         <dl className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs text-mut">
           {meta.map((c) => (
             <div key={c.key} className="flex items-baseline gap-1">
-              {c.cardLabel !== false && (
-                <dt className="text-mut2">{c.cardLabel ?? c.header}</dt>
-              )}
-              <dd>{c.cell(row)}</dd>
+              {c.label !== false && <dt className="text-mut2">{c.label}</dt>}
+              <dd>{c.node}</dd>
             </div>
           ))}
         </dl>
@@ -220,7 +255,7 @@ function CardRow<Row>({
       {actions.length > 0 && (
         <div className="mt-2.5 flex flex-wrap gap-2">
           {actions.map((c) => (
-            <div key={c.key}>{c.cell(row)}</div>
+            <div key={c.key}>{c.node}</div>
           ))}
         </div>
       )}

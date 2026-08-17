@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
+import { SecretPanel } from "@/components/ui/secret-panel";
 import { PARENT_INVITE_INITIAL } from "./action-state";
 import { createParentInviteAction } from "./actions";
 
@@ -29,12 +30,12 @@ export function ParentInviteForm() {
       </Button>
 
       {state.code && (
-        <div className="mt-4 rounded-btn border border-line bg-soft px-4 py-3">
-          <p className="text-xs text-mut">가입코드</p>
-          <p className="mt-1 font-mono text-lg font-medium text-ink">
-            {state.code}
-          </p>
-        </div>
+        <SecretPanel
+          label="가입코드"
+          value={state.code}
+          note="학부모에게 그대로 불러 주세요."
+          className="mt-4"
+        />
       )}
     </form>
   );

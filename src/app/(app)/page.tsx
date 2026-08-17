@@ -9,6 +9,7 @@ import { MeritTotalsCards } from "@/components/merit/merit-totals";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { SectionCard } from "@/components/ui/section-card";
+import { DataTable, type Column } from "@/components/ui/table";
 import { formatDate } from "@/lib/datetime";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import {
@@ -29,13 +30,91 @@ const TRACK_TITLES: Record<MeritTrack, string> = {
 /** 대시보드에 남길 최근 부여 줄 수. 넘치면 "전체 보기"로 넘긴다. */
 const RECENT_ROWS = 6;
 
+type RecentAward = Awaited<ReturnType<typeof listRecentAwards>>[number] & {
+  track: MeritTrack;
+};
+
+/**
+ * 넓은 폭에서는 표, 좁은 폭에서는 카드다. 폰에서 열 폭을 나눠 가지면 사유가
+ * 25px까지 눌려 "왜 받았는지"가 사라진다.
+ */
+const RECENT_COLUMNS: readonly Column<RecentAward>[] = [
+  {
+    key: "date",
+    header: "발생일",
+    card: "meta",
+    cardLabel: false,
+    cell: (row) => (
+      <span className="font-mono text-xs whitespace-nowrap text-mut">
+        {formatDate(row.createdAt)}
+      </span>
+    ),
+  },
+  {
+    key: "track",
+    header: "트랙",
+    card: "meta",
+    cardLabel: false,
+    cell: (row) => (
+      <span className="text-xs whitespace-nowrap text-mut2">
+        {MERIT_TRACK_LABELS[row.track]}
+      </span>
+    ),
+  },
+  {
+    // 카드에는 넣지 않는다 — 점수의 부호와 색이 이미 종류를 말한다.
+    key: "kind",
+    header: "종류",
+    cell: (row) => <KindBadge kind={row.kind} />,
+  },
+  {
+    key: "student",
+    header: "학생",
+    card: "title",
+    cell: (row) => (
+      <Link
+        href={`/merit/students/${row.studentProfileId}?track=${row.track}`}
+        className="font-medium whitespace-nowrap text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
+      >
+        {row.studentName}
+      </Link>
+    ),
+  },
+  {
+    key: "label",
+    header: "규정",
+    card: "title",
+    cell: (row) => (
+      <span
+        className={
+          row.status === "CANCELLED"
+            ? "text-caption text-mut line-through"
+            : "text-caption text-mut"
+        }
+      >
+        {row.label}
+      </span>
+    ),
+  },
+  {
+    key: "points",
+    header: "점수",
+    card: "trailing",
+    cell: (row) => (
+      <span className={`font-medium ${kindColorClass(row.kind)}`}>
+        {signedPoints(row.kind, row.points)}
+      </span>
+    ),
+  },
+];
+
 /** 대시보드. 요약과 링크만 둔다 — 통계 화면을 여기에 다시 만들지 않는다. */
 export default async function DashboardPage() {
   const user = await requireAuth();
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
-      <section className="rounded-card border border-line bg-surface p-6 lg:p-8">
+      <section className="rounded-card border border-line bg-surface p-8">
         <p className="text-caption text-mut">
           {user.role ? ROLE_LABELS[user.role] : "역할 없음"}
         </p>
@@ -62,9 +141,7 @@ function NoYearCard() {
 
 async function AdminSummary({ user }: { user: SessionUser }) {
   let summaries: MeritSummary[];
-  let recent: (Awaited<ReturnType<typeof listRecentAwards>>[number] & {
-    track: MeritTrack;
-  })[];
+  let recent: RecentAward[];
   try {
     const [school, dorm, schoolRecent, dormRecent] = await Promise.all([
       getMeritSummary(user, "SCHOOL"),
@@ -89,13 +166,13 @@ async function AdminSummary({ user }: { user: SessionUser }) {
 
   return (
     <>
-      <div className="grid gap-3 lg:grid-cols-2">
+      <TwoUp>
         {summaries.map((summary) => (
           <AdminTrackCard key={summary.track} summary={summary} />
         ))}
-      </div>
+      </TwoUp>
 
-      <div className="grid gap-3 lg:grid-cols-2">
+      <TwoUp>
         {/* track을 붙이지 않는다 — 두 화면 모두 안에 트랙 탭이 있다. */}
         <QuickLink
           href="/merit"
@@ -107,7 +184,7 @@ async function AdminSummary({ user }: { user: SessionUser }) {
           title="규정 관리"
           hint="상점·벌점 규정을 고칩니다"
         />
-      </div>
+      </TwoUp>
 
       <SectionCard
         flush
@@ -118,43 +195,13 @@ async function AdminSummary({ user }: { user: SessionUser }) {
         {recent.length === 0 ? (
           <EmptyState variant="inside">부여된 상벌점이 없습니다.</EmptyState>
         ) : (
-          <ul>
-            {recent.map((row) => (
-              <li
-                key={row.id}
-                className="flex items-center gap-3 border-b border-line2 px-5 py-2.5 last:border-0"
-              >
-                <span className="w-[68px] shrink-0 font-mono text-xs text-mut">
-                  {formatDate(row.createdAt)}
-                </span>
-                {/* 합쳐 놓은 목록이라 어느 트랙인지가 줄마다 보여야 한다. */}
-                <span className="w-[38px] shrink-0 text-xs text-mut2">
-                  {MERIT_TRACK_LABELS[row.track]}
-                </span>
-                <KindBadge kind={row.kind} />
-                <Link
-                  href={`/merit/students/${row.studentProfileId}?track=${row.track}`}
-                  className="shrink-0 font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
-                >
-                  {row.studentName}
-                </Link>
-                <span
-                  className={
-                    row.status === "CANCELLED"
-                      ? "flex-1 truncate text-caption text-mut line-through"
-                      : "flex-1 truncate text-caption text-mut"
-                  }
-                >
-                  {row.label}
-                </span>
-                <span
-                  className={`shrink-0 font-medium ${kindColorClass(row.kind)}`}
-                >
-                  {signedPoints(row.kind, row.points)}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <DataTable
+            minWidth={560}
+            rows={recent}
+            rowKey={(row) => row.id}
+            columns={RECENT_COLUMNS}
+            narrow="cards"
+          />
         )}
       </SectionCard>
     </>
@@ -193,21 +240,17 @@ async function MySummary({ user }: { user: SessionUser }) {
   }
 
   return (
-    <div className="grid gap-3 lg:grid-cols-2">
+    <TwoUp>
       <TrackCard track="SCHOOL" view={school} />
       <TrackCard track="DORM" view={dorm} />
-    </div>
+    </TwoUp>
   );
 }
 
 async function ChildSummary({ user }: { user: SessionUser }) {
   const children = await listMyChildren(user);
   if (children.length === 0) {
-    return (
-      <section className="rounded-card border border-line bg-surface p-6">
-        <p className="text-sm text-mut">연결된 자녀가 없습니다.</p>
-      </section>
-    );
+    return <EmptyState>연결된 자녀가 없습니다.</EmptyState>;
   }
 
   const first = children[0];
@@ -226,10 +269,10 @@ async function ChildSummary({ user }: { user: SessionUser }) {
   return (
     <>
       <p className="text-caption font-medium text-ink">{first.name}</p>
-      <div className="grid gap-3 lg:grid-cols-2">
+      <TwoUp>
         <TrackCard track="SCHOOL" view={school} />
         <TrackCard track="DORM" view={dorm} />
-      </div>
+      </TwoUp>
       {children.length > 1 && (
         <p className="text-xs text-mut">
           자녀가 여럿입니다.{" "}
@@ -269,6 +312,20 @@ function TrackCard({
   );
 }
 
+/**
+ * 카드 두 장을 나란히. 뷰포트가 아니라 놓인 자리의 폭을 본다 — 사이드바가
+ * 서는 폭과 두 단이 들어가는 폭은 같지 않다.
+ */
+function TwoUp({ children }: { children: ReactNode }) {
+  return (
+    <div className="@container">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-3 @2xl:grid-cols-2">
+        {children}
+      </div>
+    </div>
+  );
+}
+
 /** 카드 머리글 오른쪽의 링크. 화살표는 링크 이름이 아니라 장식이다. */
 function CardLink({ href, children }: { href: string; children: ReactNode }) {
   return (
@@ -295,7 +352,7 @@ function QuickLink({
       href={href}
       className="rounded-card border border-line bg-surface p-5 transition-colors hover:bg-soft"
     >
-      <h3 className="text-sm font-medium text-ink">{title}</h3>
+      <h3 className="text-lg font-semibold text-ink">{title}</h3>
       <p className="mt-1 text-caption text-mut">{hint}</p>
     </Link>
   );

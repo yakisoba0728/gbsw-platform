@@ -13,6 +13,7 @@ export function SectionCard({
   headingLevel = 2,
   flush = false,
   variant = "section",
+  tone = "default",
   className,
   children,
 }: {
@@ -32,6 +33,11 @@ export function SectionCard({
    * `panel` — 테두리 한 겹짜리 폼 패널. 제목이 본문과 같은 여백 안에 앉는다.
    */
   variant?: "section" | "panel";
+  /**
+   * 되돌릴 수 없는 동작을 담는 카드. 테두리·제목이 벌점 계열로 선다.
+   * `className`으로 덮을 수 없어 여기서 정한다 — `cn()`은 충돌을 해소하지 않는다.
+   */
+  tone?: "default" | "danger";
   className?: string;
   children?: ReactNode;
 }) {

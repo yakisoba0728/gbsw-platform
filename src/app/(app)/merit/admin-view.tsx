@@ -2,11 +2,10 @@ import Link from "next/link";
 import type { SessionUser } from "@/core/auth/session";
 import { isYearScoped, type MeritTrack } from "@/core/authz/merit-track";
 import { ChipLink } from "@/components/ui/chip-link";
-import { EmptyState } from "@/components/ui/empty-state";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { SearchForm } from "@/components/ui/search-form";
-import { TableFrame } from "@/components/ui/table";
-import { EnrollmentTag } from "@/components/merit/enrollment-tag";
+import { SectionCard } from "@/components/ui/section-card";
+import { StudentSearchResults } from "@/components/merit/student-search-results";
 import { TrackTabs } from "@/components/merit/track-tabs";
 import { formatDateInput } from "@/lib/datetime";
 import { hrefWith, type SearchParamsInput } from "@/lib/search-params";
@@ -105,7 +104,12 @@ export async function AdminMeritView({
         hidden={{ track }}
       />
 
-      {q && <SearchResults rows={results} track={track} />}
+      {q && (
+        <StudentSearchResults
+          rows={results}
+          hrefFor={(row) => `/merit/students/${row.studentProfileId}?track=${track}`}
+        />
+      )}
 
       {/* 이 검색은 명단에 있는 학생만 찾는다. 그 밖을 찾는 화면으로 가는 길을 둔다. */}
       {q && (
@@ -119,7 +123,6 @@ export async function AdminMeritView({
         </p>
       )}
 
-      {/* 학년·반 고르기 — 1~3학년, 반은 1~4반(현재 학년당 반 수) */}
       <ClassPicker params={params} track={track} />
 
       {roster && rosterQuery.success && (
@@ -143,56 +146,6 @@ export async function AdminMeritView({
   );
 }
 
-/** 열: 이름 · 학생코드 · 학급. 각 줄이 학생 상세로 가는 링크다. */
-function SearchResults({
-  rows,
-  track,
-}: {
-  rows: Awaited<ReturnType<typeof searchStudents>>;
-  track: MeritTrack;
-}) {
-  if (rows.length === 0) {
-    return <EmptyState>검색 결과가 없습니다.</EmptyState>;
-  }
-
-  return (
-    <section className="rounded-card border border-line bg-surface">
-      <TableFrame
-        minWidth={460}
-        cols={[undefined, "w-[140px]", "w-[168px]"]}
-        headers={["이름", "학생코드", "학급"]}
-      >
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.studentProfileId} className="border-b border-line2 last:border-0">
-              <td className="p-0">
-                <Link
-                  href={`/merit/students/${row.studentProfileId}?track=${track}`}
-                  className="block px-5 py-2.5 font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
-                >
-                  {row.name}
-                </Link>
-              </td>
-              <td className="px-3 py-2.5 font-mono text-xs text-mut">
-                {row.studentCode}
-              </td>
-              <td className="px-5 py-2.5 text-mut">
-                <span className="inline-flex flex-wrap items-center gap-1.5">
-                  {row.grade !== null && row.classNo !== null && row.number !== null
-                    ? `${row.grade}학년 ${row.classNo}반 ${row.number}번`
-                    : "—"}
-                  {/* 졸업·자퇴 학생도 검색에 걸린다 — 안 보이면 동명이인을 고를 때 못 알아챈다. */}
-                  <EnrollmentTag status={row.status} />
-                </span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </TableFrame>
-    </section>
-  );
-}
-
 const GRADES = [1, 2, 3];
 const CLASS_NOS = [1, 2, 3, 4];
 
@@ -202,7 +155,7 @@ function ClassPicker({ params, track }: { params: Params; track: MeritTrack }) {
   const classNo = typeof params.classNo === "string" ? params.classNo : "";
 
   return (
-    <section className="rounded-card border border-line bg-surface p-4">
+    <SectionCard variant="panel" title="반 고르기">
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="mr-1 text-xs font-medium text-mut">학년</span>
         {GRADES.map((g) => (
@@ -229,6 +182,6 @@ function ClassPicker({ params, track }: { params: Params; track: MeritTrack }) {
           </ChipLink>
         ))}
       </div>
-    </section>
+    </SectionCard>
   );
 }

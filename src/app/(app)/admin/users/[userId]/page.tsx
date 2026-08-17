@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeftIcon } from "@/components/icons";
+import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionCard } from "@/components/ui/section-card";
@@ -67,20 +67,16 @@ export default async function UserDetailPage({
   };
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <Link
-        href="/admin/users"
-        className="mb-3 inline-flex items-center gap-1 text-caption font-medium text-mut transition-colors hover:text-ink"
-      >
-        <ChevronLeftIcon size={15} />
+    <div className="@container mx-auto max-w-5xl">
+      <BackLink href="/admin/users" className="mb-3">
         계정 목록
-      </Link>
+      </BackLink>
 
       {/* 카드가 두 규격이다. SectionCard는 머리글 띠를 가진 내용 섹션(활동 기록),
-          테두리 한 겹은 폼·안내 패널(정보 수정·계정 조치·완전 삭제)이다. */}
-      <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
-        <div className="grid gap-5">
-          <section className="rounded-card border border-line bg-surface p-5 lg:p-6">
+          variant="panel"은 테두리 한 겹짜리 폼·안내 패널이다. */}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 @2xl:grid-cols-[1fr_340px]">
+        <div className="flex flex-col gap-4">
+          <section className="@container rounded-card border border-line bg-surface p-5">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               {/* h1은 상단바가 모든 화면에 이미 그린다. */}
               <h2 className="text-title font-semibold text-ink">{user.name}</h2>
@@ -93,7 +89,7 @@ export default async function UserDetailPage({
               )}
             </div>
 
-            <dl className="mt-4 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+            <dl className="mt-4 grid gap-x-6 gap-y-3 text-sm @md:grid-cols-2">
               <Field label="이메일">{user.email}</Field>
               <Field label="역할">
                 {isRole(user.role) ? ROLE_LABELS[user.role] : "역할 미지정"}
@@ -151,6 +147,7 @@ export default async function UserDetailPage({
           </section>
 
           <SectionCard
+            headingLevel={3}
             title="활동 기록"
             hint="이 계정이 한 일과 이 계정을 대상으로 한 일 최근 20건"
             flush
@@ -189,44 +186,46 @@ export default async function UserDetailPage({
           </SectionCard>
         </div>
 
-        <div className="grid content-start gap-5">
+        <div className="flex flex-col gap-4">
           {deleted ? (
             <>
-              <section className="rounded-card border border-line bg-surface p-5">
-                <h2 className="mb-1 text-lg font-semibold text-ink">
-                  명단에서 빠진 계정
-                </h2>
-                {/* 이번 학년도 소속은 실제로 지워진다. 자퇴·전출은 학적 칸으로 남긴다. */}
+              {/* 이번 학년도 소속은 실제로 지워진다. 자퇴·전출은 학적 칸으로 남긴다. */}
+              <SectionCard
+                variant="panel"
+                headingLevel={3}
+                title="명단에서 빠진 계정"
+              >
                 <p className="text-caption text-mut">
                   정보 수정·비밀번호 초기화·활성화를 할 수 없습니다. 계정과 학생
                   정보, 지난 학년도 소속, 상벌점 기록은 남지만 이번 학년도 소속은
                   사라집니다. 다음 명단 반영에 다시 포함되면 되살아납니다.
                 </p>
-              </section>
+              </SectionCard>
 
-              {/* 되돌릴 수 없는 유일한 동작이라 다른 조치와 섞지 않는다. */}
+              {/* 되돌릴 수 없는 유일한 동작이라 다른 조치와 섞지 않는다.
+                  SectionCard에 위험 규격이 없어 이 카드만 손으로 그린다. */}
               <section className="rounded-card border border-rose-line bg-surface p-5">
-                <h2 className="mb-1 text-lg font-semibold text-rose">완전 삭제</h2>
+                <h3 className="mb-1 text-lg font-semibold text-rose">완전 삭제</h3>
                 <HardDeleteForm user={editable} />
               </section>
             </>
           ) : (
             <>
-              <section className="rounded-card border border-line bg-surface p-5">
-                <h2 className="mb-4 text-lg font-semibold text-ink">정보 수정</h2>
+              <SectionCard variant="panel" headingLevel={3} title="정보 수정">
                 <EditUserForm user={editable} />
-              </section>
+              </SectionCard>
 
-              <section className="rounded-card border border-line bg-surface p-5">
-                <h2 className="mb-1 text-lg font-semibold text-ink">계정 조치</h2>
-                <p className="mb-4 text-caption text-mut">
-                  둘 다 로그인 세션을 끊습니다.
-                </p>
-                <div className="grid gap-2.5">
+              <SectionCard
+                variant="panel"
+                headingLevel={3}
+                title="계정 조치"
+                hint="둘 다 로그인 세션을 끊습니다."
+              >
+                <div className="flex flex-col gap-2.5">
                   <ResetPasswordForm user={editable} />
                   <ToggleActiveForm user={editable} />
                 </div>
-              </section>
+              </SectionCard>
             </>
           )}
         </div>

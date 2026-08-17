@@ -3,6 +3,8 @@
 import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Note } from "@/components/ui/note";
+import { SectionCard } from "@/components/ui/section-card";
 import { Select } from "@/components/ui/select";
 import { MAX_YEAR, MIN_YEAR } from "@/modules/academic-year/academic-year.schema";
 import { YEAR_INITIAL } from "./action-state";
@@ -26,13 +28,12 @@ export function YearSwitcher({
   );
 
   return (
-    <section className="rounded-card border border-line bg-surface p-5">
-      <h2 className="text-lg font-semibold text-ink">학년도</h2>
-      <p className="mt-1 text-caption text-mut">
-        모든 화면이 현재 학년도의 소속을 보여줍니다.
-      </p>
-
-      <div className="mt-4 flex flex-wrap items-end gap-4">
+    <SectionCard
+      variant="panel"
+      title="학년도"
+      hint="모든 화면이 현재 학년도의 소속을 보여줍니다."
+    >
+      <div className="flex flex-wrap items-end gap-4">
         <form action={switchAction} className="flex items-end gap-2">
           {/* 폭은 바깥에서 준다 — cn()이 tailwind-merge가 아니라 w-full을 못 덮는다. */}
           <div className="w-36">
@@ -82,15 +83,15 @@ export function YearSwitcher({
       </div>
 
       {switchState.error && (
-        <p role="alert" className="mt-3 text-caption font-medium text-rose">
+        <Note tone="error" className="mt-3">
           {switchState.error}
-        </p>
+        </Note>
       )}
       {createState.error && (
-        <p role="alert" className="mt-3 text-caption font-medium text-rose">
+        <Note tone="error" className="mt-3">
           {createState.error}
-        </p>
+        </Note>
       )}
-    </section>
+    </SectionCard>
   );
 }
