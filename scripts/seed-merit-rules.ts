@@ -13,6 +13,11 @@
  * 않는 이유: 관리자가 화면에서 항목명을 고칠 수 있어서, 이름을 키로 삼으면
  * 고친 뒤 다시 돌릴 때 예전 이름의 규정이 되살아난다.
  */
+// 라벨은 화면과 같은 곳에서 가져온다. 이 모듈은 임포트 시점에 아무것도 읽지
+// 않으므로(환경변수·DB 없음) 아래 db/client와 달리 정적 import로 안전하다.
+// 경로는 `@/`가 아니라 상대경로다 — 다른 스크립트들과 같다. tsx는 Next 밖에서
+// 돌아 tsconfig의 paths를 쓸 수 있다는 보장이 없다.
+import { MERIT_KIND_LABELS, MERIT_TRACK_LABELS } from "../src/core/authz/merit-track";
 import { MERIT_RULE_SEED } from "../prisma/seed/merit-rules.data";
 
 async function main() {
@@ -34,11 +39,19 @@ async function main() {
 
     await prisma.meritRule.createMany({ data: MERIT_RULE_SEED });
 
+    /*
+     * 요약은 **세 종류를 각각 센다.** 예전엔 `kind === "MERIT" ? "상점" : "벌점"`
+     * 이라 상쇄점 1건이 벌점으로 집계됐다 — DB에 들어간 값은 정확했고 출력 문구만
+     * 틀려서, 원본 표(교내 벌점 54)와 대조하는 사람만 55라는 숫자에 걸려 넘어졌다.
+     *
+     * 라벨은 core/authz/merit-track에서 가져온다. `Record<MeritKind, …>`인
+     * MERIT_KIND_LABELS를 쓰므로 종류가 하나 늘면 그쪽이 타입 검사에서 먼저
+     * 깨진다 — 이 스크립트가 조용히 한 종류를 빠뜨리는 일이 생기지 않는다
+     * (merit-track의 KIND_BUCKETS와 같은 수법이다).
+     */
     const bySection = new Map<string, number>();
     for (const rule of MERIT_RULE_SEED) {
-      const key = `${rule.track === "SCHOOL" ? "교내" : "기숙사"} ${
-        rule.kind === "MERIT" ? "상점" : "벌점"
-      }`;
+      const key = `${MERIT_TRACK_LABELS[rule.track]} ${MERIT_KIND_LABELS[rule.kind]}`;
       bySection.set(key, (bySection.get(key) ?? 0) + 1);
     }
 
