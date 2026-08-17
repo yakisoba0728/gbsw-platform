@@ -1,3 +1,4 @@
+import { cardClass } from "@/components/ui/card";
 import {
   Skeleton,
   SkeletonScreen,
@@ -21,7 +22,7 @@ export default function Loading() {
       </div>
 
       {/* 반 고르기 카드 — 제목 + 학년·반 칩 */}
-      <div className="rounded-card border border-line bg-surface p-5">
+      <div className={cardClass("panel")}>
         <Skeleton className="mb-4 h-5 w-20 rounded-btn" />
         <div className="flex flex-wrap gap-1.5">
           {Array.from({ length: 4 }, (_, i) => (

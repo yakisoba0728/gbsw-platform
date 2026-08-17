@@ -1,10 +1,11 @@
+import { cardClass } from "@/components/ui/card";
 import { Skeleton, SkeletonScreen } from "@/components/ui/skeleton";
 
 /** `/admin/settings`의 뼈대. 트랙이 늘면 여기 반복 횟수도 함께 늘린다. */
 export default function Loading() {
   return (
     <SkeletonScreen className="mx-auto max-w-3xl space-y-4">
-      <div className="rounded-card border border-line bg-surface">
+      <div className={cardClass("flush")}>
         <div className="space-y-2 border-b border-line px-5 py-4">
           <Skeleton className="h-5 w-24 rounded-btn" />
           <Skeleton className="h-4 w-full max-w-md rounded-btn" />

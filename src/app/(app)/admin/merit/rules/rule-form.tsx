@@ -26,6 +26,7 @@ export function RuleForm({ track }: { track: MeritTrack }) {
         {/* track은 생성 시 고정 — 지금 보고 있는 탭 그대로 들어간다. */}
         <input type="hidden" name="track" value={track} />
 
+        {/* 아래 다섯 칸의 폭은 loading.tsx의 뼈대 폭과 짝이다. 한쪽만 고치면 어긋난다. */}
         <div className="@xl:min-w-[180px] @xl:flex-[2]">
           <Label htmlFor="rf-label">항목명</Label>
           <Input

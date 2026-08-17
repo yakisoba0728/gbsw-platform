@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { Button, buttonClass } from "@/components/ui/button";
+import { cardClass } from "@/components/ui/card";
 
 /**
  * 상벌점 화면이 던졌을 때의 안내. 이 파일이 없으면 앱 셸까지 사라진다.
@@ -21,7 +22,7 @@ export default function MeritError({
   }, [error]);
 
   return (
-    <div className="mx-auto max-w-[420px] rounded-card border border-line bg-surface p-8 text-center">
+    <div className={cardClass("page", "mx-auto max-w-[420px] text-center")}>
       <p className="text-caption font-medium text-rose">오류</p>
       <h2 className="mt-1 text-title font-semibold text-ink">
         상벌점을 불러오지 못했습니다

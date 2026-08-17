@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
+import { cardClass } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionCard } from "@/components/ui/section-card";
 import { requirePermission } from "@/core/auth/session";
@@ -76,7 +77,7 @@ export default async function UserDetailPage({
           variant="panel"은 테두리 한 겹짜리 폼·안내 패널이다. */}
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 @2xl:grid-cols-[1fr_340px]">
         <div className="flex flex-col gap-4">
-          <section className="@container rounded-card border border-line bg-surface p-5">
+          <section className={cardClass("panel", "@container")}>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               {/* h1은 상단바가 모든 화면에 이미 그린다. */}
               <h2 className="text-title font-semibold text-ink">{user.name}</h2>

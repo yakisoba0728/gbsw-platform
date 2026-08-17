@@ -1,10 +1,11 @@
+import { cardClass } from "@/components/ui/card";
 import { Skeleton, SkeletonScreen } from "@/components/ui/skeleton";
 
 /** `/admin/users`의 뼈대 — 머리글 + 상태·역할 칩 + 검색칸 + 표. */
 export default function Loading() {
   return (
     <SkeletonScreen className="mx-auto max-w-6xl">
-      <div className="rounded-card border border-line bg-surface">
+      <div className={cardClass("flush")}>
         <div className="border-b border-line px-5 py-4">
           <Skeleton className="h-5 w-20 rounded-btn" />
           <div className="mt-3 flex flex-wrap gap-1.5">

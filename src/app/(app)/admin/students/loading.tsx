@@ -1,3 +1,4 @@
+import { cardClass } from "@/components/ui/card";
 import { Skeleton, SkeletonScreen } from "@/components/ui/skeleton";
 
 /** `/admin/students`의 뼈대 — 명단 반영 링크 · 학년도 카드 · 학생 표. */
@@ -9,7 +10,7 @@ export default function Loading() {
       </div>
 
       {/* 학년도 */}
-      <div className="rounded-card border border-line bg-surface p-5">
+      <div className={cardClass("panel")}>
         <Skeleton className="h-5 w-16 rounded-btn" />
         <Skeleton className="mt-2 h-4 w-56 rounded-btn" />
         <div className="mt-4 flex flex-wrap items-end gap-4">
@@ -19,7 +20,7 @@ export default function Loading() {
       </div>
 
       {/* 학생 표 */}
-      <div className="rounded-card border border-line bg-surface">
+      <div className={cardClass("flush")}>
         <div className="border-b border-line px-5 py-4">
           <Skeleton className="h-5 w-16 rounded-btn" />
           <div className="mt-3 flex flex-wrap gap-1.5">

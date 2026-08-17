@@ -1,3 +1,4 @@
+import { cardClass } from "@/components/ui/card";
 import { Skeleton, SkeletonScreen } from "@/components/ui/skeleton";
 
 /** `/admin/invites`의 뼈대. 화면과 같은 2단 배치라야 내용이 도착할 때 안 튄다. */
@@ -6,7 +7,7 @@ export default function Loading() {
     <SkeletonScreen className="@container mx-auto max-w-7xl">
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 @2xl:grid-cols-[360px_1fr]">
         {/* 초대코드 발급 폼 */}
-        <div className="rounded-card border border-line bg-surface p-5">
+        <div className={cardClass("panel")}>
           <Skeleton className="h-5 w-32 rounded-btn" />
           <Skeleton className="mt-2 h-4 w-48 rounded-btn" />
           <div className="mt-4 mb-5 flex gap-1.5">
@@ -21,7 +22,7 @@ export default function Loading() {
         </div>
 
         {/* 발급 내역 */}
-        <div className="min-w-0 rounded-card border border-line bg-surface">
+        <div className={cardClass("flush", "min-w-0")}>
           <div className="border-b border-line px-5 py-4">
             <Skeleton className="h-5 w-24 rounded-btn" />
             <div className="mt-3 flex flex-wrap gap-1.5">

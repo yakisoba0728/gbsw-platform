@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
+import { cardClass } from "./card";
 
 /** 뼈대 한 덩어리. 크기는 화면이 자기 짜임에 맞게 정한다. */
 export function Skeleton({ className }: { className?: string }) {
@@ -47,7 +48,7 @@ export function SkeletonStats({ count }: { count: number }) {
 /** 머리글 + 표가 든 카드 자리. */
 export function SkeletonTable({ rows = 6 }: { rows?: number }) {
   return (
-    <div className="rounded-card border border-line bg-surface">
+    <div className={cardClass("flush")}>
       <div className="border-b border-line px-5 py-4">
         <Skeleton className="h-5 w-40" />
       </div>

@@ -156,6 +156,7 @@ tests/                  core/ · modules/ — 구조를 src/와 맞춘다
 | 필요한 것 | 쓸 것 |
 |---|---|
 | 제목 달린 카드 | `SectionCard` — 머리글 띠가 필요 없으면 `variant="panel"`, 되돌릴 수 없는 동작이면 `tone="danger"` |
+| 제목 앞에 다른 것이 오는 카드 | `cardClass(pad, className)` — 역할 라벨·상태 배지가 `<h2>` 앞에 오면 `SectionCard`로 표현할 수 없다 |
 | 표 | `DataTable` — 폰에서 카드로 바뀌어야 하면 `narrow="cards"`. 열마다 `card` 자리를 고른다 |
 | 표(직접 조립) | `TableFrame` — 셀 구성이 제각각이라 열을 데이터로 못 쓸 때만 |
 | 버튼 모양의 링크 | `buttonClass({ … })` — `<Link>`는 `<button>`이 아니라 `Button`을 못 쓴다 |
@@ -166,8 +167,10 @@ tests/                  core/ · modules/ — 구조를 src/와 맞춘다
 | 결과·오류 배너 | `Note` — `tone="error"`면 `role="alert"`이 자동으로 붙는다 |
 | 빈 상태 | `EmptyState` — 이미 카드 안이면 `variant="inside"` |
 
-**카드 안쪽 여백은 세 가지뿐이다.** 표를 담으면 `flush`, 폼·안내는 `p-5`,
-페이지 대표 카드는 `p-8`. 그 외 값을 새로 만들지 않는다.
+**카드 안쪽 여백은 세 가지뿐이다.** 표를 담으면 `flush`, 폼·안내는 `panel`(p-5),
+페이지 대표 카드는 `page`(p-8). 그 외 값을 새로 만들지 않는다. 카드 껍데기
+클래스는 `cardClass()` 하나가 소유하므로 화면 코드에 직접 적지 않는다 —
+토큰을 바꿀 때 열여섯 곳을 손으로 찾게 된다.
 
 **폭에 따른 재배치는 `@container`로 한다.** 같은 블록이 전폭에도 서고 대시보드의
 절반 폭 카드 안에도 서기 때문에 뷰포트 폭(`lg:`)으로는 옳게 굽지 않는다.

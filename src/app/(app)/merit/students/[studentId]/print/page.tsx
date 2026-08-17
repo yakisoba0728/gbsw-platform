@@ -12,6 +12,7 @@ import {
 } from "@/core/authz/merit-track";
 import { signedPoints } from "@/components/merit/kind-badge";
 import { BackLink } from "@/components/ui/back-link";
+import { cardClass } from "@/components/ui/card";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { formatDate, formatDateTime, isSameKstDate } from "@/lib/datetime";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
@@ -79,7 +80,7 @@ export default async function MeritPrintPage({
       </div>
 
       {/* 종이에서는 카드 테두리·여백을 푼다 — 인쇄기가 자기 여백을 이미 준다. */}
-      <article className="rounded-card border border-line bg-surface p-8 print:rounded-none print:border-0 print:p-0">
+      <article className={cardClass("page", "print:rounded-none print:border-0 print:p-0")}>
         <header className="border-b border-line pb-4">
           <p className="text-xs font-medium text-mut">
             경북소프트웨어마이스터고등학교

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
+import { cardClass } from "./card";
 
 /**
  * 합계 한 칸. 상벌점 합계 카드와 통계 요약이 같은 모양을 각자 그리고 있었다.
@@ -21,7 +22,7 @@ export function StatTile({
 }) {
   return (
     <div
-      className={cn("rounded-card border border-line bg-surface px-4 py-3", className)}
+      className={cardClass("flush", cn("px-4 py-3", className))}
     >
       <div className="text-xs font-medium text-mut">{label}</div>
       <div className={cn("mt-1 text-title font-semibold", valueClassName)}>

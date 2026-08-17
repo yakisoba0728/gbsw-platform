@@ -1,3 +1,4 @@
+import { cardClass } from "./card";
 import Link from "next/link";
 
 /**
@@ -6,7 +7,7 @@ import Link from "next/link";
  */
 export function NoAcademicYearNotice({ title }: { title?: string }) {
   return (
-    <div className="rounded-card border border-line bg-surface px-5 py-10 text-center">
+    <div className={cardClass("flush", "px-5 py-10 text-center")}>
       {title && (
         <h3 className="mb-1.5 text-lg font-semibold text-ink">{title}</h3>
       )}

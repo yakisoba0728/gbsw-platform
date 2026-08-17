@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
+import { cardClass } from "./card";
 
 /**
  * `card` — 카드가 아직 없는 자리. 자기 테두리를 그린다.
@@ -19,7 +20,7 @@ export function EmptyState({
       className={cn(
         "text-center text-caption text-mut",
         variant === "card"
-          ? "rounded-card border border-line bg-surface px-5 py-10"
+          ? cardClass("flush", "px-5 py-10")
           : "px-5 py-10",
         className,
       )}

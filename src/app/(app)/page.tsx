@@ -6,6 +6,7 @@ import { ROLE_LABELS } from "@/core/authz/roles";
 import { MERIT_TRACK_LABELS, type MeritTrack } from "@/core/authz/merit-track";
 import { KindBadge, kindColorClass, signedPoints } from "@/components/merit/kind-badge";
 import { MeritTotalsCards } from "@/components/merit/merit-totals";
+import { cardClass } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { SectionCard } from "@/components/ui/section-card";
@@ -114,7 +115,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
-      <section className="rounded-card border border-line bg-surface p-8">
+      <section className={cardClass("page")}>
         <p className="text-caption text-mut">
           {user.role ? ROLE_LABELS[user.role] : "역할 없음"}
         </p>
@@ -350,7 +351,7 @@ function QuickLink({
   return (
     <Link
       href={href}
-      className="rounded-card border border-line bg-surface p-5 transition-colors hover:bg-soft"
+      className={cardClass("panel", "transition-colors hover:bg-soft")}
     >
       <h3 className="text-lg font-semibold text-ink">{title}</h3>
       <p className="mt-1 text-caption text-mut">{hint}</p>
