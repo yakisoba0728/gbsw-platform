@@ -2,9 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ForbiddenError } from "@/core/authz/errors";
 
 /**
- * 계정 관리 액션의 **경계** — 폼의 FormData가 zod 스키마(또는 그 자리를 대신하는
- * `String(formData.get(...))`)에 닿는 지점. (auth)/register/actions.test.ts와
- * 같은 목적이다.
+ * 계정 관리 액션의 **경계** — 폼의 FormData가 zod 스키마에 닿는 지점.
+ * (auth)/register/actions.test.ts와 같은 목적이다.
+ *
+ * 예전에는 이 파일만 경계가 반쯤 비어 있었다(userId·active·confirmName을
+ * `String(formData.get(...))`로 읽었다). 지금은 네 액션 모두 스키마를 지난다 —
+ * 아래 "서비스를 부르지 않는다" 검사들이 그 경계를 지킨다.
  *
  * FormData는 admin/users/[userId]/user-forms.tsx가 실제로 보내는 name 그대로
  * 만든다. 이 화면은 폼이 넷이고 **학생인지·재학 중인지에 따라 보내는 필드가
@@ -203,19 +206,36 @@ describe("updateUserAction — 경계 검증", () => {
   });
 
   /*
-   * userId만 zod를 안 거친다 (`String(formData.get("userId") ?? "")`).
-   * 지금은 빈 문자열이 서비스까지 흘러가 NOT_FOUND로 되돌아온다 — 화면 문구는
-   * 맞지만 규약("zod 검증은 경계에서 한 번만")에서 벗어난 유일한 묶음이다.
+   * 예전엔 userId만 zod를 안 거쳤다 (`String(formData.get("userId") ?? "")`).
+   * 빈 문자열이 서비스까지 흘러가 NOT_FOUND로 되돌아왔으니 화면 문구는 맞았지만,
+   * 규약("zod 검증은 경계에서 한 번만")에서 벗어난 유일한 묶음이었다 — 서비스
+   * 쪽 방어를 하나 손보는 순간 여기로 무엇이든 들어올 수 있게 된다.
+   * 이제 네 액션 모두 경계에서 막는다.
    */
-  it("userId가 없으면 빈 문자열이 서비스까지 흘러간다 (규약 이탈, 현재 동작)", async () => {
+  it("userId가 없으면 서비스를 부르지 않는다", async () => {
     const fd = studentForm();
     fd.delete("userId");
-    updateUser.mockRejectedValueOnce(new AdminUserError("NOT_FOUND"));
 
     const state = await updateUserAction(UPDATE_INITIAL, fd);
 
-    expect(updateUser).toHaveBeenCalledWith(expect.anything(), "", expect.anything());
+    expect(updateUser).not.toHaveBeenCalled();
     expect(state.error).toBe("계정을 찾을 수 없습니다.");
+  });
+
+  it("userId가 공백뿐이어도 막는다 — trim 후에 본다", async () => {
+    const state = await updateUserAction(UPDATE_INITIAL, studentForm({ userId: "   " }));
+
+    expect(updateUser).not.toHaveBeenCalled();
+    expect(state.error).toBe("계정을 찾을 수 없습니다.");
+  });
+
+  it("검증에 걸리면 화면을 다시 그리지 않는다", async () => {
+    const fd = studentForm();
+    fd.delete("userId");
+
+    await updateUserAction(UPDATE_INITIAL, fd);
+
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 });
 
@@ -270,6 +290,35 @@ describe("setUserActiveAction — 경계 검증", () => {
 
     expect(revalidatePath).not.toHaveBeenCalled();
   });
+
+  it("userId가 없으면 서비스를 부르지 않는다", async () => {
+    const state = await setUserActiveAction(USER_INITIAL, form({ active: "false" }));
+
+    expect(setUserActive).not.toHaveBeenCalled();
+    expect(state.error).toBe("계정을 찾을 수 없습니다.");
+  });
+
+  /*
+   * 예전에는 `formData.get("active") === "true"`라 오탈자든 빠진 값이든 전부
+   * false(=비활성)로 읽혔다 — 모르는 값이 계정을 잠그는 쪽으로 조용히 기울어
+   * 있었다. 이제 "true"/"false"가 아니면 거부한다.
+   */
+  it("active가 아는 값이 아니면 비활성으로 읽지 않고 막는다", async () => {
+    const state = await setUserActiveAction(
+      USER_INITIAL,
+      form({ userId: "u-1", active: "ture" }),
+    );
+
+    expect(setUserActive).not.toHaveBeenCalled();
+    expect(state.error).toBe("계정 상태 값이 올바르지 않습니다.");
+  });
+
+  it("active 칸이 아예 없어도 막는다", async () => {
+    const state = await setUserActiveAction(USER_INITIAL, form({ userId: "u-1" }));
+
+    expect(setUserActive).not.toHaveBeenCalled();
+    expect(state.error).toBe("계정 상태 값이 올바르지 않습니다.");
+  });
 });
 
 describe("resetPasswordAction — 경계 검증", () => {
@@ -299,6 +348,14 @@ describe("resetPasswordAction — 경계 검증", () => {
     const state = await resetPasswordAction(USER_INITIAL, form({ userId: "u-1" }));
 
     expect(state.error).toBe("이 작업을 할 권한이 없습니다.");
+  });
+
+  it("userId가 없으면 서비스를 부르지 않는다", async () => {
+    const state = await resetPasswordAction(USER_INITIAL, form({}));
+
+    expect(resetPassword).not.toHaveBeenCalled();
+    expect(state.error).toBe("계정을 찾을 수 없습니다.");
+    expect(state.tempPassword).toBeNull();
   });
 });
 
@@ -379,6 +436,27 @@ describe("deleteUserPermanentlyAction — 경계 검증", () => {
     );
 
     expect(state.error).toBe("이 작업을 할 권한이 없습니다.");
+  });
+
+  it("확인 이름이 비면 서비스도 부르지 않고 목록으로 보내지도 않는다", async () => {
+    const state = await deleteUserPermanentlyAction(
+      USER_INITIAL,
+      form({ userId: "u-1", confirmName: "  " }),
+    );
+
+    expect(deleteUserPermanently).not.toHaveBeenCalled();
+    expect(redirect).not.toHaveBeenCalled();
+    expect(state.error).toBe("확인을 위해 이름을 입력해 주세요.");
+  });
+
+  it("userId가 없으면 서비스를 부르지 않는다", async () => {
+    const state = await deleteUserPermanentlyAction(
+      USER_INITIAL,
+      form({ confirmName: "홍길동" }),
+    );
+
+    expect(deleteUserPermanently).not.toHaveBeenCalled();
+    expect(state.error).toBe("계정을 찾을 수 없습니다.");
   });
 });
 

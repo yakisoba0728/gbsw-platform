@@ -9,7 +9,12 @@ import {
   type UpdateUserState,
   type UserActionState,
 } from "./action-state";
-import { updateUserSchema } from "@/modules/admin-users/admin-user.schema";
+import {
+  deleteUserSchema,
+  setUserActiveSchema,
+  updateUserFormSchema,
+  userIdOnlySchema,
+} from "@/modules/admin-users/admin-user.schema";
 import {
   AdminUserError,
   deleteUserPermanently,
@@ -65,6 +70,18 @@ function fail(error: string): UserActionState {
   return { error, tempPassword: null, targetId: null };
 }
 
+/**
+ * 경계 검증 실패 → 화면 문구. 첫 issue의 message를 그대로 쓴다 — 다른 액션
+ * 모듈(merit·students·import)과 같은 방식이며, 스키마가 전부 한글 문구를
+ * 달고 있어서 성립한다.
+ */
+function firstIssue(
+  error: { issues: { message: string }[] },
+  fallback: string,
+): string {
+  return error.issues[0]?.message ?? fallback;
+}
+
 /** 목록과 상세가 같은 데이터를 보므로 둘 다 새로 그린다. */
 function revalidate(userId: string) {
   revalidatePath("/admin/users");
@@ -76,8 +93,15 @@ export async function setUserActiveAction(
   formData: FormData,
 ): Promise<UserActionState> {
   const actor = await requireAuth();
-  const userId = String(formData.get("userId") ?? "");
-  const active = formData.get("active") === "true";
+
+  const parsed = setUserActiveSchema.safeParse({
+    userId: formData.get("userId"),
+    active: formData.get("active"),
+  });
+  if (!parsed.success) {
+    return fail(firstIssue(parsed.error, "상태를 바꾸지 못했습니다."));
+  }
+  const { userId, active } = parsed.data;
 
   try {
     await setUserActive(actor, userId, active);
@@ -94,7 +118,12 @@ export async function resetPasswordAction(
   formData: FormData,
 ): Promise<UserActionState> {
   const actor = await requireAuth();
-  const userId = String(formData.get("userId") ?? "");
+
+  const parsed = userIdOnlySchema.safeParse({ userId: formData.get("userId") });
+  if (!parsed.success) {
+    return fail(firstIssue(parsed.error, "비밀번호를 초기화하지 못했습니다."));
+  }
+  const { userId } = parsed.data;
 
   try {
     const { tempPassword } = await resetPassword(actor, userId);
@@ -112,8 +141,15 @@ export async function deleteUserPermanentlyAction(
   formData: FormData,
 ): Promise<UserActionState> {
   const actor = await requireAuth();
-  const userId = String(formData.get("userId") ?? "");
-  const confirmName = String(formData.get("confirmName") ?? "");
+
+  const parsed = deleteUserSchema.safeParse({
+    userId: formData.get("userId"),
+    confirmName: formData.get("confirmName"),
+  });
+  if (!parsed.success) {
+    return fail(firstIssue(parsed.error, "완전히 삭제하지 못했습니다."));
+  }
+  const { userId, confirmName } = parsed.data;
 
   try {
     await deleteUserPermanently(actor, userId, confirmName);
@@ -136,9 +172,9 @@ export async function updateUserAction(
   formData: FormData,
 ): Promise<UpdateUserState> {
   const actor = await requireAuth();
-  const userId = String(formData.get("userId") ?? "");
 
-  const parsed = updateUserSchema.safeParse({
+  const parsed = updateUserFormSchema.safeParse({
+    userId: formData.get("userId"),
     name: formData.get("name"),
     email: formData.get("email"),
     phone: formData.get("phone"),
@@ -149,14 +185,15 @@ export async function updateUserAction(
   });
 
   if (!parsed.success) {
-    return {
-      error: parsed.error.issues[0]?.message ?? "입력값을 확인해 주세요.",
-      changed: null,
-    };
+    return { error: firstIssue(parsed.error, "입력값을 확인해 주세요."), changed: null };
   }
 
+  // userId는 서비스가 따로 받는다 — 나머지만 입력 객체로 넘겨야
+  // UpdateUserInput에 userId가 섞여 들어가지 않는다.
+  const { userId, ...input } = parsed.data;
+
   try {
-    const { changed } = await updateUser(actor, userId, parsed.data);
+    const { changed } = await updateUser(actor, userId, input);
     revalidate(userId);
     return { error: null, changed };
   } catch (error) {
