@@ -10,24 +10,13 @@ import type { StudentMeritView } from "@/modules/merit/award.service";
 
 type AwardRow = StudentMeritView["awards"][number];
 
-/** 취소 버튼에 그대로 넘길 두 값. 계약은 CancelButton이 정한다 — 여기서 다시
- *  적으면 둘이 갈라진 채로 둘 다 통과하는 날이 온다. */
+/** 취소 버튼에 그대로 넘길 두 값. 계약은 CancelButton이 정한다. */
 type CancelProps = ComponentProps<typeof CancelButton>;
 
 /**
- * 부여 내역 표. 관리자 화면(취소 가능)과 학생·학부모 화면(조회만)이 공유한다 —
- * 취소 액션과 studentProfileId(취소 후 revalidatePath 대상)만 다르게 넘긴다.
- * 열: 발생일 · 구분 · 항목 · 점수 · 부여 · 상태 (+ 취소 가능하면 작업).
- *
- * **취소 가능 여부를 불리언이 아니라 액션의 유무로 판단한다.** 예전엔
- * `canCancel: boolean`이었고 취소 버튼은 화면 경로를 직접 import했다 —
- * `components/` → `app/` 역방향 의존(저장소에 하나뿐이었다)이라 그 화면을
- * 옮기면 세 화면이 함께 깨졌다. 액션을 위에서 받으면 그 고리가 끊기고,
- * 덤으로 "취소 가능하다고 해 놓고 액션이 없는" 상태가 아예 표현되지 않는다.
- *
- * **날짜 칸은 발생일이다.** 다만 입력일이 다른 날이면 그것도 함께 적는다 —
- * "6월 12일에 일어난 일을 8월 16일에 넣었다"를 기록에서 읽을 수 없으면,
- * 나중에 날짜를 다투게 됐을 때 화면이 아무 근거도 못 준다.
+ * 부여 내역 표. 관리자 화면(취소 가능)과 학생·학부모 화면(조회만)이 공유하며,
+ * 취소 가능 여부는 액션의 유무로 판단한다. 날짜 칸은 발생일이고, 입력일이 다른
+ * 날이면 함께 적는다 — 나중에 날짜를 다툴 때 화면이 줄 수 있는 유일한 근거다.
  */
 export function AwardHistory({
   awards,
@@ -62,7 +51,6 @@ export function AwardHistory({
           "w-[64px]",
           "w-[88px]",
           canCancel ? "w-[76px]" : "w-[92px]",
-          // 취소 버튼이 표 안 작은 글씨에서 Button size="sm"으로 커졌다.
           ...(canCancel ? (["w-[104px]"] as const) : []),
         ]}
         headers={[
@@ -80,10 +68,10 @@ export function AwardHistory({
             const cancelled = award.status === "CANCELLED";
             return (
               <tr key={award.id} className="border-b border-line2 last:border-0">
-                <td className="px-5 py-2.5 whitespace-nowrap text-mut">
+                <td className="px-5 py-2.5 font-mono whitespace-nowrap text-mut">
                   {formatDate(award.occurredOn)}
                   {!isSameKstDate(award.occurredOn, award.createdAt) && (
-                    <span className="block text-[11.5px] text-mut2">
+                    <span className="block text-xs text-mut2">
                       입력 {formatDate(award.createdAt)}
                     </span>
                   )}
@@ -94,23 +82,17 @@ export function AwardHistory({
                 <td className="px-3 py-2.5">
                   <span
                     className={
-                      cancelled
-                        ? "text-mut line-through"
-                        : "font-semibold text-ink"
+                      cancelled ? "text-mut line-through" : "font-medium text-ink"
                     }
                   >
                     {award.label}
                   </span>
                   {award.note && (
-                    <span className="block text-[12px] text-mut">{award.note}</span>
+                    <span className="block text-xs text-mut">{award.note}</span>
                   )}
-                  {/*
-                    취소 사유와 취소한 사람. "관리자면 누구나 취소할 수 있다"는
-                    결정의 근거가 바로 이 흔적이므로, DB에만 있고 화면에 없으면
-                    그 근거가 실제로는 없는 것과 같다.
-                  */}
+                  {/* "관리자면 누구나 취소할 수 있다"의 근거가 이 흔적이다 — 화면에 낸다. */}
                   {cancelled && (
-                    <span className="block text-[12px] text-rose">
+                    <span className="block text-xs text-rose">
                       취소
                       {award.cancelledByName ? ` · ${award.cancelledByName}` : ""}
                       {award.cancelledAt ? ` · ${formatDate(award.cancelledAt)}` : ""}
@@ -119,7 +101,7 @@ export function AwardHistory({
                   )}
                 </td>
                 <td
-                  className={`px-3 py-2.5 font-bold ${
+                  className={`px-3 py-2.5 font-medium ${
                     cancelled ? "text-mut" : kindColorClass(award.kind)
                   }`}
                 >

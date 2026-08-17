@@ -38,12 +38,8 @@ export async function createInitialAdminAction(
 ): Promise<BootstrapState> {
   const token = String(formData.get("token") ?? "");
 
-  // 검증은 경계에서 한 번만. 토큰 소진보다 먼저 해서, 입력 오타로 토큰이 날아가지 않게 한다.
-  //
-  // `satisfies`로 스키마의 키를 전부 읽었는지 컴파일 타임에 못 박는다. 예전에
-  // phone이 필수가 됐을 때 이 목록만 안 따라가서 safeParse가 **항상** 실패했고,
-  // 최초 관리자 생성이 통째로 막혔다 — 폼은 값을 보내고 있었고 타입검사·lint·
-  // 테스트 어디에도 안 걸려서, 새 서버를 세울 때까지 아무도 몰랐다.
+  // 토큰 소진보다 먼저 검증한다 — 입력 오타로 토큰이 날아가면 안 된다.
+  // `satisfies`가 스키마의 키를 전부 읽었는지 컴파일 타임에 못 박는다.
   const parsed = bootstrapSchema.safeParse({
     name: formData.get("name"),
     email: formData.get("email"),
@@ -53,17 +49,14 @@ export async function createInitialAdminAction(
   } satisfies Record<keyof BootstrapInput, FormDataEntryValue | null>);
 
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "입력값을 확인해 주세요." };
+    return { error: parsed.error.issues[0]?.message ?? "입력을 확인해 주세요." };
   }
 
   try {
     await createInitialAdmin(token, parsed.data);
   } catch {
-    // 토큰 불일치인지 이미 설정됐는지 구분해서 알리지 않는다.
-    return {
-      error:
-        "관리자 계정을 만들 수 없습니다. 링크가 만료되었거나 이미 설정이 끝났습니다.",
-    };
+    // 토큰 불일치인지 이미 설정됐는지 구분해 알리지 않는다.
+    return { error: "관리자 계정을 만들 수 없습니다." };
   }
 
   await signInSilently(parsed.data.email, parsed.data.password);
@@ -91,11 +84,7 @@ export async function checkInviteAction(
     const { role } = await checkInvite(parsed.data);
     return { code: parsed.data, role, error: null };
   } catch {
-    return {
-      code: null,
-      role: null,
-      error: "사용할 수 없는 가입코드입니다.",
-    };
+    return { code: null, role: null, error: "쓸 수 없는 가입코드입니다." };
   }
 }
 
@@ -116,19 +105,18 @@ export async function completeRegistrationAction(
   });
 
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "입력값을 확인해 주세요." };
+    return { error: parsed.error.issues[0]?.message ?? "입력을 확인해 주세요." };
   }
 
   try {
     await completeRegistration(parsed.data);
   } catch (error) {
-    // 로그인 이전 화면이라 우리가 직접 만든(문구를 정제해 둔) 오류만 그대로 보여준다.
-    // 그 밖의 오류(Prisma 원문 등)는 일반 문구로 덮어서 내부 정보가 새지 않게 한다.
+    // 우리가 문구를 정제해 둔 오류만 그대로 보여준다. 그 밖(Prisma 원문 등)은 덮는다.
     return {
       error:
         error instanceof RegistrationError || error instanceof VerificationError
           ? error.message
-          : "가입에 실패했습니다.",
+          : "가입하지 못했습니다.",
     };
   }
 
@@ -138,8 +126,7 @@ export async function completeRegistrationAction(
 
 // ── 이메일 · 휴대폰 인증 ──────────────────────────────────────
 //
-// 이 두 액션은 가입 폼 "안"에서 쓰인다. HTML은 폼 중첩을 허용하지 않으므로
-// 별도 <form> 없이 클라이언트에서 직접 호출한다 (인수를 그대로 받는 형태).
+// 가입 폼 "안"에서 쓰인다. HTML은 폼 중첩을 허용하지 않아 인수를 그대로 받는다.
 
 export type VerifyResult = {
   ok: boolean;
@@ -148,11 +135,7 @@ export type VerifyResult = {
   mockCode?: string;
 };
 
-/**
- * code(가입코드)를 함께 받는다 (I4) — 유효한 초대코드 보유자만 문자·메일
- * 발송을 촉발할 수 있게 한다. register-flow.tsx가 1단계에서 이미 확인한
- * code를 그대로 들고 있다가 넘긴다.
- */
+/** 가입코드를 함께 받는다 (I4) — 코드 보유자만 발송을 촉발할 수 있게 한다. */
 export async function requestVerificationAction(
   channel: string,
   target: string,
@@ -192,7 +175,7 @@ export async function confirmVerificationAction(
   if (!parsed.success) {
     return {
       ok: false,
-      error: parsed.error.issues[0]?.message ?? "입력값을 확인해 주세요.",
+      error: parsed.error.issues[0]?.message ?? "입력을 확인해 주세요.",
     };
   }
 
@@ -205,15 +188,12 @@ export async function confirmVerificationAction(
       error:
         error instanceof VerificationError
           ? error.message
-          : "인증에 실패했습니다.",
+          : "인증하지 못했습니다.",
     };
   }
 }
 
-/**
- * 방금 만든 계정으로 바로 로그인시킨다.
- * nextCookies 플러그인이 세션 쿠키를 붙여준다. 실패해도 가입 자체는 성공이므로 삼킨다.
- */
+/** 방금 만든 계정으로 바로 로그인시킨다. 실패해도 가입 자체는 성공이라 삼킨다. */
 async function signInSilently(email: string, password: string): Promise<void> {
   try {
     await auth.api.signInEmail({
@@ -221,6 +201,6 @@ async function signInSilently(email: string, password: string): Promise<void> {
       headers: await headers(),
     });
   } catch {
-    // 로그인만 실패한 경우 사용자는 /login에서 직접 로그인하면 된다.
+    // 로그인만 실패했으면 사용자가 /login에서 직접 하면 된다.
   }
 }

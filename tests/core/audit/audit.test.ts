@@ -134,7 +134,7 @@ describe("recordAudit()", () => {
     });
   });
 
-  it("actorUserId가 null이어도 저장한다 (I9) — 행위자 없는 사건(가입 시도 자동 폐기 등)", async () => {
+  it("actorUserId가 null이어도 저장한다 (I9)", async () => {
     await recordAudit({
       actorUserId: null,
       actorName: "(가입 시도자)",
@@ -158,7 +158,7 @@ describe("recordAudit()", () => {
     });
   });
 
-  it("actorName을 넘기면 조회를 건너뛴다 (M8) — 배치 호출이 매번 이름을 다시 묻지 않게", async () => {
+  it("actorName을 넘기면 조회를 건너뛴다 (M8)", async () => {
     await recordAudit({
       actorUserId: "u1",
       actorName: "캐시된 이름",
@@ -185,7 +185,7 @@ describe("recordAudit()", () => {
     });
   });
 
-  it("actorUserId가 null이고 actorName도 없으면 (알 수 없음)으로 떨어진다", async () => {
+  it("actorUserId도 actorName도 없으면 (알 수 없음)으로 떨어진다", async () => {
     await recordAudit({
       actorUserId: null,
       action: "invite:auto-revoke",

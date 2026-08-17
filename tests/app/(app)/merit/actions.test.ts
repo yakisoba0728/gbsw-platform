@@ -3,20 +3,11 @@ import { ForbiddenError } from "@/core/authz/errors";
 import { MeritError } from "@/modules/merit/merit.error";
 
 /**
- * 상벌점 서버 액션의 **경계** — 폼이 보내는 FormData가 zod 스키마에 닿는 그 지점.
- *
- * `(auth)/register/actions.test.ts`와 같은 목적이다. 서비스 테스트는 입력 객체를
- * 손으로 만들어 넘기므로 "액션이 폼의 어떤 필드를 안 읽는다"를 볼 수 없다 —
- * 최초 관리자 생성이 100% 실패하던 C-1이 정확히 그 틈에서 살아남았다.
- *
- * 그래서 FormData는 **화면의 .tsx가 실제로 보내는 name 그대로** 만든다.
- * 출처: award-form.tsx · class-roster.tsx · components/merit/cancel-button.tsx ·
- * recent/cancel-batch-button.tsx · components/ui/confirm-dialog.tsx(reason) ·
- * components/merit/rule-picker.tsx(ruleId).
+ * 서버 액션의 경계 — FormData가 zod 스키마에 닿는 지점. 서비스 테스트는 입력
+ * 객체를 손으로 넘기므로 "액션이 폼의 어떤 필드를 안 읽는다"를 못 본다.
+ * 그래서 FormData는 화면의 .tsx가 실제로 보내는 name 그대로 만든다.
  */
 
-// 목은 구현 없이 선언하고 기본값은 beforeEach에서 준다 —
-// tests/modules/**의 서비스 테스트와 같은 방식이다.
 const requireAuth = vi.fn();
 const revalidatePath = vi.fn();
 
@@ -132,7 +123,7 @@ describe("awardAction — 경계 검증", () => {
     expect(state).toEqual({ error: null, ok: true, count: 1 });
   });
 
-  it("폼의 네 필드를 모두 읽는다 — 하나라도 빠지면 스키마가 막는다", async () => {
+  it("폼의 네 필드를 모두 읽는다", async () => {
     await awardAction(INITIAL, awardForm({ note: "점호 지각" }));
 
     expect(awardMerit).toHaveBeenCalledWith(
@@ -180,7 +171,7 @@ describe("awardAction — 경계 검증", () => {
 
     const state = await awardAction(INITIAL, awardForm());
 
-    expect(state.error).toBe("삭제된 규정입니다. 다른 항목을 골라 주세요.");
+    expect(state.error).toBe("삭제된 규정입니다.");
     expect(state.ok).toBe(false);
   });
 
@@ -197,7 +188,7 @@ describe("awardAction — 경계 검증", () => {
 
     const state = await awardAction(INITIAL, awardForm());
 
-    expect(state.error).toContain("현재 학년도가 설정되어 있지 않습니다");
+    expect(state.error).toContain("현재 학년도가 없습니다");
   });
 
   it("사전에 없는 코드는 영문 코드를 화면에 흘리지 않는다", async () => {
@@ -262,7 +253,7 @@ describe("cancelAction — 경계 검증", () => {
     expect(state.ok).toBe(true);
   });
 
-  it("사유가 비면 서비스를 부르지 않는다 — 사유는 취소 권한의 근거다", async () => {
+  it("사유가 비면 서비스를 부르지 않는다", async () => {
     const state = await cancelAction(INITIAL, cancelForm({ reason: "   " }));
 
     expect(cancelAward).not.toHaveBeenCalled();
@@ -307,20 +298,14 @@ describe("cancelBatchAction — 경계 검증", () => {
 
     const state = await cancelBatchAction(INITIAL, cancelBatchForm());
 
-    expect(state.error).toBe("취소할 묶음을 찾을 수 없습니다. 이미 취소되었을 수 있습니다.");
+    expect(state.error).toBe("취소할 묶음을 찾을 수 없습니다.");
   });
 });
 
 /*
- * 내보내기 둘은 <form action>이 아니라 버튼 클릭에서 인수를 그대로 받는다
- * (export-button.tsx). FormData 경계는 없지만 safeParse 경계는 그대로 있다.
- *
- * **시트 조립과 파일명은 서비스(award.service의 exportClassRoster·
- * exportStudentHistory)가 만든다.** 예전엔 액션이 merit.export의 순수 함수를
- * 직접 부르고 파일명 문자열도 여기서 이어 붙였다 — 그래서 이 테스트도 파일명
- * 규칙을 검증했었다. 그 검증은 이제 서비스 테스트
- * (tests/modules/merit/award.service.test.ts)가 맡고, 여기서는 액션이 해야 할
- * 세 가지만 본다: 경계 검증 · 서비스 호출 · 오류 문구 변환.
+ * 내보내기 둘은 버튼 클릭에서 인수를 그대로 받는다 — FormData 경계는 없지만
+ * safeParse 경계는 있다. 시트 조립과 파일명은 서비스가 만들므로 여기서는
+ * 경계 검증 · 서비스 호출 · 오류 문구 변환 셋만 본다.
  */
 describe("exportClassRosterAction — 경계 검증", () => {
   it("조건이 맞으면 서비스까지 도달하고 결과를 그대로 넘긴다", async () => {
@@ -339,7 +324,7 @@ describe("exportClassRosterAction — 경계 검증", () => {
     expect(result.filename).toBe("2026_2학년3반_기숙사상벌점.xlsx");
   });
 
-  it("학년도를 안 주면 서비스가 정하도록 넘기지 않는다 — 액션은 채우지 않는다", async () => {
+  it("학년도를 안 주면 서비스가 정하도록 넘기지 않는다", async () => {
     await exportClassRosterAction({ grade: 1, classNo: 1, track: "SCHOOL" });
 
     expect(exportClassRoster.mock.calls[0]?.[1].year).toBeUndefined();
@@ -369,10 +354,10 @@ describe("exportClassRosterAction — 경계 검증", () => {
       track: "SCHOOL",
     });
 
-    expect(result.error).toContain("현재 학년도가 설정되어 있지 않습니다");
+    expect(result.error).toContain("현재 학년도가 없습니다");
   });
 
-  it("권한 거부를 파일 문제로 안내하지 않는다 — 그래야 다시 누르지 않는다", async () => {
+  it("권한 거부를 파일 문제로 안내하지 않는다", async () => {
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
     exportClassRoster.mockRejectedValueOnce(new ForbiddenError("merit:read:any"));
 
@@ -436,10 +421,10 @@ describe("exportStudentHistoryAction — 경계 검증", () => {
       track: "SCHOOL",
     });
 
-    expect(result.error).toBe("내려받지 못했습니다.");
+    expect(result.error).toBe("내보내지 못했습니다.");
   });
 
-  it("권한 거부를 파일 문제로 안내하지 않는다 — 그래야 다시 누르지 않는다", async () => {
+  it("권한 거부를 파일 문제로 안내하지 않는다", async () => {
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
     exportStudentHistory.mockRejectedValueOnce(new ForbiddenError("merit:read:any"));
 

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useState, useTransition } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
@@ -23,26 +24,14 @@ import type { RosterPlan } from "@/modules/enrollment/roster.plan";
 import { APPLY_INITIAL, PREVIEW_INITIAL } from "./action-state";
 import { applyRosterAction, exportRosterAction, previewRosterAction } from "./actions";
 
-/**
- * 빈 서식 예시 두 줄. 학생코드를 비워 둔다 — 빈 학생코드가 "신규"라는 뜻을
- * 서식 자체로 보여준다. 이 서식은 학생이 아직 없거나 새로 만들 때만 쓴다;
- * 기존 학생은 "전체 명단 내려받기"로 받은 파일을 고쳐서 올린다.
- */
+/** 빈 서식 예시 두 줄. 학생코드를 비워 둬 그 자체로 "신규"를 보여준다. */
 const TEMPLATE_ROWS: (string | number | null)[][] = [
   [...ROSTER_COLUMNS],
   ["", "김example", "2010-03-05", 1, 3, 1, "재학"],
   ["", "이example", "2008-11-20", null, null, null, "졸업"],
 ];
 
-/**
- * xlsx writer는 쓰는 순간에만 내려받는다.
- *
- * 정적 import면 `/admin/students/import`를 **열기만 해도** zip/xlsx writer가
- * 통째로 따라온다. 이 화면에서 xlsx가 필요한 시점은 셋(빈 서식·전체 명단·
- * 초대코드 목록)뿐이고 전부 사용자가 단추를 눌러야 도달하는 경로다. 게다가
- * 브라우저 전용 진입점이라 서버 번들에 들어가면 터진다.
- * (merit/export-button.tsx가 같은 이유로 같은 방식을 쓴다.)
- */
+/** xlsx writer는 단추를 눌렀을 때만 불러온다. 브라우저 전용이라 서버 번들에 못 넣는다. */
 async function loadXlsxWriter() {
   const { default: writeXlsxFile } = await import("write-excel-file/browser");
   return writeXlsxFile;
@@ -90,7 +79,7 @@ function statusLabel(status: string | null): string {
   return ENROLLMENT_STATUS_LABELS[status as EnrollmentStatus] ?? status;
 }
 
-/** 학적변동·신규 배정 줄에 라벨만 보이면 몇 학년 몇 반 몇 번인지 알 수 없다 (I7). */
+/** 학적 라벨만으로는 몇 학년 몇 반 몇 번인지 알 수 없다. */
 function statusWithSeatLabel(row: {
   status: string | null;
   grade: number | null;
@@ -100,28 +89,16 @@ function statusWithSeatLabel(row: {
   return `${statusLabel(row.status)} · ${seatLabel(row)}`;
 }
 
-/*
- * 두 폼(미리보기·확정)은 형제로 둔다 — HTML은 <form> 중첩을 허용하지 않는다.
- * 각 폼이 자기 결과(useActionState)를 직접 렌더한다. 부모가 자식의 성공 여부를
- * 끌어올려 render 중에 setState하면 "다른 컴포넌트 렌더 중 업데이트" 오류가 난다.
- */
+/* 두 폼(미리보기·확정)은 형제로 둔다 — <form> 중첩은 HTML이 허용하지 않는다. */
 export function ImportForm() {
   const [previewState, previewAction, previewing] = useActionState(
     previewRosterAction,
     PREVIEW_INITIAL,
   );
 
-  // 새로 올린 파일마다 지문을 만든다 — 이전 확정 결과(성공 배너·초대코드 표)가
-  // 새 미리보기 위에 그대로 남아있지 않도록, 내용이 바뀌면 PreviewCard를 통째로
-  // 새로 마운트해 안의 확정 폼 상태(applyState)를 초기화한다.
-  //
-  // 삭제 대상(missingFromFile)의 studentProfileId를 반드시 지문에 넣는다 —
-  // 안 그러면 "행 수·첫줄·끝줄 이름"만 같고 삭제 대상이 다른 두 업로드가 같은
-  // 지문으로 잡혀 PreviewCard가 다시 마운트되지 않는다. 그러면 이전 업로드에서
-  // 적어 둔 typedDeleteCount(삭제 인원 확인)가 그대로 남아, 건수만 우연히 같으면
-  // 관리자가 다른 학생의 삭제를 다시 확인하지 않고도 확정 버튼이 눌리는 사고로
-  // 이어진다. 전교생 규모에서는 가운데 줄 하나만 바꿔도 행 수·첫/끝 이름이 그대로인
-  // 경우가 흔하다 — 되돌릴 수 없는 동작이라 이 틈을 남겨두면 안 된다.
+  // 파일마다 지문을 만들어 내용이 바뀌면 PreviewCard를 새로 마운트한다.
+  // 빠지는 학생 목록을 반드시 지문에 넣는다 — 안 넣으면 대상이 다른 두 업로드가
+  // 같은 지문으로 잡혀, 앞서 적어 둔 인원 수 확인이 그대로 남는다.
   const previewFingerprint =
     previewState.plan &&
     `${previewState.year}:${previewState.rows.length}:` +
@@ -161,7 +138,7 @@ function UploadCard({
     startExport(async () => {
       const result = await exportRosterAction();
       if (result.error || result.year === null) {
-        setExportError(result.error ?? "명단을 내려받지 못했습니다.");
+        setExportError(result.error ?? "명단을 내보내지 못했습니다.");
         return;
       }
       const writeXlsxFile = await loadXlsxWriter();
@@ -179,24 +156,22 @@ function UploadCard({
     <section className="rounded-card border border-line bg-surface p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-base font-extrabold text-ink">명단 파일 올리기</h2>
-          <p className="mt-0.5 text-[12px] text-mut">
-            전체 명단을 내려받아 고친 뒤 그대로 다시 올리세요. 파일이 곧 전교생
-            완성본입니다 — 줄을 지우면 그 학생의 이번 학년도 배정이 사라집니다.
+          <h2 className="text-lg font-semibold text-ink">명단 반영</h2>
+          <p className="mt-1 text-caption text-mut">
+            파일이 곧 전교생 완성본입니다. 줄을 지우면 그 학생이 명단에서 빠집니다.
           </p>
-          <p className="mt-1 text-[12px] font-semibold text-rose">
-            첫 열(학생코드)은 학생을 알아보는 유일한 기준입니다. 지우거나 고치지
-            마세요 — 비워 두면 같은 학생도 새 학생으로 등록됩니다.
+          <p className="mt-1 text-caption font-medium text-rose">
+            학생코드 열은 학생을 알아보는 유일한 기준입니다. 비우면 같은 학생도 새
+            학생으로 등록됩니다.
           </p>
-          <p className="mt-1 text-[12px] text-mut">
-            이름·생년월일은 여기서 고쳐도 반영되지 않습니다 — 학생 상세 화면에서만
-            고칠 수 있습니다. 이 파일에서는 등록된 값과 대조하는 용도로만 씁니다.
+          <p className="mt-1 text-caption text-mut">
+            이름·생년월일은 대조용이라 여기서 고쳐도 반영되지 않습니다.
           </p>
         </div>
 
         <div className="flex shrink-0 flex-col items-end gap-1.5">
           <Button type="button" size="sm" onClick={downloadRoster} disabled={exporting}>
-            {exporting ? "받는 중…" : "전체 명단 내려받기"}
+            {exporting ? "내보내는 중…" : "전체 명단 내보내기"}
           </Button>
           <Button
             type="button"
@@ -206,7 +181,7 @@ function UploadCard({
               void downloadTemplate();
             }}
           >
-            빈 서식 내려받기 (신규 등록용)
+            빈 서식 내보내기
           </Button>
         </div>
       </div>
@@ -224,7 +199,7 @@ function UploadCard({
           accept=".csv,.xlsx"
           required
           aria-label="명단 파일"
-          className="flex-1 text-sm text-ink file:mr-3 file:rounded-btn file:border file:border-line file:bg-soft file:px-3.5 file:py-2 file:text-[12.5px] file:font-semibold file:text-ink"
+          className="flex-1 text-sm text-ink file:mr-3 file:rounded-btn file:border file:border-line file:bg-soft file:px-3.5 file:py-2 file:text-caption file:font-medium file:text-ink"
         />
         <Button type="submit" size="sm" disabled={pending}>
           {pending ? "읽는 중…" : "미리보기"}
@@ -255,16 +230,7 @@ function PreviewCard({
     applyRosterAction,
     APPLY_INITIAL,
   );
-  // 삭제 확인용으로 관리자가 직접 입력하는 인원 수 (I-3). 문자열로 들고 있다가
-  // 제출 시에만 숫자와 대조한다 — 입력 중간값("1", "10" 앞자리)도 그대로 보여줘야
-  // 한다.
-  //
-  // 예전에는 여기에 체크박스("N명을 뺍니다")가 하나 더 있었다. 건수 직접 입력이
-  // 대량 삭제에서만 뜨던 시절의 최소 확인이었는데, 이제 삭제가 1명이라도 있으면
-  // 항상 건수를 요구한다 — 숫자를 옮겨 적으려면 위 목록을 봐야 하므로 체크 한 번보다
-  // 강한 확인이고, 두 겹은 같은 것을 두 번 묻는 셈이라 걷어냈다. 대신 서버로 보내는
-  // 삭제 대상 id 목록(confirmedDeletionIds)은 그대로 둔다 — 그건 동의 표시가 아니라
-  // "화면이 무엇을 보고 있었는지"라서 I-2 대조의 근거다.
+  // 관리자가 직접 적는 인원 수. 입력 중간값도 그대로 보여야 해서 문자열로 든다.
   const [typedDeleteCount, setTypedDeleteCount] = useState("");
 
   const applied = applyState.saved !== null && !applyState.error;
@@ -277,9 +243,8 @@ function PreviewCard({
       title="미리보기"
       hint={`${year}학년도 기준입니다.`}
       controls={
-        // 경고색이지만 알림은 필요하다 — 파일 전체에 걸리는 주의(학생코드 열
-        // 없음 등)라 놓치면 잘못된 확정으로 이어진다. Note는 error에만 role을
-        // 자동으로 붙이므로 여기서 명시한다.
+        // 파일 전체에 걸리는 주의라 놓치면 잘못된 확정으로 이어진다. Note는
+        // error에만 role을 자동으로 붙이므로 여기서 명시한다.
         notices.map((notice) => (
           <Note key={notice} tone="warn" role="alert" className="mt-2">
             {notice}
@@ -288,44 +253,34 @@ function PreviewCard({
       }
       flush
     >
-      {/* 미리보기 맨 위에, 접지 않고 펼친 채로 보여준다. 위험색(rose)이 아니라
-          경고색(amber)을 쓴다 — 되돌릴 수 있는 동작이다(다음 명단에 다시 넣으면
-          돌아온다). 그래도 건수 직접 입력 확인은 한 명이라도 빠지면 늘 요구한다 —
-          되돌릴 수 있어도 학생이 목록·로그인에서 사라지는 동안은 사고이고, 잘못된
-          파일은 대개 "한 반이 통째로 빠진" 모습으로 온다. */}
+      {/* 미리보기 맨 위에 펼친 채로 둔다. 다음 명단에 다시 넣으면 돌아오므로
+          위험색이 아니라 경고색을 쓴다. */}
       {deleteCount > 0 && (
-        <div className="border-b-4 border-amber-ink bg-amber-soft px-5 py-4">
+        <div className="border-b border-amber-line bg-amber-soft px-5 py-4">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="text-sm font-extrabold text-amber-ink">
+            <h3 className="text-sm font-semibold text-amber-ink">
               명단에서 빠지는 학생
             </h3>
-            <span className="rounded-full bg-amber-ink px-2.5 py-1 text-[11px] font-bold text-white">
+            <Badge tone="pending" dot={false}>
               {deleteCount}명
-            </span>
+            </Badge>
           </div>
-          {/*
-            소프트 삭제는 그 학년도 Enrollment를 **실제로 지운다**
-            (roster.repo의 enrollment.deleteMany). "소속은 그대로 남는다"는
-            약속은 지난 학년도에만 맞다. 자퇴·전출을 남기는 올바른 방법은
-            줄을 지우는 게 아니라 학적 칸을 바꾸는 것이라, 그 길을 문구가
-            직접 가리킨다.
-          */}
-          <p className="mt-1 text-[12.5px] font-semibold text-amber-ink">
-            명단에 없는 학생입니다. 확정하면 계정이 비활성화되고 목록·로그인에서
-            빠지며, 이번 학년도 소속도 함께 사라집니다. 학생 정보와 지난 학년도
-            소속, 상벌점 기록은 그대로 남고, 다음 명단에 다시 포함하면 계정이
-            자동으로 되살아납니다. 자퇴·전출을 기록하려면 줄을 지우지 말고 학적
-            칸을 바꿔 주세요.
+          {/* 이번 학년도 소속은 실제로 지워진다. 자퇴·전출을 남기는 길이 따로
+              있다는 것을 문구가 직접 가리킨다. */}
+          <p className="mt-1.5 text-caption font-medium text-amber-ink">
+            확정하면 계정이 비활성화되고 이번 학년도 소속이 사라집니다. 학생 정보와
+            지난 학년도 소속, 상벌점 기록은 남고, 다음 명단에 다시 넣으면 되살아납니다.
+            자퇴·전출은 줄을 지우지 말고 학적 칸을 바꿔 기록해 주세요.
           </p>
           <ul className="mt-3 divide-y divide-line2">
             {plan.missingFromFile.map((s) => (
               <li
                 key={s.studentProfileId}
-                className="flex items-center justify-between py-2 text-[13px]"
+                className="flex items-center justify-between py-2 text-caption"
               >
-                <span className="font-semibold text-ink">
+                <span className="font-medium text-ink">
                   {s.name}
-                  <span className="ml-1.5 font-mono text-[11.5px] font-normal text-mut">
+                  <span className="ml-1.5 font-mono text-xs font-normal text-mut">
                     {s.studentCode}
                   </span>
                 </span>
@@ -342,7 +297,6 @@ function PreviewCard({
         <IssueGroup
           title="오류 · 확인 필요"
           count={issueCount}
-          tone="rose"
           defaultOpen={issueCount > 0}
         >
           {plan.errorRows.map((r) => (
@@ -358,7 +312,7 @@ function PreviewCard({
             <PlannedRowItem
               key={`new-${r.line}`}
               name={r.name}
-              detail={r.status === "ENROLLED" ? seatLabel(r) : "코드 발급 안 함"}
+              detail={r.status === "ENROLLED" ? seatLabel(r) : "초대코드 없음"}
             />
           ))}
         </PlannedGroup>
@@ -401,12 +355,9 @@ function PreviewCard({
       </div>
 
       <div className="border-t border-line px-5 py-4">
-        {/* 이 두 배너는 role="alert"가 빠져 있었다 — 하필 되돌릴 수 없는 동작을
-            다루는 화면이라, 화면을 못 보는 사람에게 실패가 전달되지 않으면 그대로
-            다음 단추를 누른다. Note tone="error"가 자동으로 붙인다. */}
         {plan.hasBlockingError && (
           <Note tone="error" className="mb-3">
-            오류나 확인 필요 항목이 남아 있어 확정할 수 없습니다. 파일을 고쳐 다시
+            오류·확인 필요 항목이 남아 있어 확정할 수 없습니다. 파일을 고쳐 다시
             올려 주세요.
           </Note>
         )}
@@ -418,28 +369,19 @@ function PreviewCard({
 
         {applied ? (
           <>
-            {/* 확정에 성공하면 폼이 통째로 사라져 포커스가 <body>로 떨어진다 —
-                이 결과만은 알림으로도 전달돼야 한다. 배너 둘을 한 영역에 묶어
-                한 번에 읽히게 한다 (줄 목록은 길어서 밖에 둔다). */}
+            {/* 확정하면 폼이 사라져 포커스가 <body>로 떨어진다. 두 배너를 한
+                영역으로 묶어 한 번에 읽히게 한다. */}
             <div role="status">
               <Note tone="success">
-                {/* Minor-4: 제외 건수가 반영 건수 안에 묻히면 몇 명이 빠졌는지 이
-                    문구만 보고는 알 수 없다 — 제외가 있을 때만 따로 덧붙인다. */}
                 {applyState.deleted && applyState.deleted > 0
-                  ? `${applyState.saved}건 반영, ${applyState.deleted}명 명단에서 제외했습니다.`
+                  ? `${applyState.saved}건 반영, ${applyState.deleted}명 명단에서 뺐습니다.`
                   : `${applyState.saved}건 반영했습니다.`}
               </Note>
 
-              {/* 재학이 아닌 신규 줄은 아무것도 만들어지지 않는다 (I1) —
-                  studentInviteMetaSchema가 학년·반·번호를 필수로 요구해서 코드를
-                  만들어도 가입이 영원히 막히기 때문이다. 미리보기는 이들을
-                  "신규 N"으로 세므로, 여기서 말하지 않으면 관리자는 N명이
-                  등록됐다고 믿는다. */}
               {applyState.excludedNew.length > 0 && (
                 <Note tone="warn" className="mt-3">
-                  {applyState.excludedNew.length}건은 계정과 초대코드를 만들지
-                  않았습니다 — 재학이 아닌 신규 줄입니다. 등록하려면 학적을 재학으로
-                  바꿔 다시 올려 주세요.
+                  {applyState.excludedNew.length}건은 재학이 아닌 신규 줄이라 계정과
+                  초대코드를 만들지 않았습니다. 학적을 재학으로 바꿔 다시 올리세요.
                 </Note>
               )}
             </div>
@@ -449,12 +391,10 @@ function PreviewCard({
                 {applyState.excludedNew.map((row) => (
                   <li
                     key={row.line}
-                    className="flex items-center justify-between py-2 text-[13px]"
+                    className="flex items-center justify-between py-2 text-caption"
                   >
-                    <span className="font-semibold text-ink">
-                      <span className="font-semibold text-amber-ink">
-                        {row.line}행
-                      </span>{" "}
+                    <span className="font-medium text-ink">
+                      <span className="font-mono text-amber-ink">{row.line}행</span>{" "}
                       {row.name || "(이름 없음)"}
                     </span>
                     <span className="text-mut">{statusLabel(row.status)}</span>
@@ -467,28 +407,22 @@ function PreviewCard({
           <form action={applyAction} className="flex flex-col gap-3">
             <input type="hidden" name="rows" value={JSON.stringify(rows)} />
             <input type="hidden" name="year" value={year} />
-            {/* 미리보기가 본 삭제 대상을 **늘** 실어 보낸다. 서버(applyRosterPlan)가
-                확정 시점에 다시 세운 집합과 대조하는데(I-2), 그 대조의 한쪽은 "화면이
-                그때 무엇을 보고 있었는가"여야 한다 — 관리자의 동의 표시가 아니다.
-                동의는 아래 인원 수 입력이 받는다. 삭제 대상이 없으면 자연히 빈
-                배열이다. */}
+            {/* 화면이 본 삭제 대상을 늘 실어 보낸다. 동의 표시가 아니라 서버가
+                다시 세운 집합과 대조할 근거다. */}
             <input
               type="hidden"
               name="confirmedDeletionIds"
               value={JSON.stringify(plan.missingFromFile.map((s) => s.studentProfileId))}
             />
-            {/* 삭제가 1명이라도 있으면 서버가 이 값을 요구한다 (I-3). 삭제가 없으면
-                입력칸 자체가 없어 빈 문자열이 가고 서버도 보지 않는다. */}
+            {/* 한 명이라도 빠지면 서버가 이 값을 요구한다. */}
             <input type="hidden" name="deletionCount" value={typedDeleteCount} />
             {deleteCount > 0 && (
-              <label className="flex flex-col gap-1 text-[13px] font-semibold text-amber-ink">
+              <label className="flex flex-col gap-1.5 text-caption font-medium text-amber-ink">
                 <span>
-                  확정하면 위 {deleteCount}명이 명단에서 빠집니다. 잘못된 파일을
-                  올렸을 때 마지막 방어선이 되도록, 뺄 인원 수를 직접 입력해야 확정할
-                  수 있습니다.
+                  확정하면 위 {deleteCount}명이 명단에서 빠집니다. 확인을 위해 인원
+                  수를 직접 입력해 주세요.
                 </span>
-                {/* 폭은 바깥에서 준다 — cn()이 tailwind-merge가 아니라 Input의
-                    w-full을 className으로 덮을 수 없다. */}
+                {/* 폭은 바깥에서 준다 — cn()이 w-full을 못 덮는다. */}
                 <div className="w-40">
                   <Input
                     dense
@@ -496,7 +430,7 @@ function PreviewCard({
                     inputMode="numeric"
                     value={typedDeleteCount}
                     onChange={(e) => setTypedDeleteCount(e.target.value)}
-                    placeholder="뺄 인원 수"
+                    placeholder="빠지는 인원 수"
                   />
                 </div>
               </label>
@@ -512,7 +446,7 @@ function PreviewCard({
                 }
               >
                 {applying
-                  ? "반영하는 중…"
+                  ? "반영 중…"
                   : deleteCount > 0
                     ? `확정 (${deleteCount}명 제외)`
                     : "확정"}
@@ -530,7 +464,7 @@ function PreviewCard({
         <div className="border-t border-line px-5 py-4">
           <Link
             href="/admin/students"
-            className="text-[12.5px] font-semibold text-pri hover:underline"
+            className="text-caption font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
           >
             학생 관리로 돌아가기
           </Link>
@@ -554,13 +488,12 @@ function InvitesResult({
   year: number;
 }) {
   return (
-    // 표는 카드 안쪽 여백 밖에 둔다 — TableFrame의 셀 여백 규칙(첫·끝 열 px-5)이
-    // 곧 카드 여백과 같은 눈금이라, 바깥에서 px-5를 한 번 더 주면 첫 열만 두 번
-    // 밀려 다른 표들과 세로줄이 어긋난다.
+    // 표는 카드 안쪽 여백 밖에 둔다 — 표의 첫·끝 열 px-5가 곧 카드 여백이라
+    // 밖에서 한 번 더 주면 세로줄이 어긋난다.
     <div className="border-t border-line py-4">
       <div className="px-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-sm font-extrabold text-ink">발급된 초대코드</h3>
+          <h3 className="text-sm font-semibold text-ink">발급된 초대코드</h3>
           <Button
             type="button"
             variant="secondary"
@@ -569,15 +502,18 @@ function InvitesResult({
               void downloadInvites(invites, year);
             }}
           >
-            코드 목록 xlsx 받기
+            내보내기
           </Button>
         </div>
-        <p className="mt-1 text-[12px] text-mut">
-          코드는{" "}
-          <Link href="/admin/invites" className="font-semibold text-pri hover:underline">
+        <p className="mt-1 text-caption text-mut">
+          한 파일로 받으려면 지금 내보내세요. 코드는{" "}
+          <Link
+            href="/admin/invites"
+            className="font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
+          >
             초대 관리
           </Link>
-          에서도 다시 확인할 수 있습니다. 한 번에 내려받으려면 지금 받아 두세요.
+          에서도 다시 볼 수 있습니다.
         </p>
       </div>
 
@@ -585,11 +521,11 @@ function InvitesResult({
         <tbody>
           {invites.map((invite) => (
             <tr key={invite.code} className="border-b border-line2 last:border-0">
-              <td className={`${inviteCell(0)} font-semibold text-ink`}>
+              <td className={`${inviteCell(0)} font-medium text-ink`}>
                 {invite.name}
               </td>
               <td className={`${inviteCell(1)} text-mut`}>{seatLabel(invite)}</td>
-              <td className={`${inviteCell(2)} font-mono text-[12.5px] text-ink`}>
+              <td className={`${inviteCell(2)} font-mono text-caption text-ink`}>
                 {formatInviteCode(invite.code)}
               </td>
             </tr>
@@ -614,17 +550,14 @@ function IssueGroup({
 }: {
   title: string;
   count: number;
-  tone: "rose";
   defaultOpen: boolean;
   children: React.ReactNode;
 }) {
   return (
     <details open={defaultOpen} className="group">
       <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-3 select-none">
-        <span className="text-sm font-bold text-ink">{title}</span>
-        <span className="rounded-full bg-rose-soft px-2.5 py-1 text-[11px] font-bold text-rose">
-          {count}건
-        </span>
+        <span className="text-sm font-medium text-ink">{title}</span>
+        <Badge tone={count > 0 ? "demerit" : "neutral"}>{count}건</Badge>
       </summary>
       {count > 0 && <ul className="divide-y divide-line2 px-5 pb-4">{children}</ul>}
     </details>
@@ -633,9 +566,9 @@ function IssueGroup({
 
 function IssueRow({ line, name, reason }: { line: number; name: string; reason: string }) {
   return (
-    <li className="py-2 text-[13px]">
-      <span className="font-semibold text-rose">{line}행</span>{" "}
-      <span className="font-semibold text-ink">{name || "(이름 없음)"}</span>
+    <li className="py-2 text-caption">
+      <span className="font-mono text-rose">{line}행</span>{" "}
+      <span className="font-medium text-ink">{name || "(이름 없음)"}</span>
       <span className="block text-mut">{reason}</span>
     </li>
   );
@@ -655,18 +588,15 @@ function PlannedGroup({
   return (
     <details open={defaultOpen} className="group">
       <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-3 select-none">
-        <span className="text-sm font-bold text-ink">{title}</span>
-        <span className="rounded-full bg-mut-soft px-2.5 py-1 text-[11px] font-bold text-mut">
-          {count}건
-        </span>
+        <span className="text-sm font-medium text-ink">{title}</span>
+        <Badge tone="neutral">{count}건</Badge>
       </summary>
       {count > 0 && <ul className="divide-y divide-line2 px-5 pb-4">{children}</ul>}
     </details>
   );
 }
 
-/** beforeName: 학생코드로 이어진 DB 쪽 이름. 파일의 이름(name)만 보여주면 무엇에
- * 이어졌는지 화면만으로는 확인할 길이 없다 — 등록명을 나란히 보여준다. */
+/** beforeName은 학생코드로 이어진 등록명이다. 파일의 이름과 나란히 보여준다. */
 function PlannedRowItem({
   name,
   beforeName,
@@ -677,10 +607,12 @@ function PlannedRowItem({
   detail: string;
 }) {
   return (
-    <li className="flex items-center justify-between py-2 text-[13px]">
-      <span className="font-semibold text-ink">
+    <li className="flex items-center justify-between py-2 text-caption">
+      <span className="font-medium text-ink">
         {name}
-        {beforeName && <span className="ml-1.5 font-normal text-mut">(등록명: {beforeName})</span>}
+        {beforeName && (
+          <span className="ml-1.5 font-normal text-mut">(등록명: {beforeName})</span>
+        )}
       </span>
       <span className="text-mut">{detail}</span>
     </li>

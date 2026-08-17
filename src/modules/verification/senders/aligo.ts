@@ -1,12 +1,8 @@
 import type { VerificationSender } from "../verification.sender";
 
 /**
- * 알리고(Aligo) 문자 발송.
- *
- * POST https://apis.aligo.in/send_mass/  (application/x-www-form-urlencoded)
- *
- * 인증값은 코드에 두지 않는다 — 전부 환경변수에서 읽는다.
- * 발신번호는 알리고에 사전 등록된 번호여야 한다(전기통신사업법상 필수).
+ * 알리고 문자 발송. 인증값은 전부 환경변수에서 읽는다.
+ * 발신번호는 알리고에 사전 등록된 번호여야 한다 (전기통신사업법상 필수).
  */
 
 const ENDPOINT = "https://apis.aligo.in/send_mass/";
@@ -17,10 +13,7 @@ export type AligoConfig = {
   userId: string;
   /** 사전 등록된 발신번호 */
   sender: string;
-  /**
-   * 알리고 테스트 모드. 요청은 정상 처리되지만 실제 발송도, 과금도 되지 않는다.
-   * 연동 확인용이며 운영에서는 꺼야 한다.
-   */
+  /** 요청은 처리되지만 발송도 과금도 되지 않는다. 운영에서는 꺼야 한다. */
   testMode: boolean;
 };
 
@@ -44,7 +37,7 @@ export function toAligoNumber(phone: string): string {
   return phone.replaceAll(/\D/g, "");
 }
 
-/** 로그·감사 기록에 남길 때 가운데를 가린다. */
+/** 로그에 남길 때 가운데를 가린다. */
 export function maskPhone(phone: string): string {
   const d = toAligoNumber(phone);
   if (d.length < 7) return "***";
@@ -80,12 +73,7 @@ type AligoResponse = {
   msg_id?: string;
 };
 
-/**
- * 접수 성공 판정. 실패면 던진다.
- *
- * 기존 마일리지 구현은 오류를 로그만 찍고 삼켜서 호출부가 실패를 알 수 없었다.
- * 인증번호는 발송 실패를 사용자에게 알려야 하므로 반드시 던진다.
- */
+/** 접수 성공 판정. 발송 실패를 사용자에게 알려야 하므로 실패면 던진다. */
 export function assertAligoSuccess(payload: AligoResponse): string | undefined {
   const code = String(payload.result_code ?? "");
   const ok =

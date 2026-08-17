@@ -186,7 +186,7 @@ describe("updateUserAction — 경계 검증", () => {
 
     const state = await updateUserAction(UPDATE_INITIAL, studentForm());
 
-    expect(state.error).toBe("이 작업을 할 권한이 없습니다.");
+    expect(state.error).toBe("권한이 없습니다.");
   });
 
   it("번호 충돌은 그 이유를 알린다", async () => {
@@ -194,7 +194,7 @@ describe("updateUserAction — 경계 검증", () => {
 
     const state = await updateUserAction(UPDATE_INITIAL, studentForm());
 
-    expect(state.error).toBe("이미 그 반에 같은 번호의 학생이 있습니다.");
+    expect(state.error).toBe("같은 반에 같은 번호가 있습니다.");
   });
 
   it("사전에 없는 오류는 영문을 화면에 흘리지 않는다", async () => {
@@ -267,7 +267,7 @@ describe("setUserActiveAction — 경계 검증", () => {
       form({ userId: "u-1", active: "false" }),
     );
 
-    expect(state.error).toBe("이 작업을 할 권한이 없습니다.");
+    expect(state.error).toBe("권한이 없습니다.");
   });
 
   it("자기 계정 비활성화는 그 이유를 알린다", async () => {
@@ -347,7 +347,7 @@ describe("resetPasswordAction — 경계 검증", () => {
 
     const state = await resetPasswordAction(USER_INITIAL, form({ userId: "u-1" }));
 
-    expect(state.error).toBe("이 작업을 할 권한이 없습니다.");
+    expect(state.error).toBe("권한이 없습니다.");
   });
 
   it("userId가 없으면 서비스를 부르지 않는다", async () => {
@@ -410,7 +410,7 @@ describe("deleteUserPermanentlyAction — 경계 검증", () => {
       form({ userId: "u-1", confirmName: "홍길자" }),
     );
 
-    expect(state.error).toBe("입력한 이름이 일치하지 않습니다.");
+    expect(state.error).toBe("이름이 일치하지 않습니다.");
     expect(redirect).not.toHaveBeenCalled();
   });
 
@@ -435,7 +435,7 @@ describe("deleteUserPermanentlyAction — 경계 검증", () => {
       form({ userId: "u-1", confirmName: "홍길동" }),
     );
 
-    expect(state.error).toBe("이 작업을 할 권한이 없습니다.");
+    expect(state.error).toBe("권한이 없습니다.");
   });
 
   it("확인 이름이 비면 서비스도 부르지 않고 목록으로 보내지도 않는다", async () => {

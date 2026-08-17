@@ -27,7 +27,7 @@ describe("readRequestContext() — IP", () => {
     headers.mockReset();
   });
 
-  it("리버스 프록시 뒤에서는 x-forwarded-for의 첫 항목이 원 IP다 — 뒤 항목은 프록시 자신이라 그걸 쓰면 전교생이 한 버킷에 들어간다", async () => {
+  it("x-forwarded-for의 첫 항목이 원 IP다 — 뒤 항목은 프록시 자신이다", async () => {
     requestWith({ "x-forwarded-for": "1.2.3.4, 5.6.7.8" });
     await expect(readRequestContext()).resolves.toMatchObject({ ip: "1.2.3.4" });
   });
@@ -52,7 +52,7 @@ describe("readRequestContext() — IP", () => {
     await expect(readRequestContext()).resolves.toMatchObject({ ip: "1.2.3.4" });
   });
 
-  it("x-forwarded-for가 없으면 x-real-ip로 떨어진다 — 프록시를 안 쓰는 배치에서도 제한이 살아 있어야 한다", async () => {
+  it("x-forwarded-for가 없으면 x-real-ip로 떨어진다", async () => {
     requestWith({ "x-real-ip": "198.51.100.7" });
     await expect(readRequestContext()).resolves.toMatchObject({ ip: "198.51.100.7" });
   });
@@ -67,7 +67,7 @@ describe("readRequestContext() — IP", () => {
     await expect(readRequestContext()).resolves.toMatchObject({ ip: "198.51.100.7" });
   });
 
-  it("첫 항목만 비어 있어도 두 번째 항목으로 넘어가지 않고 x-real-ip로 떨어진다 — 뒤 항목은 프록시 주소라 원 IP가 아니다", async () => {
+  it("첫 항목이 비면 두 번째가 아니라 x-real-ip로 떨어진다", async () => {
     requestWith({ "x-forwarded-for": " , 5.6.7.8", "x-real-ip": "198.51.100.7" });
     await expect(readRequestContext()).resolves.toMatchObject({ ip: "198.51.100.7" });
   });
@@ -77,12 +77,12 @@ describe("readRequestContext() — IP", () => {
     await expect(readRequestContext()).resolves.toMatchObject({ ip: "198.51.100.7" });
   });
 
-  it("아무 헤더도 없으면 ip는 null이다 — 빈 문자열이면 안 된다. verification.service는 `if (ip)`로 IP별 제한을 건너뛰므로, ''도 null과 같이 건너뛰어야 하고 실제로 null로 정규화된다", async () => {
+  it("아무 헤더도 없으면 ip는 null이다 — 빈 문자열이면 안 된다", async () => {
     requestWith({});
     await expect(readRequestContext()).resolves.toEqual({ ip: null, userAgent: null });
   });
 
-  it("두 헤더 모두 공백뿐이면 null이다 — 공백 문자열이 새어 나가면 서로 다른 요청들이 한 버킷에 묶여 남의 한도를 갉아먹는다", async () => {
+  it("두 헤더 모두 공백뿐이면 null이다", async () => {
     requestWith({ "x-forwarded-for": "   ", "x-real-ip": "  " });
     await expect(readRequestContext()).resolves.toMatchObject({ ip: null });
   });
@@ -151,7 +151,7 @@ describe("readRequestContext() — 요청 밖에서 불렀을 때", () => {
     await expect(readRequestContext()).resolves.toEqual({ ip: null, userAgent: null });
   });
 
-  it("headers()가 거부(reject)해도 마찬가지다 — 비동기 API라 던지는 방식이 두 갈래다", async () => {
+  it("headers()가 거부해도 마찬가지다 — 던지는 방식이 두 갈래다", async () => {
     headers.mockRejectedValue(new Error("`headers` was called outside a request scope."));
 
     await expect(readRequestContext()).resolves.toEqual({ ip: null, userAgent: null });
@@ -167,7 +167,7 @@ describe("readRequestContext() — 요청 밖에서 불렀을 때", () => {
     await expect(readRequestContext()).resolves.toEqual({ ip: null, userAgent: null });
   });
 
-  it("빈 컨텍스트의 ip가 null이므로 verification.service의 IP별 제한은 건너뛴다 — null을 한 버킷으로 묶으면 스크립트·프록시 미설정 요청들이 서로의 한도를 갉아먹는다 (verification.service.ts의 `if (ip)`)", async () => {
+  it("ip가 null이면 verification.service의 IP별 제한을 건너뛴다", async () => {
     headers.mockRejectedValue(new Error("outside request scope"));
 
     const { ip } = await readRequestContext();

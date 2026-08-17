@@ -18,7 +18,7 @@ export function RevokeButton({ inviteId }: { inviteId: string }) {
         {pending ? "폐기 중…" : "폐기"}
       </Button>
       {state.error && (
-        <span role="alert" className="ml-2 text-[11.5px] text-rose">
+        <span role="alert" className="ml-2 text-xs text-rose">
           {state.error}
         </span>
       )}

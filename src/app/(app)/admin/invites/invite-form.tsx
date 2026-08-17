@@ -25,8 +25,8 @@ export function InviteForm({ students }: { students: StudentOption[] }) {
 
   return (
     <section className="rounded-card border border-line bg-surface p-5 lg:p-6">
-      <h2 className="text-base font-extrabold text-ink">가입코드 발급</h2>
-      <p className="mt-1 text-[13px] text-mut">
+      <h2 className="text-lg font-semibold text-ink">초대코드 발급</h2>
+      <p className="mt-1 text-caption text-mut">
         학부모 코드는 학생 본인도 만들 수 있습니다.
       </p>
 
@@ -86,14 +86,13 @@ function ParentForm({ students }: { students: StudentOption[] }) {
         className="mb-2"
       />
 
-      {/* 위 "학생 찾기"는 목록을 좁히는 칸이라 이 목록의 라벨이 아니다 —
-          접근성 이름을 따로 준다. */}
+      {/* 위 검색칸은 목록을 좁히는 자리라 이 목록의 라벨이 아니다. */}
       <Select
         name="studentId"
         size={6}
         required
         aria-label="학생 선택"
-        className="mb-[15px]"
+        className="mb-4"
       >
         {matched.length === 0 ? (
           <option disabled>조건에 맞는 학생이 없습니다</option>
@@ -106,8 +105,8 @@ function ParentForm({ students }: { students: StudentOption[] }) {
         )}
       </Select>
 
-      <Label htmlFor="p-name">학부모님 이름</Label>
-      <Input id="p-name" name="name" required maxLength={50} className="mb-[15px]" />
+      <Label htmlFor="p-name">학부모 이름</Label>
+      <Input id="p-name" name="name" required maxLength={50} className="mb-4" />
 
       <ExpiryField />
 
@@ -132,9 +131,9 @@ function Result({ state }: { state: InviteFormState }) {
   if (!state.code) return null;
 
   return (
-    <div className="mt-4 rounded-btn bg-pri-soft px-4 py-3">
-      <p className="text-[12px] font-semibold text-pri">발급된 가입코드</p>
-      <p className="mt-1 text-xl font-extrabold text-ink">
+    <div className="mt-4 rounded-btn border border-pri-line bg-pri-soft px-4 py-3">
+      <p className="text-xs font-medium text-pri-ink">발급된 초대코드</p>
+      <p className="mt-1 font-mono text-title font-semibold text-ink">
         {state.code}
       </p>
     </div>
@@ -152,7 +151,7 @@ function ExpiryField() {
         min={1}
         max={365}
         placeholder="비우면 무기한"
-        className="mb-[22px]"
+        className="mb-6"
       />
     </>
   );
@@ -167,12 +166,12 @@ function StudentForm() {
   return (
     <form action={formAction}>
       <Label htmlFor="s-name">이름</Label>
-      <Input id="s-name" name="name" required maxLength={50} className="mb-[15px]" />
+      <Input id="s-name" name="name" required maxLength={50} className="mb-4" />
 
       <Label htmlFor="s-birth">생년월일</Label>
-      <Input id="s-birth" name="birthDate" type="date" required className="mb-[15px]" />
+      <Input id="s-birth" name="birthDate" type="date" required className="mb-4" />
 
-      <div className="mb-[15px] grid grid-cols-3 gap-2">
+      <div className="mb-4 grid grid-cols-3 gap-2">
         <div>
           <Label htmlFor="s-grade">학년</Label>
           <Input id="s-grade" name="grade" type="number" min={1} max={3} required />
@@ -207,7 +206,7 @@ function AdminForm() {
   return (
     <form action={formAction}>
       <Label htmlFor="a-name">이름</Label>
-      <Input id="a-name" name="name" required maxLength={50} className="mb-[15px]" />
+      <Input id="a-name" name="name" required maxLength={50} className="mb-4" />
 
       <ExpiryField />
 

@@ -152,8 +152,7 @@ describe("setUserActive()", () => {
     expect(setActive).not.toHaveBeenCalled();
   });
 
-  it("명단에서 빠진(소프트 삭제된) 계정은 상태를 바꾸지 못한다 — 화면이 이 폼을 " +
-    "숨기는 건 실수 방지일 뿐이라 서버도 다시 막는다", async () => {
+  it("명단에서 빠진 계정은 상태를 바꾸지 못한다", async () => {
     findById.mockResolvedValue({ id: "u-9", name: "대상", deletedAt: new Date() });
 
     await expect(setUserActive(admin, "u-9", true)).rejects.toThrow("ACCOUNT_DELETED");
@@ -453,8 +452,7 @@ describe("deleteUserPermanently() — 오등록 정리 전용, 되돌릴 수 없
     expect(deletePermanently).not.toHaveBeenCalled();
   });
 
-  it("아직 명단에서 안 빠진(소프트 삭제 안 된) 계정은 완전 삭제하지 못한다 — " +
-    "살아 있는 계정을 상세 화면에서 바로 지우는 경로를 만들지 않는다", async () => {
+  it("명단에 남아 있는 계정은 완전 삭제하지 못한다", async () => {
     findById.mockResolvedValue({ id: "u-9", name: "재학생", deletedAt: null });
 
     await expect(
@@ -463,8 +461,7 @@ describe("deleteUserPermanently() — 오등록 정리 전용, 되돌릴 수 없
     expect(deletePermanently).not.toHaveBeenCalled();
   });
 
-  it("입력한 이름이 다르면 거부한다 — 화면의 disabled는 실수 방지일 뿐이니 " +
-    "서버 액션을 직접 불러도 이름 대조를 건너뛸 수 없다", async () => {
+  it("이름이 다르면 서버가 거부한다", async () => {
     findById.mockResolvedValue(softDeleted);
 
     await expect(
@@ -481,8 +478,7 @@ describe("deleteUserPermanently() — 오등록 정리 전용, 되돌릴 수 없
     expect(deletePermanently).toHaveBeenCalledWith("u-9");
   });
 
-  it("감사로그를 남기되 이름은 넣지 않는다 — 완전히 삭제된 사람의 개인정보가 " +
-    "감사로그의 사본으로 남으면 안 된다", async () => {
+  it("감사로그를 남기되 이름은 넣지 않는다", async () => {
     findById.mockResolvedValue(softDeleted);
 
     await deleteUserPermanently(admin, "u-9", "삭제대상");

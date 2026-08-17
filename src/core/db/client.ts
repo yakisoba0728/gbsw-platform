@@ -9,11 +9,10 @@ if (!connectionString) {
   );
 }
 
-// Prisma 7은 드라이버 어댑터로만 SQL에 접속한다 (네이티브 엔진 바이너리 없음).
+// Prisma 7은 드라이버 어댑터로만 SQL에 접속한다.
 const adapter = new PrismaPg({ connectionString });
 
-// next dev의 핫 리로드마다 커넥션 풀이 새로 생기지 않도록 개발 환경에서는
-// globalThis에 붙여 재사용한다.
+// 핫 리로드마다 커넥션 풀이 새로 생기지 않게 개발에서는 globalThis에 붙인다.
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
 };

@@ -104,9 +104,7 @@ describe("applyRosterPlan()", () => {
     expect(applyRoster).not.toHaveBeenCalled();
   });
 
-  it("빈 행이면 거부한다 (M-1) — 경계 zod(rosterRowsSchema.min(1))가 항상 이 함수 앞에 " +
-    "있다는 보장이 없어, rows: [] 한 번에 전교생이 통째로 missingFromFile로 잡히는 것을 " +
-    "서비스도 막는다", async () => {
+  it("빈 행이면 서비스가 거부한다", async () => {
     await expect(applyRosterPlan(admin, 2026, [], [], null)).rejects.toThrow("EMPTY_ROWS");
     expect(applyRoster).not.toHaveBeenCalled();
     expect(recordAudit).not.toHaveBeenCalled();
@@ -164,8 +162,7 @@ describe("applyRosterPlan()", () => {
     expect(toExpiresAt).toHaveBeenCalledWith(expect.any(Number));
   });
 
-  it("재학인 신규 학생만 초대코드 대상이다 — 비재학 신규는 studentInviteMetaSchema를 " +
-    "충족할 수 없어 가입이 영원히 막힌다 (I1)", async () => {
+  it("재학인 신규 학생만 초대코드 대상이다", async () => {
     listExisting.mockResolvedValue([]);
 
     const 재학신규 = { ...row, studentCode: "", name: "재학이", birthDate: "2011-01-01" };
@@ -205,8 +202,7 @@ describe("applyRosterPlan()", () => {
       return [재학신규, 비재학신규];
     }
 
-    it("반영 결과에 제외된 줄을 실어 돌려준다 — 관리자가 '신규 2명이 등록됐다'고 " +
-      "믿는 것을 막는다. 누가 빠졌는지까지 알아야 파일을 고칠 수 있다", async () => {
+    it("반영 결과에 제외된 줄을 어느 줄인지까지 실어 돌려준다", async () => {
       const result = await applyRosterPlan(admin, 2026, 신규줄들(), [], null);
 
       expect(result.excludedNewStudents).toEqual([
@@ -360,7 +356,7 @@ describe("applyRosterPlan()", () => {
     await expect(applyRosterPlan(admin, 2026, [newRow], [], null)).rejects.toThrow("CODE_COLLISION");
   });
 
-  it("발급 코드는 invite.service.ts의 generateUniqueCode()로 만든다 (DB 확인 + 재시도)", async () => {
+  it("발급 코드는 generateUniqueCode()로 만든다", async () => {
     listExisting.mockResolvedValue([]);
 
     const newRow = { ...row, studentCode: "" };
@@ -388,8 +384,7 @@ function 대량학생(n: number) {
 }
 
 describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () => {
-  it("삭제 대상이 있는데 confirmedDeletionIds가 비어 있으면 거부한다 — " +
-    "빈 배열이 곧 확인 안 함이다", async () => {
+  it("삭제 대상이 있는데 confirmedDeletionIds가 비면 거부한다", async () => {
     // 기본 listExisting은 [재학생]인데 rows에 대응하는 줄이 없으므로 재학생이
     // missingFromFile에 들어간다.
     await expect(applyRosterPlan(admin, 2026, [무관한신규줄], [], null)).rejects.toThrow(
@@ -413,9 +408,7 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
     expect(applyRoster.mock.calls[0]![1].deleteStudentProfileIds).toEqual([]);
   });
 
-  it("소프트 삭제 로그마다 actorName을 미리 넘긴다 (M8) — 275명이 명단에서 빠지는 " +
-    "반영마다 이름을 다시 조회하면 순차 왕복이 되어 리버스 프록시 타임아웃에 " +
-    "걸릴 수 있다", async () => {
+  it("소프트 삭제 로그마다 actorName을 미리 넘겨 이름 재조회를 없앤다", async () => {
     await applyRosterPlan(admin, 2026, [무관한신규줄], ["sp-1"], 1);
 
     const deleteLog = recordAudit.mock.calls
@@ -424,8 +417,7 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
     expect(deleteLog?.actorName).toBe(admin.name);
   });
 
-  it("명단에서 빠진 학생마다 user:soft-delete 감사로그를 남긴다 — targetId만 담고 " +
-    "이름은 넣지 않는다. user:delete가 아니다 — 그건 Task 3의 하드 삭제 전용이다", async () => {
+  it("명단에서 빠진 학생마다 user:soft-delete를 남기고 이름은 넣지 않는다", async () => {
     await applyRosterPlan(admin, 2026, [무관한신규줄], ["sp-1"], 1);
 
     const deleteLogs = recordAudit.mock.calls
@@ -440,8 +432,7 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
     ).toBe(false);
   });
 
-  it("배치 요약(enrollment:import)의 metadata에 softDeleted 건수를 남긴다 — 예전 " +
-    "필드명(deleted)은 계정을 지우던 시절 이름이라 더는 사실과 맞지 않는다", async () => {
+  it("배치 요약의 metadata에 softDeleted 건수를 남긴다", async () => {
     await applyRosterPlan(admin, 2026, [무관한신규줄], ["sp-1"], 1);
 
     const summary = recordAudit.mock.calls
@@ -450,8 +441,7 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
     expect(summary.metadata).toMatchObject({ softDeleted: 1 });
   });
 
-  it("이미 소프트 삭제됐던 학생이 다시 배정을 받으면 restored로 센다 — " +
-    "'다시 넣으면 돌아온다'는 사실이 배치 요약에도 보이게 한다", async () => {
+  it("이미 삭제됐던 학생이 다시 배정을 받으면 restored로 센다", async () => {
     // 이전에 삭제됐던 학생: 그 학년도 배정이 없고(status:null) deleted:true.
     // row(재학생과 같은 studentCode·이름·생년월일)가 이 학생을 다시 채운다 —
     // before.status===null이므로 newAssignment로 분류된다.
@@ -476,16 +466,13 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
     expect(summary.metadata).toMatchObject({ restored: 0 });
   });
 
-  it("결과에 삭제 건수를 함께 돌려준다 (Minor-4) — 성공 문구에 반영 건수만 있으면 " +
-    "몇 명이 지워졌는지 묻힌다", async () => {
+  it("결과에 삭제 건수를 함께 돌려준다", async () => {
     const result = await applyRosterPlan(admin, 2026, [무관한신규줄], ["sp-1"], 1);
 
     expect(result.deleted).toBe(1);
   });
 
-  it("자기 자신이 삭제 대상에 들어가면 확인 여부와 무관하게 거부한다 — " +
-    "listExisting이 role: STUDENT로 걸러 도달하기 어렵지만, 그 필터의 부수효과에 " +
-    "기대지 않고 명시적으로 막는다", async () => {
+  it("자기 자신이 삭제 대상이면 확인 여부와 무관하게 거부한다", async () => {
     listExisting.mockResolvedValue([{ ...재학생, userId: admin.id }]);
 
     await expect(applyRosterPlan(admin, 2026, [무관한신규줄], ["sp-1"], null)).rejects.toThrow(
@@ -503,9 +490,7 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
       expect(recordAudit).not.toHaveBeenCalled();
     });
 
-    it("확인한 집합에 실제 삭제 대상이 아닌 id가 초과로 섞여 있어도 거부한다 — " +
-      "미리보기 이후 그 학생이 가입해 missingFromFile에서 빠졌는데 화면은 여전히 " +
-      "옛 목록을 들고 있는 경우를 흉내낸다", async () => {
+    it("확인한 집합에 삭제 대상이 아닌 id가 섞여 있어도 거부한다", async () => {
       await expect(
         applyRosterPlan(admin, 2026, [무관한신규줄], ["sp-1", "sp-그사이가입"], null),
       ).rejects.toThrow("DELETION_SET_CHANGED");
@@ -547,9 +532,7 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
       expect(applyRoster.mock.calls[0]![1].deleteStudentProfileIds).toHaveLength(11);
     });
 
-    it("1명만 빠져도 건수를 넣지 않으면 거부한다 — 예전에는 임계(재학생의 10%) " +
-      "이하면 건수를 아예 보지 않아, 재학 300명이면 한 반(25명)이 통째로 빠진 " +
-      "잘못된 파일도 체크박스 하나로 확정됐다", async () => {
+    it("1명만 빠져도 건수를 넣지 않으면 거부한다", async () => {
       await expect(
         applyRosterPlan(admin, 2026, [무관한신규줄], ["sp-1"], null),
       ).rejects.toThrow("DELETION_COUNT_MISMATCH");
@@ -570,8 +553,7 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
       expect(applyRoster.mock.calls[0]![1].deleteStudentProfileIds).toEqual(["sp-1"]);
     });
 
-    it("삭제 대상이 없으면 건수를 안 넣어도(null) 통과한다 — 삭제가 없는 반영에 " +
-      "확인 절차를 강요하지 않는다", async () => {
+    it("삭제 대상이 없으면 건수를 안 넣어도 통과한다", async () => {
       // row가 재학생과 같은 학생코드라 이어붙어 missingFromFile이 빈다.
       await applyRosterPlan(admin, 2026, [row], [], null);
 
@@ -580,9 +562,7 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
   });
 
   describe("폐기된 초대코드 감사로그", () => {
-    it("명단 반영이 폐기한 코드마다 한 줄씩 남긴다 — registration.service.ts가 " +
-      "invite:auto-revoke를 추가한 것과 같은 이유다(왜 이 코드가 죽었는지 답할 " +
-      "방법이 아무 데도 없으면 안 된다)", async () => {
+    it("명단 반영이 폐기한 코드마다 감사로그를 한 줄씩 남긴다", async () => {
       applyRoster.mockResolvedValue({
         invites: [],
         revokedInvites: [

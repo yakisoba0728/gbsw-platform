@@ -1,11 +1,8 @@
 import { randomInt } from "node:crypto";
 
 /**
- * 관리자가 대면·구두로 전달할 임시 비밀번호.
- *
- * 혼동하기 쉬운 글자(0/O, 1/I/l)를 뺀 알파벳을 쓴다. 불러주다 틀리면 소용없다.
- * 대문자·소문자·숫자를 각각 최소 하나 포함시켜, 나중에 비밀번호 규칙이 강해져도
- * 임시 비밀번호가 그 규칙에 걸리지 않게 한다.
+ * 관리자가 구두로 전달할 임시 비밀번호. 혼동하기 쉬운 글자를 뺀 알파벳을 쓰고,
+ * 대문자·소문자·숫자를 하나씩 넣어 규칙이 강해져도 걸리지 않게 한다.
  */
 const UPPER = "ABCDEFGHJKMNPQRSTUVWXYZ";
 const LOWER = "abcdefghijkmnpqrstuvwxyz";

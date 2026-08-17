@@ -7,14 +7,12 @@ import { listUsers } from "@/modules/admin-users/admin-user.service";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { UserTable, type UserRow } from "./user-table";
 
-export const metadata: Metadata = { title: "사용자 관리" };
+export const metadata: Metadata = { title: "계정 관리" };
 
 export default async function UsersPage() {
   const actor = await requirePermission("user:manage");
 
-  // listUsers도 내부에서 getCurrentYear()를 부른다 — 현재 학년도가 없으면
-  // AcademicYearError를 던진다. /admin/students·/admin/invites와 같은
-  // 방식으로 잡는다 (M7).
+  // listUsers도 getCurrentYear()를 부른다. 현재 학년도가 없으면 안내로 떨어뜨린다.
   let users: Awaited<ReturnType<typeof listUsers>>;
   try {
     users = await listUsers(actor);

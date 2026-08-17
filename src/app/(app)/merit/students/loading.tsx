@@ -5,11 +5,7 @@ import {
 } from "@/components/ui/skeleton";
 
 /**
- * `/merit/students`(명단에서 빠진 학생 찾기)의 로딩 뼈대.
- *
- * 바깥 폭은 `max-w-4xl` — 화면 본문과 같아야 결과가 도착할 때 좌우가 안 튄다.
- * 검색 결과가 오기 전에는 표가 없지만, 이 화면에 오래 걸리는 것이 그 표 하나뿐이라
- * 자리를 미리 잡아 둔다.
+ * `/merit/students`의 로딩 뼈대. 바깥 폭은 화면 본문과 같아야 좌우가 안 튄다.
  */
 export default function Loading() {
   return (

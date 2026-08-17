@@ -1,9 +1,8 @@
 import { Skeleton, SkeletonScreen } from "@/components/ui/skeleton";
 
 /**
- * `/admin/logs`의 뼈대 — 카드 하나(머리글 + 기간·동작 필터 + 행위자 검색 + 표).
- * 동작 필터는 DB에 실제로 쌓인 동작만큼 생기므로 줄바꿈까지 나는 자리다.
- * 뼈대에서도 두 줄 분량을 그려 내용이 도착할 때 표가 위로 튀지 않게 한다.
+ * `/admin/logs`의 뼈대. 동작 필터는 쌓인 동작 수만큼 생겨 두 줄까지 간다 —
+ * 뼈대에서도 두 줄을 그려야 표가 위로 안 튄다.
  */
 export default function Loading() {
   return (

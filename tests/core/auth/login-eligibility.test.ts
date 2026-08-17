@@ -12,7 +12,7 @@ describe("isLoginBlocked()", () => {
     expect(isLoginBlocked({ status: null, deletedAt: null })).toBe(true);
   });
 
-  it("deletedAt이 찍혀 있으면 status와 무관하게 막는다 — status만 보던 시절과 " +
+  it("deletedAt이 찍혀 있으면 status와 무관하게 막는다" +
     "정확히 같은 구멍(비활성 계정이 재로그인으로 복귀)이 소프트 삭제에도 " +
     "생기지 않게 한다", () => {
     expect(isLoginBlocked({ status: "ACTIVE", deletedAt: new Date() })).toBe(true);

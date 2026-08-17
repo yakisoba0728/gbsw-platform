@@ -7,10 +7,7 @@ import {
 } from "@/components/ui/skeleton";
 
 /**
- * 학생 상세의 로딩 뼈대. 이 화면에는 원래 `loading.tsx`가 없어서 집계 두 개를
- * 병렬로 기다리는 동안 이전 화면이 그대로 멈춰 있었다.
- *
- * 바깥 폭은 `max-w-4xl` — 화면 본문과 같아야 내용이 도착할 때 좌우가 안 튄다.
+ * 학생 상세의 로딩 뼈대. 바깥 폭은 화면 본문과 같아야 좌우가 안 튄다.
  */
 export default function Loading() {
   return (

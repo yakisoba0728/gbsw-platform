@@ -16,10 +16,10 @@ import { saveEnrollmentsSchema } from "@/modules/enrollment/enrollment.schema";
 import type { SaveState, YearState } from "./action-state";
 
 const MESSAGES: Record<string, string> = {
-  UNKNOWN_STUDENT: "목록에 없는 학생이 포함됐습니다. 새로고침 후 다시 시도해 주세요.",
-  INCOMPLETE_ENROLLED: "재학인 학생은 학년·반·번호를 모두 채워야 합니다.",
-  NUMBER_TAKEN: "같은 반에 같은 번호의 학생이 있습니다.",
-  YEAR_MISMATCH: "학년도가 바뀌었습니다. 새로고침 후 다시 시도해 주세요.",
+  UNKNOWN_STUDENT: "명단에 없는 학생이 있습니다. 새로고침 후 다시 저장해 주세요.",
+  INCOMPLETE_ENROLLED: "재학이면 학년·반·번호를 모두 채워야 합니다.",
+  NUMBER_TAKEN: "같은 반에 같은 번호가 있습니다.",
+  YEAR_MISMATCH: "학년도가 바뀌었습니다. 새로고침 후 다시 저장해 주세요.",
   CANNOT_DEACTIVATE_SELF: "자기 계정은 비활성화할 수 없습니다.",
 };
 
@@ -42,7 +42,7 @@ export async function saveEnrollmentsAction(
   });
   if (!parsed.success) {
     return {
-      error: parsed.error.issues[0]?.message ?? "입력값을 확인해 주세요.",
+      error: parsed.error.issues[0]?.message ?? "입력을 확인해 주세요.",
       saved: null,
     };
   }
@@ -57,8 +57,7 @@ export async function saveEnrollmentsAction(
     return { error: null, saved };
   } catch (error) {
     if (error instanceof EnrollmentError) {
-      // 학생 이름처럼 코드로 미리 정할 수 없는 오류는 detail을 그대로 보여준다
-      // (예: 반·번호 충돌). 없으면 코드별 고정 문구를 쓴다.
+      // 학생 이름처럼 코드로 미리 정할 수 없는 오류는 detail을 그대로 보여준다.
       return {
         error: error.detail ?? MESSAGES[error.message] ?? "저장하지 못했습니다.",
         saved: null,
@@ -84,7 +83,7 @@ export async function setCurrentYearAction(
     revalidatePath("/admin/students");
     return { error: null, ok: true };
   } catch {
-    return { error: "학년도를 바꾸지 못했습니다.", ok: false };
+    return { error: "현재 학년도를 바꾸지 못했습니다.", ok: false };
   }
 }
 
@@ -108,10 +107,10 @@ export async function createYearAction(
       if (error.message === "YEAR_TAKEN") {
         return { error: "이미 있는 학년도입니다.", ok: false };
       }
-      // INVALID_YEAR — 스키마가 걸러내므로 실제로는 거의 닿지 않는다.
+      // INVALID_YEAR — 스키마가 걸러내므로 거의 닿지 않는다.
       return { error: "학년도가 올바르지 않습니다.", ok: false };
     }
-    // 권한 오류·DB 장애 등. 중복인 것처럼 보이면 안 된다 (M3).
+    // 권한 오류·DB 장애 등. 중복인 것처럼 보이면 안 된다.
     return { error: "학년도를 만들지 못했습니다.", ok: false };
   }
 }

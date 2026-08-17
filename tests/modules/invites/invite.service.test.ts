@@ -241,7 +241,7 @@ describe("폐기", () => {
     expect(revokePending).not.toHaveBeenCalled();
   });
 
-  it("소유권 거부도 감사로그에 남긴다 (I5) — can()이 아니라 소유권 검사라 assertCan을 못 쓰는 경로", async () => {
+  it("소유권 거부도 감사로그에 남긴다", async () => {
     findById.mockResolvedValue({ id: "inv1", studentId: "other-student" });
     getStudentProfileByUserId.mockResolvedValue({ id: "student-1" });
 

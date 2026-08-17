@@ -14,18 +14,8 @@ import {
 export type { RuleOption };
 
 /**
- * 부여 항목 고르기. **입력하면서 걸러내는 목록**이다.
- *
- * 예전엔 `<select>` 하나에 교내 규정 73개가 optgroup으로 들어 있었다. 분류로
- * 묶여 있어도 휴대폰에서는 통짜 피커 휠이라, 22시 30분에 점호 지각을 넣는
- * 사감이 매번 수십 항목을 굴려 내려가야 했다. 가장 자주 하는 동작이라
- * 여기 드는 시간이 그대로 쌓인다.
- *
- * 폼은 여전히 `ruleId`를 보낸다 — 두 호출부 모두 `<form action={서버액션}>`
- * 안이므로 고른 id를 hidden input이 싣는다.
- *
- * 학생 상세의 부여 폼과 반별 목록의 일괄 부여가 **같은 컴포넌트를 쓴다.**
- * 갈라 두면 한쪽만 고쳐지는 날이 온다.
+ * 부여 항목 고르기 — 입력하면서 걸러내는 목록. 고른 id는 hidden input이 싣는다.
+ * 학생 상세의 부여 폼과 반별 목록의 일괄 부여가 같은 컴포넌트를 쓴다.
  */
 export function RulePicker({
   rules,
@@ -98,12 +88,8 @@ export function RulePicker({
     }
 
     if (event.key === "Enter") {
-      /*
-       * **이 칸은 `<form action={서버액션}>` 안에 있다.** 목록이 열려 있는 동안의
-       * Enter는 "고른다"는 뜻이지 "제출한다"가 아니다 — 막지 않으면 항목을 고르는
-       * 손짓이 그대로 부여가 된다. 맞는 항목이 없을 때도 막는다(제출해 봐야
-       * 서버에서 거부당하고, 그 사이 화면은 아무 말이 없다).
-       */
+      // 이 칸은 <form action={서버액션}> 안이다. 목록이 열려 있는 동안의 Enter는
+      // "고른다"는 뜻이므로 막지 않으면 고르는 손짓이 그대로 부여가 된다.
       if (!open) return;
       event.preventDefault();
       const rule = filtered[activeIndex];
@@ -161,48 +147,42 @@ export function RulePicker({
         onKeyDown={onKeyDown}
       />
 
-      {/*
-        고른 뒤에도 무엇을 골랐는지가 화면에 남아야 한다 — 바로 다음에 누르는
-        것이 "부여"라서, 종류·점수·항목명이 안 보이면 확인할 방법이 없다.
-      */}
+      {/* 고른 뒤에도 종류·점수·항목명이 남아야 한다 — 다음에 누르는 것이 "부여"다. */}
       {selected ? (
-        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-btn border border-pri bg-pri-soft px-3 py-2">
+        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-btn border border-line bg-soft px-3 py-2">
           <KindBadge kind={selected.kind} />
-          <span className="min-w-0 flex-1 text-[13px] font-bold text-ink">
+          <span className="min-w-0 flex-1 text-caption font-medium text-ink">
             {selected.label}
           </span>
-          <span className={`text-[13px] font-extrabold ${kindColorClass(selected.kind)}`}>
+          <span className={`text-caption font-medium ${kindColorClass(selected.kind)}`}>
             {signedPoints(selected.kind, selected.points)}
           </span>
           <button
             type="button"
             onClick={clear}
-            className="rounded-btn border border-line bg-surface px-2.5 py-1 text-[12px] font-semibold text-mut hover:border-pri hover:text-pri focus-visible:border-pri focus-visible:text-pri"
+            className="rounded-btn border border-line-strong bg-surface px-2.5 py-1 text-xs font-medium text-ink hover:bg-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
           >
             변경
           </button>
         </div>
       ) : (
         rules.length > 0 && (
-          <p className="mt-1.5 text-[12px] text-mut">
-            항목을 골라야 부여할 수 있습니다.
-          </p>
+          <p className="mt-1.5 text-xs text-mut">항목을 골라야 부여할 수 있습니다.</p>
         )
       )}
 
       {open && rules.length > 0 && (
-        <div className="absolute inset-x-0 top-full z-20 mt-1 max-h-[280px] overflow-y-auto rounded-field border border-line bg-surface shadow-lg">
+        <div className="absolute inset-x-0 top-full z-20 mt-1 max-h-[280px] overflow-y-auto rounded-field border border-line bg-surface shadow-float">
           {filtered.length === 0 ? (
-            <p className="px-3 py-4 text-center text-[12.5px] text-mut">
+            <p className="px-3 py-4 text-center text-xs text-mut">
               맞는 항목이 없습니다.
             </p>
           ) : (
             <ul ref={listRef} id={`${baseId}-list`} role="listbox" aria-label={label}>
               {groups.map((group) => (
                 <li key={group.key} role="presentation">
-                  {/* 종류·분류 묶음은 그대로 보인다 — 걸러낸 뒤에도 무엇들 사이에서
-                      고르는지가 남아야 한다. */}
-                  <p className="sticky top-0 border-b border-line2 bg-soft px-3 py-1.5 text-[11.5px] font-bold text-mut">
+                  {/* 걸러낸 뒤에도 무엇들 사이에서 고르는지가 남아야 한다. */}
+                  <p className="sticky top-0 border-b border-line2 bg-soft px-3 py-1.5 text-xs font-medium text-mut">
                     {group.label}
                   </p>
                   <ul role="presentation">
@@ -217,9 +197,9 @@ export function RulePicker({
                         onMouseEnter={() => setActive(index)}
                         onClick={() => choose(rule)}
                         className={cn(
-                          "cursor-pointer px-3 py-2.5 text-[13px]",
+                          "cursor-pointer px-3 py-2.5 text-caption",
                           index === activeIndex
-                            ? "bg-pri-soft font-bold text-pri"
+                            ? "bg-soft font-medium text-ink"
                             : "text-ink",
                         )}
                       >

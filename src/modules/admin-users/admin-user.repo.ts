@@ -17,8 +17,7 @@ const currentEnrollment = (year: number) => ({
 
 export async function listUsers(year: number) {
   return prisma.user.findMany({
-    // 사용자 관리 목록 — 명단에서 빠져 소프트 삭제된 계정은 뺀다. 상세(findDetail)는
-    // 여전히 조회할 수 있다 (직접 URL로 들어가면 "삭제됨" 배지와 함께 보인다).
+    // 목록에서만 명단에서 빠진 계정을 뺀다. 상세는 그대로 볼 수 있다.
     where: { deletedAt: null },
     orderBy: [{ role: "asc" }, { createdAt: "asc" }],
     select: {
@@ -44,10 +43,7 @@ export async function findById(userId: string) {
   });
 }
 
-/**
- * 상세 화면이 쓰는 전체 정보. **deletedAt으로 거르지 않는다** — 삭제된 계정도
- * 상세는 보여야 "삭제됨" 배지와 과거 기록을 확인할 수 있다 (목록에서만 뺀다).
- */
+/** 상세 화면이 쓰는 전체 정보. deletedAt으로 거르지 않는다 — 목록에서만 뺀다. */
 export async function findDetail(userId: string, year: number) {
   return prisma.user.findUnique({
     where: { id: userId },
@@ -82,7 +78,7 @@ export async function findDetail(userId: string, year: number) {
   });
 }
 
-/** 이 사용자가 남겼거나 이 사용자를 대상으로 한 기록. */
+/** 이 계정이 남겼거나 이 계정을 대상으로 한 기록. */
 export async function findRelatedAudit(userId: string, take: number) {
   return prisma.auditLog.findMany({
     where: { OR: [{ actorUserId: userId }, { targetId: userId }] },
@@ -91,27 +87,18 @@ export async function findRelatedAudit(userId: string, take: number) {
   });
 }
 
-/** 이메일이 이미 다른 계정에 쓰이고 있을 때. (registration.repo의 InviteRaceError와 같은 방식) */
+/** 이메일이 이미 다른 계정에 쓰이고 있을 때. */
 export class EmailTakenError extends Error {}
 
-/**
- * 이 반·번호가 이미 다른 학생에게 배정돼 있을 때. (Enrollment_classId_number_key)
- * 기존 import 경로를 깨지 않기 위해 re-export한다. 실물은 core/db에 하나뿐이다.
- */
+/** 이 반·번호가 이미 다른 학생에게 배정돼 있을 때. 실물은 core/db에 하나뿐이다. */
 export { NumberTakenError };
 
 export type UpdateUserAndEnrollmentInput = {
   /** 이름·이메일·전화번호. 안 바뀌었으면 null — 문장 자체를 안 만든다. */
   profile: { name: string; email: string; phone: string } | null;
-  /**
-   * 생년월일(신원)만 고친다. 학적과 무관하게 학생이면 언제나 쓸 수 있다 —
-   * 졸업생의 생년월일 오타를 고치는 데 학년·반·번호를 지어낼 필요가 없다 (I2).
-   */
+  /** 생년월일. 학적과 무관하게 학생이면 언제나 고칠 수 있다. */
   studentProfile: { studentProfileId: string; birthDate: Date } | null;
-  /**
-   * 학년·반·번호 — 재학 중인 학생만 대상이다 (I2). 학급이 없으면 만든다
-   * (registration.repo의 upsert 패턴과 동일). 안 바뀌었으면 null.
-   */
+  /** 학년·반·번호 — 재학 중인 학생만 대상이다. 안 바뀌었으면 null. */
   enrollment: {
     studentProfileId: string;
     year: number;
@@ -122,17 +109,8 @@ export type UpdateUserAndEnrollmentInput = {
 };
 
 /**
- * 사용자 정보와 학생 신원·소속을 **한 트랜잭션**으로 저장한다 (I1).
- *
- * 예전엔 updateProfile()과 updateEnrollment()가 서로 다른 호출이었다.
- * 이름·이메일·전화번호가 먼저 커밋된 뒤 반·번호 충돌(NumberTakenError)로
- * 두 번째 호출이 실패하면, 앞선 변경은 이미 저장된 채로 화면엔 "저장 못 함"만
- * 뜨는 반쪽짜리 저장이 됐다 — 로그인 아이디인 이메일이 흔적 없이 바뀔 수 있다는
- * 게 특히 나빴다. enrollment.repo.ts의 applyAll과 같은 패턴으로 묶는다.
- *
- * studentProfile(생년월일)과 enrollment(학년·반·번호)를 별개 인자로 받는다 —
- * 예전엔 하나로 묶여 있어서 졸업생의 생년월일만 고치려 해도 학년·반·번호를
- * 지어내야 했다 (I2). 서비스가 재학 여부로 둘을 독립적으로 채운다.
+ * 계정 정보와 학생 신원·소속을 한 트랜잭션으로 저장한다 — 반·번호 충돌로
+ * 뒷부분이 실패해도 로그인 아이디인 이메일만 먼저 바뀌는 일이 없어야 한다.
  */
 export async function updateUserAndEnrollment(
   userId: string,
@@ -143,8 +121,8 @@ export async function updateUserAndEnrollment(
       try {
         await tx.user.update({ where: { id: userId }, data: input.profile });
       } catch (error) {
-        // 미리 조회해서 검사하면 그 사이에 끼어드는 요청을 막지 못한다.
-        // 유일 제약이 진짜 방어선이므로 위반을 잡아서 옮긴다.
+        // 미리 조회해 검사하면 그 사이에 끼어드는 요청을 못 막는다. 유일 제약이
+        // 진짜 방어선이라 위반을 잡아서 옮긴다.
         if (isUniqueViolation(error, "email")) throw new EmailTakenError();
         throw error;
       }
@@ -176,14 +154,11 @@ export async function updateUserAndEnrollment(
             number,
             status: "ENROLLED",
           },
-          // update에는 status를 넣지 않는다 (I2) — 여기 오는 건 이미 ENROLLED인
-          // 학생의 반·번호 수정뿐이다(서비스가 canEditAssignment로 gate한다).
-          // 예전엔 무조건 ENROLLED를 덮어써서, 졸업생의 신원만 고치는 경로가
-          // 어쩌다 여기까지 오면 학적이 재학으로 되돌아가는 사고가 났다.
+          // update에 status를 넣지 않는다 — 넣으면 졸업생의 신원만 고치는 경로가
+          // 여기 닿았을 때 학적이 재학으로 되돌아간다.
           update: { classId: schoolClass.id, number },
         });
       } catch (error) {
-        // updateProfile과 같은 이유 — 미리 조회해 봐야 그 사이에 끼어드는 요청을 못 막는다.
         if (isUniqueViolation(error, "number")) throw new NumberTakenError();
         throw error;
       }
@@ -192,9 +167,8 @@ export async function updateUserAndEnrollment(
 }
 
 /**
- * 계정을 활성/비활성으로 바꾼다. 비활성화는 세션 삭제까지 **한 트랜잭션**으로
- * 묶는다 (M11) — 중간에 실패하면 "비활성인데 세션은 살아있음"이 된다.
- * 활성화는 되돌릴 세션이 없으므로 단일 문장이면 충분하다.
+ * 계정을 활성/비활성으로 바꾼다. 비활성화는 세션 삭제까지 한 트랜잭션으로 묶는다 —
+ * 중간에 실패하면 비활성인데 세션은 살아 있는 상태가 된다.
  */
 export async function setActive(userId: string, active: boolean): Promise<void> {
   if (active) {
@@ -209,9 +183,8 @@ export async function setActive(userId: string, active: boolean): Promise<void> 
 }
 
 /**
- * credential 계정의 비밀번호를 갈아끼우고, 다음 로그인 강제 변경 표시 +
- * 세션 삭제까지 **한 트랜잭션**으로 묶는다 (M11) — 예전엔 세 호출이 따로였다.
- * 비밀번호 로그인 수단이 없으면(count 0) 아무 것도 바꾸지 않고 0을 돌려준다.
+ * 비밀번호 교체 + 다음 로그인 강제 변경 표시 + 세션 삭제를 한 트랜잭션으로 묶는다.
+ * 비밀번호 로그인 수단이 없으면 아무것도 바꾸지 않고 0을 돌려준다.
  */
 export async function resetCredential(
   userId: string,
@@ -231,36 +204,16 @@ export async function resetCredential(
 }
 
 /**
- * 완전 삭제 (오등록 정리 전용). 소프트 삭제된 계정에만 서비스가 이 함수를 부른다.
- *
- * **초대코드 세 갈래를 서로 다른 이유로 다룬다. 셋을 헷갈리면 안 된다.**
- *
- * 1. `createdById` — 이 사람이 **발급한** 코드. `Invite.createdBy`가
- *    `onDelete: Restrict`이고 `createdById`가 **null을 못 받는 컬럼**이라,
- *    먼저 지우지 않으면 user.delete 자체가 막힌다. 이미 USED인 코드만 남기는
- *    선택지를 검토했지만 **스키마를 안 바꾸는 한 불가능하다** — 남겨두면
- *    Restrict에 걸리고, null로 비울 수도 없다. 그 대가로 이 사람이 발급한
- *    코드로 가입한 사람들의 "어떤 코드로 언제 가입했나"가 함께 사라진다.
- *    (가입 사실 자체는 registration:complete 감사로그에 남는다.)
- * 2. `usedById` — 이 사람이 **써서 가입한** 코드 한 장(@unique).
- *    이쪽 FK는 `onDelete: SetNull`이라 **지우지 않아도 user.delete가 통과한다.**
- *    그런데도 지운다 — 판단이지 제약이 아니다. `Invite.metadata`에 이 사람의
- *    이름·생년월일이 그대로 들어 있어서, 남기면 완전히 삭제한 사람의 개인정보
- *    사본이 남는다. 아래 deleteUserPermanently의 감사로그 주석이 같은 이유로
- *    이름을 안 남기기로 한 것과 같은 결정이다. 화면에서도 "사용자 —"인 USED
- *    코드가 목록에 계속 떠 있는 것보다 사라지는 편이 맞다.
- * 3. `studentId` — 이 학생 몫으로 발급된 학부모 코드. 여기서 손대지 않는다.
- *    `Invite.student`가 `onDelete: Cascade`라 user.delete → StudentProfile
- *    Cascade를 타면서 자동으로 함께 지워진다.
- *
- * 학적(Enrollment)·상벌점도 StudentProfile을 onDelete: Cascade로 참조하므로
- * 여기서 같이 사라진다 — 오등록 정리에서만 일어나는 유일한 동작이다. 소프트
- * 삭제(명단 반영)에서는 절대 이 함수를 부르지 않는다.
+ * 완전 삭제 (오등록 정리 전용). 학적·상벌점도 Cascade로 함께 사라진다.
+ * 명단 반영의 소프트 삭제는 절대 이 함수를 부르지 않는다.
  */
 export async function deletePermanently(userId: string): Promise<void> {
   await prisma.$transaction([
+    // createdById는 Restrict + non-null이라 먼저 지우지 않으면 user.delete가 막힌다.
     prisma.invite.deleteMany({ where: { createdById: userId } }),
+    // usedById는 SetNull이라 안 지워도 되지만, metadata에 남는 이름·생년월일을 없앤다.
     prisma.invite.deleteMany({ where: { usedById: userId } }),
+    // studentId로 달린 학부모 코드는 StudentProfile Cascade가 함께 지운다.
     prisma.user.delete({ where: { id: userId } }),
   ]);
 }

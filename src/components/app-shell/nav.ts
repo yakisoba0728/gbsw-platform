@@ -48,7 +48,7 @@ export const NAV_ITEMS: NavItem[] = [
       { href: "/merit?track=DORM", label: "기숙사 상벌점" },
       { href: "/merit/recent", label: "최근 부여", roles: ["ADMIN"] },
       { href: "/merit/stats", label: "통계", roles: ["ADMIN"] },
-      { href: "/admin/merit/rules", label: "항목 관리", roles: ["ADMIN"] },
+      { href: "/admin/merit/rules", label: "규정 관리", roles: ["ADMIN"] },
     ],
   },
   {
@@ -77,7 +77,7 @@ export const ADMIN_NAV_ITEMS: NavItem[] = [
   },
   {
     href: "/admin/users",
-    label: "사용자 관리",
+    label: "계정 관리",
     icon: SettingsIcon,
     roles: ["ADMIN"],
   },

@@ -185,7 +185,7 @@ describe("createStudentInviteAction — 경계 검증", () => {
 
     const state = await createStudentInviteAction(INITIAL, studentForm());
 
-    expect(state.error).toBe("이 작업을 할 권한이 없습니다.");
+    expect(state.error).toBe("권한이 없습니다.");
   });
 
   it("코드 생성 실패는 다시 시도하라고 안내한다", async () => {
@@ -195,7 +195,7 @@ describe("createStudentInviteAction — 경계 검증", () => {
 
     const state = await createStudentInviteAction(INITIAL, studentForm());
 
-    expect(state.error).toBe("코드를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.");
+    expect(state.error).toBe("코드를 만들지 못했습니다. 다시 시도해 주세요.");
   });
 
   it("사전에 없는 오류는 영문 코드를 화면에 흘리지 않는다", async () => {
@@ -230,7 +230,7 @@ describe("createAdminInviteAction — 경계 검증", () => {
 
     const state = await createAdminInviteAction(INITIAL, adminForm());
 
-    expect(state.error).toBe("이 작업을 할 권한이 없습니다.");
+    expect(state.error).toBe("권한이 없습니다.");
   });
 });
 
@@ -264,7 +264,7 @@ describe("createParentInviteForAction — 경계 검증", () => {
 
     const state = await createParentInviteForAction(INITIAL, parentForm());
 
-    expect(state.error).toBe("이 학생에게 아직 쓰지 않은 코드가 3개 있습니다.");
+    expect(state.error).toBe("이 학생에게 쓰지 않은 코드가 3개 있습니다.");
   });
 });
 
@@ -292,8 +292,8 @@ describe("revokeInviteAction — 경계 검증", () => {
 
     const state = await revokeInviteAction({ error: null }, form({ inviteId: "inv-1" }));
 
-    expect(state.error).toBe("이 작업을 할 권한이 없습니다.");
-    expect(state.error).not.toBe("이미 사용되었거나 폐기된 코드입니다.");
+    expect(state.error).toBe("권한이 없습니다.");
+    expect(state.error).not.toBe("이미 쓰였거나 폐기된 코드입니다.");
   });
 
   it("정말 사용된 코드일 때만 그 문구를 쓴다", async () => {
@@ -301,7 +301,7 @@ describe("revokeInviteAction — 경계 검증", () => {
 
     const state = await revokeInviteAction({ error: null }, form({ inviteId: "inv-1" }));
 
-    expect(state.error).toBe("이미 사용되었거나 폐기된 코드입니다.");
+    expect(state.error).toBe("이미 쓰였거나 폐기된 코드입니다.");
   });
 
   it("사전에 없는 오류는 영문을 화면에 흘리지 않는다", async () => {

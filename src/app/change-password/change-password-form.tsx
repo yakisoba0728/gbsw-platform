@@ -25,13 +25,11 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
 
   return (
     <form action={formAction}>
-      <h1 className="mb-1.5 text-2xl font-extrabold tracking-[-0.02em] text-ink">
-        비밀번호 변경
-      </h1>
-      <p className="mb-[26px] text-[13.5px] text-mut">
+      <h1 className="mb-2 text-title font-semibold text-ink">비밀번호 변경</h1>
+      <p className="mb-8 text-caption text-mut">
         {forced
-          ? "처음 로그인했거나 비밀번호가 초기화되었습니다. 새 비밀번호를 설정해 주세요."
-          : "새 비밀번호를 설정합니다."}
+          ? "계속하려면 새 비밀번호를 정해야 합니다."
+          : "새 비밀번호를 정합니다."}
       </p>
 
       <Label htmlFor="currentPassword">현재 비밀번호</Label>
@@ -41,10 +39,12 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
         type="password"
         autoComplete="current-password"
         required
-        className="mb-[15px]"
+        className="mb-4"
       />
 
-      <Label htmlFor="newPassword">새 비밀번호</Label>
+      <Label htmlFor="newPassword">
+        새 비밀번호 <span className="font-normal text-mut">(10자 이상)</span>
+      </Label>
       <Input
         id="newPassword"
         name="newPassword"
@@ -52,9 +52,8 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
         autoComplete="new-password"
         minLength={10}
         required
-        className="mb-1.5"
+        className="mb-4"
       />
-      <p className="mb-[15px] text-[11.5px] text-mut">10자 이상</p>
 
       <Label htmlFor="confirmPassword">새 비밀번호 확인</Label>
       <Input
@@ -63,7 +62,7 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
         type="password"
         autoComplete="new-password"
         required
-        className="mb-[22px]"
+        className="mb-6"
       />
 
       {state.error && (
@@ -73,7 +72,7 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
       )}
 
       <Button type="submit" size="lg" full disabled={pending}>
-        {pending ? "변경 중…" : "비밀번호 변경"}
+        {pending ? "변경 중…" : "변경"}
       </Button>
     </form>
   );

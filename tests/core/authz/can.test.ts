@@ -25,7 +25,7 @@ const EXPECTED: Record<Action, Role[]> = {
 const ACTIONS = Object.keys(EXPECTED) as Action[];
 
 describe("can()", () => {
-  it("모든 액션이 표에 있다 (M13) — 여기 EXPECTED에 없는 액션이 RULES에 추가되면 깨진다", () => {
+  it("모든 액션이 표에 있다 (M13)", () => {
     expect(Object.keys(RULES).sort()).toEqual(Object.keys(EXPECTED).sort());
   });
 

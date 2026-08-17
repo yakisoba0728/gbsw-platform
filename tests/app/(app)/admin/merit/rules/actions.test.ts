@@ -2,13 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MeritError } from "@/modules/merit/merit.error";
 
 /**
- * 규정 관리 서버 액션의 **경계** — 폼의 FormData가 zod 스키마에 닿는 지점.
- * (auth)/register/actions.test.ts와 같은 목적이다.
- *
+ * 규정 관리 서버 액션의 경계 — FormData가 zod 스키마에 닿는 지점.
  * FormData는 화면이 실제로 보내는 name 그대로 만든다.
- * 출처: admin/merit/rules/rule-form.tsx(생성) · rule-table.tsx(수정·삭제).
- * 수정·삭제 폼은 표 바깥의 숨은 `<form id="rule-edit-form">`에 `form=` 속성으로
- * 붙어 있어 필드가 여기저기 흩어져 있다 — 짐작하지 말고 그 파일에서 옮겼다.
  */
 
 const requireAuth = vi.fn(async () => ({ id: "admin-1", role: "ADMIN" }));
@@ -75,7 +70,7 @@ describe("createRuleAction — 경계 검증", () => {
     expect(state).toEqual({ error: null, ok: true });
   });
 
-  it("폼의 여섯 필드를 모두 읽는다 — 하나라도 빠지면 스키마가 막는다", async () => {
+  it("폼의 여섯 필드를 모두 읽는다", async () => {
     await createRuleAction(INITIAL, createForm({ description: "야간 점호 기준" }));
 
     expect(createRule).toHaveBeenCalledWith(expect.anything(), {
@@ -88,7 +83,7 @@ describe("createRuleAction — 경계 검증", () => {
     });
   });
 
-  it("빈 선택 입력은 null로 접힌다 — 빈 문자열과 갈리지 않게", async () => {
+  it("빈 선택 입력은 null로 접힌다", async () => {
     await createRuleAction(INITIAL, createForm({ category: "", description: "" }));
 
     expect(createRule).toHaveBeenCalledWith(
@@ -104,7 +99,7 @@ describe("createRuleAction — 경계 검증", () => {
     expect(state.error).toBe("항목명을 입력해 주세요.");
   });
 
-  it("점수가 0·음수·소수·빈 값이면 막는다 — 부호는 kind가 정한다", async () => {
+  it("점수가 0·음수·소수·빈 값이면 막는다", async () => {
     // "0"만 정규식(\d+)을 통과하고 범위 refine에서 걸린다 — 문구가 갈리는 것이
     // 정상이지만, 어느 쪽이든 한국어여야 하고 서비스에는 닿지 말아야 한다.
     const cases: [string, string][] = [
@@ -146,7 +141,7 @@ describe("updateRuleAction — 경계 검증", () => {
     expect(state).toEqual({ error: null, ok: true });
   });
 
-  it("track·kind를 보내도 서비스에 넘기지 않는다 — 벌점이 상점으로 변신하면 안 된다", async () => {
+  it("track·kind를 보내도 서비스에 넘기지 않는다", async () => {
     await updateRuleAction(
       INITIAL,
       updateForm({ track: "SCHOOL", kind: "MERIT" }),
@@ -169,7 +164,7 @@ describe("updateRuleAction — 경계 검증", () => {
 
     const state = await updateRuleAction(INITIAL, updateForm());
 
-    expect(state.error).toBe("규정을 찾을 수 없습니다. 새로고침 후 다시 시도해 주세요.");
+    expect(state.error).toBe("규정을 찾을 수 없습니다.");
   });
 
   it("사전에 없는 코드는 영문 코드를 화면에 흘리지 않는다", async () => {

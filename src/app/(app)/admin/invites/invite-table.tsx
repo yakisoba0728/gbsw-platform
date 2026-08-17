@@ -102,7 +102,7 @@ export function InviteTable({ rows }: { rows: InviteRow[] }) {
   return (
     <SectionCard
       title="발급 내역"
-      aside={<span className="text-[12px] text-mut">{filtered.length}건</span>}
+      aside={<span className="text-xs text-mut">{filtered.length}건</span>}
       controls={
         <>
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
@@ -153,12 +153,14 @@ export function InviteTable({ rows }: { rows: InviteRow[] }) {
           <tbody>
             {filtered.map((row) => (
               <tr key={row.id} className="border-b border-line2 last:border-0">
-                <td className={`${cell(0)} font-semibold text-ink`}>{row.code}</td>
+                <td className={`${cell(0)} font-mono font-medium text-ink`}>
+                  {row.code}
+                </td>
                 <td className={`${cell(1)} text-mut`}>{row.roleLabel}</td>
                 <td className={`${cell(2)} text-ink`}>
                   {row.name}
                   {(row.childName || row.birthDate) && (
-                    <span className="block text-[12px] text-mut">
+                    <span className="block text-xs text-mut">
                       {row.childName ? `${row.childName} 학부모` : row.birthDate}
                     </span>
                   )}
@@ -171,7 +173,7 @@ export function InviteTable({ rows }: { rows: InviteRow[] }) {
                     {STATUS_LABEL[row.status] ?? row.status}
                   </Badge>
                   {row.usedByName && (
-                    <span className="mt-1 block text-[12px] text-mut">
+                    <span className="mt-1 block text-xs text-mut">
                       {row.usedByName}
                     </span>
                   )}
@@ -179,7 +181,7 @@ export function InviteTable({ rows }: { rows: InviteRow[] }) {
                 <td className={`${cell(5)} text-mut`}>
                   {row.createdAt}
                   {row.expiresAt && (
-                    <span className="block text-[12px]">~{row.expiresAt}</span>
+                    <span className="block text-xs">~{row.expiresAt}</span>
                   )}
                 </td>
                 <td className={`${cell(6)} text-right`}>

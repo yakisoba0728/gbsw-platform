@@ -2,16 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionUser } from "@/core/auth/session";
 
 /**
- * 통계 화면의 **범위 비대칭**을 못 박는다.
- *
- * 기숙사는 합계가 입학부터 누적인데 그래프만 최근 12개월을 센다. 그래서
- * "분류별 분포"의 합은 머리글 상점·벌점이나 "많이 나온 항목"의 건수보다 작을
- * 수 있다 — 버그가 아니라 의도다(award.service.ts의 since 주석 참고).
- *
- * 이 결정이 **화면으로는 확인되지 않는다**는 게 여기 테스트를 두는 이유다.
- * 기숙사 기록이 12개월치를 넘기기 전까지 두 범위는 우연히 같아서 아무 차이가
- * 안 보이고, 넘기는 순간 조용히 어긋난다. 그때 "합계도 12개월로 잘라야 하나"
- * 하고 손대면 학생 화면·학부모 화면·확인서와 숫자가 갈라진다.
+ * 통계 화면의 범위 비대칭을 못 박는다 — 기숙사는 합계가 누적인데 그래프만
+ * 최근 12개월이다. 기록이 12개월을 넘기기 전까지 두 범위가 우연히 같아
+ * 화면으로는 확인되지 않는다.
  */
 
 const trackTotals = vi.fn();
@@ -77,7 +70,7 @@ describe("getMeritStats — 기숙사(누적 트랙)", () => {
     );
   });
 
-  it("합계와 '많이 나온 항목'은 누적 그대로다 — since도 학년도 조건도 없다", async () => {
+  it("합계와 '많이 나온 항목'은 누적 그대로다", async () => {
     await service.getMeritStats(admin, "DORM", undefined, NOW);
 
     expect(trackTotals.mock.calls[0][0]).not.toHaveProperty("since");
@@ -113,7 +106,7 @@ describe("getMeritStats — 교내(학년도 트랙)", () => {
 });
 
 describe("getMeritSummary — 대시보드 요약", () => {
-  it("그래프용 조회를 부르지 않는다 — 합계만 필요하다", async () => {
+  it("그래프용 조회를 부르지 않는다", async () => {
     await service.getMeritSummary(admin, "DORM");
 
     expect(trackTotals).toHaveBeenCalledTimes(1);
@@ -122,7 +115,7 @@ describe("getMeritSummary — 대시보드 요약", () => {
     expect(topRules).not.toHaveBeenCalled();
   });
 
-  it("트랙 규칙을 그대로 따른다 — 교내는 현재 학년도, 기숙사는 누적", async () => {
+  it("트랙 규칙을 그대로 따른다", async () => {
     const school = await service.getMeritSummary(admin, "SCHOOL");
     expect(school.year).toBe(2026);
     expect(trackTotals.mock.calls[0][0].totalsYear).toBe(2026);

@@ -142,7 +142,7 @@ describe("previewRosterAction — 경계 검증", () => {
 
     const state = await previewRosterAction(PREVIEW_INITIAL, form({ file }));
 
-    expect(state.error).toContain("현재 학년도가 설정되어 있지 않습니다");
+    expect(state.error).toContain("현재 학년도가 없습니다");
   });
 
   it("읽을 줄이 없으면 서식 파일을 안내한다", async () => {
@@ -199,8 +199,7 @@ describe("applyRosterAction — 경계 검증", () => {
     expect(applyRosterPlan.mock.calls[0]?.[4]).toBe(42);
   });
 
-  it("삭제가 1명이어도 그 건수를 그대로 넘긴다 — 예전에는 임계 이하라며 화면이 " +
-    "빈 문자열을 보냈고 서버도 보지 않았다", async () => {
+  it("1명이 빠져도 건수를 그대로 넘긴다", async () => {
     await applyRosterAction(
       APPLY_INITIAL,
       applyForm({ confirmedDeletionIds: JSON.stringify(["sp-9"]), deletionCount: "1" }),
@@ -217,7 +216,7 @@ describe("applyRosterAction — 경계 검증", () => {
     );
 
     expect(applyRosterPlan).not.toHaveBeenCalled();
-    expect(state.error).toBe("삭제할 인원 수를 정확히 입력해 주세요.");
+    expect(state.error).toBe("빠지는 인원 수를 정확히 입력해 주세요.");
   });
 
   /*
@@ -277,7 +276,7 @@ describe("applyRosterAction — 경계 검증", () => {
     );
 
     expect(applyRosterPlan).not.toHaveBeenCalled();
-    expect(state.error).toBe("삭제 확인 정보를 읽지 못했습니다.");
+    expect(state.error).toBe("확인 정보를 읽지 못했습니다.");
   });
 
   it("학년도가 범위 밖이면 서비스를 부르지 않는다", async () => {
@@ -311,7 +310,7 @@ describe("applyRosterAction — 경계 검증", () => {
 
     const state = await applyRosterAction(APPLY_INITIAL, applyForm());
 
-    expect(state.error).toBe("삭제 대상이 바뀌었습니다. 다시 확인해 주세요.");
+    expect(state.error).toBe("빠지는 학생이 달라졌습니다. 새로고침 후 다시 확인해 주세요.");
   });
 
   it("사전에 없는 코드는 영문 코드를 화면에 흘리지 않는다", async () => {
@@ -342,7 +341,7 @@ describe("exportRosterAction — 경계 검증", () => {
 
     const result = await exportRosterAction();
 
-    expect(result.error).toContain("현재 학년도가 설정되어 있지 않습니다");
+    expect(result.error).toContain("현재 학년도가 없습니다");
   });
 
   it("예상 못 한 오류는 영문을 화면에 흘리지 않는다", async () => {
@@ -351,7 +350,7 @@ describe("exportRosterAction — 경계 검증", () => {
 
     const result = await exportRosterAction();
 
-    expect(result.error).toBe("명단을 내려받지 못했습니다.");
+    expect(result.error).toBe("명단을 내보내지 못했습니다.");
     // 화면에는 일반 문구만 나가므로 서버 로그에는 남겨야 한다.
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();

@@ -36,12 +36,12 @@ describe("규정 검색", () => {
     expect(filterRules(RULES, "흡연").map((r) => r.id)).toEqual(["d2"]);
   });
 
-  it("분류로도 찾는다 — 항목명에는 없는 말이다", () => {
+  it("분류로도 찾는다", () => {
     // "봉사"는 m2의 항목명에 없고 분류에만 있다. 분류를 안 보면 이 줄이 빠진다.
     expect(filterRules(RULES, "봉사").map((r) => r.id)).toEqual(["m1", "m2"]);
   });
 
-  it("띄어 쓴 낱말은 전부 들어맞아야 한다 — 순서·붙임과 무관하게", () => {
+  it("띄어 쓴 낱말은 전부 들어맞아야 한다", () => {
     // 사람은 "점호 지각"이라 치지만 규정 이름은 "인원 점검 시 지각"이다.
     expect(filterRules(RULES, "점검 지각").map((r) => r.id)).toEqual(["d1"]);
     expect(filterRules(RULES, "지각 점검").map((r) => r.id)).toEqual(["d1"]);
@@ -60,7 +60,7 @@ describe("규정 검색", () => {
 });
 
 describe("규정 묶기", () => {
-  it("연속된 같은 (종류·분류)를 한 묶음으로 접는다 — 순서는 그대로", () => {
+  it("연속된 같은 (종류·분류)를 한 묶음으로 접는다", () => {
     const groups = groupRules(RULES);
     expect(groups.map((g) => g.label)).toEqual([
       "상점 · 봉사",
@@ -72,7 +72,7 @@ describe("규정 묶기", () => {
     expect(groups[0].items.map((i) => i.rule.id)).toEqual(["m1", "m2"]);
   });
 
-  it("묶음 안의 index가 목록 전체에서의 자리다 — 방향키가 이 번호로 움직인다", () => {
+  it("묶음 안의 index가 목록 전체에서의 자리다", () => {
     const groups = groupRules(RULES);
     expect(groups.flatMap((g) => g.items.map((i) => i.index))).toEqual([
       0, 1, 2, 3, 4, 5,

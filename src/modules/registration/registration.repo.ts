@@ -9,19 +9,10 @@ type Tx = Prisma.TransactionClient;
 
 export class InviteRaceError extends Error {}
 
-/**
- * 학생코드 유일 제약 충돌 시 트랜잭션째 재시도하는 횟수.
- * invite.service.ts의 CODE_RETRIES와 같은 규약이다. 31^7 공간이라 실제로는 거의
- * 일어나지 않는다.
- */
+/** 학생코드가 겹칠 때 트랜잭션째 재시도하는 횟수. */
 const STUDENT_CODE_RETRIES = 5;
 
-/**
- * 이 반·번호가 이미 다른 학생에게 배정돼 있을 때. (Enrollment_classId_number_key)
- * 기존 import 경로를 깨지 않기 위해 re-export한다. 실물은 core/db에 하나뿐이다
- * (admin-user.repo.ts와 같은 방식) — 여기서 같은 이름의 별개 클래스를 새로
- * 만들면 instanceof가 모듈을 건너 통하지 않는다.
- */
+/** 실물은 core/db에 하나뿐이다. 별개 클래스를 만들면 instanceof가 안 통한다. */
 export { NumberTakenError };
 
 export async function findInviteByCode(code: string) {
@@ -62,13 +53,8 @@ export type RegistrationAccount = {
 };
 
 /**
- * 코드를 소진한다. 트랜잭션 안에서, **계정을 만든 뒤에** 호출해야 한다.
- * (`usedById`가 user를 참조하는 외래키라 순서를 뒤집으면 제약에 걸린다.)
- *
- * `status: "PENDING"` 조건이 붙은 updateMany라 동시 요청 중 count 1을 받는 쪽은
- * 반드시 하나뿐이다. 두 번째 요청은 첫 번째가 커밋될 때까지 행 잠금에 걸렸다가
- * 조건을 다시 평가해 count 0을 받고, 트랜잭션 전체가 롤백되므로
- * 앞서 만든 계정도 함께 사라진다.
+ * 코드를 소진한다. 트랜잭션 안에서 **계정을 만든 뒤에** 부른다 (usedById가 외래키다).
+ * PENDING 조건이 붙어 동시 요청 중 count 1을 받는 쪽은 하나뿐이다.
  */
 async function consumeInvite(tx: Tx, inviteId: string, userId: string) {
   const { count } = await tx.invite.updateMany({
@@ -89,7 +75,7 @@ async function createUserWithCredential(
       name: account.name,
       email: account.email,
       phone: account.phone,
-      // 초대코드가 신뢰 기준이므로 별도 메일 인증을 두지 않는다.
+      // 초대코드가 신뢰 기준이라 별도 메일 인증을 두지 않는다.
       emailVerified: true,
       role,
       status: "ACTIVE",
@@ -109,10 +95,7 @@ async function createUserWithCredential(
   });
 }
 
-/*
- * 아래 세 함수는 코드 소진과 계정·프로필 생성을 **한 트랜잭션**에 넣는다.
- * 중간에 어디가 실패하든 통째로 롤백되므로 별도의 보상 로직이 필요 없다.
- */
+// 아래 셋은 코드 소진과 계정 생성을 한 트랜잭션에 넣는다 — 보상 로직이 필요 없다.
 
 export async function completeStudentRegistration(
   inviteId: string,
@@ -120,16 +103,14 @@ export async function completeStudentRegistration(
   student: { birthDate: Date; grade: number; classNo: number; number: number },
   year: number,
 ): Promise<void> {
-  // 학생코드가 겹치면(31^7 공간, 사실상 희박) Postgres가 그 문장부터 트랜잭션을
-  // 중단시킨다 — 같은 트랜잭션 안에서 새 코드로 이어서 재시도할 수 없으므로
-  // 트랜잭션째 다시 돈다. NumberTakenError·InviteRaceError는 학생코드와 무관한
-  // 유일 제약이라 아래 catch에서 바로 다시 던져지고 재시도를 낭비하지 않는다.
+  // 학생코드가 겹치면 Postgres가 트랜잭션을 중단시킨다 — 같은 트랜잭션 안에서
+  // 새 코드로 이을 수 없어 트랜잭션째 다시 돈다.
   for (let attempt = 1; attempt <= STUDENT_CODE_RETRIES; attempt += 1) {
     try {
       await prisma.$transaction(async (tx) => {
         await createUserWithCredential(tx, account, "STUDENT");
 
-        // 학급은 없으면 만든다 — 관리자가 미리 등록해 둘 필요가 없게.
+        // 학급은 없으면 만든다 — 관리자가 미리 등록할 필요가 없게.
         const schoolClass = await tx.schoolClass.upsert({
           where: {
             year_grade_classNo: {
@@ -146,7 +127,7 @@ export async function completeStudentRegistration(
           data: {
             userId: account.userId,
             birthDate: student.birthDate,
-            // 계정을 만들 때 한 번 부여하고 바뀌지 않는다.
+            // 한 번 부여하고 바뀌지 않는다.
             studentCode: generateStudentCode(),
           },
         });
@@ -163,8 +144,8 @@ export async function completeStudentRegistration(
             },
           });
         } catch (error) {
-          // 관리자가 발급한 초대코드의 반·번호가 그 사이 다른 학생에게도 쓰였을 수 있다.
-          // 미리 조회해 봐야 그 틈을 못 막으므로 유일 제약 위반을 잡아서 옮긴다.
+          // 그 사이 같은 반·번호가 다른 학생에게 쓰였을 수 있다. 미리 조회해도
+          // 틈을 못 막으므로 유일 제약 위반을 잡아 옮긴다.
           if (isUniqueViolation(error, "number")) throw new NumberTakenError();
           throw error;
         }

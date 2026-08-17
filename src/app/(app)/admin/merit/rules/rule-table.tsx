@@ -28,12 +28,8 @@ export type RuleRow = {
 };
 
 /**
- * 규정 목록. "수정"을 누르면 그 줄이 입력 가능한 상태로 바뀐다.
- *
- * `<tr>` 안에 `<form>`을 둘 수 없다 — HTML 파서가 폼을 테이블 밖으로 밀어내
- * 구조가 깨진다(foster parenting). 그래서 실제 `<form>`은 표 바깥에 숨겨 두고,
- * 편집 중인 행의 입력만 `form` 속성으로 그 폼에 연결한다. 한 번에 한 줄만
- * 편집 상태이므로 이름 충돌이 없다 — 편집 중이 아닌 행은 입력을 아예 그리지 않는다.
+ * 규정 목록. `<tr>` 안에는 `<form>`을 둘 수 없어(foster parenting) 폼을 표 바깥에
+ * 숨겨 두고 편집 중인 행의 입력만 `form` 속성으로 잇는다. 한 번에 한 줄만 편집한다.
  */
 export function RuleTable({ rules }: { rules: RuleRow[] }) {
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -46,10 +42,8 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
     EMPTY_RULE_FORM_STATE,
   );
 
-  // 수정이 성공하면 편집 모드를 닫는다. 실패하면 값을 그대로 두어 다시 고칠 수 있게 한다.
-  // useEffect 대신 렌더 중 이전 상태와 비교해 처리한다 — effect 안에서 곧바로
-  // setState하면 리렌더가 한 번 더 발생한다(react-hooks/set-state-in-effect가
-  // 지적하는 지점). React 문서가 권장하는 "렌더 중 상태 조정" 패턴을 쓴다.
+  // 성공하면 편집 모드를 닫고, 실패하면 값을 남겨 다시 고칠 수 있게 한다.
+  // 렌더 중 비교로 처리한다 — effect 안의 setState는 리렌더를 한 번 더 만든다.
   const [handledUpdateState, setHandledUpdateState] = useState(updateState);
   if (updateState !== handledUpdateState) {
     setHandledUpdateState(updateState);
@@ -101,7 +95,7 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
                   )}
                 </td>
 
-                <td className={`${cell(2)} font-semibold text-ink`}>
+                <td className={`${cell(2)} font-medium text-ink`}>
                   {editing ? (
                     <Input
                       dense
@@ -117,20 +111,15 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
                   )}
                 </td>
 
-                {/*
-                  부호는 종류가 정하며 고칠 수 없다. 수정 중에도 입력칸 앞에
-                  그대로 붙여 둔다 — 예전엔 편집을 시작하면 부호가 사라져서
-                  상점을 고치는지 벌점을 고치는지 화면에서 알 수 없었다.
-                */}
-                <td className={`${cell(3)} font-bold text-ink`}>
+                {/* 부호는 종류가 정하며 고칠 수 없다. 수정 중에도 입력칸 앞에 붙여 둔다. */}
+                <td className={`${cell(3)} font-medium text-ink`}>
                   <span className="flex items-center gap-1">
                     <span aria-hidden className={kindColorClass(rule.kind)}>
                       {meritKindSign(rule.kind)}
                     </span>
                     {editing ? (
-                      // 폭은 바깥에서 준다 — cn()이 tailwind-merge가 아니라 Input의
-                      // w-full을 className으로 덮을 수 없다. 부모가 <span>이라
-                      // <div>가 아니라 inline-block <span>으로 감싼다.
+                      // 폭은 바깥에서 준다 — cn()은 tailwind-merge가 아니라
+                      // Input의 w-full을 className으로 덮을 수 없다.
                       <span className="inline-block w-16">
                         <Input
                           dense
@@ -154,8 +143,7 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
                   {editing ? (
                     <div className="flex gap-2">
                       <input type="hidden" name="ruleId" value={rule.id} form="rule-edit-form" />
-                      {/* 표에 없는 필드(설명)는 그대로 넘긴다 — 안 넘기면 zod가
-                          빈 값으로 받아 매번 수정할 때마다 설명이 사라진다. */}
+                      {/* 표에 없는 필드는 그대로 넘긴다 — 안 넘기면 수정할 때마다 설명이 사라진다. */}
                       <input
                         type="hidden"
                         name="description"
@@ -196,8 +184,8 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
                             !confirm(
                               `"${rule.label}" 규정을 삭제합니다.\n\n` +
                                 `· 목록과 부여 화면에서 사라집니다\n` +
-                                `· 되돌리는 화면이 없습니다 (다시 쓰려면 새로 만들어야 합니다)\n` +
-                                `· 이미 준 상벌점 기록은 그대로 남습니다`,
+                                `· 되돌릴 수 없습니다\n` +
+                                `· 이미 부여한 기록은 그대로 남습니다`,
                             )
                           ) {
                             e.preventDefault();

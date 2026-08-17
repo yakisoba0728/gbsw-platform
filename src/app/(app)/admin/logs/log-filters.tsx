@@ -14,11 +14,7 @@ const PERIOD_LABEL: Record<AuditPeriod, string> = {
   all: "전체",
 };
 
-/**
- * 필터는 URL 쿼리에 싣는다.
- * 로그는 서버에서 걸러 페이지 단위로 가져오므로 상태를 주소에 두는 게 맞다
- * (새로고침·뒤로가기·링크 공유가 그대로 동작한다).
- */
+/** 필터는 URL 쿼리에 싣는다 — 새로고침·뒤로가기·링크 공유가 그대로 동작한다. */
 export function LogFilters({
   actions,
   period,
@@ -47,8 +43,7 @@ export function LogFilters({
   }
 
   return (
-    // 카드 머리글 안(SectionCard의 controls)에 들어간다 — 여백·구분선은 머리글이
-    // 이미 갖고 있다. 초대·사용자·학생 화면의 필터와 같은 자리다.
+    // 카드 머리글 안에 들어간다 — 여백·구분선은 머리글이 이미 갖고 있다.
     <>
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         {AUDIT_PERIODS.map((p) => (

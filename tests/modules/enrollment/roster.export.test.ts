@@ -209,8 +209,7 @@ describe("왕복: 내보내기 → xlsx 바이트 → 파서 → 분류", () => 
     expect(plan.hasBlockingError).toBe(false);
   });
 
-  it("학생코드를 지우고 올리면 신규로 잡히지 않고 확인 필요로 간다 — " +
-    "이름·생년월일이 명단에 없는 재학생과 일치하니 코드가 지워진 것으로 의심한다", async () => {
+  it("학생코드를 지우고 올리면 신규가 아니라 확인 필요로 간다", async () => {
     const rows = buildExportRows([
       { ...재학생, studentCode: "", entryClassNo: 재학생.classNo, entryNumber: 재학생.number },
     ]);

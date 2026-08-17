@@ -72,7 +72,7 @@ describe("parseDateInputKst()", () => {
     expect(parseDateInputKst("2026-12-15").toISOString()).toBe("2026-12-14T15:00:00.000Z");
   });
 
-  it("서버 타임존이 무엇이든 같은 instant를 만든다 — 컨테이너는 UTC, 노트북은 KST다", () => {
+  it("서버 타임존이 무엇이든 같은 instant를 만든다", () => {
     const expected = "2026-08-16T15:00:00.000Z";
     for (const tz of OTHER_ZONES) {
       expect(withTz(tz, () => parseDateInputKst("2026-08-17").toISOString())).toBe(expected);
@@ -153,7 +153,7 @@ describe("formatDateInput() ↔ parseDateInputKst() 왕복", () => {
 });
 
 describe("isSameKstDate()", () => {
-  it("UTC 날짜는 다른데 KST 날짜가 같으면 같은 날로 본다 — 밀리초 비교로는 못 하는 판정이다", () => {
+  it("UTC 날짜가 달라도 KST 날짜가 같으면 같은 날로 본다", () => {
     // 둘 다 KST 8/17. UTC로는 8/16과 8/17로 갈린다.
     const kstMorning = new Date("2026-08-17T01:00:00+09:00"); // 2026-08-16T16:00Z
     const kstEvening = new Date("2026-08-17T22:00:00+09:00"); // 2026-08-17T13:00Z
@@ -169,7 +169,7 @@ describe("isSameKstDate()", () => {
     expect(isSameKstDate(beforeMidnight, afterMidnight)).toBe(false);
   });
 
-  it("발생일(KST 자정)과 그날 아무 시각에 찍힌 입력일을 같은 날로 본다 — 화면에 날짜를 두 번 적지 않는 근거다", () => {
+  it("발생일(KST 자정)과 그날 아무 시각의 입력일을 같은 날로 본다", () => {
     const occurredOn = parseDateInputKst("2026-08-17");
     const createdAt = new Date("2026-08-17T17:42:11+09:00");
     expect(occurredOn.getTime()).not.toBe(createdAt.getTime());
@@ -215,7 +215,7 @@ describe("formatDate() / formatDateTime()", () => {
     expect(formatDate(new Date("2026-08-17T20:00:00.000Z"))).toBe("2026. 8. 18.");
   });
 
-  it("서버 타임존이 무엇이든 KST로 낸다 — 포맷터를 모듈 로드 시점에 한 번만 만드는 것이 여기 걸려 있다", () => {
+  it("서버 타임존이 무엇이든 KST로 낸다", () => {
     const instant = new Date("2026-08-17T20:00:00.000Z");
     for (const tz of OTHER_ZONES) {
       expect(withTz(tz, () => formatDate(instant))).toBe("2026. 8. 18.");
@@ -230,7 +230,7 @@ describe("잘못된 입력에서의 현재 동작", () => {
    * 호출부의 zod가 이 값들을 어디까지 걸러 주는지는 스키마마다 다르다 —
    * merit.schema.ts의 dateInputKst만 변환 뒤 Invalid Date를 다시 걸러낸다.
    */
-  it("형식이 아예 아니면 Invalid Date가 된다 — merit.schema.ts가 변환 뒤 이걸 보고 거른다", () => {
+  it("형식이 아예 아니면 Invalid Date가 된다", () => {
     expect(Number.isNaN(parseDateInputKst("").getTime())).toBe(true);
     expect(Number.isNaN(parseDateInputKst("2026-13-45").getTime())).toBe(true);
     expect(Number.isNaN(parseDateInputKst("없는날").getTime())).toBe(true);
@@ -238,19 +238,19 @@ describe("잘못된 입력에서의 현재 동작", () => {
     expect(Number.isNaN(parseDateInputKst(" 2026-08-17").getTime())).toBe(true); // 앞뒤 공백도 못 읽는다
   });
 
-  it("잘린 날짜는 Invalid Date가 아니라 그 달·그 해의 1일이 된다 — 호출부의 ^\\d{4}-\\d{2}-\\d{2}$ 정규식이 여기까지 오지 못하게 막는 유일한 장치다", () => {
+  it("잘린 날짜는 Invalid Date가 아니라 1일이 된다 — 호출부의 정규식이 막는다", () => {
     expect(formatDateInput(parseDateInputKst("2026-08"))).toBe("2026-08-01");
     expect(formatDateInput(parseDateInputKst("2026"))).toBe("2026-01-01");
   });
 
-  it("2월 30일 같은 '넘치는 날'은 Invalid Date가 아니라 다음 달로 굴러간다 — 그래서 Invalid Date 검사로는 안 걸린다", () => {
+  it("2월 30일은 Invalid Date가 아니라 다음 달로 굴러간다", () => {
     // merit.schema.ts의 주석이 이미 경고하는 자리다. 정규식도 Invalid Date 검사도
     // 통과하므로, 없는 날짜가 조용히 다른 날짜로 저장된다.
     expect(formatDateInput(parseDateInputKst("2026-02-30"))).toBe("2026-03-02");
     expect(formatDateInput(parseDateInputKst("2026-04-31"))).toBe("2026-05-01");
   });
 
-  it("Invalid Date를 포맷하면 던진다 — 위의 Invalid Date를 걸러내지 않고 넘기면 여기서 터진다", () => {
+  it("Invalid Date를 포맷하면 던진다", () => {
     expect(() => formatDateInput(parseDateInputKst("2026-13-45"))).toThrow(RangeError);
     expect(() => formatDate(new Date(Number.NaN))).toThrow(RangeError);
     expect(() => isSameKstDate(new Date(Number.NaN), new Date())).toThrow(RangeError);

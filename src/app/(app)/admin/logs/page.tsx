@@ -18,7 +18,7 @@ import { auditQuerySchema } from "@/modules/audit-log/audit-log.schema";
 import { readAuditLog } from "@/modules/audit-log/audit-log.service";
 import { LogFilters } from "./log-filters";
 
-export const metadata: Metadata = { title: "로그" };
+export const metadata: Metadata = { title: "감사로그" };
 
 const HEADERS = ["시각", "행위자", "동작", "대상", "접속", "상세"] as const;
 
@@ -45,7 +45,7 @@ export default async function LogsPage({
   return (
     <SectionCard
       title="감사로그"
-      aside={<span className="text-[12px] text-mut">{total}건</span>}
+      aside={<span className="text-xs text-mut">{total}건</span>}
       controls={
         <LogFilters
           actions={actions}
@@ -60,11 +60,7 @@ export default async function LogsPage({
       {entries.length === 0 ? (
         <EmptyState variant="inside">조건에 맞는 기록이 없습니다.</EmptyState>
       ) : (
-        /*
-          시각은 `26. 8. 14. 오전 8:30:16`이 통째로 들어가야 한다 —
-          whitespace-nowrap이라 좁으면 넘쳐서 옆 열을 덮는다.
-          상세는 남는 폭을 가져간다 (가장 길고 가장 자주 읽는 열).
-        */
+        // 시각 열은 nowrap이라 좁으면 옆 열을 덮는다. 상세가 남는 폭을 가져간다.
         <TableFrame
           minWidth={840}
           fixed
@@ -81,17 +77,17 @@ export default async function LogsPage({
           <tbody>
             {entries.map((entry) => (
               <tr key={entry.id} className="border-b border-line2 last:border-0">
-                <td className={`${cell(0)} whitespace-nowrap text-mut`}>
+                <td className={`${cell(0)} font-mono whitespace-nowrap text-mut`}>
                   {formatDateTime(entry.createdAt)}
                 </td>
                 <td className={cell(1)}>
                   <span className="block truncate text-ink">{entry.actorName}</span>
-                  <span className="block truncate text-[12px] text-mut">
+                  <span className="block truncate text-xs text-mut">
                     {entry.actor
                       ? isRole(entry.actor.role)
                         ? ROLE_LABELS[entry.actor.role]
                         : entry.actor.email
-                      : "탈퇴한 계정"}
+                      : "삭제된 계정"}
                   </span>
                 </td>
                 <td className={cell(2)}>
@@ -103,12 +99,12 @@ export default async function LogsPage({
                   {auditTargetLabel(entry.targetType)}
                 </td>
                 <td
-                  className={`${cell(4)} text-mut`}
+                  className={`${cell(4)} font-mono text-mut`}
                   title={entry.userAgent ?? undefined}
                 >
                   {entry.ip ?? "—"}
                 </td>
-                <td className={`${cell(5)} text-[12px] break-words text-mut`}>
+                <td className={`${cell(5)} text-xs break-words text-mut`}>
                   {formatAuditMetadata(entry.action, entry.metadata) ?? "—"}
                 </td>
               </tr>
@@ -118,7 +114,7 @@ export default async function LogsPage({
       )}
 
       {pageCount > 1 && (
-        <nav className="flex items-center justify-between border-t border-line px-5 py-3.5 text-[13px]">
+        <nav className="flex items-center justify-between border-t border-line px-5 py-3.5 text-caption">
           <PageLink page={page - 1} disabled={page <= 1} params={raw}>
             이전
           </PageLink>
@@ -152,7 +148,7 @@ function PageLink({
   return (
     <Link
       href={hrefWith("/admin/logs", params, { page: String(page) })}
-      className="font-semibold text-pri hover:underline"
+      className="font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
     >
       {children}
     </Link>

@@ -35,7 +35,7 @@ describe("createRuleSchema", () => {
     expect(parsed.description).toBeNull();
   });
 
-  it("점수는 양수여야 한다 — 부호는 kind가 정한다", () => {
+  it("점수는 양수여야 한다", () => {
     expect(createRuleSchema.safeParse({ ...valid, points: "0" }).success).toBe(false);
     expect(createRuleSchema.safeParse({ ...valid, points: "-3" }).success).toBe(false);
     expect(createRuleSchema.safeParse({ ...valid, points: "1.5" }).success).toBe(false);
@@ -54,7 +54,7 @@ describe("createRuleSchema", () => {
 });
 
 describe("updateRuleSchema", () => {
-  it("track·kind는 아예 받지 않는다 — 생성 시 고정이다", () => {
+  it("track·kind는 아예 받지 않는다", () => {
     const parsed = updateRuleSchema.parse({
       ruleId: "r-1",
       label: "고친 이름",
@@ -77,13 +77,9 @@ describe("updateRuleSchema", () => {
   });
 });
 
-/**
- * 선택 입력의 길이 초과는 **오류**여야 한다. 예전엔 `.catch(null)`이 붙어 있어서
- * 한계를 넘긴 메모가 조용히 null이 됐다 — 화면에는 "부여했습니다"가 뜨고 메모만
- * 사라지는, 아무도 눈치채지 못하는 실패였다.
- */
+/** 선택 입력의 길이 초과는 오류여야 한다 — 조용히 버리면 메모만 사라진다. */
 describe("선택 입력(메모·분류·설명)의 길이", () => {
-  it("분류가 50자를 넘으면 거부한다 — 조용히 버리지 않는다", () => {
+  it("분류가 50자를 넘으면 거부한다", () => {
     const result = createRuleSchema.safeParse({ ...valid, category: "가".repeat(51) });
     expect(result.success).toBe(false);
   });
@@ -109,7 +105,7 @@ describe("선택 입력(메모·분류·설명)의 길이", () => {
     expect(parsed.note).toBe(note);
   });
 
-  it("칸이 아예 없으면(null) null로 떨어진다 — 폼에 그 입력이 없는 경우다", () => {
+  it("칸이 아예 없으면(null) null로 떨어진다", () => {
     const parsed = awardSchema.parse({
       studentProfileId: "sp-1",
       ruleId: "r-1",
@@ -130,12 +126,7 @@ describe("선택 입력(메모·분류·설명)의 길이", () => {
   });
 });
 
-/**
- * 조회 학년도의 범위.
- *
- * 예전엔 2000·2100을 이 파일에 손으로 다시 적었다. 학교가 범위를 넓히면 학년도
- * 모듈과 여기가 갈리고, 갈렸다는 사실은 "왜 이 해는 안 나오지"로만 드러난다.
- */
+/** 조회 학년도의 범위. 상수를 손으로 다시 적으면 학년도 모듈과 갈린다. */
 describe("조회 학년도", () => {
   const roster = { grade: "2", classNo: "3", track: "SCHOOL" };
 
@@ -160,17 +151,14 @@ describe("조회 학년도", () => {
     ).toBe(false);
   });
 
-  it("학년도는 선택 입력이다 — 없으면 서비스가 현재 학년도로 정한다", () => {
+  it("학년도는 선택 입력이다", () => {
     expect(classRosterSchema.parse(roster).year).toBeUndefined();
   });
 });
 
 /**
- * 벌점 기준 설정.
- *
- * **여기가 뚫리면 화면이 조용히 무의미해진다.** 위험이 경고보다 작으면
- * demeritLevel이 warn 구간을 아예 못 내고(danger가 먼저 걸린다), 0을 넣으면
- * 벌점 0점인 전교생이 명단에 오른다. 그래서 순서와 범위를 여기서 못 박는다.
+ * 벌점 기준 설정. 위험이 경고보다 작으면 warn 구간이 사라지고, 0을 넣으면
+ * 벌점 0점인 전교생이 명단에 오른다. 순서와 범위를 여기서 못 박는다.
  */
 describe("thresholdSchema", () => {
   const valid = { track: "SCHOOL", warn: "20", danger: "30" };
@@ -186,7 +174,7 @@ describe("thresholdSchema", () => {
     );
   });
 
-  it("위험과 경고가 같아도 거부한다 — 같으면 경고 구간이 사라진다", () => {
+  it("위험과 경고가 같아도 거부한다", () => {
     expect(thresholdSchema.safeParse({ ...valid, warn: "20", danger: "20" }).success).toBe(
       false,
     );
@@ -198,7 +186,7 @@ describe("thresholdSchema", () => {
     }
   });
 
-  it("상한을 넘으면 거부한다 — 오타 한 번으로 영원히 안 뜨는 기준이 되지 않게", () => {
+  it("상한을 넘으면 거부한다", () => {
     expect(
       thresholdSchema.safeParse({
         track: "SCHOOL",
@@ -222,7 +210,7 @@ describe("thresholdSchema", () => {
     expect(thresholdSchema.safeParse({ ...valid, track: "CLUB" }).success).toBe(false);
   });
 
-  it("모든 오류 문구가 한글이다 — zod의 영문 기본값이 화면에 나가면 안 된다", () => {
+  it("모든 오류 문구가 한글이다", () => {
     const cases = [
       { ...valid, warn: "0" },
       { ...valid, warn: "abc" },
@@ -242,10 +230,7 @@ describe("thresholdSchema", () => {
   });
 });
 
-/**
- * 화면에 그대로 나가는 문구다. 다른 스키마 파일은 전부 마침표를 찍는데
- * 여기만 안 찍혀 있어서, 같은 화면에 두 어투가 섞였다.
- */
+/** 화면에 그대로 나가는 문구다 — 어투가 섞이지 않게 마침표를 맞춘다. */
 describe("검증 실패 문구", () => {
   function firstMessage(result: { success: boolean; error?: { issues: { message: string }[] } }) {
     expect(result.success).toBe(false);

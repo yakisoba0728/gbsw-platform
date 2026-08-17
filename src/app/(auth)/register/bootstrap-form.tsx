@@ -20,12 +20,10 @@ export function BootstrapForm({ token }: { token: string }) {
     <form action={formAction} className="animate-auth-in">
       <input type="hidden" name="token" value={token} />
 
-      <h1 className="mb-1.5 text-2xl font-extrabold tracking-[-0.02em] text-ink">
-        관리자 계정 만들기
+      <h1 className="mb-2 text-title font-semibold text-ink">
+        첫 관리자 계정
       </h1>
-      <p className="mb-[26px] text-[13.5px] text-mut">
-        이 화면은 한 번만 열립니다.
-      </p>
+      <p className="mb-8 text-caption text-mut">이 화면은 한 번만 열립니다.</p>
 
       <Label htmlFor="name">이름</Label>
       <Input
@@ -34,7 +32,7 @@ export function BootstrapForm({ token }: { token: string }) {
         autoComplete="name"
         maxLength={50}
         required
-        className="mb-[15px]"
+        className="mb-4"
       />
 
       <Label htmlFor="email">이메일</Label>
@@ -45,7 +43,7 @@ export function BootstrapForm({ token }: { token: string }) {
         autoComplete="username"
         placeholder="name@gbsw.hs.kr"
         required
-        className="mb-[15px]"
+        className="mb-4"
       />
 
       <Label htmlFor="phone">전화번호</Label>
@@ -57,10 +55,12 @@ export function BootstrapForm({ token }: { token: string }) {
         placeholder="010-0000-0000"
         format={formatPhone}
         required
-        className="mb-[15px]"
+        className="mb-4"
       />
 
-      <Label htmlFor="password">비밀번호 (10자 이상)</Label>
+      <Label htmlFor="password">
+        비밀번호 <span className="font-normal text-mut">(10자 이상)</span>
+      </Label>
       <Input
         id="password"
         name="password"
@@ -68,7 +68,7 @@ export function BootstrapForm({ token }: { token: string }) {
         autoComplete="new-password"
         minLength={10}
         required
-        className="mb-[15px]"
+        className="mb-4"
       />
 
       <Label htmlFor="confirmPassword">비밀번호 확인</Label>
@@ -78,7 +78,7 @@ export function BootstrapForm({ token }: { token: string }) {
         type="password"
         autoComplete="new-password"
         required
-        className="mb-[22px]"
+        className="mb-6"
       />
 
       {state.error && (
@@ -88,7 +88,7 @@ export function BootstrapForm({ token }: { token: string }) {
       )}
 
       <Button type="submit" size="lg" full disabled={pending}>
-        {pending ? "생성 중…" : "계정 만들기"}
+        {pending ? "만드는 중…" : "만들기"}
       </Button>
     </form>
   );

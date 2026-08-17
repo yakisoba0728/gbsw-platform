@@ -1,14 +1,8 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 
 /**
- * 최초 관리자 생성용 1회성 토큰.
- *
- * 프로세스 메모리에만 둔다 — DB에 저장하지 않으므로 디스크에 남지 않고,
- * 프로세스가 죽으면 함께 사라진다. 서버를 재시작하면 새 토큰이 발급된다.
- *
- * globalThis에 붙이는 이유: instrumentation 훅과 서버 액션이 서로 다른 번들로
- * 묶일 수 있고, 개발 중 핫 리로드가 모듈을 다시 평가한다. 모듈 지역 변수로 두면
- * 발급한 토큰과 검증하는 토큰이 다른 인스턴스가 될 수 있다.
+ * 최초 관리자 생성용 1회성 토큰. 프로세스 메모리에만 둔다.
+ * globalThis에 붙인다 — 모듈 지역 변수면 부팅 훅과 서버 액션이 다른 값을 본다.
  */
 const store = globalThis as unknown as { __gbswBootstrapToken?: string | null };
 
@@ -35,11 +29,8 @@ export function matchesToken(candidate: string): boolean {
 }
 
 /**
- * 토큰을 검증하고 즉시 소진한다.
- *
- * Node는 단일 스레드라 이 함수 본문이 중간에 끊기지 않는다(await가 없다).
- * 따라서 동시에 들어온 요청 중 true를 받는 쪽은 반드시 하나뿐이며,
- * 이것이 관리자 계정 중복 생성을 막는 실질적인 잠금 역할을 한다.
+ * 토큰을 검증하고 즉시 소진한다. await가 없어 본문이 끊기지 않으므로,
+ * 동시 요청 중 true를 받는 쪽이 하나뿐인 것이 중복 생성을 막는 잠금이다.
  */
 export function consumeToken(candidate: string): boolean {
   if (!matchesToken(candidate)) return false;

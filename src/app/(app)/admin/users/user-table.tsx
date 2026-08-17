@@ -82,8 +82,8 @@ export function UserTable({ rows }: { rows: UserRow[] }) {
 
   return (
     <SectionCard
-      title="사용자"
-      aside={<span className="text-[12px] text-mut">{filtered.length}명</span>}
+      title="계정"
+      aside={<span className="text-xs text-mut">{filtered.length}명</span>}
       controls={
         <>
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
@@ -127,15 +127,15 @@ export function UserTable({ rows }: { rows: UserRow[] }) {
       flush
     >
       {filtered.length === 0 ? (
-        <EmptyState variant="inside">조건에 맞는 사용자가 없습니다.</EmptyState>
+        <EmptyState variant="inside">조건에 맞는 계정이 없습니다.</EmptyState>
       ) : (
         <TableFrame minWidth={760} headers={HEADERS}>
           <tbody>
             {filtered.map((row) => (
               <tr key={row.id} className="border-b border-line2 last:border-0">
                 <td className={cell(0)}>
-                  <span className="font-semibold text-ink">{row.name}</span>
-                  <span className="block text-[12px] text-mut">{row.email}</span>
+                  <span className="font-medium text-ink">{row.name}</span>
+                  <span className="block text-xs text-mut">{row.email}</span>
                 </td>
                 <td className={`${cell(1)} text-mut`}>{row.roleLabel}</td>
                 <td className={`${cell(2)} text-ink`}>
@@ -147,7 +147,7 @@ export function UserTable({ rows }: { rows: UserRow[] }) {
                     {row.active ? "활성" : "비활성"}
                   </Badge>
                   {row.mustChangePassword && (
-                    <span className="mt-1 block text-[12px] text-amber-ink">
+                    <span className="mt-1 block text-xs text-amber-ink">
                       비밀번호 변경 대기
                     </span>
                   )}
@@ -157,7 +157,7 @@ export function UserTable({ rows }: { rows: UserRow[] }) {
                   <Link
                     href={`/admin/users/${row.id}`}
                     aria-label={`${row.name} 상세`}
-                    title="상세 · 수정"
+                    title="상세"
                     className="inline-flex size-8 items-center justify-center rounded-btn border border-line text-mut transition-colors hover:bg-soft hover:text-ink"
                   >
                     <SettingsIcon size={16} />

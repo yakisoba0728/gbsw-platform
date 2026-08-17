@@ -58,7 +58,7 @@ describe("listRules — 종류 → 분류 → 점수", () => {
     expect(rows.map((r) => r.id)).toEqual(["a-high", "b-low"]);
   });
 
-  it("분류는 한글 가나다순이다 — 원본 규정표의 순서와 같다", async () => {
+  it("분류는 한글 가나다순이다", async () => {
     meritRuleFindMany.mockResolvedValue([
       rule({ id: "h", category: "학교 활동" }),
       rule({ id: "g", category: "교내 환경" }),
@@ -101,7 +101,7 @@ describe("listRules — 종류 → 분류 → 점수", () => {
     expect(rows.map((r) => r.points)).toEqual([1, 10, 60]);
   });
 
-  it("삭제된 규정은 질의에서 아예 빠진다 — 목록에 안 나온다", async () => {
+  it("삭제된 규정은 질의에서 아예 빠진다", async () => {
     meritRuleFindMany.mockResolvedValue([]);
 
     await listRules("SCHOOL");

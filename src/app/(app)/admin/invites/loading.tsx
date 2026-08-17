@@ -1,14 +1,10 @@
 import { Skeleton, SkeletonScreen } from "@/components/ui/skeleton";
 
-/**
- * `/admin/invites`의 뼈대. 화면과 같은 2단 배치(발급 폼 · 발급 내역)를 그린다 —
- * 뼈대가 실제 짜임과 다르면 내용이 도착할 때 자리가 튀어서, "멈췄나"를 없애려던
- * 것이 오히려 화면을 덜컹이게 만든다.
- */
+/** `/admin/invites`의 뼈대. 화면과 같은 2단 배치라야 내용이 도착할 때 안 튄다. */
 export default function Loading() {
   return (
     <SkeletonScreen className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[360px_1fr]">
-      {/* 가입코드 발급 폼 */}
+      {/* 초대코드 발급 폼 */}
       <div className="rounded-card border border-line bg-surface p-5 lg:p-6">
         <Skeleton className="h-5 w-32 rounded-btn" />
         <Skeleton className="mt-2 h-4 w-48 rounded-btn" />
@@ -18,7 +14,7 @@ export default function Loading() {
           ))}
         </div>
         {Array.from({ length: 3 }, (_, i) => (
-          <Skeleton key={i} className="mb-[15px] h-12 rounded-field" />
+          <Skeleton key={i} className="mb-4 h-12 rounded-field" />
         ))}
         <Skeleton className="h-11 rounded-btn" />
       </div>

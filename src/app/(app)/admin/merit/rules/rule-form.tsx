@@ -9,7 +9,7 @@ import { MERIT_KIND_LABELS, MERIT_KINDS, type MeritTrack } from "@/core/authz/me
 import { EMPTY_RULE_FORM_STATE } from "./action-state";
 import { createRuleAction } from "./actions";
 
-/** 시안의 "규정 추가" 카드(520~537행) — 한 줄에 나란히, 오른쪽 끝에 추가 버튼. */
+/** 규정 추가 카드 — 한 줄에 나란히, 오른쪽 끝에 추가 버튼. */
 export function RuleForm({ track }: { track: MeritTrack }) {
   const [state, formAction, pending] = useActionState(
     createRuleAction,
@@ -18,7 +18,7 @@ export function RuleForm({ track }: { track: MeritTrack }) {
 
   return (
     <section className="rounded-card border border-line bg-surface p-5">
-      <h2 className="mb-3.5 text-[13px] font-bold text-ink">규정 추가</h2>
+      <h2 className="mb-3.5 text-lg font-semibold text-ink">규정 추가</h2>
 
       <form action={formAction} className="flex flex-wrap items-end gap-2.5">
         {/* track은 생성 시 고정 — 지금 보고 있는 탭 그대로 들어간다. */}
@@ -68,7 +68,7 @@ export function RuleForm({ track }: { track: MeritTrack }) {
         </div>
 
         <Button type="submit" disabled={pending}>
-          {pending ? "추가 중…" : "추가"}
+          {pending ? "저장 중…" : "저장"}
         </Button>
       </form>
 

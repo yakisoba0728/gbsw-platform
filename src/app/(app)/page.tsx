@@ -20,10 +20,7 @@ import {
 } from "@/modules/merit/award.service";
 import { getMeritSummary, type MeritSummary } from "@/modules/merit/stats.service";
 
-/**
- * 카드 제목은 메뉴(nav.ts)와 같은 이름을 쓴다. MERIT_TRACK_LABELS(교내·기숙사)는
- * 탭·배지처럼 짧아야 하는 자리용이라 제목으로는 쓰지 않는다.
- */
+/** 카드 제목은 메뉴(nav.ts)와 같은 이름을 쓴다. */
 const TRACK_TITLES: Record<MeritTrack, string> = {
   SCHOOL: "그린마일리지",
   DORM: "기숙사 상벌점",
@@ -32,24 +29,18 @@ const TRACK_TITLES: Record<MeritTrack, string> = {
 /** 대시보드에 남길 최근 부여 줄 수. 넘치면 "전체 보기"로 넘긴다. */
 const RECENT_ROWS = 6;
 
-/**
- * 대시보드. 역할에 따라 다른 요약을 보여준다.
- *
- * **요약과 링크만 둔다** — 통계 화면을 여기에 다시 만들지 않는다. 대시보드가
- * 각 모듈의 축소판이 되기 시작하면 모듈이 늘 때마다 여기가 함께 커지고,
- * 어느 화면을 고쳐야 하는지가 흐려진다.
- */
+/** 대시보드. 요약과 링크만 둔다 — 통계 화면을 여기에 다시 만들지 않는다. */
 export default async function DashboardPage() {
   const user = await requireAuth();
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
       <section className="rounded-card border border-line bg-surface p-6 lg:p-8">
-        <p className="text-[13px] font-semibold text-pri">
-          {user.role ? ROLE_LABELS[user.role] : "역할 미지정"}
+        <p className="text-caption text-mut">
+          {user.role ? ROLE_LABELS[user.role] : "역할 없음"}
         </p>
-        <h2 className="mt-1 text-xl font-extrabold tracking-[-0.01em] text-ink lg:text-2xl">
-          {user.name}님, 안녕하세요.
+        <h2 className="mt-1 text-title font-semibold text-ink">
+          {user.name}님
         </h2>
       </section>
 
@@ -64,14 +55,7 @@ export default async function DashboardPage() {
   );
 }
 
-/**
- * 학년도가 없으면 상벌점 요약 자체가 성립하지 않는다 — 카드 하나로 대신한다.
- *
- * 공용 안내를 쓴다. 전에는 이 화면만 같은 사정을 자기 안에서 다시 그려서,
- * "세 화면이 같은 화면을 보여주도록 통일한다"던 컴포넌트가 정작 대시보드는
- * 통일하지 못했다. 제목("상벌점")은 여기서만 붙는다 — 이 안내가 화면 전체가
- * 아니라 여러 카드 중 한 칸을 대신하는 자리라서다.
- */
+/** 학년도가 없으면 상벌점 요약이 성립하지 않는다 — 카드 하나로 대신한다. */
 function NoYearCard() {
   return <NoAcademicYearNotice title="상벌점" />;
 }
@@ -90,9 +74,8 @@ async function AdminSummary({ user }: { user: SessionUser }) {
     ]);
     summaries = [school, dorm];
 
-    // 트랙별로 받아 와 시간순으로 합친다. "오늘 무슨 일이 있었나"는 교내·기숙사를
-    // 가리지 않는 질문인데, 여기가 교내만 보여주는 바람에 사감은 대시보드에서
-    // 기숙사 숫자를 하나도 볼 수 없었다.
+    // 트랙별로 받아 시간순으로 합친다 — "오늘 무슨 일이 있었나"는 교내·기숙사를
+    // 가리지 않는 질문이다.
     recent = [
       ...schoolRecent.map((row) => ({ ...row, track: "SCHOOL" as const })),
       ...dormRecent.map((row) => ({ ...row, track: "DORM" as const })),
@@ -113,19 +96,16 @@ async function AdminSummary({ user }: { user: SessionUser }) {
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">
-        {/*
-         * track을 붙이지 않는다 — 교내로 고정해 두면 사감이 매번 탭을 되돌려야
-         * 한다. 두 화면 모두 안에 트랙 탭이 있다.
-         */}
+        {/* track을 붙이지 않는다 — 두 화면 모두 안에 트랙 탭이 있다. */}
         <QuickLink
           href="/merit"
           title="상벌점 부여"
-          hint="교내·기숙사 탭에서 반을 골라 여러 명에게 한 번에 줄 수 있습니다"
+          hint="반을 골라 여러 명에게 한 번에 부여합니다"
         />
         <QuickLink
           href="/admin/merit/rules"
-          title="항목 관리"
-          hint="상점·벌점 규정을 추가하고 고칩니다"
+          title="규정 관리"
+          hint="상점·벌점 규정을 고칩니다"
         />
       </div>
 
@@ -136,7 +116,7 @@ async function AdminSummary({ user }: { user: SessionUser }) {
         aside={<CardLink href="/merit/recent">전체 보기</CardLink>}
       >
         {recent.length === 0 ? (
-          <EmptyState variant="inside">아직 부여된 상벌점이 없습니다.</EmptyState>
+          <EmptyState variant="inside">부여된 상벌점이 없습니다.</EmptyState>
         ) : (
           <ul>
             {recent.map((row) => (
@@ -144,30 +124,32 @@ async function AdminSummary({ user }: { user: SessionUser }) {
                 key={row.id}
                 className="flex items-center gap-3 border-b border-line2 px-5 py-2.5 last:border-0"
               >
-                <span className="w-[64px] shrink-0 text-[12px] text-mut">
+                <span className="w-[68px] shrink-0 font-mono text-xs text-mut">
                   {formatDate(row.createdAt)}
                 </span>
                 {/* 합쳐 놓은 목록이라 어느 트랙인지가 줄마다 보여야 한다. */}
-                <span className="w-[38px] shrink-0 text-[11px] font-semibold text-mut2">
+                <span className="w-[38px] shrink-0 text-xs text-mut2">
                   {MERIT_TRACK_LABELS[row.track]}
                 </span>
                 <KindBadge kind={row.kind} />
                 <Link
                   href={`/merit/students/${row.studentProfileId}?track=${row.track}`}
-                  className="shrink-0 font-semibold text-ink hover:text-pri"
+                  className="shrink-0 font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
                 >
                   {row.studentName}
                 </Link>
                 <span
                   className={
                     row.status === "CANCELLED"
-                      ? "flex-1 truncate text-[13px] text-mut line-through"
-                      : "flex-1 truncate text-[13px] text-mut"
+                      ? "flex-1 truncate text-caption text-mut line-through"
+                      : "flex-1 truncate text-caption text-mut"
                   }
                 >
                   {row.label}
                 </span>
-                <span className={`shrink-0 font-bold ${kindColorClass(row.kind)}`}>
+                <span
+                  className={`shrink-0 font-medium ${kindColorClass(row.kind)}`}
+                >
                   {signedPoints(row.kind, row.points)}
                 </span>
               </li>
@@ -189,8 +171,8 @@ function AdminTrackCard({ summary }: { summary: MeritSummary }) {
       }
     >
       <MeritTotalsCards totals={summary.totals} />
-      <p className="mt-3 text-[12px] text-mut">
-        {summary.year === null ? "입학부터 전체 누적" : `${summary.year}학년도`} · 부여{" "}
+      <p className="mt-3 text-xs text-mut">
+        {summary.year === null ? "입학부터 누적" : `${summary.year}학년도`} · 부여{" "}
         {summary.totals.awardCount}건
       </p>
     </SectionCard>
@@ -243,18 +225,21 @@ async function ChildSummary({ user }: { user: SessionUser }) {
 
   return (
     <>
-      <p className="text-[13px] font-semibold text-ink">{first.name}</p>
+      <p className="text-caption font-medium text-ink">{first.name}</p>
       <div className="grid gap-3 lg:grid-cols-2">
         <TrackCard track="SCHOOL" view={school} />
         <TrackCard track="DORM" view={dorm} />
       </div>
       {children.length > 1 && (
-        <p className="text-[12px] text-mut">
+        <p className="text-xs text-mut">
           자녀가 여럿입니다.{" "}
-          <Link href="/merit" className="font-semibold text-pri hover:underline">
+          <Link
+            href="/merit"
+            className="text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
+          >
             상벌점
           </Link>
-          에서 골라 볼 수 있습니다.
+          에서 골라 보세요.
         </p>
       )}
     </>
@@ -275,27 +260,21 @@ function TrackCard({
       aside={<CardLink href={`/merit?track=${track}`}>내역</CardLink>}
     >
       <MeritTotalsCards totals={view.totals} />
-      <p className="mt-3 text-[12px] text-mut">
+      <p className="mt-3 text-xs text-mut">
         {view.year === null
-          ? `${MERIT_TRACK_LABELS[track]}는 입학부터 전체 누적입니다`
-          : `${view.year}학년도 · 매 학년도 새로 시작합니다`}
+          ? `${MERIT_TRACK_LABELS[track]}는 입학부터 누적입니다`
+          : `${view.year}학년도 · 학년도마다 새로 시작합니다`}
       </p>
     </SectionCard>
   );
 }
 
-/**
- * 카드 머리글 오른쪽의 "더 보기" 링크.
- *
- * 화살표는 `aria-hidden`으로 감춘다 — 전에는 문자 그대로 두어 화면을 못 보는
- * 사람에게 "전체 보기 오른쪽 화살표"로 읽혔다. 방향을 알려주는 장식이지
- * 링크 이름의 일부가 아니다.
- */
+/** 카드 머리글 오른쪽의 링크. 화살표는 링크 이름이 아니라 장식이다. */
 function CardLink({ href, children }: { href: string; children: ReactNode }) {
   return (
     <Link
       href={href}
-      className="shrink-0 text-[13px] font-semibold text-pri hover:underline"
+      className="shrink-0 text-caption text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
     >
       {children} <span aria-hidden>→</span>
     </Link>
@@ -314,10 +293,10 @@ function QuickLink({
   return (
     <Link
       href={href}
-      className="rounded-card border border-line bg-surface p-5 transition-colors hover:border-pri"
+      className="rounded-card border border-line bg-surface p-5 transition-colors hover:bg-soft"
     >
-      <h3 className="text-[15px] font-extrabold text-ink">{title}</h3>
-      <p className="mt-1 text-[12.5px] text-mut">{hint}</p>
+      <h3 className="text-sm font-medium text-ink">{title}</h3>
+      <p className="mt-1 text-caption text-mut">{hint}</p>
     </Link>
   );
 }

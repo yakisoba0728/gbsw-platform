@@ -161,7 +161,7 @@ describe("deleteRule", () => {
     );
   });
 
-  it("이미 지워진 규정이면 아무 일도 하지 않는다 — 감사로그도 안 쌓는다", async () => {
+  it("이미 지워진 규정이면 아무 일도 하지 않는다", async () => {
     findRule.mockResolvedValue({
       id: "r-1",
       track: "SCHOOL",
@@ -195,7 +195,7 @@ describe("조회", () => {
     await expect(service.listRules(student, "SCHOOL")).rejects.toThrow("FORBIDDEN");
   });
 
-  it("listActiveRules는 부여 권한으로 막는다 — 규정 관리 권한이 아니다", async () => {
+  it("listActiveRules는 부여 권한으로 막는다", async () => {
     await service.listActiveRules(admin, "DORM");
     expect(listActiveRules).toHaveBeenCalledWith("DORM");
 

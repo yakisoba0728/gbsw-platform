@@ -67,13 +67,13 @@ describe("isUniqueViolation() — 드라이버 어댑터 모양", () => {
     expect(isUniqueViolation(adapterP2002(["email"]), "email")).toBe(true);
   });
 
-  it("복합 제약이면 구성 컬럼 어느 쪽으로 물어도 잡힌다 — (classId, number) 위반을 number로 읽는다", () => {
+  it("복합 제약이면 구성 컬럼 어느 쪽으로 물어도 잡힌다", () => {
     const error = adapterP2002(["classId", "number"]);
     expect(isUniqueViolation(error, "number")).toBe(true);
     expect(isUniqueViolation(error, "classId")).toBe(true);
   });
 
-  it("제약에 없는 필드로는 잡히지 않는다 — 이 대조군이 없으면 '항상 true'인 구현도 통과한다", () => {
+  it("제약에 없는 필드로는 잡히지 않는다", () => {
     expect(isUniqueViolation(adapterP2002(["email"]), "number")).toBe(false);
     expect(isUniqueViolation(adapterP2002(["classId", "number"]), "email")).toBe(false);
   });
@@ -96,7 +96,7 @@ describe("isUniqueViolation() — 드라이버 어댑터 모양", () => {
     expect(isUniqueViolation(error, "number")).toBe(false);
   });
 
-  it("컬럼 목록이 있으면 구형 meta.target으로 내려가지 않는다 — 두 표현이 엇갈릴 때 어느 쪽을 믿는지가 계약이다", () => {
+  it("컬럼 목록이 있으면 구형 meta.target으로 내려가지 않는다", () => {
     const error = Object.assign(new Error("Unique constraint failed"), {
       code: "P2002",
       meta: {
@@ -134,7 +134,7 @@ describe("isUniqueViolation() — 구형(meta.target) 모양", () => {
 });
 
 describe("isUniqueViolation() — 유일 제약 위반이 아닌 것", () => {
-  it("code가 P2002가 아니면 제약 정보가 멀쩡해도 false다 — 다른 Prisma 오류를 중복으로 오해하면 진짜 장애가 '이미 있는 값입니다'로 덮인다", () => {
+  it("code가 P2002가 아니면 제약 정보가 멀쩡해도 false다", () => {
     const notFound = Object.assign(new Error("Record not found"), {
       code: "P2025",
       meta: { driverAdapterError: { cause: { constraint: { fields: ["email"] } } } },
@@ -217,7 +217,7 @@ describe("NumberTakenError", () => {
     expect(error).toBeInstanceOf(NumberTakenError);
   });
 
-  it("모듈마다 별개 클래스를 만들지 않았다 — repo들이 re-export하는 것이 같은 클래스여야 instanceof가 모듈을 건너 통한다", async () => {
+  it("repo들이 re-export하는 것이 같은 클래스다", async () => {
     const enrollmentRepo = await import("@/modules/enrollment/enrollment.repo");
     const registrationRepo = await import("@/modules/registration/registration.repo");
     const adminUserRepo = await import("@/modules/admin-users/admin-user.repo");

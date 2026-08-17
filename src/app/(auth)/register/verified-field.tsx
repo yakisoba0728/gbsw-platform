@@ -12,7 +12,7 @@ import {
 
 type Props = {
   channel: "EMAIL" | "PHONE";
-  /** 1단계에서 이미 확인한 가입코드. 발송 요청에 함께 실어 남용을 막는다 (I4). */
+  /** 1단계에서 확인한 가입코드. 발송 요청에 함께 실어 남용을 막는다 (I4). */
   inviteCode: string;
   id: string;
   name: string;
@@ -24,12 +24,7 @@ type Props = {
   format?: (raw: string) => string;
 };
 
-/**
- * 값 입력 + 인증번호 확인이 한 묶음인 필드.
- *
- * 가입 폼 안에 들어가므로 <form>을 중첩하지 않는다.
- * 인증 액션은 클라이언트에서 직접 호출한다.
- */
+/** 값 입력 + 인증번호 확인 한 묶음. 폼 중첩이 안 되므로 액션을 직접 호출한다. */
 export function VerifiedField({
   channel,
   inviteCode,
@@ -45,7 +40,7 @@ export function VerifiedField({
   const [sent, setSent] = useState(false);
   const [verifiedValue, setVerifiedValue] = useState<string | null>(null);
   const [code, setCode] = useState("");
-  /** 목업 모드에서 자동으로 채워 넣은 값. 바뀔 때마다 코드 입력칸을 다시 그린다. */
+  /** 목업 모드에서 채워 넣은 값. 바뀔 때마다 코드 입력칸을 다시 그린다. */
   const [prefill, setPrefill] = useState<{ value: string; nonce: number } | null>(
     null,
   );
@@ -98,7 +93,7 @@ export function VerifiedField({
   }
 
   return (
-    <div className="mb-[13px]">
+    <div className="mb-3">
       <Label htmlFor={id}>{label}</Label>
 
       <div className="flex gap-2">
@@ -132,8 +127,8 @@ export function VerifiedField({
         )}
 
         {verified ? (
-          <span className="flex shrink-0 items-center rounded-btn bg-green-soft px-3 text-[12.5px] font-bold text-green">
-            인증됨
+          <span className="flex shrink-0 items-center rounded-btn border border-green-line bg-green-soft px-3 text-xs font-medium text-green">
+            확인됨
           </span>
         ) : (
           <Button
@@ -143,7 +138,7 @@ export function VerifiedField({
             disabled={pending || value.length === 0}
             className="shrink-0"
           >
-            {sent ? "재전송" : "인증"}
+            {sent ? "재발송" : "인증"}
           </Button>
         )}
       </div>
@@ -160,7 +155,7 @@ export function VerifiedField({
             placeholder="인증번호 6자리"
             format={formatVerificationCode}
             onValueChange={setCode}
-            className="min-w-0 flex-1"
+            className="min-w-0 flex-1 font-mono"
           />
           <Button
             size="sm"
@@ -174,13 +169,13 @@ export function VerifiedField({
       )}
 
       {sent && !verified && prefill && (
-        <p className="mt-1.5 text-[11.5px] text-amber-ink">
-          개발 목업 — 실제로 발송하지 않고 인증번호를 채워 넣었습니다.
+        <p className="mt-1.5 text-xs text-amber-ink">
+          개발 목업 — 발송하지 않고 인증번호를 채웠습니다.
         </p>
       )}
 
       {error && (
-        <p role="alert" className="mt-1.5 text-[11.5px] font-semibold text-rose">
+        <p role="alert" className="mt-1.5 text-xs font-medium text-rose">
           {error}
         </p>
       )}

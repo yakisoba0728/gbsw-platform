@@ -60,15 +60,8 @@ function sameAsRow(row: StudentRow, d: Draft): boolean {
 }
 
 /**
- * 사용자가 실제로 건드린 필드만 들고 있는 override.
- *
- * 이전엔 마운트 시점에 `rows` 전체를 한 번 복사해 두고 그 사본만 읽었다.
- * 그래서 저장 후 rows가 새로 내려와도(초대코드 가입으로 새 학생이 생기거나,
- * 졸업 저장으로 서버가 반·번호를 비우거나) 화면은 옛 사본을 계속 보여줬다 —
- * 마운트 뒤에 늘어난 studentProfileId는 아예 없어서 크래시까지 났다 (I4).
- *
- * 필드 단위 override + 미지정 필드는 항상 rows에서 읽는 이 구조는 그 둘의
- * 뿌리를 같이 없앤다: 편집하지 않은 값은 늘 최신 rows를 그대로 반영한다.
+ * 관리자가 실제로 건드린 필드만 override로 들고 있다. 나머지는 늘 최신 rows에서
+ * 읽으므로 저장 뒤 새로 내려온 값이 그대로 보인다.
  */
 function draftFor(
   row: StudentRow,
@@ -101,15 +94,10 @@ export function StudentTable({
     [dirtyRows],
   );
 
-  // 지금 폼을 제출하면 실제로 서버로 나가는 id들. 클릭 시점 값을 그대로 붙잡아 둔다 —
-  // 저장이 진행되는 동안 사용자가 다른 줄을 마저 고칠 수 있어서, 응답이 온 시점의
-  // dirtyIds를 그대로 쓰면 그 사이에 새로 생긴(아직 서버에 보내지 않은) 편집까지
-  // "저장됐다"고 착각해 지워버릴 수 있다.
+  // 제출 시점의 id를 붙잡아 둔다 — 저장 중에 고친 줄까지 저장됐다고 착각하면 안 된다.
   const submittedIdsRef = useRef<string[]>([]);
 
-  // 저장이 성공하면 이번에 보낸 줄들의 override를 지운다 — 다음 렌더의 draftFor가
-  // 새로 내려온 rows를 그대로 읽으면서 서버 값과 다시 맞아떨어진다. 실패하면
-  // 사용자가 입력 중이던 값을 잃으면 안 되므로 건드리지 않는다.
+  // 성공하면 보낸 줄의 override를 지워 서버 값을 다시 읽는다. 실패하면 그대로 둔다.
   useEffect(() => {
     if (state.saved === null || state.error) return;
     setDrafts((prev) => {
@@ -162,8 +150,8 @@ export function StudentTable({
         aside={
           <div className="flex items-center gap-2.5">
             {dirtyIds.length > 0 && (
-              <span className="text-[12px] font-semibold text-amber-ink">
-                {dirtyIds.length}명 수정됨
+              <span className="text-xs font-medium text-amber-ink">
+                {dirtyIds.length}명 고침
               </span>
             )}
             <Button
@@ -196,7 +184,7 @@ export function StudentTable({
               dense
               value={query}
               onChange={(e) => setQuery(e.currentTarget.value)}
-              // Enter가 이 폼 전체를 제출시키지 않게 막는다 — 검색은 저장이 아니다 (M1).
+              // Enter가 이 폼을 제출시키지 않게 막는다 — 검색은 저장이 아니다.
               onKeyDown={(e) => {
                 if (e.key === "Enter") e.preventDefault();
               }}
@@ -241,15 +229,12 @@ export function StudentTable({
                     }
                   >
                     <td className={cell(0)}>
-                      <span className="font-semibold text-ink">{row.name}</span>
-                      <span className="block text-[12px] text-mut">
-                        {row.email}
-                      </span>
+                      <span className="font-medium text-ink">{row.name}</span>
+                      <span className="block text-xs text-mut">{row.email}</span>
                     </td>
                     {(["grade", "classNo", "number"] as const).map((f, i) => (
                       <td key={f} className={cell(i + 1)}>
-                        {/* 폭은 바깥에서 준다 — cn()이 tailwind-merge가 아니라
-                            Input의 w-full을 className으로 덮을 수 없다. */}
+                        {/* 폭은 바깥에서 준다 — cn()이 w-full을 못 덮는다. */}
                         <div className="w-20">
                           <Input
                             dense
@@ -286,7 +271,7 @@ export function StudentTable({
                         </Select>
                       </div>
                     </td>
-                    <td className={`${cell(5)} text-[12px] text-mut`}>
+                    <td className={`${cell(5)} text-xs text-mut`}>
                       {row.accountActive ? "활성" : "비활성"}
                     </td>
                   </tr>

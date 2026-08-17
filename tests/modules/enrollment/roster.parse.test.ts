@@ -174,9 +174,7 @@ describe("normalizeRows() — 학생코드", () => {
 describe("normalizeRows() — 학적·학년·반·번호가 빈 줄 (Critical 결함 회귀)", () => {
   const HEADER_WITH_CODE = ["학생코드", "이름", "생년월일", "학년", "반", "번호", "학적"];
 
-  it("학적·학년·반·번호가 넷 다 비면 오류가 아니라 status:null로 통과시킨다 — " +
-    "그 학년도 Enrollment가 없는 학생(졸업 등)을 내보내면 정확히 이 모양이라, " +
-    "여기서 오류로 잡으면 내려받아 그대로 올리는 왕복이 성립하지 않는다", () => {
+  it("넷 다 비면 오류가 아니라 status:null로 통과시킨다", () => {
     const rows = normalizeRows([
       HEADER_WITH_CODE,
       ["ABCD2345", "김동혁", "2010-07-28", "", "", "", ""],

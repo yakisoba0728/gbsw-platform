@@ -1,6 +1,6 @@
 import { prisma } from "@/core/db/client";
 
-/** Prisma 호출만 둔다. 권한 검사도, 업무 규칙도 여기 두지 않는다. */
+/** Prisma 호출만 둔다. 이 모듈은 감사로그를 남기지 않는다 (service 주석 참고). */
 
 export async function countRecentSends(
   channel: string,
@@ -12,12 +12,7 @@ export async function countRecentSends(
   });
 }
 
-/**
- * 같은 접속 IP에서 최근 보낸 횟수 (I4). 대상(target)은 공격자가 마음대로
- * 바꿀 수 있어 countRecentSends(대상별)만으로는 한 IP가 임의의 번호마다
- * 계속 발송을 촉발하는 것을 막지 못한다 — channel을 가리지 않고 센다
- * (이메일·전화 어느 쪽이든 같은 IP의 남용은 같은 자원을 축낸다).
- */
+/** 같은 IP에서 최근 보낸 횟수 (I4). channel을 가리지 않고 센다. */
 export async function countRecentSendsByIp(
   ip: string,
   since: Date,

@@ -1,11 +1,6 @@
 import { Skeleton, SkeletonScreen, SkeletonTabs } from "@/components/ui/skeleton";
 
-/**
- * `/admin/merit/rules`의 뼈대 — 트랙 탭 · 규정 추가 폼 · 검색/종류 필터 · 규정 표.
- *
- * 전에는 `/merit` 계열 뼈대를 그대로 복사해 **합계 칸 3개**를 그렸는데, 이 화면에는
- * 합계 칸이 아예 없다. 내용이 도착하면 그 자리가 통째로 사라져 화면이 위로 튀었다.
- */
+/** `/admin/merit/rules`의 뼈대 — 트랙 탭 · 규정 추가 폼 · 검색/종류 필터 · 규정 표. */
 export default function Loading() {
   return (
     <SkeletonScreen className="mx-auto max-w-5xl space-y-4">

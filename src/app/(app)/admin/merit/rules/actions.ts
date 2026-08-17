@@ -12,7 +12,7 @@ import * as service from "@/modules/merit/rule.service";
 import type { RuleFormState } from "./action-state";
 
 const MESSAGES: Record<string, string> = {
-  RULE_NOT_FOUND: "규정을 찾을 수 없습니다. 새로고침 후 다시 시도해 주세요.",
+  RULE_NOT_FOUND: "규정을 찾을 수 없습니다.",
 };
 
 function fail(error: string): RuleFormState {

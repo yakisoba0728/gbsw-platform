@@ -32,6 +32,37 @@ const SIZES: Record<ButtonSize, string> = {
   lg: "h-11 px-4 text-sm",
 };
 
+/**
+ * 버튼 생김새만 필요한 곳이 쓴다 — `<Link>`는 `<button>`이 아니라서 Button을
+ * 쓸 수 없는데, 클래스를 손으로 베끼면 규격이 갈라진다.
+ */
+export function buttonClass({
+  variant = "primary",
+  size = "md",
+  full = false,
+  active = false,
+  className,
+}: {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  full?: boolean;
+  active?: boolean;
+  className?: string;
+} = {}): string {
+  const isChip = variant === "chip";
+
+  return cn(
+    "inline-flex items-center justify-center gap-1.5 border font-medium leading-none whitespace-nowrap",
+    "transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
+    "disabled:pointer-events-none disabled:opacity-40",
+    isChip ? "rounded-full" : "rounded-btn",
+    isChip && active ? CHIP_ACTIVE : VARIANTS[variant],
+    SIZES[size],
+    full && "w-full",
+    className,
+  );
+}
+
 type ButtonProps = ComponentPropsWithoutRef<"button"> & {
   variant?: ButtonVariant;
   size?: ButtonSize;
@@ -49,23 +80,12 @@ export function Button({
   type = "button",
   ...props
 }: ButtonProps) {
-  const isChip = variant === "chip";
-
   return (
     <button
       type={type}
       // 선택 상태를 색으로만 알리지 않는다. {...props}가 뒤에 오므로 호출부가 이긴다.
-      aria-pressed={isChip ? active : undefined}
-      className={cn(
-        "inline-flex items-center justify-center gap-1.5 border font-medium leading-none whitespace-nowrap",
-        "transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
-        "disabled:pointer-events-none disabled:opacity-40",
-        isChip ? "rounded-full" : "rounded-btn",
-        isChip && active ? CHIP_ACTIVE : VARIANTS[variant],
-        SIZES[size],
-        full && "w-full",
-        className,
-      )}
+      aria-pressed={variant === "chip" ? active : undefined}
+      className={buttonClass({ variant, size, full, active, className })}
       {...props}
     />
   );

@@ -8,17 +8,12 @@ import type { EnrollmentChange } from "./enrollment.schema";
 export { NumberTakenError };
 
 /**
- * 그 학년도의 학생 전원. 소속이 아직 없는 학생도 포함한다 —
- * 학년도가 막 넘어가면 전원이 배정 없는 상태이고, 그때 이 화면에서 채워야 한다.
- *
- * role이 STUDENT인 계정만 다룬다. Better Auth admin 플러그인의 set-role로
- * 학생에서 관리자로 승격된 계정은 StudentProfile이 남아 있어도 이 표의 대상이 아니다
- * (I3) — "학생 관리" 표에 관리자 본인 줄이 보이면 안 된다.
+ * 그 학년도의 학생 전원. 배정이 없는 학생도 포함한다 — 학년도가 막 넘어가면
+ * 전원이 그 상태다. 관리자로 승격된 계정은 프로필이 남아 있어도 뺀다.
  */
 export async function listByYear(year: number) {
   const profiles = await prisma.studentProfile.findMany({
-    // 학생 표 — 명단에서 빠져 소프트 삭제된 학생은 뺀다. 표 편집은 "지금 다니는
-    // 학생"을 다루는 화면이라, 삭제된 학생이 여기 다시 보이면 안 된다.
+    // 표 편집은 지금 다니는 학생을 다루는 화면이라 명단에서 빠진 학생은 뺀다.
     where: { user: { role: "STUDENT", deletedAt: null } },
     select: {
       id: true,
@@ -64,14 +59,8 @@ export type PlannedEnrollment = EnrollmentChange & {
 };
 
 /**
- * 표에서 고친 학생 전원의 소속·학적과 계정 상태를 **단일 트랜잭션**으로 반영한다.
- *
- * 예전엔 학생 1명 단위 트랜잭션을 순차 호출했다. 번호 충돌처럼 사전 검증을 빠져나간
- * 오류가 루프 중간에서 터지면 앞선 학생들은 이미 커밋된 채로 남았다 — 전부 아니면
- * 전무가 되도록 여기서 하나로 묶는다.
- *
- * statusChanged가 true인 항목만 user.status를 쓴다. 학적이 그대로인데 번호만 고쳐도
- * 관리자가 잠가둔 계정이 조용히 되살아나는 문제(I1)를 여기서 막는다.
+ * 고친 학생 전원의 소속·학적과 계정 상태를 단일 트랜잭션으로 반영한다 — 중간에
+ * 터져도 앞선 학생만 커밋되면 안 된다. 계정은 statusChanged인 항목만 건드린다.
  */
 export async function applyAll(
   year: number,
@@ -132,7 +121,7 @@ export async function applyAll(
       { timeout: 30_000, maxWait: 5_000 },
     );
   } catch (error) {
-    // 서비스의 사전 검사를 빠져나간 경합(승격된 관리자 소유 행 등)에 대한 마지막 방어선.
+    // 사전 검사를 빠져나간 경합에 대한 마지막 방어선.
     if (isUniqueViolation(error, "number")) throw new NumberTakenError();
     throw error;
   }

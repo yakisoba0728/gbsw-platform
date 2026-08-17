@@ -3,14 +3,8 @@ import type { SessionUser } from "@/core/auth/session";
 import { meritKindDelta, meritKindSign } from "@/core/authz/merit-track";
 
 /**
- * 상쇄점(OFFSET)이 합계에 실제로 반영되는지 확인한다.
- *
- * **이 모듈에서 가장 조용한 실패가 여기다.** 집계 코드가 `if MERIT / else if
- * DEMERIT` 꼴이라, 종류를 하나 더 만들고 집계를 안 고치면 상쇄점이 어디에도
- * 안 더해진다 — 내역에는 60점이 찍혀 있는데 순점수는 꿈쩍도 안 하고,
- * 화면도 테스트도 아무 말을 하지 않는다.
- *
- *   순점수 = 상점 + 상쇄점 − 벌점
+ * 상쇄점이 합계에 반영되는지 확인한다. 집계에서 종류 하나를 빠뜨리면 내역에는
+ * 점수가 찍혀 있는데 순점수가 꿈쩍도 안 한다. 순점수 = 상점 + 상쇄점 − 벌점.
  */
 
 describe("meritKindDelta — 부호 규칙", () => {
@@ -20,7 +14,7 @@ describe("meritKindDelta — 부호 규칙", () => {
     expect(meritKindDelta("DEMERIT")).toBe(-1);
   });
 
-  it("모르는 종류는 0 — 조용히 틀리느니 안 센다", () => {
+  it("모르는 종류는 0", () => {
     expect(meritKindDelta("BONUS")).toBe(0);
     expect(meritKindDelta("")).toBe(0);
   });
@@ -107,20 +101,20 @@ beforeEach(() => {
 });
 
 describe("학생 합계", () => {
-  it("상쇄점이 순점수를 올린다 — 상점 10 + 상쇄 6 − 벌점 20 = −4", async () => {
+  it("상쇄점이 순점수를 올린다", async () => {
     const view = await service.getStudentMerit(admin, "sp-1", "SCHOOL");
 
     expect(view.totals).toEqual({ merit: 10, demerit: 20, offset: 6, net: -4 });
   });
 
-  it("상쇄점을 상점에 더하지 않는다 — 상점 칸은 10 그대로다", async () => {
+  it("상쇄점을 상점에 더하지 않는다", async () => {
     const view = await service.getStudentMerit(admin, "sp-1", "SCHOOL");
 
     // 상쇄점을 상점으로 접었다면 여기가 16이 된다. 표창 기준이 흔들리는 지점이다.
     expect(view.totals.merit).toBe(10);
   });
 
-  it("상쇄점을 벌점으로 접지도 않는다 — 벌점 칸은 20 그대로다", async () => {
+  it("상쇄점을 벌점으로 접지도 않는다", async () => {
     const view = await service.getStudentMerit(admin, "sp-1", "SCHOOL");
 
     // 이진 분기(`kind === "MERIT" ? … : 벌점`)를 그대로 뒀다면 여기가 26이 된다.

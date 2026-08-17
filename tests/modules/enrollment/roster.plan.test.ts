@@ -61,8 +61,7 @@ describe("planRoster()", () => {
     expect(plan.newStudents[0]!.studentProfileId).toBeNull();
   });
 
-  it("학생코드가 빈 신규 학생이 여럿이어도 서로 겹친 것으로 잡지 않는다 — " +
-    "빈 값끼리는 중복 검사 대상이 아니다", () => {
+  it("빈 학생코드끼리는 중복으로 잡지 않는다", () => {
     const plan = planRoster(
       [
         row({ studentCode: "", name: "새학생1", classNo: 5, number: 1 }),
@@ -83,9 +82,7 @@ describe("planRoster()", () => {
     expect(plan.reassign).toHaveLength(0);
   });
 
-  it("그 학년도 배정이 아예 없던 학생(status===null)은 학적변동이 아니라 새 배정이다 (I7) — " +
-    "학년도가 막 넘어간 시점엔 전교생이 여기로 온다. statusChange로 섞이면 미리보기가 " +
-    "신학년 첫 반영에서 무엇이 바뀌는지 보여주지 못한다.", () => {
+  it("그 학년도 배정이 없던 학생은 학적변동이 아니라 새 배정이다", () => {
     const 올해배정없음 = { ...재학생, status: null };
     const plan = planRoster([row()], [올해배정없음]);
 
@@ -96,8 +93,7 @@ describe("planRoster()", () => {
   });
 
   describe("파일의 줄이 status: null(빈 학적)일 때 — Critical 결함 회귀", () => {
-    it("원래도 그 학년도 배정이 없었으면(before.status===null) 무변경이다 — " +
-      "왕복 불변식의 핵심: 배정 없는 학생을 그대로 다시 올려도 아무 분류에도 안 잡힌다", () => {
+    it("원래도 배정이 없었으면 무변경이다", () => {
       const 올해배정없음 = { ...재학생, status: null, grade: null, classNo: null, number: null };
       const 빈줄 = row({ status: null, grade: null, classNo: null, number: null });
 
@@ -111,8 +107,7 @@ describe("planRoster()", () => {
       expect(plan.hasBlockingError).toBe(false);
     });
 
-    it("원래는 배정이 있었는데(before.status!==null) 파일에서 학적이 비면 " +
-      "확인 필요로 보낸다 — 자동으로 배정을 지우지 않는다", () => {
+    it("배정이 있던 학생의 학적이 파일에서 비면 확인 필요로 보낸다", () => {
       const 빈줄 = row({ status: null, grade: null, classNo: null, number: null });
 
       const plan = planRoster([빈줄], [재학생]);
@@ -127,10 +122,7 @@ describe("planRoster()", () => {
     });
   });
 
-  it("학생코드는 맞는데 이름이 등록된 값과 다르면 확인 필요로 보낸다 — " +
-    "이름 대조를 없앤 대가라 한 열만 밀려도 두 학생이 조용히 맞바뀔 수 있다. " +
-    "매칭 자체는 여전히 코드로만 하되(studentProfileId는 정확히 잇는다), 자동으로 " +
-    "반영하지 않고 사람이 보게 한다. 진짜 개명이면 상세 화면에서 이름을 먼저 고친다.", () => {
+  it("학생코드는 맞는데 이름이 등록된 값과 다르면 확인 필요로 보낸다", () => {
     const plan = planRoster([row({ name: "개명후", classNo: 5 })], [재학생]);
 
     expect(plan.newStudents).toHaveLength(0);
@@ -153,8 +145,7 @@ describe("planRoster()", () => {
     );
   });
 
-  it("이름·생년월일이 완전히 같아도 학생코드가 다르면 각각 다른 학생이다 — " +
-    "동명이인이 같은 생일인 것이 이제 정상이다", () => {
+  it("이름·생년월일이 같아도 학생코드가 다르면 다른 학생이다", () => {
     const 동명이인 = { ...재학생, studentProfileId: "sp-2", userId: "u-2", studentCode: "BCDF2345" };
 
     const plan = planRoster(
@@ -218,8 +209,7 @@ describe("planRoster()", () => {
     expect(plan.hasBlockingError).toBe(false);
   });
 
-  it("명단에 없으면 학적과 무관하게 missingFromFile에 들어간다 — 재학·졸업 둘 다 " +
-    "(파일이 전교생 완성본이므로 졸업생 줄을 지워도 삭제 대상이어야 한다)", () => {
+  it("명단에 없으면 학적과 무관하게 missingFromFile에 들어간다", () => {
     const 졸업생 = { ...재학생, studentProfileId: "sp-2", userId: "u-2", studentCode: "BCDF2345", status: "GRADUATED" };
 
     const plan = planRoster([], [재학생, 졸업생]);
@@ -231,9 +221,7 @@ describe("planRoster()", () => {
     expect(plan.hasBlockingError).toBe(false);
   });
 
-  it("배정 자체가 없던 학생(status: null)도 명단에 없으면 missingFromFile에 들어간다 — " +
-    "예전엔 ENROLLED만 걸러서 이 학생은 빠졌지만, 파일이 전교생 완성본이 된 뒤로는 " +
-    "학적 유무와 무관하게 명단에 없다는 사실 자체가 삭제 대상이라는 뜻이다", () => {
+  it("배정이 없던 학생도 명단에 없으면 missingFromFile에 들어간다", () => {
     const 배정없음 = { ...재학생, status: null, grade: null, classNo: null, number: null };
 
     const plan = planRoster([], [배정없음]);
@@ -261,16 +249,14 @@ describe("planRoster()", () => {
    */
 
   describe("소프트 삭제된 학생 — 명단에 다시 나타나면 되살아난다", () => {
-    it("이미 삭제된 학생은 missingFromFile에 다시 들어가지 않는다 — 매번 삭제 " +
-      "확인시키는 소음을 없앤다", () => {
+    it("이미 삭제된 학생은 missingFromFile에 다시 들어가지 않는다", () => {
       const 이미삭제됨 = { ...재학생, deleted: true };
       const plan = planRoster([], [이미삭제됨]);
 
       expect(plan.missingFromFile).toHaveLength(0);
     });
 
-    it("byCode 매칭은 삭제된 학생에게도 적용된다 — 명단에 원래 학생코드로 다시 " +
-      "나타나면 확인 필요가 아니라 정상적으로 이어붙는다(재삽입 경로의 전제)", () => {
+    it("삭제된 학생도 원래 학생코드로 다시 이어붙는다", () => {
       const 삭제된학생 = { ...재학생, status: null, grade: null, classNo: null, number: null, deleted: true };
       const plan = planRoster([row()], [삭제된학생]);
 
@@ -317,8 +303,7 @@ describe("planRoster() + normalizeRows() — 회귀: 명단 업로드의 학년�
     expect(plan.hasBlockingError).toBe(false);
   });
 
-  it("학생코드 열이 아예 없는 파일도 오류 없이 받는다 — 전 줄이 신규가 된다 " +
-    "(예전 서식·손으로 만든 파일도 계속 받아야 한다)", () => {
+  it("학생코드 열이 없는 파일은 오류 없이 전 줄을 신규로 받는다", () => {
     const rows = normalizeRows([
       HEADER,
       ["김동혁", "2010-07-28", "1", "3", "3", "재학"],
@@ -333,12 +318,7 @@ describe("planRoster() + normalizeRows() — 회귀: 명단 업로드의 학년�
   });
 
   describe("학생코드 열이 없는 파일 × 재학생이 있는 학교 — Important 결함 상호작용", () => {
-    it("학년도 전환 직후(모든 재학생이 아직 이번 학년도 배정이 없음)여도 이름·생년월일이 " +
-      "겹치면 확인 필요로 막는다 — missingFromFile이 학적과 무관하게 명단에 없는 " +
-      "학생 전체로 넓어진 뒤로는(5단계) 이 학생도 거기 걸리므로, '학년도 전환 " +
-      "직후라 대조할 대상이 없다'는 예전 빈틈이 막힌다. 이 빈틈은 " +
-      "docs/superpowers/specs/2026-08-13-academic-year-and-roster-design.md의 " +
-      "'4단계가 남긴 것'에 5단계에서 처리하기로 명시돼 있었다", () => {
+    it("학년도 전환 직후에도 이름·생년월일이 겹치면 확인 필요로 막는다", () => {
         const 배정없는재학생 = {
           studentProfileId: "sp-1",
           userId: "u-1",
@@ -365,9 +345,7 @@ describe("planRoster() + normalizeRows() — 회귀: 명단 업로드의 학년�
         expect(plan.hasBlockingError).toBe(true);
       });
 
-    it("이미 배정된 재학생이 있는 학년도 중간에 이 파일을 올리면 " +
-      "전교 배정 초기화(모두 신규 + 모두 명단에 없는 재학생)를 확정이 막는다 — " +
-      "이름·생년월일이 일치하는 재학생마다 코드가 지워진 것으로 의심해 확인 필요로 보낸다", () => {
+    it("학년도 중간에 올리면 전교 배정 초기화를 확정이 막는다", () => {
       const rows = normalizeRows([
         HEADER,
         ["김동혁", "2010-07-28", "1", "3", "3", "재학"],

@@ -64,12 +64,10 @@ export function ClassRoster({
   const [sortKey, setSortKey] = useState<SortKey>("number");
   const [state, formAction, pending] = useActionState(bulkAwardAction, EMPTY_MERIT_STATE);
   // 고른 항목은 hidden input이 싣고 가지만, 제출 버튼을 잠그려면 화면도 알아야 한다.
-  // 부여에 성공해도 비우지 않는다 — "점호 지각"을 다음 반에도 그대로 쓰는 흐름이다.
   const [rule, setRule] = useState<RuleOption | null>(null);
 
-  // 일괄 부여가 성공하면 선택을 비운다. 렌더 중 이전 상태와 비교해 처리한다 —
-  // useEffect 안에서 곧바로 setState하면 리렌더가 한 번 더 발생한다
-  // (react-hooks/set-state-in-effect, rule-table.tsx와 같은 패턴).
+  // 일괄 부여가 성공하면 선택을 비운다. 렌더 중 비교로 처리한다 — effect 안에서
+  // 곧바로 setState하면 리렌더가 한 번 더 발생한다.
   const [handled, setHandled] = useState(state);
   if (state !== handled) {
     setHandled(state);
@@ -118,10 +116,10 @@ export function ClassRoster({
       <section className="rounded-card border border-line bg-surface">
         <header className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
           <div className="flex items-center gap-2.5">
-            <h2 className="text-base font-extrabold text-ink">
+            <h2 className="text-lg font-semibold text-ink">
               {grade}학년 {classNo}반
             </h2>
-            <span className="text-[12px] text-mut">{rows.length}명</span>
+            <span className="text-xs text-mut">{rows.length}명</span>
           </div>
           <div className="hidden lg:block">
             <ThresholdHint thresholds={thresholds} />
@@ -140,11 +138,8 @@ export function ClassRoster({
             "w-[74px]",
             "w-[96px]",
           ]}
-          /*
-            정렬 상태는 <th> 자신이 갖는 속성이라 아래 <button> 안으로 내려보낼 수
-            없다. 지금 정렬 중이 아닌 쪽도 "none"을 적어 둔다 — 값이 없으면
-            "정렬할 수 있는 열"이라는 사실 자체가 전달되지 않는다.
-          */
+          // 정렬 상태는 <th>의 속성이라 아래 <button>으로 내려보낼 수 없다.
+          // 정렬 중이 아닌 쪽도 "none"을 적는다 — 없으면 정렬 가능한 열임이 안 전달된다.
           sort={[
             undefined,
             sortKey === "number" ? "ascending" : "none",
@@ -173,11 +168,7 @@ export function ClassRoster({
             "이름",
             "상점",
             "벌점",
-            /*
-              상쇄점 열은 값이 0이어도 항상 낸다. 표는 행마다 열을 껐다 켤 수
-              없고, 상점 − 벌점이 순점수와 안 맞는 줄이 하나라도 보이면
-              보는 사람이 표 전체를 의심하게 된다.
-            */
+            // 상쇄 열은 0이어도 항상 낸다 — 상점 − 벌점이 순점수와 안 맞아 보이면 표를 의심하게 된다.
             "상쇄",
             <SortButton
               key="net"
@@ -200,28 +191,28 @@ export function ClassRoster({
                     className="size-4 accent-pri"
                   />
                 </td>
-                <td className="px-3 py-2.5 text-mut">{row.number ?? "—"}</td>
+                <td className="px-3 py-2.5 font-mono text-mut">{row.number ?? "—"}</td>
                 <td className="px-3 py-2.5">
                   <Link
                     href={`/merit/students/${row.studentProfileId}?track=${track}`}
-                    className="font-semibold text-ink hover:text-pri hover:underline"
+                    className="font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
                   >
                     {row.name}
                   </Link>
                 </td>
-                <td className="px-3 py-2.5 font-bold text-blue">{row.merit}</td>
+                <td className="px-3 py-2.5 font-medium text-blue">{row.merit}</td>
                 <td className="px-3 py-2.5">
                   <span className={demeritCellClass(thresholds, row.demerit)}>
                     {row.demerit}
                   </span>
                 </td>
                 <td
-                  className={`px-3 py-2.5 font-bold ${row.offset === 0 ? "text-mut2" : "text-green"}`}
+                  className={`px-3 py-2.5 font-medium ${row.offset === 0 ? "text-mut2" : "text-green"}`}
                 >
                   {row.offset}
                 </td>
                 <td
-                  className={`${tableCellPadding(COLUMNS - 1, COLUMNS)} py-2.5 font-extrabold ${row.net >= 0 ? "text-green" : "text-rose"}`}
+                  className={`${tableCellPadding(COLUMNS - 1, COLUMNS)} py-2.5 font-medium ${row.net >= 0 ? "text-green" : "text-rose"}`}
                 >
                   {signedNet(row.net)}
                 </td>
@@ -230,18 +221,14 @@ export function ClassRoster({
           </tbody>
         </TableFrame>
 
-        {/*
-          지난 학년도를 보고 있으면 부여 폼을 아예 감춘다 — 부여는 항상 현재
-          학년도로 들어가므로, 2025년 명단을 보면서 주면 결과가 이 화면에
-          나타나지 않는다. 학생 상세 화면과 같은 처리다.
-        */}
+        {/* 지난 학년도를 보고 있으면 부여 폼을 감춘다 — 부여는 현재 학년도로만 들어간다. */}
         {viewingPast ? (
           <Note tone="warn" className="mx-5 my-4">
-            지난 학년도를 보고 있습니다. 부여는 현재 학년도에만 할 수 있습니다.
+            부여는 현재 학년도에만 할 수 있습니다.
           </Note>
         ) : (
         <div className="space-y-2.5 border-t border-line px-5 py-4">
-          <span className="block text-[12.5px] font-semibold text-mut">
+          <span className="block text-xs font-medium text-mut">
             {selected.size}명 선택됨
           </span>
 
@@ -292,12 +279,8 @@ export function ClassRoster({
 const COLUMNS = 7;
 
 /**
- * 정렬 가능한 머리글.
- *
- * 전에는 `<th>`에 `onClick`만 있어서 **마우스 없이는 정렬을 바꿀 수 없었다** —
- * "순점수 낮은 순"으로 훑을 대체 경로가 화면에 아예 없었다. 실제 조작 대상을
- * `<button>`으로 만들어 탭 이동과 Enter·Space가 통하게 한다. 정렬 상태 자체는
- * 바깥 `<th>`의 `aria-sort`가 알린다(TableFrame의 `sort` 인자).
+ * 정렬 가능한 머리글. 조작 대상이 <button>이라야 탭 이동과 Enter·Space가 통한다.
+ * 정렬 상태 자체는 바깥 <th>의 aria-sort가 알린다.
  */
 function SortButton({
   label,
@@ -316,8 +299,8 @@ function SortButton({
       type="button"
       onClick={onClick}
       aria-label={`${label} — ${hint}으로 정렬`}
-      className={`-mx-1 rounded-btn px-1 py-1 font-semibold transition-colors hover:text-pri ${
-        active ? "text-pri" : ""
+      className={`-mx-1 rounded-btn px-1 py-1 font-medium transition-colors hover:text-ink ${
+        active ? "text-ink underline decoration-line-strong underline-offset-2" : ""
       }`}
     >
       {label}
