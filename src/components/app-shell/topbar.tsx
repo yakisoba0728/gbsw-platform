@@ -10,13 +10,7 @@ import { ROLE_LABELS } from "@/core/authz/roles";
 import { MobileNav } from "./mobile-nav";
 import { titleForPath } from "./nav";
 
-export function Topbar({
-  name,
-  role,
-}: {
-  name: string;
-  role: Role | null;
-}) {
+export function Topbar({ name, role }: { name: string; role: Role | null }) {
   const pathname = usePathname();
   const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
@@ -32,36 +26,24 @@ export function Topbar({
   }
 
   return (
-    // print:hidden — 사이드바·하단탭과 같은 이유다. 이 상단바는 자기 <h1>(제목)을
-    // 그리는데, 확인서(/merit/students/[id]/print)도 자기 <h1>을 그린다. 빼지
-    // 않으면 종이 맨 위에 제목이 둘 찍히고 사용자 이름·로그아웃 버튼까지 남는다.
-    <header className="flex h-14 flex-none items-center justify-between border-b border-line bg-surface px-[18px] lg:h-[62px] lg:px-7 print:hidden">
+    // print:hidden — 확인서 화면이 자기 <h1>을 그린다. 빼지 않으면 제목이 둘 찍힌다.
+    <header className="flex h-14 flex-none items-center justify-between border-b border-line bg-surface px-4 lg:h-15 lg:px-7 print:hidden">
       <div className="flex min-w-0 items-center gap-2.5">
-        {/*
-         * 좁은 화면에서는 로고 자리를 메뉴 버튼이 대신한다 — 390px 폭에 로고와
-         * 버튼을 둘 다 두면 제목이 잘린다. 로고는 서랍 머리와 데스크톱
-         * 사이드바에 그대로 남는다.
-         */}
+        {/* 390px 폭에 로고와 메뉴 버튼을 둘 다 두면 제목이 잘린다. */}
         <MobileNav role={role} />
-        <h1 className="truncate text-base font-extrabold tracking-[-0.01em] text-ink lg:text-lg">
+        <h1 className="truncate text-base font-semibold tracking-tight text-ink lg:text-lg">
           {title}
         </h1>
       </div>
 
       <div className="flex items-center gap-3">
         <span className="hidden text-right sm:block">
-          <span className="block text-[13px] font-semibold text-ink">
-            {name}
-          </span>
-          {role && (
-            <span className="block text-[11px] text-mut">
-              {ROLE_LABELS[role]}
-            </span>
-          )}
+          <span className="block text-caption font-medium text-ink">{name}</span>
+          {role && <span className="block text-xs text-mut">{ROLE_LABELS[role]}</span>}
         </span>
 
         <span
-          className="flex size-[30px] items-center justify-center rounded-full bg-pri-soft text-xs font-bold text-pri"
+          className="flex size-8 items-center justify-center rounded-full border border-line bg-soft text-xs font-medium text-ink"
           aria-hidden
         >
           {initial}
@@ -72,7 +54,7 @@ export function Topbar({
           onClick={handleSignOut}
           disabled={signingOut}
           title="로그아웃"
-          className="rounded-btn p-2 text-mut transition-colors hover:bg-soft hover:text-ink disabled:opacity-50"
+          className="rounded-btn p-2 text-mut transition-colors hover:bg-soft hover:text-ink disabled:opacity-40"
         >
           <LogoutIcon size={18} />
           <span className="sr-only">로그아웃</span>

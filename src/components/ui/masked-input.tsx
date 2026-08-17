@@ -13,10 +13,8 @@ type MaskedInputProps = Omit<ComponentPropsWithoutRef<"input">, "onChange"> & {
 };
 
 /**
- * 입력할 때마다 서식을 다시 매기는 인풋.
- *
- * onChange 한 곳에서만 처리하므로 타이핑·붙여넣기·자동완성·IME 확정이
- * 전부 같은 경로를 탄다. 키 입력을 가로채는 방식은 붙여넣기를 놓친다.
+ * 입력할 때마다 서식을 다시 매기는 인풋. onChange 한 곳에서만 처리하므로
+ * 타이핑·붙여넣기·자동완성·IME 확정이 전부 같은 경로를 탄다.
  */
 export function MaskedInput({
   format,
@@ -26,7 +24,7 @@ export function MaskedInput({
   function handleChange(event: React.ChangeEvent<HTMLInputElement>) {
     const el = event.currentTarget;
 
-    // 커서 앞의 "영숫자 개수"를 기준점으로 삼는다. 하이픈이 몇 개 끼든 흔들리지 않는다.
+    // 커서 앞의 영숫자 개수를 기준점으로 삼는다. 하이픈 개수에 흔들리지 않는다.
     const caret = el.selectionStart ?? el.value.length;
     const typedBefore = countSignificant(el.value.slice(0, caret));
 
