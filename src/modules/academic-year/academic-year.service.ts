@@ -31,6 +31,15 @@ export async function listYears(actor: SessionUser) {
 
 export async function createYear(actor: SessionUser, year: number): Promise<void> {
   await assertCan(actor, "academic-year:manage");
+
+  /*
+   * 범위는 경계(yearFormSchema)가 이미 봤다. 여기서 한 번 더 보는 것은
+   * **재검증이 아니라 업무 불변식**이다 — 학년도는 만들고 나면 지울 수 없고
+   * (SchoolClass·Enrollment·MeritAward가 전부 이 값을 참조한다), 오타 하나로
+   * 들어간 20260년은 학년도 선택 목록에 영구히 남는다. 폼을 안 거치는 호출부
+   * (스크립트·미래의 API)가 생겨도 이 세 줄이 남아 있어야 그 사고가 안 난다.
+   * threshold·award·roster·enrollment 서비스가 같은 이유로 같은 자리를 지킨다.
+   */
   if (!Number.isInteger(year) || year < MIN_YEAR || year > MAX_YEAR) {
     throw new AcademicYearError("INVALID_YEAR");
   }

@@ -579,7 +579,15 @@ export async function listAwardYears(studentProfileId: string): Promise<number[]
   return rows.map((r) => r.year);
 }
 
-/** 학부모의 자녀들. ParentStudent 연결이 곧 권한이다. */
+/**
+ * 학부모의 자녀들. ParentStudent 연결이 곧 권한이다.
+ *
+ * **명단에서 빠진 자녀는 빼고 낸다** (`user.deletedAt`). 여기는 "지금 누구를
+ * 고를 수 있나"에 답하는 자리라, 재적하지 않는 자녀를 선택지에 올리면 학부모가
+ * 자녀가 아직 학교에 있다고 읽는다. 아래 isChildOf는 **일부러** 이 조건이
+ * 없다 — 다른 질문에 답하기 때문이다. 한쪽을 고칠 때 다른 쪽을 "일관성"으로
+ * 따라 고치지 말 것.
+ */
 export async function listChildren(parentUserId: string) {
   return prisma.parentStudent.findMany({
     where: { parentUserId, student: { user: { deletedAt: null } } },
@@ -589,7 +597,26 @@ export async function listChildren(parentUserId: string) {
   });
 }
 
-/** 이 학부모와 이 학생이 실제로 연결되어 있는가. 소유권 검사의 전부다. */
+/**
+ * 이 학부모와 이 학생이 실제로 연결되어 있는가. 소유권 검사의 전부다.
+ *
+ * **`deletedAt: null`이 없는 것은 실수가 아니다.** 바로 위 listChildren에는
+ * 있는데 여기만 없어서 "일관성을 위해" 붙이고 싶어지는 자리인데, 두 함수는
+ * 다른 질문에 답한다:
+ *
+ * - listChildren = **고르는 자리.** "지금 누구를 볼 수 있나" → 재적하지 않는
+ *   자녀는 목록에서 빠져야 한다.
+ * - isChildOf = **권한 판정.** "이 사람이 이 학생의 보호자인가" → 자퇴·전학으로
+ *   명단에서 빠졌다고 부모가 아니게 되지는 않는다.
+ *
+ * 여기에 조건을 더하면 자퇴한 자녀의 studentProfileId를 이미 아는(=이전에 화면에서
+ * 봤던) 학부모의 조회 경로가 **조용히 닫힌다** — 전학 서류나 확인서가 필요한
+ * 시점이 하필 자퇴 직후다. 관리자가 삭제된 학생 상세를 계속 볼 수 있게 한 결정
+ * (감사 M-2, award.service.getStudentHeader 주석)과 방향이 같다.
+ *
+ * 결과적으로 자퇴생 학부모는 자녀 선택 목록에서는 그 자녀를 못 보지만, 링크를
+ * 알고 들어가면 기록을 볼 수 있다. 그것이 의도한 동작이다.
+ */
 export async function isChildOf(
   parentUserId: string,
   studentProfileId: string,

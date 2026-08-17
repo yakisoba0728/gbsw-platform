@@ -184,6 +184,25 @@ model ParentStudent {
 }
 
 /// 학년도. isCurrent는 항상 하나만 true다 (부분 유니크 인덱스로 DB가 막는다).
+/// 학년도. **현재 학년도는 항상 하나뿐**이며, 그것을 DB가 직접 막는다.
+///
+/// 그 제약은 부분 유니크 인덱스 `AcademicYear_single_current`
+/// (`ON "AcademicYear" ("isCurrent") WHERE "isCurrent"`)이고,
+/// `prisma/migrations/20260813005023_academic_year_and_enrollment/migration.sql`에
+/// 손으로 적혀 있다. **Prisma는 부분 인덱스를 표현하지 못해 여기에 대응 선언이
+/// 없다** — 즉 스키마만 보면 이 인덱스는 존재하지 않는 것처럼 보인다.
+///
+/// 그래서 `prisma migrate dev`가 스키마와 섀도 DB를 비교하면 이 인덱스를
+/// **군더더기로 보고 `DROP INDEX`를 생성할 수 있다.** 드롭돼도 아무 오류가 나지
+/// 않는다는 것이 위험한 지점이다: `isCurrent = true`인 행이 둘이 되고,
+/// `academic-year.repo.findCurrent()`는 `findFirst`라 어느 쪽이 나올지 모른 채
+/// 전교 상벌점의 집계 범위가 요청마다 흔들린다.
+///
+/// **마이그레이션을 새로 만들면 생성된 SQL을 눈으로 확인하고, 이 인덱스를 지우는
+/// 줄이 있으면 지워라.** 같은 이유로 `academic-year.repo.setCurrent`는 "먼저 전부
+/// 내리고 나서 올린다"는 순서를 지켜야 하고,
+/// `tests/integration/academic-year.single-current.integration.test.ts`가 이
+/// 불변식을 통째로 검증한다.
 model AcademicYear {
   year      Int      @id
   isCurrent Boolean  @default(false)

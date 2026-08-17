@@ -100,6 +100,26 @@ tests/                  core/ · modules/ — 구조를 src/와 맞춘다
 **다른 모듈이 이 예외를 따라하면 안 된다.** 설계 근거는
 `docs/superpowers/specs/2026-08-12-bootstrap-admin-design.md`에 있다.
 
+### verification 모듈은 감사로그 예외다
+
+`src/modules/verification/`은 쓰기를 하면서 **`recordAudit`을 하나도 남기지 않는다**
+(코드 발급·만료·시도 횟수·확인·소진 전부). "모든 생성/수정/삭제는 `recordAudit`을
+남긴다"에 대해 `src/modules/` 안에서는 유일한 예외이며(설치용 `scripts/seed-merit-rules.ts`는
+행위자가 없는 별개의 예외다), 의도적이다 — 인증코드 행은 도메인 데이터가 아니라
+가입 흐름을 통제하는 임시 데이터라, 감사로그에 남기면 "누가 무엇을 했는가"를 읽으려는
+기록이 5분짜리 코드의 생명주기 잡음에 묻힌다. `AUDIT_ACTIONS`에 verification 계열
+액션이 아예 없는 것이 설계 단계의 같은 판단이다. 발송 사실은 콘솔 로그가 남기고
+(`[인증코드] … 발송` / 알리고 경로는 `[SMS] … 발송 접수`, 둘 다 대상을 가리고 코드는
+절대 남기지 않는다), 가입이 실제로 이뤄지면 그때 `registration:complete`가 남는다.
+
+**대신 잃는 것:** 발송 남용과 반복 실패 시도가 **감사로그로는 보이지 않는다.**
+그 자리를 `verification.service`의 대상별 5회/시간·IP별 20회/시간 제한이 맡는다 —
+막는 것이지 남기는 것이 아니므로, "누가 얼마나 시도했나"를 나중에 되짚을 자료는 없다.
+그 추적이 필요해지는 날에는 예외를 거두고 감사로그를 넣어야 한다.
+
+**다른 모듈이 이 예외를 따라하면 안 된다.** 업무 데이터를 건드리는 쓰기는 예외 없이
+`recordAudit`을 남긴다.
+
 ## 새 모듈 추가 체크리스트
 
 1. `prisma/schema.prisma`에 모델 추가 → `npm run db:migrate`
@@ -127,6 +147,11 @@ tests/                  core/ · modules/ — 구조를 src/와 맞춘다
   접속 URL은 `prisma.config.ts`에 있다. SQL 접속은 드라이버 어댑터(`@prisma/adapter-pg`)로만.
 - **Postgres 18**: 볼륨은 `/var/lib/postgresql`에 마운트한다 (`/data` 아님).
 - 마이그레이션은 compose의 별도 `migrate` 서비스가 돌린다. 런타임 이미지에는 Prisma CLI가 없다.
+- **부분 유니크 인덱스는 마이그레이션 SQL에만 있다.** `AcademicYear_single_current`
+  (현재 학년도는 하나뿐)가 그렇다 — Prisma가 표현하지 못해 `schema.prisma`에 선언이 없고,
+  그래서 다음 `migrate dev`가 이것을 군더더기로 보고 `DROP INDEX`를 만들 수 있다. 드롭돼도
+  오류는 안 난다: 현재 학년도가 둘이 되고 `findCurrent()`(findFirst)가 어느 쪽을 줄지 몰라
+  전교 집계 범위가 흔들린다. **마이그레이션을 새로 만들면 생성된 SQL을 눈으로 확인한다.**
 - **스키마를 바꿨으면 `next dev`를 반드시 재시작한다** (`.next`도 지우고). 돌던 개발 서버는
   옛 Prisma 클라이언트를 물고 있어서, 새 필드를 쓰는 화면만 `PrismaClientValidationError`로
   조용히 실패한다. 타입 검사·테스트·빌드는 디스크의 새 클라이언트를 보므로 전부 통과한다 —

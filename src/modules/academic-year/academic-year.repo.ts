@@ -35,6 +35,12 @@ export async function createYear(year: number): Promise<void> {
  *
  * 부분 유니크 인덱스(`isCurrent`가 true인 행은 하나)가 걸려 있어서
  * 먼저 전부 내리고 나서 올려야 한다. 순서를 뒤집으면 제약에 걸린다.
+ *
+ * 그 인덱스는 `AcademicYear_single_current`이고 마이그레이션 SQL에만 있다 —
+ * Prisma가 부분 인덱스를 표현하지 못해 `schema.prisma`에는 선언이 없다.
+ * 왜 그것이 조용히 사라질 수 있는지는 그 모델의 주석에 적어 뒀다. 인덱스가
+ * 없어지면 이 순서는 그냥 무의미해지고(제약이 없으니 안 걸린다), 현재 학년도가
+ * 둘인 상태가 아무 오류 없이 성립한다.
  */
 export async function setCurrent(year: number): Promise<void> {
   await prisma.$transaction([
