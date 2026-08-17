@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ForbiddenError } from "@/core/authz/errors";
 import { MeritError } from "@/modules/merit/merit.error";
 
 /**
@@ -9,7 +10,7 @@ import { MeritError } from "@/modules/merit/merit.error";
  * 최초 관리자 생성이 100% 실패하던 C-1이 정확히 그 틈에서 살아남았다.
  *
  * 그래서 FormData는 **화면의 .tsx가 실제로 보내는 name 그대로** 만든다.
- * 출처: award-form.tsx · class-roster.tsx · cancel-button.tsx ·
+ * 출처: award-form.tsx · class-roster.tsx · components/merit/cancel-button.tsx ·
  * recent/cancel-batch-button.tsx · components/ui/confirm-dialog.tsx(reason) ·
  * components/merit/rule-picker.tsx(ruleId).
  */
@@ -23,9 +24,8 @@ const awardMerit = vi.fn();
 const bulkAwardMerit = vi.fn();
 const cancelAward = vi.fn();
 const cancelBatch = vi.fn();
-const getClassRoster = vi.fn();
-const getStudentHeader = vi.fn();
-const getStudentMerit = vi.fn();
+const exportClassRoster = vi.fn();
+const exportStudentHistory = vi.fn();
 
 const getCurrentYear = vi.fn();
 
@@ -36,9 +36,8 @@ vi.mock("@/modules/merit/award.service", () => ({
   bulkAwardMerit,
   cancelAward,
   cancelBatch,
-  getClassRoster,
-  getStudentHeader,
-  getStudentMerit,
+  exportClassRoster,
+  exportStudentHistory,
 }));
 vi.mock("@/modules/academic-year/academic-year.service", () => ({
   AcademicYearError: class AcademicYearError extends Error {},
@@ -88,7 +87,7 @@ function bulkForm(over: Record<string, string | string[]> = {}): FormData {
   });
 }
 
-/** cancel-button.tsx의 hidden input 둘 + ConfirmDialog의 reason. */
+/** components/merit/cancel-button.tsx의 hidden input 둘 + ConfirmDialog의 reason. */
 function cancelForm(over: Record<string, string> = {}): FormData {
   return form({
     awardId: "aw-1",
@@ -114,9 +113,14 @@ beforeEach(() => {
   requireAuth.mockResolvedValue({ id: "admin-1", role: "ADMIN" });
   bulkAwardMerit.mockResolvedValue({ count: 3 });
   cancelBatch.mockResolvedValue({ count: 3 });
-  getClassRoster.mockResolvedValue([]);
-  getStudentHeader.mockResolvedValue({ name: "홍길동" });
-  getStudentMerit.mockResolvedValue({ awards: [], year: 2026 });
+  exportClassRoster.mockResolvedValue({
+    rows: [["2026학년도 2학년 3반 · 기숙사(누적)"]],
+    filename: "2026_2학년3반_기숙사상벌점.xlsx",
+  });
+  exportStudentHistory.mockResolvedValue({
+    rows: [["홍길동 · 교내 상벌점"]],
+    filename: "홍길동_교내상벌점_2026.xlsx",
+  });
   getCurrentYear.mockResolvedValue(2026);
 });
 
@@ -310,9 +314,16 @@ describe("cancelBatchAction — 경계 검증", () => {
 /*
  * 내보내기 둘은 <form action>이 아니라 버튼 클릭에서 인수를 그대로 받는다
  * (export-button.tsx). FormData 경계는 없지만 safeParse 경계는 그대로 있다.
+ *
+ * **시트 조립과 파일명은 서비스(award.service의 exportClassRoster·
+ * exportStudentHistory)가 만든다.** 예전엔 액션이 merit.export의 순수 함수를
+ * 직접 부르고 파일명 문자열도 여기서 이어 붙였다 — 그래서 이 테스트도 파일명
+ * 규칙을 검증했었다. 그 검증은 이제 서비스 테스트
+ * (tests/modules/merit/award.service.test.ts)가 맡고, 여기서는 액션이 해야 할
+ * 세 가지만 본다: 경계 검증 · 서비스 호출 · 오류 문구 변환.
  */
 describe("exportClassRosterAction — 경계 검증", () => {
-  it("조건이 맞으면 서비스까지 도달하고 파일명을 만든다", async () => {
+  it("조건이 맞으면 서비스까지 도달하고 결과를 그대로 넘긴다", async () => {
     const result = await exportClassRosterAction({
       grade: 2,
       classNo: 3,
@@ -320,20 +331,20 @@ describe("exportClassRosterAction — 경계 검증", () => {
       year: 2026,
     });
 
-    expect(getClassRoster).toHaveBeenCalledOnce();
+    expect(exportClassRoster).toHaveBeenCalledWith(
+      expect.anything(),
+      { grade: 2, classNo: 3, track: "DORM", year: 2026 },
+    );
     expect(result.error).toBeNull();
     expect(result.filename).toBe("2026_2학년3반_기숙사상벌점.xlsx");
   });
 
-  it("학년도를 안 주면 현재 학년도로 채운다", async () => {
-    const result = await exportClassRosterAction({
-      grade: 1,
-      classNo: 1,
-      track: "SCHOOL",
-    });
+  it("학년도를 안 주면 서비스가 정하도록 넘기지 않는다 — 액션은 채우지 않는다", async () => {
+    await exportClassRosterAction({ grade: 1, classNo: 1, track: "SCHOOL" });
 
-    expect(getCurrentYear).toHaveBeenCalled();
-    expect(result.filename).toBe("2026_1학년1반_교내상벌점.xlsx");
+    expect(exportClassRoster.mock.calls[0]?.[1].year).toBeUndefined();
+    // 현재 학년도를 읽는 일도 서비스로 넘어갔다 — 액션은 이제 안 부른다.
+    expect(getCurrentYear).not.toHaveBeenCalled();
   });
 
   it("범위 밖 학년은 서비스를 부르지 않는다", async () => {
@@ -343,12 +354,14 @@ describe("exportClassRosterAction — 경계 검증", () => {
       track: "SCHOOL",
     });
 
-    expect(getClassRoster).not.toHaveBeenCalled();
+    expect(exportClassRoster).not.toHaveBeenCalled();
     expect(result.error).toBe("조회 조건을 확인해 주세요.");
   });
 
   it("현재 학년도가 없으면 파일 문제로 안내하지 않는다", async () => {
-    getCurrentYear.mockRejectedValueOnce(new AcademicYearError("NO_CURRENT_YEAR"));
+    exportClassRoster.mockRejectedValueOnce(
+      new AcademicYearError("NO_CURRENT_YEAR"),
+    );
 
     const result = await exportClassRosterAction({
       grade: 1,
@@ -357,6 +370,22 @@ describe("exportClassRosterAction — 경계 검증", () => {
     });
 
     expect(result.error).toContain("현재 학년도가 설정되어 있지 않습니다");
+  });
+
+  it("권한 거부를 파일 문제로 안내하지 않는다 — 그래야 다시 누르지 않는다", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    exportClassRoster.mockRejectedValueOnce(new ForbiddenError("merit:read:any"));
+
+    const result = await exportClassRosterAction({
+      grade: 1,
+      classNo: 1,
+      track: "SCHOOL",
+    });
+
+    expect(result.error).toBe("이 작업을 할 권한이 없습니다.");
+    // 정상적인 거부이므로 예상 못 한 오류로 서버 로그에 남지 않는다.
+    expect(logged).not.toHaveBeenCalled();
+    logged.mockRestore();
   });
 });
 
@@ -368,20 +397,12 @@ describe("exportStudentHistoryAction — 경계 검증", () => {
       year: 2026,
     });
 
-    expect(getStudentMerit).toHaveBeenCalledOnce();
+    expect(exportStudentHistory).toHaveBeenCalledWith(
+      expect.anything(),
+      { studentProfileId: "sp-1", track: "SCHOOL", year: 2026 },
+    );
     expect(result.error).toBeNull();
     expect(result.filename).toBe("홍길동_교내상벌점_2026.xlsx");
-  });
-
-  it("기숙사 누적은 파일명에 학년도를 적지 않는다", async () => {
-    getStudentMerit.mockResolvedValueOnce({ awards: [], year: null });
-
-    const result = await exportStudentHistoryAction({
-      studentProfileId: "sp-1",
-      track: "DORM",
-    });
-
-    expect(result.filename).toBe("홍길동_기숙사상벌점_누적.xlsx");
   });
 
   it("학생 id가 비면 서비스를 부르지 않는다", async () => {
@@ -390,20 +411,46 @@ describe("exportStudentHistoryAction — 경계 검증", () => {
       track: "SCHOOL",
     });
 
-    expect(getStudentMerit).not.toHaveBeenCalled();
+    expect(exportStudentHistory).not.toHaveBeenCalled();
     expect(result.error).toBe("조회 조건을 확인해 주세요.");
   });
 
-  it("없는 학생이면 빈 파일을 만들지 않는다", async () => {
-    getStudentHeader.mockResolvedValueOnce(null);
+  it("없는 학생이면 빈 파일을 만들지 않고 MESSAGES 문구로 알린다", async () => {
+    exportStudentHistory.mockRejectedValueOnce(new MeritError("STUDENT_NOT_FOUND"));
 
     const result = await exportStudentHistoryAction({
       studentProfileId: "sp-x",
       track: "SCHOOL",
     });
 
-    expect(result.error).toBe("학생을 찾을 수 없습니다.");
+    expect(result.error).toContain("학생을 찾을 수 없습니다");
     expect(result.rows).toEqual([]);
+    expect(result.filename).toBe("");
+  });
+
+  it("사전에 없는 코드는 영문 코드를 화면에 흘리지 않는다", async () => {
+    exportStudentHistory.mockRejectedValueOnce(new MeritError("SOME_NEW_CODE"));
+
+    const result = await exportStudentHistoryAction({
+      studentProfileId: "sp-1",
+      track: "SCHOOL",
+    });
+
+    expect(result.error).toBe("내려받지 못했습니다.");
+  });
+
+  it("권한 거부를 파일 문제로 안내하지 않는다 — 그래야 다시 누르지 않는다", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    exportStudentHistory.mockRejectedValueOnce(new ForbiddenError("merit:read:any"));
+
+    const result = await exportStudentHistoryAction({
+      studentProfileId: "sp-1",
+      track: "SCHOOL",
+    });
+
+    expect(result.error).toBe("이 작업을 할 권한이 없습니다.");
+    expect(logged).not.toHaveBeenCalled();
+    logged.mockRestore();
   });
 });
 

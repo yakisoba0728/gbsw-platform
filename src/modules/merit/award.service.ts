@@ -6,6 +6,7 @@ import {
   addKindPoints,
   emptyKindTotals,
   isYearScoped,
+  MERIT_TRACK_LABELS,
   withNetScore,
   type MeritTrack,
   type NetTotals,
@@ -13,6 +14,7 @@ import {
 import { schoolYearRange } from "./merit.chart";
 import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
 import { MeritError } from "./merit.error";
+import { toHistorySheet, toRosterSheet } from "./merit.export";
 import * as repo from "./merit.repo";
 import { BULK_AWARD_LIMIT } from "./merit.schema";
 import type {
@@ -20,6 +22,8 @@ import type {
   BulkAwardInput,
   CancelBatchInput,
   CancelInput,
+  ClassRosterInput,
+  StudentHistoryExportInput,
 } from "./merit.schema";
 
 /**
@@ -599,3 +603,79 @@ export async function listRecentAwards(actor: SessionUser, track: MeritTrack) {
 }
 
 const RECENT_AWARD_LIMIT = 30;
+
+// ── 엑셀 내보내기 ───────────────────────────────────────────────
+//
+// **시트 조립은 서비스가 한다.** 예전엔 `app/(app)/merit/actions.ts`가
+// merit.export의 순수 함수를 직접 부르고 파일명까지 만들었다 — 명단 쪽
+// (`roster.service.exportRoster`)은 진작 서비스에 있어서, 같은 성격의 일이
+// 모듈마다 다른 층에 있었다. 액션에 업무 로직이 남으면 "진입점만 갈아끼워
+// 옮길 수 있다"는 이 저장소의 아키텍처 결정(CLAUDE.md)이 그만큼 깨진다.
+//
+// **서버는 xlsx 파일을 만들지 않는다.** 행렬만 돌려주고 클라이언트가
+// write-excel-file/browser로 만든다 (명단 내보내기와 같은 방식). 그 경계는
+// 그대로 두고 조립 위치만 옮긴 것이다.
+//
+// 파일명까지 여기서 만드는 이유: 학생 이름과 "누적이냐 그 학년도냐"는 이
+// 함수가 조회한 결과에만 있다. 화면에 돌려주고 거기서 조립하게 하면 화면이
+// 트랙별 조회 범위 규칙(isYearScoped)을 다시 알아야 한다.
+// (명단 쪽은 `{ year, rows }`만 돌려주고 파일명을 화면이 만든다 — 거긴 학년도
+// 하나면 충분해서 그렇다. 모양이 다른 것은 이 차이 때문이다.)
+//
+// 읽기만 하므로 recordAudit을 남기지 않는다 (프로젝트 규칙은 생성·수정·삭제에만
+// 요구한다). 아래 함수들이 부르는 조회 함수도 각자 assertCan을 하지만, 여기서도
+// 먼저 검사한다 — defense-in-depth이고, 거부는 첫 검사에서 그대로 던져진다.
+
+/** 반별 목록 시트. */
+export async function exportClassRoster(
+  actor: SessionUser,
+  params: ClassRosterInput,
+): Promise<{ rows: (string | number)[][]; filename: string }> {
+  await assertCan(actor, "merit:read:any");
+
+  const year = params.year ?? (await getCurrentYear());
+  const rows = await getClassRoster(actor, params);
+
+  return {
+    rows: toRosterSheet(rows, {
+      track: params.track,
+      year,
+      grade: params.grade,
+      classNo: params.classNo,
+    }),
+    filename: `${year}_${params.grade}학년${params.classNo}반_${
+      MERIT_TRACK_LABELS[params.track]
+    }상벌점.xlsx`,
+  };
+}
+
+/**
+ * 한 학생의 내역 시트 — 생활기록부 근거처럼 한 명분이 필요할 때.
+ *
+ * 없는 학생은 **빈 시트를 만들지 않고 던진다.** 이름 없는 파일이 나가면
+ * 받은 사람이 그것을 "기록이 없는 학생"으로 읽는다.
+ */
+export async function exportStudentHistory(
+  actor: SessionUser,
+  params: StudentHistoryExportInput,
+): Promise<{ rows: (string | number)[][]; filename: string }> {
+  await assertCan(actor, "merit:read:any");
+
+  const [header, view] = await Promise.all([
+    getStudentHeader(actor, params.studentProfileId),
+    getStudentMerit(actor, params.studentProfileId, params.track, params.year),
+  ]);
+  if (!header) throw new MeritError("STUDENT_NOT_FOUND");
+
+  // 기숙사는 누적이라 학년도가 파일명에 들어가면 거짓말이 된다.
+  // view.year가 null인 것이 곧 "누적"이라는 뜻이다 (scopeYear가 정한다).
+  const scope = view.year === null ? "누적" : `${view.year}`;
+
+  return {
+    rows: toHistorySheet(view.awards, {
+      track: params.track,
+      studentName: header.name,
+    }),
+    filename: `${header.name}_${MERIT_TRACK_LABELS[params.track]}상벌점_${scope}.xlsx`,
+  };
+}

@@ -3,13 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { requireAuth } from "@/core/auth/session";
 import { ForbiddenError } from "@/core/authz/errors";
-import { MERIT_TRACK_LABELS, type MeritTrack } from "@/core/authz/merit-track";
-import {
-  AcademicYearError,
-  getCurrentYear,
-} from "@/modules/academic-year/academic-year.service";
+import type { MeritTrack } from "@/core/authz/merit-track";
+import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import * as service from "@/modules/merit/award.service";
-import { toHistorySheet, toRosterSheet } from "@/modules/merit/merit.export";
 import { MeritError } from "@/modules/merit/merit.error";
 import {
   awardSchema,
@@ -182,16 +178,47 @@ export async function cancelBatchAction(
 }
 
 /**
- * 내보내기. 명단 내보내기와 같은 방식 — 서버는 행렬만 돌려주고
- * 클라이언트가 xlsx를 만든다. <form action>이 아니라 버튼 클릭에서 직접 부르므로
- * useActionState를 쓰지 않는다.
+ * 내보내기 결과. 서버는 **행렬만** 돌려주고 클라이언트(export-button.tsx)가
+ * write-excel-file/browser로 xlsx를 만든다 — 명단 내보내기와 같은 방식이다.
+ * <form action>이 아니라 버튼 클릭에서 직접 부르므로 useActionState를 쓰지 않아
+ * MeritActionState가 아닌 자기 모양을 쓴다.
  */
+type ExportState = {
+  error: string | null;
+  rows: (string | number)[][];
+  filename: string;
+};
+
+const EXPORT_FAILED = "내려받지 못했습니다.";
+
+/** 내보내기 실패의 오류 → 화면 문구. toState와 같은 일을 하되 반환 모양이 다르다. */
+function toExportState(error: unknown, logLabel: string): ExportState {
+  if (error instanceof AcademicYearError) {
+    return { error: NO_CURRENT_YEAR_MESSAGE, rows: [], filename: "" };
+  }
+  // toState와 같은 이유로 권한 거부를 갈라낸다 — 여기서 갈라내지 않으면
+  // 아래 폴백으로 떨어져 "내려받지 못했습니다"가 되고, 권한이 없어서 막힌
+  // 사람이 일시적 장애로 알고 계속 다시 누른다. console.error로도 새면
+  // 정상적인 거부가 서버 로그에서 예상 못 한 오류처럼 보인다.
+  if (error instanceof ForbiddenError) {
+    return { error: "이 작업을 할 권한이 없습니다.", rows: [], filename: "" };
+  }
+  if (error instanceof MeritError) {
+    return { error: MESSAGES[error.message] ?? EXPORT_FAILED, rows: [], filename: "" };
+  }
+  // 예상 못 한 오류는 서버에 남긴다. 화면에는 일반 문구만 나가므로
+  // 여기서 흘리면 무엇이 잘못됐는지 아무 데도 남지 않는다.
+  console.error(logLabel, error);
+  return { error: EXPORT_FAILED, rows: [], filename: "" };
+}
+
+/** 반별 목록 내보내기. 시트 조립·파일명은 서비스가 만든다. */
 export async function exportClassRosterAction(input: {
   grade: number;
   classNo: number;
   track: MeritTrack;
   year?: number;
-}): Promise<{ error: string | null; rows: (string | number)[][]; filename: string }> {
+}): Promise<ExportState> {
   const actor = await requireAuth();
 
   const parsed = classRosterSchema.safeParse(input);
@@ -200,28 +227,9 @@ export async function exportClassRosterAction(input: {
   }
 
   try {
-    const year = parsed.data.year ?? (await getCurrentYear());
-    const rows = await service.getClassRoster(actor, parsed.data);
-    const sheet = toRosterSheet(rows, {
-      track: parsed.data.track,
-      year,
-      grade: parsed.data.grade,
-      classNo: parsed.data.classNo,
-    });
-    const trackLabel = MERIT_TRACK_LABELS[parsed.data.track];
-    return {
-      error: null,
-      rows: sheet,
-      filename: `${year}_${parsed.data.grade}학년${parsed.data.classNo}반_${trackLabel}상벌점.xlsx`,
-    };
+    return { error: null, ...(await service.exportClassRoster(actor, parsed.data)) };
   } catch (error) {
-    if (error instanceof AcademicYearError) {
-      return { error: NO_CURRENT_YEAR_MESSAGE, rows: [], filename: "" };
-    }
-    // 예상 못 한 오류는 서버에 남긴다. 화면에는 일반 문구만 나가므로
-    // 여기서 흘리면 무엇이 잘못됐는지 아무 데도 남지 않는다.
-    console.error("상벌점 내보내기 실패:", error);
-    return { error: "내려받지 못했습니다.", rows: [], filename: "" };
+    return toExportState(error, "상벌점 내보내기 실패:");
   }
 }
 
@@ -234,7 +242,7 @@ export async function exportStudentHistoryAction(input: {
   studentProfileId: string;
   track: MeritTrack;
   year?: number;
-}): Promise<{ error: string | null; rows: (string | number)[][]; filename: string }> {
+}): Promise<ExportState> {
   const actor = await requireAuth();
 
   const parsed = studentHistoryExportSchema.safeParse(input);
@@ -243,36 +251,8 @@ export async function exportStudentHistoryAction(input: {
   }
 
   try {
-    const [header, view] = await Promise.all([
-      service.getStudentHeader(actor, parsed.data.studentProfileId),
-      service.getStudentMerit(
-        actor,
-        parsed.data.studentProfileId,
-        parsed.data.track,
-        parsed.data.year,
-      ),
-    ]);
-    if (!header) {
-      return { error: "학생을 찾을 수 없습니다.", rows: [], filename: "" };
-    }
-
-    const sheet = toHistorySheet(view.awards, {
-      track: parsed.data.track,
-      studentName: header.name,
-    });
-    const trackLabel = MERIT_TRACK_LABELS[parsed.data.track];
-    // 기숙사는 누적이라 학년도가 파일명에 들어가면 거짓말이 된다.
-    const scope = view.year === null ? "누적" : `${view.year}`;
-    return {
-      error: null,
-      rows: sheet,
-      filename: `${header.name}_${trackLabel}상벌점_${scope}.xlsx`,
-    };
+    return { error: null, ...(await service.exportStudentHistory(actor, parsed.data)) };
   } catch (error) {
-    if (error instanceof AcademicYearError) {
-      return { error: NO_CURRENT_YEAR_MESSAGE, rows: [], filename: "" };
-    }
-    console.error("상벌점 내역 내보내기 실패:", error);
-    return { error: "내려받지 못했습니다.", rows: [], filename: "" };
+    return toExportState(error, "상벌점 내역 내보내기 실패:");
   }
 }

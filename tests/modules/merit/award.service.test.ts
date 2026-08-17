@@ -1150,3 +1150,183 @@ describe("학부모 조회", () => {
     ).rejects.toThrow("FORBIDDEN");
   });
 });
+
+/**
+ * 엑셀 내보내기.
+ *
+ * 시트 조립은 예전에 서버 액션(`app/(app)/merit/actions.ts`)이 했다. 명단
+ * (`roster.service.exportRoster`)은 진작 서비스에 있었는데 상벌점만 액션에
+ * 남아 있었고, 액션에 업무 로직이 있으면 "진입점만 갈아끼워 옮길 수 있다"는
+ * 아키텍처 결정(CLAUDE.md)이 그만큼 깨진다. 여기서 보는 것은 그 이사의 결과다 —
+ * **권한 · 조회 범위 · 파일명**이 전부 서비스 안에서 정해지는가.
+ */
+describe("exportClassRoster", () => {
+  const ROSTER = [
+    {
+      studentProfileId: "sp-1",
+      studentCode: "K7M2XQ4A",
+      name: "김민준",
+      number: 3,
+      merit: 15,
+      demerit: 6,
+      offset: 0,
+      net: 9,
+    },
+  ];
+
+  it("반 명단을 시트로 만들고 파일명까지 낸다", async () => {
+    listClassRoster.mockResolvedValue(ROSTER);
+
+    const result = await service.exportClassRoster(admin, {
+      grade: 2,
+      classNo: 3,
+      track: "SCHOOL",
+      year: 2026,
+    });
+
+    expect(result.filename).toBe("2026_2학년3반_교내상벌점.xlsx");
+    // 범위 줄 + 머리글 줄 + 학생 한 줄.
+    expect(result.rows).toHaveLength(3);
+    expect(result.rows[0]).toEqual(["2026학년도 2학년 3반 · 교내"]);
+  });
+
+  it("학년도를 안 주면 현재 학년도로 채운다 — 파일명도 그 값을 쓴다", async () => {
+    const result = await service.exportClassRoster(admin, {
+      grade: 1,
+      classNo: 1,
+      track: "SCHOOL",
+    });
+
+    expect(getCurrentYear).toHaveBeenCalled();
+    expect(result.filename).toBe("2026_1학년1반_교내상벌점.xlsx");
+  });
+
+  it("기숙사는 합계를 누적으로 센다 — 조회 규칙이 그대로 따라온다", async () => {
+    await service.exportClassRoster(admin, { grade: 2, classNo: 3, track: "DORM" });
+
+    expect(listClassRoster).toHaveBeenCalledWith(
+      expect.objectContaining({ track: "DORM", totalsYear: null }),
+    );
+  });
+
+  it("null을 내보내지 않는다 — 번호가 없어도 빈 문자열이다", async () => {
+    listClassRoster.mockResolvedValue([{ ...ROSTER[0], number: null }]);
+
+    const result = await service.exportClassRoster(admin, {
+      grade: 2,
+      classNo: 3,
+      track: "SCHOOL",
+    });
+
+    expect(result.rows[2]?.[0]).toBe("");
+    for (const row of result.rows) expect(row).not.toContain(null);
+  });
+
+  it("학생은 반 명단을 내려받을 수 없다 — 거부 감사로그가 남는다", async () => {
+    await expect(
+      service.exportClassRoster(student, { grade: 1, classNo: 1, track: "SCHOOL" }),
+    ).rejects.toThrow("FORBIDDEN");
+
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "authz:denied" }),
+    );
+    expect(listClassRoster).not.toHaveBeenCalled();
+  });
+
+  it("학부모도 내려받을 수 없다", async () => {
+    await expect(
+      service.exportClassRoster(
+        { ...student, id: "p-1", role: "PARENT" },
+        { grade: 1, classNo: 1, track: "SCHOOL" },
+      ),
+    ).rejects.toThrow("FORBIDDEN");
+  });
+});
+
+describe("exportStudentHistory", () => {
+  const AWARD = {
+    id: "a-1",
+    year: 2026,
+    kind: "DEMERIT",
+    label: "점호 지각",
+    points: 3,
+    note: null,
+    awardedByName: "이정민",
+    status: "ACTIVE",
+    cancelReason: null,
+    occurredOn: new Date("2026-06-12T00:00:00+09:00"),
+    createdAt: new Date("2026-08-16T00:00:00+09:00"),
+  };
+
+  it("학생 이름으로 시트와 파일명을 만든다", async () => {
+    listAwards.mockResolvedValue([AWARD]);
+
+    const result = await service.exportStudentHistory(admin, {
+      studentProfileId: "sp-1",
+      track: "SCHOOL",
+      year: 2026,
+    });
+
+    expect(result.filename).toBe("김민준_교내상벌점_2026.xlsx");
+    expect(result.rows[0]).toEqual(["김민준 · 교내 상벌점"]);
+    expect(result.rows).toHaveLength(3);
+  });
+
+  it("기숙사는 누적이라 파일명에 학년도를 적지 않는다", async () => {
+    const result = await service.exportStudentHistory(admin, {
+      studentProfileId: "sp-1",
+      track: "DORM",
+    });
+
+    expect(result.filename).toBe("김민준_기숙사상벌점_누적.xlsx");
+  });
+
+  it("없는 학생이면 빈 파일을 만들지 않고 던진다", async () => {
+    findStudentHeader.mockResolvedValue(null);
+
+    await expect(
+      service.exportStudentHistory(admin, {
+        studentProfileId: "sp-x",
+        track: "SCHOOL",
+      }),
+    ).rejects.toThrow(MeritError);
+  });
+
+  it("명단에서 빠진 학생도 내려받을 수 있다 — 자퇴생 확인서 경로다 (M-2)", async () => {
+    findStudentHeader.mockResolvedValue({
+      ...HEADER,
+      status: null,
+      removedAt: new Date("2026-05-01T00:00:00+09:00"),
+    });
+
+    const result = await service.exportStudentHistory(admin, {
+      studentProfileId: "sp-1",
+      track: "SCHOOL",
+    });
+
+    expect(result.filename).toContain("김민준");
+  });
+
+  it("학생은 남의 내역을 내려받을 수 없다 — 거부 감사로그가 남는다", async () => {
+    await expect(
+      service.exportStudentHistory(student, {
+        studentProfileId: "sp-2",
+        track: "SCHOOL",
+      }),
+    ).rejects.toThrow("FORBIDDEN");
+
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "authz:denied" }),
+    );
+    expect(listAwards).not.toHaveBeenCalled();
+  });
+
+  it("학부모도 자녀 경로가 아닌 이 함수로는 못 온다", async () => {
+    await expect(
+      service.exportStudentHistory(
+        { ...student, id: "p-1", role: "PARENT" },
+        { studentProfileId: "sp-1", track: "SCHOOL" },
+      ),
+    ).rejects.toThrow("FORBIDDEN");
+  });
+});

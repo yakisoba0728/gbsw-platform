@@ -194,12 +194,16 @@ export const classRosterSchema = z.object({
   year: yearQuery,
 });
 
+export type ClassRosterInput = z.infer<typeof classRosterSchema>;
+
 /** 한 학생의 내역 내보내기 조건. 학년도는 교내일 때만 의미가 있다. */
 export const studentHistoryExportSchema = z.object({
   studentProfileId: z.string().trim().min(1),
   track: trackSchema,
   year: yearQuery,
 });
+
+export type StudentHistoryExportInput = z.infer<typeof studentHistoryExportSchema>;
 
 /** 묶음 통째로 취소. 사유는 단건과 같은 이유로 필수다. */
 export const cancelBatchSchema = z.object({
