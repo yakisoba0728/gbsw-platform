@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
+import { Note } from "@/components/ui/note";
 import type { MeritTrack } from "@/core/authz/merit-track";
 import { exportClassRosterAction, exportStudentHistoryAction } from "./actions";
 
@@ -56,7 +57,18 @@ function DownloadButton({
       <Button type="button" variant="secondary" onClick={onClick} disabled={pending}>
         {pending ? "만드는 중…" : label}
       </Button>
-      {error && <p className="mt-2 text-[13px] text-rose">{error}</p>}
+      {/*
+        손수 그린 빨간 글씨였다 — `role="alert"`가 없어 화면을 못 보는 사람에게는
+        실패가 아무 소리도 내지 않았고, 버튼은 "만드는 중…"에서 원래 문구로
+        돌아올 뿐이라 성공과 구분되지 않았다. Note는 tone="error"면 role을
+        저절로 붙인다(빠뜨릴 수 있게 두지 않는 것이 그 컴포넌트의 존재 이유다).
+        마진은 여기서 준다 — 배너가 어디 놓이느냐는 이 화면의 짜임이다.
+      */}
+      {error && (
+        <Note tone="error" className="mt-2">
+          {error}
+        </Note>
+      )}
     </div>
   );
 }
