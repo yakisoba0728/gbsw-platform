@@ -246,4 +246,32 @@ describe("formatAuditMetadata()", () => {
       }),
     ).toBe("분류 바뀜");
   });
+
+  /**
+   * 기준은 덮어쓰기라 옛 값이 DB 어디에도 안 남는다 — 이 줄이 "언제부터
+   * 명단이 길어졌나"에 답하는 유일한 흔적이다.
+   */
+  it("merit:threshold:update — 트랙과 전/후 값을 보여준다", () => {
+    expect(
+      formatAuditMetadata("merit:threshold:update", {
+        track: "SCHOOL",
+        warnFrom: 20,
+        warnTo: 15,
+        dangerFrom: 30,
+        dangerTo: 25,
+      }),
+    ).toBe("교내 · 경고 20→15 · 위험 30→25");
+  });
+
+  it("merit:threshold:update — 안 바뀐 쪽은 빼서 바뀐 숫자가 묻히지 않게 한다", () => {
+    expect(
+      formatAuditMetadata("merit:threshold:update", {
+        track: "DORM",
+        warnFrom: 20,
+        warnTo: 20,
+        dangerFrom: 30,
+        dangerTo: 25,
+      }),
+    ).toBe("기숙사 · 위험 30→25");
+  });
 });

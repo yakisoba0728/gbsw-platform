@@ -146,6 +146,48 @@ export async function listActiveRules(track: MeritTrack) {
   return rules.sort(byKindCategoryPoints);
 }
 
+// ── 벌점 기준 ─────────────────────────────────────────────────
+
+/**
+ * 저장된 기준 전부. **트랙 두 개짜리 표라 한 번에 다 읽는다** —
+ * 화면 하나가 두 트랙을 나란히 보여주는 자리(설정 화면)가 있고, 행이
+ * 최대 트랙 수만큼이라 골라 읽어 아낄 것이 없다.
+ *
+ * 없는 트랙은 그냥 빠져 나온다. 기본값으로 채우는 일은 서비스가 한다.
+ */
+export async function listThresholds() {
+  return prisma.meritThreshold.findMany({
+    select: {
+      track: true,
+      warn: true,
+      danger: true,
+      updatedAt: true,
+      updatedByName: true,
+    },
+  });
+}
+
+export type ThresholdWrite = {
+  track: string;
+  warn: number;
+  danger: number;
+  updatedByUserId: string;
+  updatedByName: string;
+};
+
+/**
+ * 기준 저장. **upsert다** — 트랙마다 행이 하나이고, 첫 저장인지 수정인지가
+ * 호출부에서 갈릴 이유가 없다 (없으면 만들고 있으면 고친다).
+ */
+export async function upsertThreshold(data: ThresholdWrite): Promise<void> {
+  const { track, ...rest } = data;
+  await prisma.meritThreshold.upsert({
+    where: { track },
+    create: { track, ...rest },
+    update: rest,
+  });
+}
+
 // ── 부여 ──────────────────────────────────────────────────────
 
 export type NewAward = {

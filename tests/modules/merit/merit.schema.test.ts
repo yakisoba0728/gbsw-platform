@@ -7,7 +7,9 @@ import {
   cancelSchema,
   classRosterSchema,
   createRuleSchema,
+  MAX_THRESHOLD,
   studentHistoryExportSchema,
+  thresholdSchema,
   updateRuleSchema,
 } from "@/modules/merit/merit.schema";
 
@@ -160,6 +162,83 @@ describe("조회 학년도", () => {
 
   it("학년도는 선택 입력이다 — 없으면 서비스가 현재 학년도로 정한다", () => {
     expect(classRosterSchema.parse(roster).year).toBeUndefined();
+  });
+});
+
+/**
+ * 벌점 기준 설정.
+ *
+ * **여기가 뚫리면 화면이 조용히 무의미해진다.** 위험이 경고보다 작으면
+ * demeritLevel이 warn 구간을 아예 못 내고(danger가 먼저 걸린다), 0을 넣으면
+ * 벌점 0점인 전교생이 명단에 오른다. 그래서 순서와 범위를 여기서 못 박는다.
+ */
+describe("thresholdSchema", () => {
+  const valid = { track: "SCHOOL", warn: "20", danger: "30" };
+
+  it("정상 입력을 통과시키고 숫자로 바꾼다", () => {
+    const parsed = thresholdSchema.parse(valid);
+    expect(parsed).toEqual({ track: "SCHOOL", warn: 20, danger: 30 });
+  });
+
+  it("위험이 경고보다 작으면 거부한다", () => {
+    expect(thresholdSchema.safeParse({ ...valid, warn: "30", danger: "20" }).success).toBe(
+      false,
+    );
+  });
+
+  it("위험과 경고가 같아도 거부한다 — 같으면 경고 구간이 사라진다", () => {
+    expect(thresholdSchema.safeParse({ ...valid, warn: "20", danger: "20" }).success).toBe(
+      false,
+    );
+  });
+
+  it("0·음수·소수·빈 값은 거부한다", () => {
+    for (const warn of ["0", "-1", "1.5", "", "  ", "abc"]) {
+      expect(thresholdSchema.safeParse({ ...valid, warn }).success, warn).toBe(false);
+    }
+  });
+
+  it("상한을 넘으면 거부한다 — 오타 한 번으로 영원히 안 뜨는 기준이 되지 않게", () => {
+    expect(
+      thresholdSchema.safeParse({
+        track: "SCHOOL",
+        warn: String(MAX_THRESHOLD),
+        danger: String(MAX_THRESHOLD + 1),
+      }).success,
+    ).toBe(false);
+  });
+
+  it("상한 정확히는 통과한다", () => {
+    expect(
+      thresholdSchema.safeParse({
+        track: "SCHOOL",
+        warn: String(MAX_THRESHOLD - 1),
+        danger: String(MAX_THRESHOLD),
+      }).success,
+    ).toBe(true);
+  });
+
+  it("모르는 트랙은 거부한다", () => {
+    expect(thresholdSchema.safeParse({ ...valid, track: "CLUB" }).success).toBe(false);
+  });
+
+  it("모든 오류 문구가 한글이다 — zod의 영문 기본값이 화면에 나가면 안 된다", () => {
+    const cases = [
+      { ...valid, warn: "0" },
+      { ...valid, warn: "abc" },
+      { ...valid, danger: String(MAX_THRESHOLD + 1) },
+      { ...valid, warn: "30", danger: "20" },
+    ];
+
+    for (const input of cases) {
+      const result = thresholdSchema.safeParse(input);
+      expect(result.success, JSON.stringify(input)).toBe(false);
+      for (const issue of result.error!.issues) {
+        // 한글 음절이 하나라도 있어야 우리가 붙인 문구다.
+        expect(issue.message, issue.message).toMatch(/[가-힣]/);
+        expect(issue.message, issue.message).toMatch(/\.$/);
+      }
+    }
   });
 });
 

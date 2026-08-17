@@ -69,6 +69,9 @@ model User {
   meritAwardsGiven     MeritAward[] @relation("MeritAwardedBy")
   meritAwardsCancelled MeritAward[] @relation("MeritCancelledBy")
 
+  /// 이 사람이 마지막으로 고친 벌점 기준. 계정이 지워지면 SetNull로 끊긴다.
+  meritThresholdsSet MeritThreshold[] @relation("MeritThresholdUpdatedBy")
+
   // 거의 모든 목록 조회가 이 조건(deletedAt: null)으로 거른다.
   @@index([deletedAt])
   @@map("user")
@@ -390,6 +393,31 @@ model MeritRule {
   updatedAt DateTime @updatedAt
 
   @@index([track, active])
+}
+
+/// 벌점 누적 기준. 관리자가 설정 화면에서 정한다.
+///
+/// **트랙 하나에 행 하나**라 track이 곧 기본키다 (별도 id·유니크 인덱스가 필요 없다).
+/// **행이 없는 상태가 정상이다** — 한 번도 설정하지 않은 학교는 코드 기본값
+/// (DEFAULT_DEMERIT_THRESHOLDS)으로 떨어진다. 마이그레이션으로 행을 심지 않는
+/// 근거는 src/modules/merit/threshold.service.ts에 있다.
+model MeritThreshold {
+  /// SCHOOL | DORM — src/core/authz/merit-track.ts의 MeritTrack과 일치해야 한다.
+  track String @id
+
+  /// 이 점수부터 진하게 표시하고 "기준 초과 학생" 명단에 올린다.
+  warn Int
+  /// 이 점수부터 붉은 배경. 항상 warn보다 크다 (merit.schema.ts·threshold.service.ts).
+  danger Int
+
+  updatedAt DateTime @updatedAt
+
+  /// 계정이 지워지면 null이 된다 — 다른 책임 추적 필드와 같은 규약이다.
+  updatedByUserId String?
+  updatedBy       User?   @relation("MeritThresholdUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  /// 마지막으로 고친 사람의 이름 스냅샷. AuditLog.actorName과 같은 이유 —
+  /// 과거의 사실이 살아 있는 외래키에 기대면 안 된다.
+  updatedByName String
 }
 
 /// 부여 기록. 규정 값을 부여 시점에 복사해 둔다.

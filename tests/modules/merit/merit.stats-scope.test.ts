@@ -36,6 +36,11 @@ vi.mock("@/modules/academic-year/academic-year.service", () => ({
   getCurrentYear: vi.fn().mockResolvedValue(2026),
   AcademicYearError: class extends Error {},
 }));
+// 기준은 이 파일이 검증하는 대상이 아니다 — 목으로 고정해 두어야 학교가 기준을
+// 바꿔도 여기 테스트가 흔들리지 않는다 (merit.watch-list.test.ts가 그쪽을 본다).
+vi.mock("@/modules/merit/threshold.service", () => ({
+  getDemeritThresholds: vi.fn().mockResolvedValue({ warn: 20, danger: 30 }),
+}));
 
 const service = await import("@/modules/merit/stats.service");
 

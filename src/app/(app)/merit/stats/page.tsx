@@ -5,6 +5,7 @@ import {
   isMeritTrack,
   isYearScoped,
   signedNet,
+  type DemeritThresholds,
   type MeritTrack,
 } from "@/core/authz/merit-track";
 import { KindBadge, kindColorClass, signedPoints } from "@/components/merit/kind-badge";
@@ -108,13 +109,13 @@ export default async function MeritStatsPage({
           {stats.scope && stats.students ? (
             <StudentNetChart
               rows={stats.students}
-              track={track}
+              thresholds={stats.thresholds}
               hrefFor={(id) => `/merit/students/${id}?track=${track}`}
             />
           ) : (
             <ClassNetChart
               rows={stats.classes}
-              track={track}
+              thresholds={stats.thresholds}
               hrefFor={(row) =>
                 statsHref({ grade: String(row.grade), classNo: String(row.classNo) })
               }
@@ -130,7 +131,7 @@ export default async function MeritStatsPage({
             scoped={stats.scope !== null}
           />
 
-          <ClassTable rows={stats.classes} track={track} />
+          <ClassTable rows={stats.classes} thresholds={stats.thresholds} />
           <TopRules rows={stats.topRules} />
         </>
       )}
@@ -177,7 +178,7 @@ function WatchList({
 }: {
   rows: MeritStats["watchList"];
   track: MeritTrack;
-  thresholds: { warn: number; danger: number };
+  thresholds: DemeritThresholds;
   /** 반을 골라 보는 중인가. 명단의 범위를 문구에 적는다. */
   scoped: boolean;
 }) {
@@ -188,8 +189,8 @@ function WatchList({
       flush
       title="기준 초과 학생"
       /*
-        기준 숫자를 그대로 적는다. DEMERIT_THRESHOLDS는 학교가 정할 값의
-        임시값이라, 화면에 안 보이면 틀린 값으로 몇 학기가 지나갈 수 있다.
+        기준 숫자를 그대로 적는다. 관리자가 설정에서 바꾸는 값이라, 화면에 안
+        보이면 명단이 왜 이 길이인지 알 수 없다.
       */
       hint={
         <>
@@ -203,7 +204,7 @@ function WatchList({
         <p className="mt-1 text-[12px] text-mut">
           <strong className="font-bold">보여주기만 합니다</strong> — 기준을 넘어도
           자동으로 회부·통보되는 것은 없습니다. 기준 점수는 학칙·기숙사 규정에
-          맞춰 정해야 하는 임시값입니다.
+          맞춰 관리자가 정합니다.
         </p>
       }
     >
@@ -242,7 +243,7 @@ function WatchList({
                     : "소속 미배정"}
                 </td>
                 <td className="px-5 py-2.5">
-                  <span className={demeritCellClass(track, row.demerit)}>
+                  <span className={demeritCellClass(thresholds, row.demerit)}>
                     {row.demerit}
                   </span>
                 </td>
@@ -257,10 +258,10 @@ function WatchList({
 
 function ClassTable({
   rows,
-  track,
+  thresholds,
 }: {
   rows: MeritStats["classes"];
-  track: MeritTrack;
+  thresholds: DemeritThresholds;
 }) {
   if (rows.length === 0) {
     return (
@@ -277,7 +278,7 @@ function ClassTable({
       // ThresholdHint가 <p>라 hint(역시 <p>)에는 넣을 수 없다.
       controls={
         <div className="mt-1">
-          <ThresholdHint track={track} />
+          <ThresholdHint thresholds={thresholds} />
         </div>
       }
     >
@@ -306,7 +307,7 @@ function ClassTable({
               <td className="px-3 py-2.5 text-mut">{row.students}</td>
               <td className="px-3 py-2.5 font-bold text-blue">{row.merit}</td>
               <td className="px-3 py-2.5">
-                <span className={demeritCellClass(track, row.demerit)}>
+                <span className={demeritCellClass(thresholds, row.demerit)}>
                   {row.demerit}
                 </span>
               </td>

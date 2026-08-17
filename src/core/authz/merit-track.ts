@@ -168,22 +168,28 @@ export function signedNet(net: number): string {
   return net >= 0 ? `+${net}` : String(net);
 }
 
+/** 벌점 누적 기준점 한 쌍. 경고보다 위험이 커야 한다 (merit.schema.ts가 지킨다). */
+export type DemeritThresholds = { warn: number; danger: number };
+
 /**
- * 벌점 누적 기준점.
+ * 벌점 누적 기준점의 **기본값**.
  *
- * **이 숫자는 학교가 정하는 값이며 지금은 임시값이다.** 실제 학칙·기숙사 규정의
- * 수치로 바꿔야 한다 — 화면에 "기준 30점"처럼 그대로 노출되므로 틀리면 바로 보인다.
+ * 실제로 쓰이는 값은 관리자가 설정 화면(/admin/settings)에서 정하고 DB의
+ * MeritThreshold에 저장된다. 여기 있는 숫자는 **그 행이 아직 없을 때 떨어질
+ * 자리**다 — 학교가 한 번도 설정하지 않은 상태가 정상이고(설치 직후·빈 DB),
+ * 그때도 화면이 멀쩡히 동작해야 하기 때문이다.
+ *
+ * 마이그레이션으로 행을 미리 심지 않는 이유는 threshold.service.ts에 적어 뒀다.
  *
  * 시스템은 **표시만 한다.** 기준을 넘겨도 자동으로 회부·퇴사 같은 조치를 하지
  * 않는다. 불이익을 주는 판단은 사람이 하고, 여기서는 "눈에 띄게" 해줄 뿐이다.
  */
-export const DEMERIT_THRESHOLDS: Record<MeritTrack, { warn: number; danger: number }> =
-  {
-    // 교내(그린마일리지): 선도관리위원회 회부를 검토할 만한 수준.
-    SCHOOL: { warn: 20, danger: 30 },
-    // 기숙사(정심관): 누적이라 학년이 올라갈수록 쌓인다.
-    DORM: { warn: 20, danger: 30 },
-  };
+export const DEFAULT_DEMERIT_THRESHOLDS: Record<MeritTrack, DemeritThresholds> = {
+  // 교내(그린마일리지): 선도관리위원회 회부를 검토할 만한 수준.
+  SCHOOL: { warn: 20, danger: 30 },
+  // 기숙사(정심관): 누적이라 학년이 올라갈수록 쌓인다.
+  DORM: { warn: 20, danger: 30 },
+};
 
 export type DemeritLevel = "none" | "warn" | "danger";
 
@@ -191,10 +197,17 @@ export type DemeritLevel = "none" | "warn" | "danger";
  * 벌점 누적이 어느 단계인가. **상점·상쇄점과 무관하게 벌점 총합만 본다** —
  * 상점으로 벌점을 덮는다고 규정 위반이 없던 일이 되지는 않기 때문이다.
  * (순점수와는 다른 지표다.)
+ *
+ * **기준을 인자로 받는 순수 함수다.** 예전엔 트랙만 받아 모듈 상수를 직접
+ * 읽었는데, 기준이 관리자 설정값이 되면서 "언제 어디서 읽느냐"가 생겼다.
+ * 계산은 값을 받기만 하고 읽는 일은 서비스가 맡는다 — 그래야 화면·통계·
+ * 그래프가 한 요청 안에서 같은 기준을 보고, 여기가 DB를 모른 채로 남는다.
  */
-export function demeritLevel(track: MeritTrack, demerit: number): DemeritLevel {
-  const { warn, danger } = DEMERIT_THRESHOLDS[track];
-  if (demerit >= danger) return "danger";
-  if (demerit >= warn) return "warn";
+export function demeritLevel(
+  thresholds: DemeritThresholds,
+  demerit: number,
+): DemeritLevel {
+  if (demerit >= thresholds.danger) return "danger";
+  if (demerit >= thresholds.warn) return "warn";
   return "none";
 }

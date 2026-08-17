@@ -17,6 +17,7 @@ import {
 import { classRosterSchema } from "@/modules/merit/merit.schema";
 import { getClassRoster, searchStudents } from "@/modules/merit/award.service";
 import { listActiveRules } from "@/modules/merit/rule.service";
+import { getDemeritThresholds } from "@/modules/merit/threshold.service";
 import { ClassRoster } from "./class-roster";
 
 type Params = SearchParamsInput;
@@ -65,6 +66,9 @@ export async function AdminMeritView({
   });
   let roster: Awaited<ReturnType<typeof getClassRoster>> | null = null;
   let rules: Awaited<ReturnType<typeof listActiveRules>> = [];
+  // 벌점 강조 기준은 명단이 있을 때만 쓰이지만, 조회는 항상 캐시를 거치므로
+  // 여기서 한 번 읽어 두어도 왕복이 늘지 않는다 (threshold.service의 React cache).
+  const thresholds = await getDemeritThresholds(track);
   if (rosterQuery.success) {
     try {
       [roster, rules] = await Promise.all([
@@ -147,6 +151,7 @@ export async function AdminMeritView({
           grade={rosterQuery.data.grade}
           classNo={rosterQuery.data.classNo}
           track={track}
+          thresholds={thresholds}
           year={rosterQuery.data.year}
           viewingPast={viewingPast}
           rules={rules}

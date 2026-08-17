@@ -16,6 +16,7 @@ export type Action =
   | "invite:create:parent"
   | "audit:read"
   | "merit:rule:manage"
+  | "merit:threshold:manage"
   | "merit:award"
   | "merit:cancel"
   | "merit:read:any";
@@ -40,11 +41,16 @@ export const RULES: Record<Action, Role[]> = {
   "invite:revoke": [], // 관리자 전용
   "audit:read": [], // 관리자 전용
 
-  // 상벌점 — 넷 다 관리자 전용이다.
+  // 상벌점 — 다섯 다 관리자 전용이다.
   // 취소를 "자기가 준 것만"으로 좁히지 않는다: 교직원 사이에 권한 차등이 없으므로
   // 등급 없는 소유권 검사는 근거가 없고, 준 사람이 출장·퇴직이면 잘못된 기록을
   // 아무도 못 고치게 된다. 책임 추적은 필수 사유 + 이름 스냅샷 + 감사로그가 맡는다.
   "merit:rule:manage": [],
+  // 벌점 경고·위험 기준 변경. 규정 관리와 나누는 이유는 대상이 다르기 때문이다 —
+  // 저쪽은 "무엇에 몇 점을 주는가"(카탈로그), 이쪽은 "몇 점부터 눈에 띄게
+  // 하는가"(전교에 한 번에 적용되는 학칙 수치)다. 읽기는 권한을 걸지 않는다
+  // (threshold.service.ts 참고) — 통제하는 것은 바꾸는 일뿐이다.
+  "merit:threshold:manage": [],
   "merit:award": [],
   "merit:cancel": [],
   "merit:read:any": [],

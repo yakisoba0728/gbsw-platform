@@ -16,6 +16,7 @@ const EXPECTED: Record<Action, Role[]> = {
   "invite:create:parent": ["ADMIN", "STUDENT"],
   "audit:read": ["ADMIN"],
   "merit:rule:manage": ["ADMIN"],
+  "merit:threshold:manage": ["ADMIN"],
   "merit:award": ["ADMIN"],
   "merit:cancel": ["ADMIN"],
   "merit:read:any": ["ADMIN"],

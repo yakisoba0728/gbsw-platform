@@ -6,8 +6,8 @@ import { SectionCard } from "@/components/ui/section-card";
 import {
   MERIT_KIND_LABELS,
   signedNet,
+  type DemeritThresholds,
   type MeritKind,
-  type MeritTrack,
 } from "@/core/authz/merit-track";
 import type { CategorySlice, MonthlyPoint } from "@/modules/merit/merit.chart";
 import { scaleToPercent } from "@/modules/merit/merit.chart";
@@ -180,7 +180,7 @@ export function MonthlyChart({
 /** 반별 순점수. 0을 가운데 두고 좌우로 뻗는다 — 순점수는 음수가 될 수 있다. */
 export function ClassNetChart({
   rows,
-  track,
+  thresholds,
   hrefFor,
 }: {
   rows: {
@@ -193,7 +193,8 @@ export function ClassNetChart({
     net: number;
     avgNet: number;
   }[];
-  track: MeritTrack;
+  /** 벌점 기준 — 막대 옆 "!" 표시를 칠 기준이다. 관리자가 설정에서 정한다. */
+  thresholds: DemeritThresholds;
   /** 주면 각 반이 링크가 된다 — 눌러서 그 반만 볼 수 있게. */
   hrefFor?: (row: { grade: number; classNo: number }) => string;
 }) {
@@ -234,7 +235,7 @@ export function ClassNetChart({
               />
               <span className="w-[76px] shrink-0 text-[12px] font-semibold text-ink">
                 {row.grade}-{row.classNo}
-                <DemeritFlag track={track} demerit={row.demerit} />
+                <DemeritFlag thresholds={thresholds} demerit={row.demerit} />
               </span>
               <span className="flex flex-1 justify-end">
                 <span
@@ -294,7 +295,7 @@ export function ClassNetChart({
 /** 학생별 순점수 — 반을 골랐을 때만 나온다. 누가 눈에 띄는지 바로 보인다. */
 export function StudentNetChart({
   rows,
-  track,
+  thresholds,
   hrefFor,
 }: {
   rows: {
@@ -306,7 +307,8 @@ export function StudentNetChart({
     offset: number;
     net: number;
   }[];
-  track: MeritTrack;
+  /** 벌점 기준 — ClassNetChart와 같은 값이다. */
+  thresholds: DemeritThresholds;
   hrefFor: (studentProfileId: string) => string;
 }) {
   if (rows.length === 0) {
@@ -347,7 +349,7 @@ export function StudentNetChart({
               />
               <span className="w-[92px] shrink-0 truncate text-[12px] font-semibold text-ink">
                 {row.name}
-                <DemeritFlag track={track} demerit={row.demerit} />
+                <DemeritFlag thresholds={thresholds} demerit={row.demerit} />
               </span>
               <span className="flex flex-1 justify-end">
                 <span

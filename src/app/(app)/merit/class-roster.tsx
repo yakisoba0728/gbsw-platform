@@ -8,7 +8,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Input, Label } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
 import { TableFrame, tableCellPadding } from "@/components/ui/table";
-import { signedNet, type MeritTrack } from "@/core/authz/merit-track";
+import {
+  signedNet,
+  type DemeritThresholds,
+  type MeritTrack,
+} from "@/core/authz/merit-track";
 import { RulePicker, type RuleOption } from "@/components/merit/rule-picker";
 import { demeritCellClass, ThresholdHint } from "@/components/merit/demerit-level";
 import { EMPTY_MERIT_STATE } from "./action-state";
@@ -36,6 +40,7 @@ export function ClassRoster({
   grade,
   classNo,
   track,
+  thresholds,
   year,
   viewingPast,
   rules,
@@ -45,6 +50,8 @@ export function ClassRoster({
   grade: number;
   classNo: number;
   track: MeritTrack;
+  /** 벌점 강조 기준. 관리자가 설정에서 정한 값을 서버가 내려준다. */
+  thresholds: DemeritThresholds;
   year?: number;
   /** 지난 학년도를 보고 있는가. true면 부여 폼을 감춘다. */
   viewingPast: boolean;
@@ -117,7 +124,7 @@ export function ClassRoster({
             <span className="text-[12px] text-mut">{rows.length}명</span>
           </div>
           <div className="hidden lg:block">
-            <ThresholdHint track={track} />
+            <ThresholdHint thresholds={thresholds} />
           </div>
           <ExportButton grade={grade} classNo={classNo} track={track} year={year} />
         </header>
@@ -204,7 +211,7 @@ export function ClassRoster({
                 </td>
                 <td className="px-3 py-2.5 font-bold text-blue">{row.merit}</td>
                 <td className="px-3 py-2.5">
-                  <span className={demeritCellClass(track, row.demerit)}>
+                  <span className={demeritCellClass(thresholds, row.demerit)}>
                     {row.demerit}
                   </span>
                 </td>

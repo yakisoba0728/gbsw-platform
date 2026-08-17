@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionUser } from "@/core/auth/session";
-import { DEMERIT_THRESHOLDS } from "@/core/authz/merit-track";
 
 /**
  * 기준 초과 학생 명단.
@@ -8,7 +7,16 @@ import { DEMERIT_THRESHOLDS } from "@/core/authz/merit-track";
  * **여기서 틀리면 조용히 틀린다.** 명단이 한 명 짧게 나와도 화면은 아무 이상이
  * 없어 보이고, 빠진 사람은 선도위원회 준비에서 그대로 누락된다. 그래서 경계값
  * (기준 정확히 = 포함), 트랙별 집계 범위, 반 범위를 못 박아 둔다.
+ *
+ * 기준은 관리자가 설정 화면에서 정하는 값이라 **여기서는 목으로 고정한다** —
+ * 코드 기본값을 그대로 쓰면 "설정을 읽는가"가 아니라 "상수가 무엇인가"를
+ * 검증하게 되고, 학교가 기준을 바꾸는 순간 이 테스트가 의미를 잃는다.
  */
+
+const WARN = 12;
+const DANGER = 18;
+
+const getDemeritThresholds = vi.fn();
 
 const trackTotals = vi.fn();
 const classSummaries = vi.fn();
@@ -32,6 +40,7 @@ vi.mock("@/modules/academic-year/academic-year.service", () => ({
   getCurrentYear: vi.fn().mockResolvedValue(2026),
   AcademicYearError: class extends Error {},
 }));
+vi.mock("@/modules/merit/threshold.service", () => ({ getDemeritThresholds }));
 
 const service = await import("@/modules/merit/stats.service");
 
@@ -49,9 +58,6 @@ function user(role: SessionUser["role"]): SessionUser {
 
 const admin = user("ADMIN");
 const NOW = new Date("2026-08-16T12:00:00+09:00");
-
-const WARN = DEMERIT_THRESHOLDS.SCHOOL.warn;
-const DANGER = DEMERIT_THRESHOLDS.SCHOOL.danger;
 
 /** repo.demeritTotalsByStudent가 내는 모양. */
 function sum(id: string, points: number) {
@@ -72,6 +78,7 @@ function student(id: string, name: string, enrolled = true) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  getDemeritThresholds.mockResolvedValue({ warn: WARN, danger: DANGER });
   trackTotals.mockResolvedValue([]);
   classSummaries.mockResolvedValue([]);
   topRules.mockResolvedValue([]);
@@ -116,9 +123,29 @@ describe("기준 초과 명단 — 경계", () => {
     expect(stats.watchList[1].level).toBe("warn");
   });
 
-  it("기준 숫자를 화면으로 내보낸다 — 임시값이라 눈에 보여야 한다", async () => {
+  it("설정된 기준 숫자를 화면으로 내보낸다 — 화면이 왜 붉은지 적을 근거다", async () => {
     const stats = await service.getMeritStats(admin, "SCHOOL", undefined, NOW);
-    expect(stats.thresholds).toEqual(DEMERIT_THRESHOLDS.SCHOOL);
+    expect(stats.thresholds).toEqual({ warn: WARN, danger: DANGER });
+  });
+
+  it("기준을 바꾸면 명단이 달라진다 — 이 기능의 존재 이유다", async () => {
+    demeritTotalsByStudent.mockResolvedValue([sum("sp-1", 10)]);
+    findStudentsWithClass.mockResolvedValue([student("sp-1", "김민준")]);
+
+    // 기준 12점 — 10점은 아직 명단에 안 오른다.
+    const before = await service.getMeritStats(admin, "SCHOOL", undefined, NOW);
+    expect(before.watchList).toEqual([]);
+
+    // 학교가 기준을 8점으로 낮추면 같은 학생이 명단에 오른다.
+    getDemeritThresholds.mockResolvedValue({ warn: 8, danger: 15 });
+    const after = await service.getMeritStats(admin, "SCHOOL", undefined, NOW);
+    expect(after.watchList.map((r) => r.name)).toEqual(["김민준"]);
+    expect(after.watchList[0].level).toBe("warn");
+  });
+
+  it("트랙마다 자기 기준을 읽는다 — 교내와 기숙사가 다를 수 있다", async () => {
+    await service.getMeritStats(admin, "DORM", undefined, NOW);
+    expect(getDemeritThresholds).toHaveBeenCalledWith("DORM");
   });
 });
 

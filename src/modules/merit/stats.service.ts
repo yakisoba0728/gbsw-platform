@@ -1,12 +1,13 @@
 import type { SessionUser } from "@/core/auth/session";
 import { assertCan } from "@/core/authz/errors";
 import {
-  DEMERIT_THRESHOLDS,
   demeritLevel,
   isYearScoped,
   type DemeritLevel,
+  type DemeritThresholds,
   type MeritTrack,
 } from "@/core/authz/merit-track";
+import { getDemeritThresholds } from "./threshold.service";
 import {
   categoryDistribution,
   monthlyTotals,
@@ -56,8 +57,11 @@ export type MeritStats = {
   topRules: Awaited<ReturnType<typeof repo.topRules>>;
   /** 벌점이 기준(warn) 이상인 학생들 — 벌점 많은 순. 표시 전용이다. */
   watchList: WatchListRow[];
-  /** 화면에 그대로 적는다 — 학교가 정할 임시값이라 틀리면 바로 보여야 한다. */
-  thresholds: { warn: number; danger: number };
+  /**
+   * 지금 적용 중인 기준. **화면에 그대로 적고, 표의 강조 색도 이 값으로 칠한다** —
+   * 관리자가 설정에서 바꾸는 값이라 숫자가 안 보이면 왜 붉은지 알 수 없다.
+   */
+  thresholds: DemeritThresholds;
 };
 
 /**
@@ -83,16 +87,20 @@ export type WatchListRow = {
  *
  * **표시만 한다.** 기준을 넘겨도 회부·통보·상태 변경 같은 것은 하나도 일어나지
  * 않는다 — 설계서가 알림·자동 조치를 의도적으로 미뤘고, 불이익을 주는 판단은
- * 사람이 한다. 화면에 기준 숫자를 함께 내보내는 이유도 같다: DEMERIT_THRESHOLDS는
- * 학교가 정할 값의 임시값이라, 틀린 값이면 화면에서 바로 보여야 한다.
+ * 사람이 한다. 화면에 기준 숫자를 함께 내보내는 이유도 같다: 관리자가 설정에서
+ * 바꾸는 값이라, 지금 몇 점이 기준인지가 명단 옆에 적혀 있어야 읽힌다.
+ *
+ * **기준은 인자로 받는다** — 같은 요청 안에서 명단·강조·화면 문구가 한 번 읽은
+ * 같은 값을 봐야 한다 (읽는 일은 getMeritStats가 한 번만 한다).
  */
 async function readWatchList(
+  thresholds: DemeritThresholds,
   track: MeritTrack,
   totalsYear: number | null,
   rosterYear: number,
   studentProfileIds?: string[],
 ): Promise<WatchListRow[]> {
-  const { warn } = DEMERIT_THRESHOLDS[track];
+  const { warn } = thresholds;
 
   const sums = await repo.demeritTotalsByStudent({
     track,
@@ -130,7 +138,7 @@ async function readWatchList(
           classNo: enrollment?.schoolClass?.classNo ?? null,
           number: enrollment?.number ?? null,
           demerit: row.demerit,
-          level: demeritLevel(track, row.demerit),
+          level: demeritLevel(thresholds, row.demerit),
         },
       ];
     })
@@ -192,6 +200,9 @@ export async function getMeritStats(
   const scoped = await scopeYear(track, year);
   const rosterYear = year ?? (await getCurrentYear());
 
+  // 기준은 여기서 한 번 읽어 명단·화면에 같은 값을 쓴다 (읽기는 캐시된다).
+  const thresholds = await getDemeritThresholds(track);
+
   // 기숙사는 누적이라 학년도 경계가 없다 — 최근 12개월만 그린다. 그렇지 않으면
   // 3학년 학생이 있는 해에는 축이 3년치로 늘어나 아무것도 안 보인다.
   const axis = isYearScoped(track)
@@ -231,7 +242,7 @@ export async function getMeritStats(
     }),
     repo.listAwardsForChart({ track, year: scoped, since, studentProfileIds }),
     // 반을 골랐으면 그 반 안에서만 본다 — 화면의 다른 숫자와 범위를 맞춘다.
-    readWatchList(track, scoped, rosterYear, studentProfileIds),
+    readWatchList(thresholds, track, scoped, rosterYear, studentProfileIds),
   ]);
 
   const totals = sumTotals(totalRows);
@@ -257,7 +268,7 @@ export async function getMeritStats(
       : classes,
     topRules,
     watchList,
-    thresholds: DEMERIT_THRESHOLDS[track],
+    thresholds,
   };
 }
 

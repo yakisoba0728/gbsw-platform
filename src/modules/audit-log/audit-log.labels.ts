@@ -67,6 +67,9 @@ export const AUDIT_ACTIONS = [
   // (invite:create:parent와 같은 패턴, 이 파일 상단 주석 참고).
   "merit:rule:deactivate",
   "merit:rule:delete",
+  // 벌점 경고·위험 기준 변경. 규정 추가·수정과 나눈다 — 저쪽은 항목 하나,
+  // 이쪽은 전교의 명단·강조가 한 번에 달라지는 변경이다.
+  "merit:threshold:update",
   "merit:award",
   "merit:cancel",
   // can() 검사를 통과 못 해 서비스가 거부했을 때 (I5, core/authz/errors.ts의
@@ -104,6 +107,7 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   "merit:rule:update": "상벌점 규정 수정",
   "merit:rule:deactivate": "상벌점 규정 삭제",
   "merit:rule:delete": "상벌점 규정 삭제",
+  "merit:threshold:update": "벌점 기준 변경",
   "merit:award": "상벌점 부여",
   "merit:cancel": "상벌점 취소",
   "authz:denied": "권한 거부",
@@ -132,6 +136,7 @@ const ACTION_TONES: Record<AuditAction, BadgeTone> = {
   "merit:rule:update": "info",
   "merit:rule:deactivate": "rejected",
   "merit:rule:delete": "rejected",
+  "merit:threshold:update": "info",
   // 상점·벌점 어느 쪽이든 나오는 액션이라 merit/demerit 톤을 쓰지 않는다 —
   // 색이 실제 종류와 어긋나면 목록을 훑을 때 오히려 오해를 만든다.
   "merit:award": "info",
@@ -155,6 +160,7 @@ const TARGET_LABELS: Record<string, string> = {
   StudentProfile: "학생",
   AcademicYear: "학년도",
   MeritRule: "상벌점 규정",
+  MeritThreshold: "벌점 기준",
   MeritAward: "상벌점",
 };
 
@@ -357,6 +363,34 @@ function meritRuleUpdateSummary(metadata: Record<string, unknown>): string | nul
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
+/**
+ * merit:threshold:update — "교내 · 경고 20→15 · 위험 30→25".
+ *
+ * **전/후를 둘 다 적는다.** 이 로그가 "언제부터 명단이 길어졌나"에 답하는
+ * 유일한 흔적이다 — 기준은 덮어쓰기라 옛 값이 DB 어디에도 안 남는다.
+ * 안 바뀐 쪽은 생략한다 (merit:rule:update의 점수 전/후와 같은 처리) —
+ * "20→20"이 늘 따라붙으면 실제로 바뀐 숫자가 묻힌다.
+ */
+function meritThresholdSummary(metadata: Record<string, unknown>): string | null {
+  const parts: string[] = [];
+
+  const track = metadata.track;
+  if (isMeritTrack(track)) parts.push(MERIT_TRACK_LABELS[track]);
+
+  for (const [label, fromKey, toKey] of [
+    ["경고", "warnFrom", "warnTo"],
+    ["위험", "dangerFrom", "dangerTo"],
+  ] as const) {
+    const from = metadata[fromKey];
+    const to = metadata[toKey];
+    if (typeof to !== "number") continue;
+    if (typeof from === "number" && from !== to) parts.push(`${label} ${from}→${to}`);
+    else if (typeof from !== "number") parts.push(`${label} ${to}`);
+  }
+
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
 const METADATA_FORMATTERS: Partial<
   Record<AuditAction, (metadata: Record<string, unknown>) => string | null>
 > = {
@@ -373,6 +407,7 @@ const METADATA_FORMATTERS: Partial<
   "merit:award": meritAwardSummary,
   "merit:cancel": meritCancelSummary,
   "merit:rule:update": meritRuleUpdateSummary,
+  "merit:threshold:update": meritThresholdSummary,
 };
 
 /**

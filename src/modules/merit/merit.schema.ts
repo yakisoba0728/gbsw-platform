@@ -86,6 +86,48 @@ export type UpdateRuleInput = z.infer<typeof updateRuleSchema>;
 export const ruleIdSchema = z.object({ ruleId: z.string().trim().min(1) });
 
 /**
+ * 벌점 기준의 상한.
+ *
+ * 실제 학칙은 20~40점대이고, 기숙사가 입학부터 누적이어도 3년치가 세 자리를
+ * 넘기기 어렵다. 그래도 상한을 두는 이유는 **오타가 조용히 넘어가기 때문이다** —
+ * 20 대신 2000을 넣으면 오류도 안 나고 화면도 멀쩡한데 경고가 영영 안 뜬다.
+ * 규정 한 건의 점수 상한(positiveInt의 1000)과 같은 수를 쓴다 — 두 값이 같은
+ * 자릿수 감각을 공유해야 "1000점짜리 기준"이 이상하게 보인다.
+ */
+export const MAX_THRESHOLD = 1000;
+
+/** 기준 한 칸. 라벨을 받아 문구에 넣는다 — "경고 기준은…" / "위험 기준은…". */
+const thresholdInt = (label: string) =>
+  z
+    .string()
+    .trim()
+    .regex(/^\d+$/, `${label} 기준은 1 이상의 정수여야 합니다.`)
+    .transform(Number)
+    .refine(
+      (n) => n >= 1 && n <= MAX_THRESHOLD,
+      `${label} 기준은 1~${MAX_THRESHOLD} 사이여야 합니다.`,
+    );
+
+/**
+ * 벌점 기준 설정. 트랙 하나씩 저장한다.
+ *
+ * **위험이 경고보다 커야 한다.** 같거나 작으면 demeritLevel이 danger를 먼저
+ * 걸어서 경고 구간이 통째로 사라지는데, 화면에는 아무 이상이 없어 보인다.
+ */
+export const thresholdSchema = z
+  .object({
+    track: trackSchema,
+    warn: thresholdInt("경고"),
+    danger: thresholdInt("위험"),
+  })
+  .refine((v) => v.danger > v.warn, {
+    message: "위험 기준은 경고 기준보다 커야 합니다.",
+    path: ["danger"],
+  });
+
+export type ThresholdInput = z.infer<typeof thresholdSchema>;
+
+/**
  * 부여 입력. **학년도가 없다** — 항상 getCurrentYear()로 들어간다.
  * 화면의 학년도 선택은 조회 전용이며, 그 값을 여기로 흘리면 지난 학년도를
  * 들여다보던 관리자가 새 벌점을 거기 꽂는 사고가 난다.

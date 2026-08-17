@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   addKindPoints,
   addKindTotals,
+  DEFAULT_DEMERIT_THRESHOLDS,
+  demeritLevel,
   emptyKindTotals,
   isMeritKind,
   isMeritTrack,
@@ -182,5 +184,63 @@ describe("signedNet", () => {
 
   it("음수는 숫자가 가진 부호를 그대로 쓴다", () => {
     expect(signedNet(-3)).toBe("-3");
+  });
+});
+
+/**
+ * 벌점 누적 단계.
+ *
+ * **기준을 인자로 받는 순수 함수다.** 예전에는 모듈 상수(DEMERIT_THRESHOLDS)를
+ * 직접 읽었는데, 기준이 관리자 설정값이 되면서 "읽는 시점"이 생겼다 — 계산은
+ * 값을 받기만 하고, 어디서 읽어 오느냐는 서비스가 정한다.
+ */
+describe("demeritLevel", () => {
+  const thresholds = { warn: 20, danger: 30 };
+
+  it("경고 기준 정확히면 warn이다 — 경계는 포함이다", () => {
+    expect(demeritLevel(thresholds, 20)).toBe("warn");
+  });
+
+  it("경고 기준보다 1점 낮으면 none이다", () => {
+    expect(demeritLevel(thresholds, 19)).toBe("none");
+  });
+
+  it("위험 기준 정확히면 danger다 — 여기도 포함이다", () => {
+    expect(demeritLevel(thresholds, 30)).toBe("danger");
+  });
+
+  it("위험 기준을 넘으면 계속 danger다", () => {
+    expect(demeritLevel(thresholds, 999)).toBe("danger");
+  });
+
+  it("벌점이 없으면 none이다", () => {
+    expect(demeritLevel(thresholds, 0)).toBe("none");
+  });
+
+  it("기준이 달라지면 같은 점수의 단계도 달라진다 — 이 기능의 존재 이유다", () => {
+    expect(demeritLevel({ warn: 5, danger: 10 }, 7)).toBe("warn");
+    expect(demeritLevel({ warn: 50, danger: 100 }, 7)).toBe("none");
+  });
+});
+
+/**
+ * 설정 행이 없을 때 떨어질 자리. **화면에 그대로 나가는 값**이라 모양이
+ * 흐트러지면 안 된다 (경고 < 위험, 둘 다 1 이상의 정수).
+ */
+describe("DEFAULT_DEMERIT_THRESHOLDS", () => {
+  it("모든 트랙에 기본값이 있다", () => {
+    for (const track of MERIT_TRACKS) {
+      expect(DEFAULT_DEMERIT_THRESHOLDS[track]).toBeTruthy();
+    }
+  });
+
+  it("위험이 경고보다 크고 둘 다 1 이상의 정수다 — 저장 시 검증과 같은 규칙이다", () => {
+    for (const track of MERIT_TRACKS) {
+      const { warn, danger } = DEFAULT_DEMERIT_THRESHOLDS[track];
+      expect(Number.isInteger(warn), track).toBe(true);
+      expect(Number.isInteger(danger), track).toBe(true);
+      expect(warn, track).toBeGreaterThanOrEqual(1);
+      expect(danger, track).toBeGreaterThan(warn);
+    }
   });
 });
