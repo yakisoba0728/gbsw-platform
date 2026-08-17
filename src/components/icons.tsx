@@ -78,6 +78,22 @@ export function SettingsIcon(props: IconProps) {
   );
 }
 
+/**
+ * 설정 메뉴. 톱니바퀴(SettingsIcon)를 다시 쓰지 않는다 — 관리자 섹션에서
+ * 이미 "사용자 관리"가 그 그림을 쓰고 있어, 같은 섹션에 같은 아이콘이 둘이면
+ * 목록을 훑을 때 두 줄을 구분하지 못한다.
+ */
+export function SlidersIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={1.7} {...props}>
+      <path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h10M18 18h2" />
+      <circle cx="16" cy="6" r="2" />
+      <circle cx="10" cy="12" r="2" />
+      <circle cx="16" cy="18" r="2" />
+    </Icon>
+  );
+}
+
 export function ChevronLeftIcon(props: IconProps) {
   return (
     <Icon strokeWidth={1.9} {...props}>

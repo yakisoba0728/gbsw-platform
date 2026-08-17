@@ -51,6 +51,24 @@ describe("상벌점 메뉴 구성", () => {
   });
 });
 
+describe("설정 메뉴", () => {
+  const settings = ADMIN_NAV_ITEMS.find((i) => i.href === "/admin/settings") as NavItem;
+
+  it("관리자 섹션에 한 줄로 있다", () => {
+    expect(settings).toBeDefined();
+    expect(settings.label).toBe("설정");
+  });
+
+  it("관리자만 본다", () => {
+    expect(settings.roles).toEqual(["ADMIN"]);
+  });
+
+  it("사용자 관리와 아이콘이 다르다 — 같은 섹션에서 같은 그림이 둘이면 못 가른다", () => {
+    const users = ADMIN_NAV_ITEMS.find((i) => i.href === "/admin/users") as NavItem;
+    expect(settings.icon).not.toBe(users.icon);
+  });
+});
+
 describe("isGroupActive — 부모가 켜지는 조건", () => {
   it("본인 경로에서 켜진다", () => {
     expect(isGroupActive("/merit", merit)).toBe(true);
@@ -132,6 +150,10 @@ describe("titleForPath — 하위 메뉴까지 훑는다", () => {
     expect(titleForPath("/admin/logs")).toBe("로그");
   });
 
+  it("설정 화면도 제목이 나온다", () => {
+    expect(titleForPath("/admin/settings")).toBe("설정");
+  });
+
   it("모르는 경로는 시스템 이름으로 떨어진다", () => {
     expect(titleForPath("/없는경로")).toBe("GBSW 통합관리시스템");
   });
@@ -147,6 +169,7 @@ describe("메뉴 링크가 실제 화면을 가리킨다", () => {
     ["/merit/stats", "src/app/(app)/merit/stats/page.tsx"],
     ["/merit/recent", "src/app/(app)/merit/recent/page.tsx"],
     ["/admin/merit/rules", "src/app/(app)/admin/merit/rules/page.tsx"],
+    ["/admin/settings", "src/app/(app)/admin/settings/page.tsx"],
   ])("%s → %s", async (_href, file) => {
     const { existsSync } = await import("node:fs");
     const { join } = await import("node:path");

@@ -5,6 +5,7 @@ import {
   LogIcon,
   MeritIcon,
   SettingsIcon,
+  SlidersIcon,
   UsersIcon,
 } from "@/components/icons";
 import type { Role } from "@/core/authz/roles";
@@ -100,6 +101,14 @@ export const ADMIN_NAV_ITEMS: NavItem[] = [
     href: "/admin/logs",
     label: "로그",
     icon: LogIcon,
+    roles: ["ADMIN"],
+  },
+  {
+    // 학교 전체에 한 번에 적용되는 수치를 모아 두는 자리. 지금은 벌점 기준
+    // 하나뿐이라 하위 메뉴 없이 한 줄이다 — 항목이 늘면 그때 children을 연다.
+    href: "/admin/settings",
+    label: "설정",
+    icon: SlidersIcon,
     roles: ["ADMIN"],
   },
 ];
