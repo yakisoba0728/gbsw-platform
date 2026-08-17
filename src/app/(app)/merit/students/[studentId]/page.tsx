@@ -23,6 +23,8 @@ import {
   listAwardYears,
 } from "@/modules/merit/award.service";
 import { listActiveRules } from "@/modules/merit/rule.service";
+import { EMPTY_MERIT_STATE } from "../../action-state";
+import { cancelAction } from "../../actions";
 import { ExportHistoryButton } from "../../export-button";
 import { YearPicker } from "../../year-picker";
 import { AwardForm } from "./award-form";
@@ -192,7 +194,14 @@ export default async function StudentMeritPage({
             />
           )}
 
-          <AwardHistory awards={view.awards} canCancel studentProfileId={studentId} />
+          {/* 취소 서버 액션은 화면이 넘긴다 — 공용 컴포넌트가 app/의 경로를
+              알지 않도록(components/merit/cancel-button.tsx 주석 참고). */}
+          <AwardHistory
+            awards={view.awards}
+            studentProfileId={studentId}
+            cancelAction={cancelAction}
+            initialState={EMPTY_MERIT_STATE}
+          />
 
           <div className="flex flex-wrap gap-2">
             <ExportHistoryButton

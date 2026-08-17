@@ -1,18 +1,29 @@
-import { CancelButton } from "@/app/(app)/merit/students/[studentId]/cancel-button";
+import type { ComponentProps } from "react";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionCard } from "@/components/ui/section-card";
 import { TableFrame, tableCellPadding } from "@/components/ui/table";
+import { CancelButton } from "@/components/merit/cancel-button";
 import { KindBadge, kindColorClass, signedPoints } from "@/components/merit/kind-badge";
 import { formatDate, isSameKstDate } from "@/lib/datetime";
 import type { StudentMeritView } from "@/modules/merit/award.service";
 
 type AwardRow = StudentMeritView["awards"][number];
 
+/** 취소 버튼에 그대로 넘길 두 값. 계약은 CancelButton이 정한다 — 여기서 다시
+ *  적으면 둘이 갈라진 채로 둘 다 통과하는 날이 온다. */
+type CancelProps = ComponentProps<typeof CancelButton>;
+
 /**
  * 부여 내역 표. 관리자 화면(취소 가능)과 학생·학부모 화면(조회만)이 공유한다 —
- * canCancel과 studentProfileId(취소 후 revalidatePath 대상)만 다르게 넘긴다.
- * 열: 발생일 · 구분 · 항목 · 점수 · 부여 · 상태 (+ canCancel이면 작업).
+ * 취소 액션과 studentProfileId(취소 후 revalidatePath 대상)만 다르게 넘긴다.
+ * 열: 발생일 · 구분 · 항목 · 점수 · 부여 · 상태 (+ 취소 가능하면 작업).
+ *
+ * **취소 가능 여부를 불리언이 아니라 액션의 유무로 판단한다.** 예전엔
+ * `canCancel: boolean`이었고 취소 버튼은 화면 경로를 직접 import했다 —
+ * `components/` → `app/` 역방향 의존(저장소에 하나뿐이었다)이라 그 화면을
+ * 옮기면 세 화면이 함께 깨졌다. 액션을 위에서 받으면 그 고리가 끊기고,
+ * 덤으로 "취소 가능하다고 해 놓고 액션이 없는" 상태가 아예 표현되지 않는다.
  *
  * **날짜 칸은 발생일이다.** 다만 입력일이 다른 날이면 그것도 함께 적는다 —
  * "6월 12일에 일어난 일을 8월 16일에 넣었다"를 기록에서 읽을 수 없으면,
@@ -20,13 +31,18 @@ type AwardRow = StudentMeritView["awards"][number];
  */
 export function AwardHistory({
   awards,
-  canCancel,
   studentProfileId,
+  cancelAction,
+  initialState,
 }: {
   awards: AwardRow[];
-  canCancel: boolean;
   studentProfileId: string;
+  /** 주면 "작업" 열이 생긴다. 학생·학부모 화면은 넘기지 않는다. */
+  cancelAction?: CancelProps["cancelAction"];
+  /** cancelAction의 초기 상태. 액션과 함께 온다 (CancelButton 주석 참고). */
+  initialState?: CancelProps["initialState"];
 }) {
+  const canCancel = cancelAction !== undefined && initialState !== undefined;
   if (awards.length === 0) {
     return <EmptyState>내역이 없습니다.</EmptyState>;
   }
@@ -117,10 +133,15 @@ export function AwardHistory({
                     <Badge tone="approved">반영</Badge>
                   )}
                 </td>
-                {canCancel && (
+                {cancelAction !== undefined && initialState !== undefined && (
                   <td className="px-5 py-2.5">
                     {!cancelled && (
-                      <CancelButton awardId={award.id} studentProfileId={studentProfileId} />
+                      <CancelButton
+                        awardId={award.id}
+                        studentProfileId={studentProfileId}
+                        cancelAction={cancelAction}
+                        initialState={initialState}
+                      />
                     )}
                   </td>
                 )}

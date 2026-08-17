@@ -57,9 +57,10 @@ export function OwnMeritView({
 
       <MeritTotalsCards totals={view.totals} />
 
-      {/* canCancel이 늘 false라 studentProfileId는 실제로 쓰이지 않는다 —
-          StudentMeritView가 애초에 이 id를 담지 않는다(본인 조회에 불필요). */}
-      <AwardHistory awards={view.awards} canCancel={false} studentProfileId="" />
+      {/* 취소 액션을 넘기지 않으므로 "작업" 열 자체가 없고, studentProfileId도
+          실제로 쓰이지 않는다 — StudentMeritView가 애초에 이 id를 담지 않는다
+          (본인 조회에 불필요). */}
+      <AwardHistory awards={view.awards} studentProfileId="" />
     </div>
   );
 }
