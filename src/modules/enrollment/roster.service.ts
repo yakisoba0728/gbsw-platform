@@ -5,7 +5,7 @@ import { generateUniqueCode, toExpiresAt } from "@/modules/invites/invite.servic
 import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
 import { buildExportRows } from "./roster.export";
 import { parseRoster, type RosterRow } from "./roster.parse";
-import { bulkDeleteThreshold, planRoster, type RosterPlan } from "./roster.plan";
+import { planRoster, type RosterPlan } from "./roster.plan";
 import * as repo from "./roster.repo";
 
 export class RosterError extends Error {}
@@ -62,21 +62,25 @@ export async function exportRoster(
  * 클라이언트가 돌려보낸 행을 **서버가 다시 분류한다.** 미리보기 결과를 그대로 믿으면
  * 중간에 손댄 값이 그대로 들어가고, 그 사이 DB가 바뀌었을 수도 있다.
  *
+ * 삭제 확인은 두 값이 함께 한다 — **무엇을 지우는지**(confirmedDeletionIds)와
+ * **몇 명을 지우는지**(deletionCountConfirmation)다.
+ *
  * `confirmedDeletionIds`는 미리보기가 관리자에게 보여준 삭제 대상(missingFromFile)의
  * studentProfileId 목록이다 — boolean 플래그가 아니라 **집합**을 받는 이유는, 확정
  * 시점에 서비스가 삭제 대상을 다시 계산하기 때문이다(I-2). 그 사이 DB가 바뀌면(예:
  * 파일에 없던 학생이 초대코드로 막 가입해 새 StudentProfile이 생기면) boolean만으로는
  * "삭제에 동의했다"는 사실과 "무엇을 보고 동의했는지"를 구분할 수 없어, 관리자가 본
  * 적 없는 학생이 조용히 삭제될 수 있다. 서비스가 다시 세운 집합과 이 목록을 대조해
- * 다르면 거부한다. 빈 배열이 곧 "확인 안 함"이다.
+ * 다르면 거부한다 — **화면이 그 시점에 실제로 본 목록**이라는 뜻이지, 관리자의 동의
+ * 표시가 아니다(동의는 아래 건수가 받는다).
  *
- * `deletionCountConfirmation`은 삭제 건수가 임계(bulkDeleteThreshold)를 넘는 대량
- * 삭제에서만 의미가 있다(I-3) — 잘못된 파일(다른 학년만 담긴 파일, 다른 학교 파일)을
- * 올렸을 때 체크박스 하나가 마지막 방어선이 되지 않도록, 관리자가 직접 센 건수와
- * 서버가 다시 계산한 건수를 대조한다.
+ * `deletionCountConfirmation`은 관리자가 직접 센 삭제 인원이다(I-3). 삭제 대상이
+ * 하나라도 있으면 **항상** 요구한다 — 잘못된 파일(다른 학년만 담긴 파일, 다른 학교
+ * 파일)을 올렸을 때 마지막 방어선이 되어야 하는데, 예전처럼 임계 초과에서만 물으면
+ * 학교가 클수록 임계도 커져 정작 한 반이 통째로 빠진 파일을 그냥 지나쳤다.
  *
- * 되돌릴 수 없는 유일한 동작이라 화면 체크박스·입력칸만이 아니라 서버가 다시
- * 강제한다. 서버 액션을 직접 호출하면 화면의 확인 절차는 건너뛸 수 있기 때문이다.
+ * 되돌릴 수 없는 유일한 동작이라 화면 입력칸만이 아니라 서버가 다시 강제한다.
+ * 서버 액션을 직접 호출하면 화면의 확인 절차는 건너뛸 수 있기 때문이다.
  */
 export async function applyRosterPlan(
   actor: SessionUser,
@@ -119,9 +123,10 @@ export async function applyRosterPlan(
   }
 
   // I-2: 미리보기가 보여준 삭제 대상과 지금 다시 세운 삭제 대상이 정확히 같은
-  // 집합이어야 한다. 순서·중복은 의미가 없으므로 Set으로 비교한다 — 관리자가
-  // 확인 체크를 하지 않아 빈 배열을 보낸 경우도 여기서 걸린다(빈 배열 ≠ 비어있지
-  // 않은 삭제 대상 집합).
+  // 집합이어야 한다. 순서·중복은 의미가 없으므로 Set으로 비교한다 — 지울 사람이
+  // 하나라도 다르면 관리자가 본 화면과 지금이 다르다는 뜻이다. 화면은 삭제 대상이
+  // 있으면 목록을 그대로 실어 보내므로, 빈 배열이 오는데 삭제 대상이 있다면 화면을
+  // 거치지 않은 요청이다 — 그것도 여기서 걸린다.
   const currentDeletionIds = new Set(plan.missingFromFile.map((m) => m.studentProfileId));
   const confirmedSet = new Set(confirmedDeletionIds);
   const deletionSetMatches =
@@ -129,11 +134,16 @@ export async function applyRosterPlan(
     [...currentDeletionIds].every((id) => confirmedSet.has(id));
   if (!deletionSetMatches) throw new RosterError("DELETION_SET_CHANGED");
 
-  // I-3: 삭제 건수가 임계를 넘으면 체크박스만으로 부족하다 — 관리자가 직접 입력한
-  // 건수가 서버가 다시 센 건수와 정확히 같아야 한다. 임계 이하에서는
-  // deletionCountConfirmation을 보지 않는다(화면에 입력칸 자체가 없다).
+  // I-3: 삭제 대상이 **하나라도** 있으면 관리자가 직접 입력한 건수가 서버가 다시 센
+  // 건수와 정확히 같아야 한다.
+  //
+  // 예전에는 "10명 또는 재학생의 10% 중 큰 쪽"을 넘을 때만 물었다. 그 임계는 학교가
+  // 클수록 함께 커져서 정작 큰 사고를 놓쳤다 — 재학 300명이면 임계가 30이라 한 반
+  // (25명)이 통째로 빠진 잘못된 파일이 체크박스 하나로 확정됐다. 임계를 낮추는 대신
+  // 없앴다: 삭제는 되돌릴 수 없는 쪽에 가장 가까운 동작이고, 정상적인 학기말 정리라면
+  // 관리자는 몇 명을 빼는지 이미 알고 있어 숫자 하나 적는 것이 부담이 되지 않는다.
   const deleteCount = plan.missingFromFile.length;
-  if (deleteCount > bulkDeleteThreshold(plan.totalStudents) && deletionCountConfirmation !== deleteCount) {
+  if (deleteCount > 0 && deletionCountConfirmation !== deleteCount) {
     throw new RosterError("DELETION_COUNT_MISMATCH");
   }
 

@@ -27,10 +27,10 @@ const MESSAGES: Record<string, string> = {
   BLOCKED: "오류가 있는 줄이 남아 있습니다.",
   CODE_COLLISION: "초대코드가 겹쳤습니다. 다시 시도해 주세요.",
   CANNOT_DEACTIVATE_SELF: "자기 계정은 비활성화할 수 없습니다.",
-  // 미리보기 이후 삭제 대상이 바뀌었다(I-2) — 체크박스만 다시 누른다고 해결되지
+  // 미리보기 이후 삭제 대상이 바뀌었다(I-2) — 인원 수만 다시 적는다고 해결되지
   // 않는다. 새로고침해서 다시 미리보기부터 해야 한다.
   DELETION_SET_CHANGED: "삭제 대상이 바뀌었습니다. 다시 확인해 주세요.",
-  // 대량 삭제(I-3)에서 건수를 안 넣었거나 틀리게 넣었다.
+  // 삭제 대상이 있는데 인원 수를 안 넣었거나 틀리게 넣었다 (I-3).
   DELETION_COUNT_MISMATCH: "삭제할 인원 수를 정확히 입력해 주세요.",
   CANNOT_DELETE_SELF: "자기 계정은 삭제할 수 없습니다.",
 };
@@ -141,7 +141,8 @@ export async function applyRosterAction(
   // 미리보기가 보여준 삭제 대상 id 목록을 hidden input(JSON 문자열)으로 받는다 (I-2).
   // 이건 실수를 막는 첫 방어선일 뿐이다 — 서버 액션을 직접 호출하면 이 필드를 조작해
   // 보낼 수 있으므로, 진짜 강제는 applyRosterPlan 안에서 다시 세운 삭제 대상 집합과의
-  // 대조가 한다. 빈 배열이 곧 "확인 안 함"이라 boolean 플래그는 따로 두지 않는다.
+  // 대조가 한다. 이 목록은 동의 표시가 아니라 "화면이 무엇을 보고 있었는가"다 —
+  // 동의는 아래 deletionCount가 받는다.
   let confirmedDeletionIdsJson: unknown;
   try {
     confirmedDeletionIdsJson = JSON.parse(String(formData.get("confirmedDeletionIds") ?? "[]"));
@@ -155,8 +156,10 @@ export async function applyRosterAction(
     return { error: "삭제 확인 정보를 읽지 못했습니다.", saved: null, deleted: null, excludedNew: [], invites: [] };
   }
 
-  // 대량 삭제(I-3) 확인 입력. 임계를 넘지 않으면 화면에 입력칸이 없어 빈 문자열이
-  // 오는데, deletionCountConfirmationSchema가 그걸 null로 취급한다 — 정상이다.
+  // 삭제 인원 확인 입력 (I-3). 삭제 대상이 없으면 화면에 입력칸이 없어 빈 문자열이
+  // 오는데, deletionCountConfirmationSchema가 그걸 null로 접는다 — 정상이다.
+  // 삭제 대상이 있는데 null인지는 여기서 가르지 않는다: 삭제 건수는 서버가 다시 세운
+  // plan만 알기 때문에 applyRosterPlan이 거부한다.
   // 형식이 아예 깨진 값(숫자로 못 읽는 문자열 등)은 "건수를 정확히 입력하라"는
   // 문구로 보낸다 — 애매한 값 자체가 그 오류이기 때문이다.
   const deletionCountParsed = deletionCountConfirmationSchema.safeParse(

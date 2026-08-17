@@ -118,8 +118,8 @@ export type ApplyInput = {
   managedStudentProfileIds: string[];
   /**
    * 명단에서 빠진 학생 — **계정을 소프트 삭제한다** (지우지 않고 deletedAt만 찍는다).
-   * service의 삭제 확인 게이트(확인 id 집합 대조 + 대량 삭제 건수 대조)를 통과한
-   * 뒤에만 여기 온다.
+   * service의 삭제 확인 게이트(확인 id 집합 대조 + 삭제 인원 대조)를 통과한
+   * 뒤에만 여기 온다 — 인원 대조는 삭제가 1명이라도 있으면 늘 요구한다.
    *
    * 계정·StudentProfile·지난 학년도 배정·상벌점·감사로그는 그대로 남는다.
    * **다만 이번 학년도 배정(Enrollment)은 사라진다** — 아래 deleteMany가 관리

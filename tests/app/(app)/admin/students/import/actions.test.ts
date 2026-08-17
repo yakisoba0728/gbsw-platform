@@ -63,7 +63,8 @@ function applyForm(over: Record<string, string> = {}): FormData {
     rows: JSON.stringify([ROW]),
     year: "2026",
     confirmedDeletionIds: "[]",
-    // 임계 이하에서는 화면에 입력칸이 없어 빈 문자열이 온다 — 정상 경로다.
+    // 삭제 대상이 없으면 화면에 입력칸이 없어 빈 문자열이 온다 — 정상 경로다.
+    // (삭제 대상이 있는데 비어 있으면 서비스가 거부한다 — 이 경계의 몫이 아니다.)
     deletionCount: "",
     ...over,
   });
@@ -183,7 +184,7 @@ describe("applyRosterAction — 경계 검증", () => {
     });
   });
 
-  it("삭제를 확인하면 id 목록이 그대로 서비스에 닿는다", async () => {
+  it("미리보기가 본 삭제 대상 id 목록이 그대로 서비스에 닿는다", async () => {
     await applyRosterAction(
       APPLY_INITIAL,
       applyForm({ confirmedDeletionIds: JSON.stringify(["sp-9", "sp-10"]) }),
@@ -192,10 +193,21 @@ describe("applyRosterAction — 경계 검증", () => {
     expect(applyRosterPlan.mock.calls[0]?.[3]).toEqual(["sp-9", "sp-10"]);
   });
 
-  it("대량 삭제 확인 건수를 숫자로 넘긴다", async () => {
+  it("삭제 인원 확인 건수를 숫자로 넘긴다", async () => {
     await applyRosterAction(APPLY_INITIAL, applyForm({ deletionCount: "42" }));
 
     expect(applyRosterPlan.mock.calls[0]?.[4]).toBe(42);
+  });
+
+  it("삭제가 1명이어도 그 건수를 그대로 넘긴다 — 예전에는 임계 이하라며 화면이 " +
+    "빈 문자열을 보냈고 서버도 보지 않았다", async () => {
+    await applyRosterAction(
+      APPLY_INITIAL,
+      applyForm({ confirmedDeletionIds: JSON.stringify(["sp-9"]), deletionCount: "1" }),
+    );
+
+    expect(applyRosterPlan.mock.calls[0]?.[3]).toEqual(["sp-9"]);
+    expect(applyRosterPlan.mock.calls[0]?.[4]).toBe(1);
   });
 
   it("건수 칸에 숫자가 아닌 값이 오면 서비스를 부르지 않는다", async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bulkDeleteThreshold, planRoster } from "@/modules/enrollment/roster.plan";
+import { planRoster } from "@/modules/enrollment/roster.plan";
 import { normalizeRows, type RosterRow } from "@/modules/enrollment/roster.parse";
 
 function row(over: Partial<RosterRow> = {}): RosterRow {
@@ -247,78 +247,18 @@ describe("planRoster()", () => {
     expect(plan.hasBlockingError).toBe(false);
   });
 
-  it("totalStudents는 재학생 수다 — 화면(import-form.tsx)과 서비스가 같은 " +
-    "분모로 대량 삭제 임계를 계산해야 한다 (I-3)", () => {
-    const 재학생2 = { ...재학생, studentProfileId: "sp-2", userId: "u-2", studentCode: "BCDF2345" };
-    const plan = planRoster([], [재학생, 재학생2]);
-
-    expect(plan.totalStudents).toBe(2);
-  });
-
-  describe("totalStudents 분모 — 재학 중인 학생만 센다", () => {
-    function 학생(over: Record<string, unknown>) {
-      return { ...재학생, ...over };
-    }
-
-    it("졸업생은 분모에서 뺀다 — 개교 4년 차면 졸업생이 재학생만큼 쌓이는데, " +
-      "그들까지 세면 대량 삭제 임계가 실제 재적 인원과 무관하게 두 배로 뛴다", () => {
-      const 재학 = Array.from({ length: 10 }, (_, i) =>
-        학생({ studentProfileId: `sp-e${i}`, userId: `u-e${i}`, studentCode: `ENRL${i}` }),
-      );
-      const 졸업 = Array.from({ length: 10 }, (_, i) =>
-        학생({
-          studentProfileId: `sp-g${i}`,
-          userId: `u-g${i}`,
-          studentCode: `GRAD${i}`,
-          status: "GRADUATED",
-          grade: null,
-          classNo: null,
-          number: null,
-        }),
-      );
-
-      const plan = planRoster([], [...재학, ...졸업]);
-
-      expect(plan.totalStudents).toBe(10);
-    });
-
-    it("그 학년도 배정이 아예 없는 학생(status null)도 분모에서 뺀다 — 지난 " +
-      "학년도에 졸업해 올해 배정이 없는 학생이 여기 온다", () => {
-      const 배정없음 = 학생({
-        studentProfileId: "sp-2",
-        userId: "u-2",
-        studentCode: "BCDF2345",
-        status: null,
-        grade: null,
-        classNo: null,
-        number: null,
-      });
-
-      const plan = planRoster([], [재학생, 배정없음]);
-
-      expect(plan.totalStudents).toBe(1);
-    });
-
-    it("아무도 배정을 안 받은 학년도 초에는 분모가 0이 되고, 임계는 절대 하한 " +
-      "10명으로 떨어진다 — 안전한 방향(더 자주 확인을 요구한다)이다", () => {
-      const 배정전 = Array.from({ length: 300 }, (_, i) =>
-        학생({
-          studentProfileId: `sp-n${i}`,
-          userId: `u-n${i}`,
-          studentCode: `NEWY${i}`,
-          status: null,
-          grade: null,
-          classNo: null,
-          number: null,
-        }),
-      );
-
-      const plan = planRoster([], 배정전);
-
-      expect(plan.totalStudents).toBe(0);
-      expect(bulkDeleteThreshold(plan.totalStudents)).toBe(10);
-    });
-  });
+  /*
+   * 예전엔 여기에 totalStudents(대량 삭제 임계의 분모) 테스트가 넷 있었다 —
+   * 졸업생·미배정·소프트 삭제된 학생을 분모에서 빼서 임계가 부풀지 않게 하는 것이
+   * 그 테스트들이 지키던 보증이다. 임계 자체가 없어졌으므로(삭제가 1명이라도 있으면
+   * 인원 수를 늘 요구한다) 분모도 함께 사라졌고, 그 보증은
+   * roster.service.test.ts의 "삭제 인원 대조 — 삭제 대상이 하나라도 있으면 늘
+   * 요구한다 (I-3)"가 더 강하게 이어받았다. 분모를 어떻게 세든 확인을 건너뛸 수
+   * 없으므로, 분모를 지키던 테스트는 지킬 대상이 없다.
+   *
+   * 소프트 삭제된 학생을 missingFromFile에서 빼는 규칙은 임계와 무관하게 남아 있어
+   * 아래 describe가 계속 지킨다.
+   */
 
   describe("소프트 삭제된 학생 — 명단에 다시 나타나면 되살아난다", () => {
     it("이미 삭제된 학생은 missingFromFile에 다시 들어가지 않는다 — 매번 삭제 " +
@@ -327,14 +267,6 @@ describe("planRoster()", () => {
       const plan = planRoster([], [이미삭제됨]);
 
       expect(plan.missingFromFile).toHaveLength(0);
-    });
-
-    it("totalStudents는 이미 삭제된 학생을 뺀다 — 안 빼면 삭제 누적이 쌓일수록 " +
-      "대량 삭제 임계가 실제 재적 인원과 무관하게 계속 올라간다", () => {
-      const 이미삭제됨 = { ...재학생, studentProfileId: "sp-2", userId: "u-2", studentCode: "BCDF2345", deleted: true };
-      const plan = planRoster([], [재학생, 이미삭제됨]);
-
-      expect(plan.totalStudents).toBe(1);
     });
 
     it("byCode 매칭은 삭제된 학생에게도 적용된다 — 명단에 원래 학생코드로 다시 " +
@@ -349,22 +281,13 @@ describe("planRoster()", () => {
   });
 });
 
-describe("bulkDeleteThreshold() — 대량 삭제 확인이 필요해지는 삭제 건수 (I-3)", () => {
-  it("전체 학생이 적으면 절대 하한 10명을 쓴다 — 10%가 10명 미만이어도 내려가지 않는다", () => {
-    expect(bulkDeleteThreshold(50)).toBe(10);
-    expect(bulkDeleteThreshold(0)).toBe(10);
-  });
-
-  it("전체 학생이 많으면 10% 쪽이 더 크다", () => {
-    expect(bulkDeleteThreshold(300)).toBe(30);
-  });
-
-  it("경계값: 삭제 건수가 임계와 같으면(초과가 아니면) 대량 삭제가 아니다", () => {
-    // 전체 100명 → 임계 10. 정확히 10명 삭제는 초과가 아니다.
-    expect(10 > bulkDeleteThreshold(100)).toBe(false);
-    expect(11 > bulkDeleteThreshold(100)).toBe(true);
-  });
-});
+/*
+ * bulkDeleteThreshold()의 테스트 셋(절대 하한 10명·재학생의 10%·경계값 `>`)도 함께
+ * 없앴다. 그 셋이 지키던 것은 "임계 계산이 화면과 서비스에서 어긋나지 않는다"인데,
+ * 임계를 없애 어긋날 두 곳 자체가 사라졌다 — 지금은 양쪽 다 `deleteCount > 0`이다.
+ * 임계가 정말 위험했던 지점(재학 300명 → 임계 30 → 한 반 25명이 그냥 통과)은
+ * roster.service.test.ts가 "1명만 빠져도 건수를 넣지 않으면 거부한다"로 못 박는다.
+ */
 
 describe("planRoster() + normalizeRows() — 회귀: 명단 업로드의 학년·반·번호 범위", () => {
   const HEADER = ["이름", "생년월일", "학년", "반", "번호", "학적"];

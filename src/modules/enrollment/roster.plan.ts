@@ -24,8 +24,8 @@ export type ExistingStudent = {
   /**
    * 명단에서 빠져 이미 소프트 삭제된 계정인가. optional — repo가 항상 채워 주지만,
    * 값이 없는 옛 테스트 픽스처는 "삭제 안 됨"으로 취급한다(허위 음성이 안전한 방향).
-   * byCode 매칭에는 그대로 쓰여 되살아날 수 있게 하되, missingFromFile·totalStudents
-   * 에서는 뺀다 — 이미 지운 사람을 매번 다시 삭제 확인시키지 않기 위해서다.
+   * byCode 매칭에는 그대로 쓰여 되살아날 수 있게 하되, missingFromFile에서는 뺀다 —
+   * 이미 지운 사람을 매번 다시 삭제 확인시키지 않기 위해서다.
    */
   deleted?: boolean;
 };
@@ -55,47 +55,12 @@ export type RosterPlan = {
    * 명단 파일에 없는 학생 = **삭제 대상**. 파일이 전교생 완성본(배정 없는 학생도 빈
    * 줄로 나간다)이므로, 재학·졸업·자퇴 등 학적과 무관하게 명단에 없으면 전부 여기
    * 온다. 확정하면 계정째 지워진다 — applyRosterPlan이 미리보기가 준 삭제 대상
-   * id 집합과 다시 대조하고(I-2), 대량 삭제면 건수 확인도 강제한다(I-3).
+   * id 집합과 다시 대조하고(I-2), 하나라도 있으면 건수 확인도 강제한다(I-3).
    */
   missingFromFile: ExistingStudent[];
   /** 하나라도 있으면 확정 버튼을 막는다. 절반만 반영되는 게 제일 나쁘다. */
   hasBlockingError: boolean;
-  /**
-   * 지금 재학 중인 학생 수. 대량 삭제 임계값(bulkDeleteThreshold)의 분모다 —
-   * 화면과 서비스가 같은 값을 봐야 같은 임계를 계산하므로, 서버가 다시 세운
-   * plan에 실어 함께 돌려준다.
-   *
-   * **existing 전체가 아니다.** 졸업생·소프트 삭제된 학생은 빠진다 — 이유는
-   * 아래 planRoster()의 계산부 주석에 적었다.
-   */
-  totalStudents: number;
 };
-
-/*
- * 두 상수는 내보내지 않는다 — 임계를 읽는 곳(화면·서비스)은 반드시
- * bulkDeleteThreshold() 하나만 거쳐야 두 곳이 같은 값을 본다. 상수를 열어 두면
- * 어느 한쪽이 직접 계산해 조건이 어긋나는 자리가 생긴다.
- */
-
-/** 대량 삭제 확인(건수 직접 입력)을 요구하기 시작하는 절대 하한. */
-const BULK_DELETE_MIN_COUNT = 10;
-/** 대량 삭제 확인을 요구하기 시작하는 비율 — 재학생의 10%. */
-const BULK_DELETE_PERCENT = 0.1;
-
-/**
- * 삭제 건수가 이 값을 **넘으면**(`>`, 같으면 아니다) 체크박스만으로 부족하다 —
- * 화면은 건수 직접 입력을 요구하고, 서비스는 같은 값을 다시 계산해 대조한다
- * (I-3). "10명 또는 재학생의 10% 중 큰 쪽" — 소규모 학교에서 10%가 10명
- * 미만이어도 최소 10명은 지키고, 대규모 학교에서는 절대 수 10명이 너무 낮아
- * 정상적인 학기말 정리마다 걸리는 것을 막는다.
- *
- * 정수로 반올림하지 않는다 — 삭제 건수는 항상 정수이므로 `deleteCount > threshold`
- * 비교에는 반올림 방향을 고민할 필요가 없고, 반올림을 넣으면 그 방향(올림/버림)이
- * 화면과 서비스 사이에서 어긋날 여지만 생긴다.
- */
-export function bulkDeleteThreshold(totalStudents: number): number {
-  return Math.max(BULK_DELETE_MIN_COUNT, totalStudents * BULK_DELETE_PERCENT);
-}
 
 export function planRoster(
   rows: RosterRow[],
@@ -116,18 +81,6 @@ export function planRoster(
     errorRows: [],
     missingFromFile: [],
     hasBlockingError: false,
-    // 대량 삭제 임계(bulkDeleteThreshold)의 분모 — **지금 재학 중인 학생만** 센다.
-    //
-    // existing은 학생을 studentCode로 이어붙이기 위해 학교가 지금까지 만든 모든
-    // StudentProfile을 들고 있다(roster.repo.ts의 listExisting 주석 참고). 그
-    // 전체를 분모로 쓰면 졸업생이 해마다 쌓이는 만큼 임계가 함께 올라간다 —
-    // 개교 4년 차에 재학 300·졸업 300이면 임계가 30이 아니라 60이 되어, 한 반이
-    // 통째로 빠진 잘못된 파일도 안전장치를 그냥 지나간다. 소프트 삭제된 학생을
-    // 빼는 것만으로는 부족했다(그건 같은 부풀림의 한 갈래일 뿐이다).
-    //
-    // 학년도가 막 넘어가 아무도 배정을 못 받은 시점에는 이 값이 0이 되고 임계는
-    // 절대 하한 10명으로 떨어진다 — 확인을 더 자주 요구하는 쪽이라 안전하다.
-    totalStudents: existing.filter((s) => !s.deleted && s.status === "ENROLLED").length,
   };
 
   // 파일 안에서 같은 학생코드가 두 번 나오거나 한 반에 번호가 겹치는지 먼저 본다.

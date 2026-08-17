@@ -82,15 +82,19 @@ export const rosterRowsSchema = z
  * 이후 DB가 바뀌면(예: 파일에 줄이 없던 학생이 그 사이 가입해 새 StudentProfile이
  * 생기면) 관리자가 본 적 없는 학생이 조용히 삭제 대상에 섞여 들어갈 수 있다.
  *
- * 빈 배열이 곧 "삭제를 확인하지 않았다"는 뜻이다 — 별도의 boolean 플래그를 두지
- * 않는다. 화면 체크박스는 있지만, 체크 여부는 이 배열이 채워졌는지로만 표현된다.
+ * **동의 표시가 아니라 화면이 본 목록이다.** 관리자의 동의는 아래 건수 입력이
+ * 받는다 — 화면은 미리보기에 삭제 대상이 있으면 이 목록을 늘 그대로 실어 보낸다.
+ * 그래서 삭제 대상이 있는데 빈 배열이 오면 화면을 거치지 않은 요청이라는 뜻이고,
+ * 서비스의 집합 대조가 그것도 함께 거른다.
  */
 export const confirmedDeletionIdsSchema = z.array(z.string().min(1)).max(2000);
 
 /**
- * 대량 삭제(I-3) 확인 입력. `formData.get()`이 돌려주는 문자열 그대로 받는다 —
- * 임계(roster.plan.ts의 bulkDeleteThreshold)를 넘지 않는 삭제에서는 화면에 입력칸
- * 자체가 없으므로 빈 문자열("입력 안 함")이 정상이고, 그때는 null로 취급한다.
+ * 삭제 인원 확인 입력(I-3). `formData.get()`이 돌려주는 문자열 그대로 받는다 —
+ * 삭제 대상이 하나도 없는 반영에서는 화면에 입력칸 자체가 없으므로 빈 문자열
+ * ("입력 안 함")이 정상이고, 그때는 null로 접는다. 삭제 대상이 있는데 null이면
+ * 서비스가 DELETION_COUNT_MISMATCH로 거부한다 — 그 판단은 여기서 하지 않는다.
+ * 삭제 건수는 이 경계가 아니라 서버가 다시 세운 plan만 알기 때문이다.
  */
 export const deletionCountConfirmationSchema = z.preprocess((v) => {
   if (typeof v !== "string") return v;

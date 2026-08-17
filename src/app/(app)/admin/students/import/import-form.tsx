@@ -19,7 +19,7 @@ import {
   ROSTER_INFO_COLUMNS,
 } from "@/modules/enrollment/roster.export";
 import type { RosterRow } from "@/modules/enrollment/roster.parse";
-import { bulkDeleteThreshold, type RosterPlan } from "@/modules/enrollment/roster.plan";
+import type { RosterPlan } from "@/modules/enrollment/roster.plan";
 import { APPLY_INITIAL, PREVIEW_INITIAL } from "./action-state";
 import { applyRosterAction, exportRosterAction, previewRosterAction } from "./actions";
 
@@ -118,10 +118,10 @@ export function ImportForm() {
   // 삭제 대상(missingFromFile)의 studentProfileId를 반드시 지문에 넣는다 —
   // 안 그러면 "행 수·첫줄·끝줄 이름"만 같고 삭제 대상이 다른 두 업로드가 같은
   // 지문으로 잡혀 PreviewCard가 다시 마운트되지 않는다. 그러면 이전 업로드에서
-  // 체크했던 deletionConfirmed(삭제 확인 체크박스) 상태가 그대로 남아, 관리자가
-  // 다른 학생의 삭제를 다시 확인하지 않고도 확정 버튼이 눌리는 사고로 이어진다.
-  // 전교생 규모에서는 가운데 줄 하나만 바꿔도 행 수·첫/끝 이름이 그대로인 경우가
-  // 흔하다 — 되돌릴 수 없는 동작이라 이 틈을 남겨두면 안 된다.
+  // 적어 둔 typedDeleteCount(삭제 인원 확인)가 그대로 남아, 건수만 우연히 같으면
+  // 관리자가 다른 학생의 삭제를 다시 확인하지 않고도 확정 버튼이 눌리는 사고로
+  // 이어진다. 전교생 규모에서는 가운데 줄 하나만 바꿔도 행 수·첫/끝 이름이 그대로인
+  // 경우가 흔하다 — 되돌릴 수 없는 동작이라 이 틈을 남겨두면 안 된다.
   const previewFingerprint =
     previewState.plan &&
     `${previewState.year}:${previewState.rows.length}:` +
@@ -255,22 +255,21 @@ function PreviewCard({
     applyRosterAction,
     APPLY_INITIAL,
   );
-  // 삭제 확인 체크박스. 서버가 삭제 대상 id 집합·건수를 다시 대조해 강제하지만
-  // (applyRosterPlan, I-2·I-3), 화면에서도 막아야 관리자가 배너를 안 읽고 실수로
-  // 확정을 누르는 걸 줄인다.
-  const [deletionConfirmed, setDeletionConfirmed] = useState(false);
-  // 대량 삭제(I-3) 확인용으로 관리자가 직접 입력하는 건수. 문자열로 들고 있다가
+  // 삭제 확인용으로 관리자가 직접 입력하는 인원 수 (I-3). 문자열로 들고 있다가
   // 제출 시에만 숫자와 대조한다 — 입력 중간값("1", "10" 앞자리)도 그대로 보여줘야
   // 한다.
+  //
+  // 예전에는 여기에 체크박스("N명을 뺍니다")가 하나 더 있었다. 건수 직접 입력이
+  // 대량 삭제에서만 뜨던 시절의 최소 확인이었는데, 이제 삭제가 1명이라도 있으면
+  // 항상 건수를 요구한다 — 숫자를 옮겨 적으려면 위 목록을 봐야 하므로 체크 한 번보다
+  // 강한 확인이고, 두 겹은 같은 것을 두 번 묻는 셈이라 걷어냈다. 대신 서버로 보내는
+  // 삭제 대상 id 목록(confirmedDeletionIds)은 그대로 둔다 — 그건 동의 표시가 아니라
+  // "화면이 무엇을 보고 있었는지"라서 I-2 대조의 근거다.
   const [typedDeleteCount, setTypedDeleteCount] = useState("");
 
   const applied = applyState.saved !== null && !applyState.error;
   const issueCount = plan.errorRows.length + plan.needsAttention.length;
   const deleteCount = plan.missingFromFile.length;
-  // "10명 또는 재학생의 10% 중 큰 쪽" — roster.plan.ts와 정확히 같은 계산이어야
-  // 화면이 입력칸을 보여주는 조건과 서버가 건수를 요구하는 조건이 어긋나지 않는다.
-  const bulkThreshold = bulkDeleteThreshold(plan.totalStudents);
-  const requiresCountConfirmation = deleteCount > bulkThreshold;
   const countConfirmationMatches = Number(typedDeleteCount) === deleteCount;
 
   return (
@@ -291,8 +290,9 @@ function PreviewCard({
     >
       {/* 미리보기 맨 위에, 접지 않고 펼친 채로 보여준다. 위험색(rose)이 아니라
           경고색(amber)을 쓴다 — 되돌릴 수 있는 동작이다(다음 명단에 다시 넣으면
-          돌아온다). 그래도 건수 직접 입력 확인은 그대로 둔다 — 되돌릴 수 있어도
-          전교생이 목록에서 한꺼번에 사라지는 건 여전히 큰 사고다. */}
+          돌아온다). 그래도 건수 직접 입력 확인은 한 명이라도 빠지면 늘 요구한다 —
+          되돌릴 수 있어도 학생이 목록·로그인에서 사라지는 동안은 사고이고, 잘못된
+          파일은 대개 "한 반이 통째로 빠진" 모습으로 온다. */}
       {deleteCount > 0 && (
         <div className="border-b-4 border-amber-ink bg-amber-soft px-5 py-4">
           <div className="flex items-center justify-between gap-3">
@@ -467,39 +467,25 @@ function PreviewCard({
           <form action={applyAction} className="flex flex-col gap-3">
             <input type="hidden" name="rows" value={JSON.stringify(rows)} />
             <input type="hidden" name="year" value={year} />
-            {/* 서버(applyRosterPlan)가 미리보기 이후 다시 세운 삭제 대상 집합과
-                대조하지만(I-2), 체크한 시점에 화면이 본 id 목록을 실어 보내야 그
-                대조가 성립한다. 체크 전에는 빈 배열 — 빈 배열 자체가 "확인 안
-                함"이므로 별도의 boolean 필드는 없다. */}
+            {/* 미리보기가 본 삭제 대상을 **늘** 실어 보낸다. 서버(applyRosterPlan)가
+                확정 시점에 다시 세운 집합과 대조하는데(I-2), 그 대조의 한쪽은 "화면이
+                그때 무엇을 보고 있었는가"여야 한다 — 관리자의 동의 표시가 아니다.
+                동의는 아래 인원 수 입력이 받는다. 삭제 대상이 없으면 자연히 빈
+                배열이다. */}
             <input
               type="hidden"
               name="confirmedDeletionIds"
-              value={JSON.stringify(
-                deletionConfirmed ? plan.missingFromFile.map((s) => s.studentProfileId) : [],
-              )}
+              value={JSON.stringify(plan.missingFromFile.map((s) => s.studentProfileId))}
             />
-            {/* 대량 삭제(I-3)에서만 서버가 이 값을 본다 — 임계 이하에서는 빈
-                문자열을 보내고 서버도 무시한다. */}
+            {/* 삭제가 1명이라도 있으면 서버가 이 값을 요구한다 (I-3). 삭제가 없으면
+                입력칸 자체가 없어 빈 문자열이 가고 서버도 보지 않는다. */}
             <input type="hidden" name="deletionCount" value={typedDeleteCount} />
             {deleteCount > 0 && (
-              <label className="flex items-start gap-2 text-[13px] font-semibold text-amber-ink">
-                <input
-                  type="checkbox"
-                  checked={deletionConfirmed}
-                  onChange={(e) => setDeletionConfirmed(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 accent-amber-ink"
-                />
-                <span>
-                  위 {deleteCount}명을 명단에서 뺍니다. 계정이 비활성화되지만
-                  되돌릴 수 있습니다.
-                </span>
-              </label>
-            )}
-            {requiresCountConfirmation && (
               <label className="flex flex-col gap-1 text-[13px] font-semibold text-amber-ink">
                 <span>
-                  {deleteCount}명은 대량 제외입니다. 잘못된 파일을 올렸을 때 마지막
-                  방어선이 되도록, 뺄 인원 수를 직접 입력해야 확정할 수 있습니다.
+                  확정하면 위 {deleteCount}명이 명단에서 빠집니다. 잘못된 파일을
+                  올렸을 때 마지막 방어선이 되도록, 뺄 인원 수를 직접 입력해야 확정할
+                  수 있습니다.
                 </span>
                 {/* 폭은 바깥에서 준다 — cn()이 tailwind-merge가 아니라 Input의
                     w-full을 className으로 덮을 수 없다. */}
@@ -522,8 +508,7 @@ function PreviewCard({
                 disabled={
                   applying ||
                   plan.hasBlockingError ||
-                  (deleteCount > 0 && !deletionConfirmed) ||
-                  (requiresCountConfirmation && !countConfirmationMatches)
+                  (deleteCount > 0 && !countConfirmationMatches)
                 }
               >
                 {applying
