@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
 import { SectionCard } from "@/components/ui/section-card";
 import { TableFrame, tableCellPadding } from "@/components/ui/table";
+import { DeleteRuleButton } from "@/components/merit/delete-rule-button";
 import { KindBadge, kindColorClass } from "@/components/merit/kind-badge";
 import { MERIT_KIND_LABELS, meritKindSign, type MeritKind } from "@/core/authz/merit-track";
 import { EMPTY_RULE_FORM_STATE } from "./action-state";
@@ -38,10 +39,6 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
     updateRuleAction,
     EMPTY_RULE_FORM_STATE,
   );
-  const [deleteState, deleteAction] = useActionState(
-    deleteRuleAction,
-    EMPTY_RULE_FORM_STATE,
-  );
 
   // 성공하면 편집 모드를 닫고, 실패하면 값을 남겨 다시 고칠 수 있게 한다.
   // 렌더 중 비교로 처리한다 — effect 안의 setState는 리렌더를 한 번 더 만든다.
@@ -58,11 +55,11 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
   return (
     <SectionCard flush title="규정 목록" aside={<span className="text-xs text-mut">{rules.length}개</span>}>
       <form id="rule-edit-form" action={updateAction} className="hidden" />
-      <form id="rule-delete-form" action={deleteAction} className="hidden" />
 
-      {(updateState.error ?? deleteState.error) && (
+      {/* 삭제 실패는 각 행의 모달이 자기 안에서 보여준다. */}
+      {updateState.error && (
         <Note tone="error" className="mx-5 mt-4">
-          {updateState.error ?? deleteState.error}
+          {updateState.error}
         </Note>
       )}
 
@@ -180,29 +177,12 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
                       >
                         수정
                       </Button>
-                      <Button
-                        type="submit"
-                        form="rule-delete-form"
-                        name="ruleId"
-                        value={rule.id}
-                        variant="danger"
-                        size="sm"
-                        // ConfirmDialog는 사유 입력이 필수인데 삭제 액션은 사유를 받지 않는다.
-                        onClick={(e) => {
-                          if (
-                            !confirm(
-                              `"${rule.label}" 규정을 삭제합니다.\n\n` +
-                                `· 목록과 부여 화면에서 사라집니다\n` +
-                                `· 되돌릴 수 없습니다\n` +
-                                `· 이미 부여한 기록은 그대로 남습니다`,
-                            )
-                          ) {
-                            e.preventDefault();
-                          }
-                        }}
-                      >
-                        삭제
-                      </Button>
+                      <DeleteRuleButton
+                        ruleId={rule.id}
+                        label={rule.label}
+                        deleteAction={deleteRuleAction}
+                        initialState={EMPTY_RULE_FORM_STATE}
+                      />
                     </div>
                   )}
                 </td>

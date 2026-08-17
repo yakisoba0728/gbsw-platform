@@ -70,7 +70,21 @@ export const updateRuleSchema = z.object({
 
 export type UpdateRuleInput = z.infer<typeof updateRuleSchema>;
 
-export const ruleIdSchema = z.object({ ruleId: z.string().trim().min(1) });
+/**
+ * 규정 삭제. 사유가 필수인 이유는 취소(cancelSchema)와 다르다 — 학생에게 보여
+ * 줄 근거가 아니라, 부여 화면에서 항목이 사라진 뒤 "왜 없어졌나"를 되짚을
+ * 자료가 감사로그밖에 없기 때문이다.
+ */
+export const deleteRuleSchema = z.object({
+  ruleId: z.string().trim().min(1),
+  reason: z
+    .string("삭제 사유를 입력해 주세요.")
+    .trim()
+    .min(1, "삭제 사유를 입력해 주세요.")
+    .max(500),
+});
+
+export type DeleteRuleInput = z.infer<typeof deleteRuleSchema>;
 
 /**
  * 벌점 기준의 상한. 오타가 조용히 넘어가는 것을 막는다 — 20 대신 2000을 넣으면

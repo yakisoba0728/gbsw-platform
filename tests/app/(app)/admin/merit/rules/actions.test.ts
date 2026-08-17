@@ -177,18 +177,41 @@ describe("updateRuleAction — 경계 검증", () => {
 });
 
 describe("deleteRuleAction — 경계 검증", () => {
-  it("폼이 보내는 ruleId 하나면 서비스까지 도달한다", async () => {
-    const state = await deleteRuleAction(INITIAL, form({ ruleId: "rule-1" }));
+  it("ruleId와 사유가 함께 서비스까지 도달한다", async () => {
+    const state = await deleteRuleAction(
+      INITIAL,
+      form({ ruleId: "rule-1", reason: "규정 개정" }),
+    );
 
-    expect(deleteRule).toHaveBeenCalledWith(expect.anything(), "rule-1");
+    expect(deleteRule).toHaveBeenCalledWith(expect.anything(), {
+      ruleId: "rule-1",
+      reason: "규정 개정",
+    });
     expect(state).toEqual({ error: null, ok: true });
   });
 
   it("ruleId가 없으면 서비스를 부르지 않는다", async () => {
-    const state = await deleteRuleAction(INITIAL, new FormData());
+    const state = await deleteRuleAction(INITIAL, form({ reason: "x" }));
 
     expect(deleteRule).not.toHaveBeenCalled();
-    expect(state.error).toBe("규정을 찾을 수 없습니다.");
+    expect(state.error).not.toBeNull();
+  });
+
+  it("사유가 없으면 서비스를 부르지 않는다 — 감사로그에 남길 것이 없다", async () => {
+    const state = await deleteRuleAction(INITIAL, form({ ruleId: "rule-1" }));
+
+    expect(deleteRule).not.toHaveBeenCalled();
+    expect(state.error).toBe("삭제 사유를 입력해 주세요.");
+  });
+
+  it("공백만 있는 사유는 사유가 아니다", async () => {
+    const state = await deleteRuleAction(
+      INITIAL,
+      form({ ruleId: "rule-1", reason: "   " }),
+    );
+
+    expect(deleteRule).not.toHaveBeenCalled();
+    expect(state.error).toBe("삭제 사유를 입력해 주세요.");
   });
 });
 

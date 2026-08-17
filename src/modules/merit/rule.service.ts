@@ -4,7 +4,11 @@ import { assertCan } from "@/core/authz/errors";
 import type { MeritTrack } from "@/core/authz/merit-track";
 import { MeritError } from "./merit.error";
 import * as repo from "./merit.repo";
-import type { CreateRuleInput, UpdateRuleInput } from "./merit.schema";
+import type {
+  CreateRuleInput,
+  DeleteRuleInput,
+  UpdateRuleInput,
+} from "./merit.schema";
 
 export async function createRule(
   actor: SessionUser,
@@ -80,27 +84,29 @@ export async function updateRule(
  */
 export async function deleteRule(
   actor: SessionUser,
-  ruleId: string,
+  input: DeleteRuleInput,
 ): Promise<void> {
   await assertCan(actor, "merit:rule:manage");
 
-  const current = await repo.findRule(ruleId);
+  const current = await repo.findRule(input.ruleId);
   if (!current) throw new MeritError("RULE_NOT_FOUND");
+  // 이미 지운 규정에 사유만 새로 남기지 않는다 — 삭제는 한 번만 일어난 일이다.
   if (!current.active) return;
 
-  await repo.markRuleDeleted(ruleId);
+  await repo.markRuleDeleted(input.ruleId);
 
   await recordAudit({
     actorUserId: actor.id,
     actorName: actor.name,
     action: "merit:rule:delete",
     targetType: "MeritRule",
-    targetId: ruleId,
+    targetId: input.ruleId,
     metadata: {
       track: current.track,
       kind: current.kind,
       label: current.label,
       points: current.points,
+      reason: input.reason,
     },
   });
 }

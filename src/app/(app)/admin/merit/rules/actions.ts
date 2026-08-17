@@ -5,7 +5,7 @@ import { requireAuth } from "@/core/auth/session";
 import { MeritError } from "@/modules/merit/merit.error";
 import {
   createRuleSchema,
-  ruleIdSchema,
+  deleteRuleSchema,
   updateRuleSchema,
 } from "@/modules/merit/merit.schema";
 import * as service from "@/modules/merit/rule.service";
@@ -87,11 +87,16 @@ export async function deleteRuleAction(
 ): Promise<RuleFormState> {
   const actor = await requireAuth();
 
-  const parsed = ruleIdSchema.safeParse({ ruleId: formData.get("ruleId") });
-  if (!parsed.success) return fail("규정을 찾을 수 없습니다.");
+  const parsed = deleteRuleSchema.safeParse({
+    ruleId: formData.get("ruleId"),
+    reason: formData.get("reason"),
+  });
+  if (!parsed.success) {
+    return fail(parsed.error.issues[0]?.message ?? "규정을 찾을 수 없습니다.");
+  }
 
   try {
-    await service.deleteRule(actor, parsed.data.ruleId);
+    await service.deleteRule(actor, parsed.data);
   } catch (error) {
     return fail(toMessage(error));
   }
