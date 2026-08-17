@@ -12,6 +12,7 @@ export function SectionCard({
   controls,
   headingLevel = 2,
   flush = false,
+  variant = "section",
   className,
   children,
 }: {
@@ -26,10 +27,33 @@ export function SectionCard({
   headingLevel?: 2 | 3;
   /** 표를 바로 넣는 호출부. 본문 패딩을 없앤다. */
   flush?: boolean;
+  /**
+   * `section` — 머리글 띠(아래 구분선)가 있는 기본형.
+   * `panel` — 테두리 한 겹짜리 폼 패널. 제목이 본문과 같은 여백 안에 앉는다.
+   */
+  variant?: "section" | "panel";
   className?: string;
   children?: ReactNode;
 }) {
   const Heading = headingLevel === 3 ? "h3" : "h2";
+
+  if (variant === "panel") {
+    return (
+      <section
+        className={cn("rounded-card border border-line bg-surface p-5", className)}
+      >
+        <div className={aside ? "flex items-start justify-between gap-3" : undefined}>
+          <div className="min-w-0">
+            <Heading className="text-lg font-semibold text-ink">{title}</Heading>
+            {hint && <p className="mt-1 text-caption text-mut">{hint}</p>}
+          </div>
+          {aside}
+        </div>
+        {controls}
+        <div className="mt-4">{children}</div>
+      </section>
+    );
+  }
 
   return (
     <section

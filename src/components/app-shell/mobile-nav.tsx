@@ -19,10 +19,9 @@ import {
 } from "./nav";
 
 /**
- * 좁은 화면 전용 메뉴 서랍. 바텀탭은 최상위 항목만 담아서 관리자 메뉴와 상벌점
- * 하위 메뉴로 가는 길이 lg 미만에서는 없다. 탭을 늘리면 글자가 못 읽게 작아진다.
- *
- * `<dialog>`의 showModal()이 포커스 가두기·Esc 닫기·뒤쪽 비활성화를 해 준다.
+ * 좁은 화면 전용 메뉴 서랍. 하단 탭은 서너 칸이 한계라 관리자 메뉴 대부분이
+ * 여기로만 갈 수 있다. `<dialog>`의 showModal()이 포커스 가두기·Esc 닫기·
+ * 뒤쪽 비활성화를 해 준다.
  */
 export function MobileNav({ role }: { role: Role | null }) {
   const pathname = usePathname();
@@ -58,7 +57,7 @@ export function MobileNav({ role }: { role: Role | null }) {
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls="mobile-nav"
-        className="-ml-2 rounded-btn p-2 text-mut transition-colors hover:bg-soft hover:text-ink lg:hidden"
+        className="-ml-2 rounded-btn p-2.5 text-mut transition-colors hover:bg-soft hover:text-ink lg:hidden"
       >
         <MenuIcon size={20} />
         <span className="sr-only">메뉴 열기</span>
@@ -89,7 +88,7 @@ export function MobileNav({ role }: { role: Role | null }) {
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="rounded-btn p-2 text-mut transition-colors hover:bg-soft hover:text-ink"
+              className="rounded-btn p-2.5 text-mut transition-colors hover:bg-soft hover:text-ink"
             >
               <CloseIcon size={18} />
               <span className="sr-only">메뉴 닫기</span>
@@ -195,7 +194,7 @@ function DrawerItem({
               href={child.href}
               aria-current={child.href === current?.href ? "page" : undefined}
               className={cn(
-                "relative rounded-btn px-3 py-2 text-caption transition-colors",
+                "relative rounded-btn px-3 py-2.5 text-caption transition-colors",
                 child.href === current?.href
                   ? "bg-soft font-medium text-ink"
                   : IDLE,

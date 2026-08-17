@@ -61,9 +61,6 @@
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     "Liberation Mono", monospace;
 
-  --text-display: 28px;
-  --text-display--line-height: 1.2;
-  --text-display--letter-spacing: -0.42px;
   --text-title: 22px;
   --text-title--line-height: 1.2;
   --text-title--letter-spacing: -0.2px;
@@ -138,4 +135,16 @@
     max-height: 90dvh;
     max-width: 92vw;
   }
+}
+
+@utility scroll-x-hint {
+  background:
+    linear-gradient(to right, var(--color-surface) 30%, transparent) 0 0 / 32px 100%
+      no-repeat local,
+    linear-gradient(to left, var(--color-surface) 30%, transparent) 100% 0 / 32px 100%
+      no-repeat local,
+    radial-gradient(farthest-side at 0 50%, rgb(0 0 0 / 0.13), transparent) 0 0 / 12px
+      100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, rgb(0 0 0 / 0.13), transparent) 100% 0 /
+      12px 100% no-repeat scroll;
 }

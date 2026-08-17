@@ -95,6 +95,20 @@ export const ADMIN_NAV_ITEMS: NavItem[] = [
   },
 ];
 
+/**
+ * 하단 탭에 세울 항목. 관리자에게 NAV_ITEMS는 대시보드·상벌점 둘뿐이라
+ * (학부모 초대는 학생 전용) 점호 직후 잘못 준 것을 되돌리는 화면이 서랍 안에만
+ * 있게 된다. 그 하나를 탭으로 끌어올린다.
+ */
+export function bottomTabItems(role: Role | null): NavItem[] {
+  const base = visibleItems(NAV_ITEMS, role);
+  if (role !== "ADMIN") return base;
+  return [
+    ...base,
+    { href: "/merit/recent", label: "최근 부여", shortLabel: "최근", icon: LogIcon },
+  ];
+}
+
 export function visibleItems(items: NavItem[], role: Role | null): NavItem[] {
   return items.filter((item) => !item.roles || (role && item.roles.includes(role)));
 }

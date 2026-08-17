@@ -54,7 +54,7 @@ export function Topbar({ name, role }: { name: string; role: Role | null }) {
           onClick={handleSignOut}
           disabled={signingOut}
           title="로그아웃"
-          className="rounded-btn p-2 text-mut transition-colors hover:bg-soft hover:text-ink disabled:opacity-40"
+          className="rounded-btn p-2.5 text-mut transition-colors hover:bg-soft hover:text-ink disabled:opacity-40"
         >
           <LogoutIcon size={18} />
           <span className="sr-only">로그아웃</span>

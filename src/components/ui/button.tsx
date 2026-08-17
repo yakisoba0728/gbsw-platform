@@ -10,7 +10,7 @@ export type ButtonVariant =
   | "ghost"
   | "chip";
 
-export type ButtonSize = "sm" | "md" | "lg";
+export type ButtonSize = "sm" | "md" | "lg" | "icon";
 
 const VARIANTS: Record<ButtonVariant, string> = {
   // 에메랄드 위 글자는 근검정이다. 흰 글자는 대비가 2:1까지 떨어진다.
@@ -26,10 +26,15 @@ const VARIANTS: Record<ButtonVariant, string> = {
 /** 고른 칩. 초록이 아니라 잉크색이다 — 에메랄드는 실행 버튼에만 남긴다. */
 const CHIP_ACTIVE = "border-ink bg-ink text-white hover:bg-ink";
 
+/*
+ * 모바일에서 36px 미만이면 안 된다 (시안 Touch Targets). 표 안이 빽빽해지는
+ * 데스크톱에서만 다시 줄인다 — 마우스에는 36px이 필요 없다.
+ */
 const SIZES: Record<ButtonSize, string> = {
-  sm: "h-8 px-3 text-caption",
+  sm: "h-9 px-3 text-caption lg:h-8",
   md: "h-9 px-4 text-sm",
   lg: "h-11 px-4 text-sm",
+  icon: "size-9 lg:size-8",
 };
 
 /**

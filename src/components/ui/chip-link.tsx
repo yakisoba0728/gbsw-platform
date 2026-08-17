@@ -26,7 +26,7 @@ export function ChipLink({
       aria-current={active ? "page" : undefined}
       className={cn(
         "inline-flex items-center rounded-full border font-medium whitespace-nowrap transition-colors",
-        size === "md" ? "px-4 py-2 text-caption" : "px-3 py-2 text-xs lg:py-1.5",
+        size === "md" ? "px-4 py-2 text-caption" : "px-3 py-2.5 text-xs lg:py-1.5",
         active
           ? "border-ink bg-ink text-white"
           : "border-line bg-surface text-mut hover:bg-soft hover:text-ink",

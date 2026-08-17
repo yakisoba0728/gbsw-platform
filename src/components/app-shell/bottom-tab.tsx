@@ -4,11 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Role } from "@/core/authz/roles";
 import { cn } from "@/lib/cn";
-import { isActive, NAV_ITEMS, visibleItems } from "./nav";
+import { bottomTabItems, isActive } from "./nav";
 
 export function BottomTab({ role }: { role: Role | null }) {
   const pathname = usePathname();
-  const items = visibleItems(NAV_ITEMS, role);
+  const items = bottomTabItems(role);
 
   return (
     <nav className="flex flex-none border-t border-line bg-surface px-2 pt-2 pb-3 lg:hidden print:hidden">

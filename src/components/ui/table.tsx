@@ -5,6 +5,8 @@ import { cn } from "@/lib/cn";
  * 표 껍데기 — 가로 스크롤 상자 + `<table>` + `<colgroup>` + 머리글.
  * `<tbody>`는 호출부가 children으로 넘긴다.
  *
+ * 좁은 폭에서 카드로 바꿔야 하는 표는 이걸 직접 쓰지 말고 `DataTable`을 쓴다.
+ *
  * 셀 패딩: 첫 열과 마지막 열은 `px-5`, 나머지는 `px-3`. `<tbody>`도 같은 규칙을
  * 따라야 머리글과 세로줄이 맞는다 (`tableCellPadding`).
  */
@@ -34,7 +36,9 @@ export function TableFrame({
   children: ReactNode;
 }) {
   return (
-    <div className={cn("overflow-x-auto", className)}>
+    // scroll-x-hint — 넘칠 때만 양끝에 그림자가 선다. 없으면 잘린 열이 있다는
+    // 사실 자체가 화면에 안 보인다 (수정·삭제 버튼이 300px 뒤에 숨는다).
+    <div className={cn("scroll-x-hint overflow-x-auto", className)}>
       <table
         className={cn("w-full text-left text-sm", fixed && "table-fixed")}
         style={{ minWidth }}
@@ -71,4 +75,155 @@ export function TableFrame({
 /** 위의 패딩 규칙을 `<tbody>` 셀도 쓴다. 각자 적으면 세로줄이 어긋난다. */
 export function tableCellPadding(index: number, count: number): string {
   return index === 0 || index === count - 1 ? "px-5" : "px-3";
+}
+
+/** 카드 모드에서 이 열이 앉는 자리. */
+export type CardSlot = "title" | "trailing" | "meta" | "actions";
+
+export type Column<Row> = {
+  key: string;
+  header: ReactNode;
+  cell: (row: Row) => ReactNode;
+  /** `<colgroup>`용 폭 클래스. */
+  width?: string;
+  sort?: AriaAttributes["aria-sort"];
+  /**
+   * 카드 모드에서 앉는 자리. **비우면 카드에 나오지 않는다** — 375px에 안 들어가는
+   * 열을 여기서 걸러 낸다. 열을 "접는" 대신 빼는 이유: 접힌 열은 값이 없는 것처럼
+   * 읽힌다(순점수가 없는 게 아니라 안 보이는 것이다).
+   */
+  card?: CardSlot;
+  /** `card: "meta"`일 때 값 앞 라벨. 기본은 header, `false`면 라벨 없음. */
+  cardLabel?: ReactNode | false;
+};
+
+/**
+ * 열을 데이터로 기술하는 표. 좁은 폭에서 카드 목록으로 바뀔 수 있다.
+ *
+ * `narrow="cards"`면 표와 카드를 **함께 렌더하고 CSS로 하나만 보인다.**
+ * `display:none`이라 접근성 트리에도 한쪽만 남는다. `<td>`를 `display:block`으로
+ * 굽히는 방식은 표의 의미(행↔열 관계)를 파괴하므로 쓰지 않는다.
+ */
+export function DataTable<Row>({
+  minWidth,
+  rows,
+  rowKey,
+  columns,
+  narrow = "scroll",
+  fixed = false,
+  className,
+  rowClassName,
+}: {
+  minWidth: number;
+  rows: readonly Row[];
+  rowKey: (row: Row) => string;
+  columns: readonly Column<Row>[];
+  /** 좁은 폭에서 어떻게 굽히는가. 기본은 지금까지의 동작(가로 스크롤). */
+  narrow?: "scroll" | "cards";
+  fixed?: boolean;
+  className?: string;
+  rowClassName?: (row: Row) => string;
+}) {
+  const table = (
+    <TableFrame
+      minWidth={minWidth}
+      cols={columns.map((c) => c.width)}
+      headers={columns.map((c) => c.header)}
+      sort={columns.map((c) => c.sort)}
+      fixed={fixed}
+      className={className}
+    >
+      <tbody>
+        {rows.map((row) => (
+          <tr
+            key={rowKey(row)}
+            className={cn("border-b border-line2 last:border-0", rowClassName?.(row))}
+          >
+            {columns.map((column, i) => (
+              <td
+                key={column.key}
+                className={cn(tableCellPadding(i, columns.length), "py-2.5")}
+              >
+                {column.cell(row)}
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </TableFrame>
+  );
+
+  if (narrow !== "cards") return table;
+
+  return (
+    <>
+      <ul className="lg:hidden">
+        {rows.map((row) => (
+          <CardRow
+            key={rowKey(row)}
+            row={row}
+            columns={columns}
+            className={rowClassName?.(row)}
+          />
+        ))}
+      </ul>
+      <div className="hidden lg:block">{table}</div>
+    </>
+  );
+}
+
+/**
+ * 카드 한 장. 생김새를 여기 한 번만 정의한다 — 화면마다 따로 그리면 표 14개가
+ * 카드 14벌이 된다.
+ */
+function CardRow<Row>({
+  row,
+  columns,
+  className,
+}: {
+  row: Row;
+  columns: readonly Column<Row>[];
+  className?: string;
+}) {
+  const pick = (slot: CardSlot) => columns.filter((c) => c.card === slot);
+  const meta = pick("meta");
+  const actions = pick("actions");
+
+  return (
+    <li className={cn("border-b border-line2 px-5 py-3 last:border-0", className)}>
+      <div className="flex items-baseline justify-between gap-3">
+        <div className="min-w-0">
+          {pick("title").map((c) => (
+            <div key={c.key}>{c.cell(row)}</div>
+          ))}
+        </div>
+        <div className="flex shrink-0 items-baseline gap-2">
+          {pick("trailing").map((c) => (
+            <div key={c.key}>{c.cell(row)}</div>
+          ))}
+        </div>
+      </div>
+
+      {meta.length > 0 && (
+        <dl className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs text-mut">
+          {meta.map((c) => (
+            <div key={c.key} className="flex items-baseline gap-1">
+              {c.cardLabel !== false && (
+                <dt className="text-mut2">{c.cardLabel ?? c.header}</dt>
+              )}
+              <dd>{c.cell(row)}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+
+      {actions.length > 0 && (
+        <div className="mt-2.5 flex flex-wrap gap-2">
+          {actions.map((c) => (
+            <div key={c.key}>{c.cell(row)}</div>
+          ))}
+        </div>
+      )}
+    </li>
+  );
 }
