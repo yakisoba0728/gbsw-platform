@@ -16,7 +16,7 @@ describe("toRosterSheet", () => {
     ]);
   });
 
-  it("기숙사는 학년도 대신 누적임을 적는다 — 같은 숫자가 전혀 다른 뜻이다", () => {
+  it("기숙사는 학년도 대신 누적임을 적는다", () => {
     const sheet = toRosterSheet(rows, { track: "DORM", year: 2026, grade: 2, classNo: 3 });
     expect(sheet[0]).toEqual(["2학년 3반 · 기숙사(누적)"]);
   });
@@ -27,7 +27,7 @@ describe("toRosterSheet", () => {
     expect(sheet[2]).toEqual([3, "김민준", "K7M2XQ4A", 15, 6, 0, 9]);
   });
 
-  it("순점수는 음수도 그대로 숫자로 나간다 — 엑셀에서 계산할 수 있어야 한다", () => {
+  it("순점수는 음수도 그대로 숫자로 나간다", () => {
     const sheet = toRosterSheet(rows, { track: "SCHOOL", year: 2026, grade: 2, classNo: 3 });
     expect(sheet[3][6]).toBe(-12);
   });
@@ -90,7 +90,7 @@ describe("toHistorySheet", () => {
     ]);
   });
 
-  it("발생일과 입력일을 둘 다 낸다 — 시트는 화면을 떠나 돌아다닌다", () => {
+  it("발생일과 입력일을 둘 다 낸다", () => {
     const sheet = toHistorySheet(awards, { track: "SCHOOL", studentName: "김민준" });
     expect(sheet[2][1]).toBe("2026. 6. 12.");
     expect(sheet[2][2]).toBe("2026. 6. 15.");
@@ -108,7 +108,7 @@ describe("toHistorySheet", () => {
     expect(sheet[3][9]).toBe("오기입");
   });
 
-  it("취소 안 된 줄의 사유 칸은 빈 문자열이다 — null이면 엑셀에서 깨진다", () => {
+  it("취소 안 된 줄의 사유 칸은 빈 문자열이다", () => {
     const sheet = toHistorySheet(awards, { track: "SCHOOL", studentName: "김민준" });
     expect(sheet[2][9]).toBe("");
     expect(sheet[2][6]).toBe("학급 청소");

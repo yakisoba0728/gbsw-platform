@@ -206,7 +206,7 @@ describe("awardMerit", () => {
     );
   });
 
-  it("학년도는 항상 현재 학년도다 — 입력으로 받지 않는다", async () => {
+  it("학년도는 항상 현재 학년도다", async () => {
     getCurrentYear.mockResolvedValue(2027);
     // 발생일 검사는 그 학년도 창을 보므로 함께 옮겨 준다 (검사 자체는 아래에서 따로 본다).
     await service.awardMerit(
@@ -255,7 +255,7 @@ describe("awardMerit", () => {
     );
   });
 
-  it("없는 학생은 STUDENT_NOT_FOUND — 소프트 삭제된 학생도 여기 걸린다", async () => {
+  it("없는 학생은 STUDENT_NOT_FOUND", async () => {
     findAwardableStudent.mockResolvedValue(null);
     await expect(service.awardMerit(admin, awardInput, NOW)).rejects.toThrow(
       "STUDENT_NOT_FOUND",
@@ -270,7 +270,7 @@ describe("awardMerit", () => {
     expect(createAward).not.toHaveBeenCalled();
   });
 
-  it("발생일을 그대로 넣는다 — 입력 시각(createdAt)과 별개다", async () => {
+  it("발생일을 그대로 넣는다", async () => {
     await service.awardMerit(admin, awardInput, NOW);
 
     expect(createAward).toHaveBeenCalledWith(
@@ -278,7 +278,7 @@ describe("awardMerit", () => {
     );
   });
 
-  it("감사로그에 발생일이 남는다 — 로그 자체의 시각은 '언제 입력됐나'다", async () => {
+  it("감사로그에 발생일이 남는다", async () => {
     await service.awardMerit(admin, awardInput, NOW);
 
     expect(recordAudit).toHaveBeenCalledWith(
@@ -292,15 +292,8 @@ describe("awardMerit", () => {
 });
 
 /**
- * 발생일 검사.
- *
- * **조용히 틀리는 것을 막는 장치다.** 부여는 언제나 현재 학년도로 들어가는데
- * 월별 추이 축은 그 학년도의 12칸(3월~이듬해 2월)이고, monthlyTotals는 축 밖의
- * 기록을 말없이 버린다 — 검사가 없으면 "부여했습니다"가 뜬 기록이 어느 화면에도
- * 안 나타나는 상태가 만들어진다.
- *
- * 두 부여 경로(단건·일괄)에 같은 규칙이 걸리는지 함께 본다. 한쪽만 막으면
- * 반별 목록에서 준 벌점만 그래프에서 사라진다.
+ * 발생일 검사. monthlyTotals가 축 밖의 기록을 말없이 버리므로, 검사가 없으면
+ * 부여에 성공한 기록이 어느 화면에도 안 나타난다. 두 부여 경로를 함께 본다.
  */
 describe("발생일 검사 (현재 학년도 2026 = 2026-03-01 ~ 2027-02-28)", () => {
   const cases: [name: string, run: (occurredOn: Date, now?: Date) => Promise<unknown>][] = [
@@ -443,10 +436,8 @@ describe("cancelAward", () => {
   });
 
   /**
-   * 사전 검사(findAward)와 갱신 사이는 원자적이지 않다. 두 관리자가 같은 기록의
-   * 취소를 동시에 누르면 둘 다 검사를 통과하고, repo가 ACTIVE인 행만 고치므로
-   * 나중 사람은 0을 받는다. 그때 감사로그까지 남기면 "두 사람이 취소했다"는
-   * 거짓 기록이 생긴다.
+   * 두 관리자가 동시에 누르면 나중 사람은 0을 받는다. 그때 감사로그까지
+   * 남기면 "두 사람이 취소했다"는 거짓 기록이 생긴다.
    */
   it("그 사이 남이 먼저 취소했으면(0행) 실패하고 감사로그를 남기지 않는다", async () => {
     cancelAward.mockResolvedValue(0);
@@ -466,11 +457,8 @@ describe("cancelAward", () => {
 });
 
 /**
- * 묶음 취소.
- *
- * 사감이 28명에게 일괄 부여한 뒤 되돌리는 경로다. **감사로그가 유일한 근거**이므로
- * ("관리자면 누구나 취소할 수 있다"는 결정이 여기 기대고 있다) 두 가지가 성립해야 한다 —
- * 줄마다 누구 기록인지 알 수 있어야 하고, 실제로 취소된 것에만 남아야 한다.
+ * 묶음 취소. 감사로그가 유일한 근거이므로 줄마다 누구 기록인지 알 수 있어야 하고,
+ * 실제로 취소된 것에만 남아야 한다.
  */
 describe("cancelBatch", () => {
   const batchInput = { batchId: "batch-1", reason: "항목을 잘못 골랐음" };
@@ -489,7 +477,7 @@ describe("cancelBatch", () => {
     expect(await service.cancelBatch(admin, batchInput)).toEqual({ count: 3 });
   });
 
-  it("없는 묶음은 BATCH_NOT_FOUND — 아무것도 고치지 않는다", async () => {
+  it("없는 묶음은 BATCH_NOT_FOUND", async () => {
     findBatch.mockResolvedValue([]);
 
     await expect(service.cancelBatch(admin, batchInput)).rejects.toThrow(
@@ -511,11 +499,8 @@ describe("cancelBatch", () => {
     expect(cancelLogs()).toHaveLength(3);
   });
 
-  /**
-   * 28줄이 전부 `기숙사 · 벌점 3점 · 점호 지각`으로 똑같으면 누구 기록이 뒤집혔는지
-   * 로그만 보고는 알 수 없다. 단건 취소는 정확히 이 이유로 이름을 남긴다.
-   */
-  it("줄마다 학생 이름이 남는다 — 묶음이면 나머지 값이 전부 같다", async () => {
+  /** 묶음은 나머지 값이 전부 같다 — 이름이 없으면 누구 기록인지 알 수 없다. */
+  it("줄마다 학생 이름이 남는다", async () => {
     await service.cancelBatch(admin, batchInput);
 
     expect(cancelLogs().map((log) => log.metadata.studentName)).toEqual([
@@ -548,11 +533,7 @@ describe("cancelBatch", () => {
     );
   });
 
-  /**
-   * 사전 조회와 갱신 사이에 누가 몇 건을 단건으로 취소할 수 있다. 그때 조회한
-   * 건수로 로그를 남기면 "내가 취소했다"가 거짓인 줄이 섞인다 — 단건 경로는
-   * `cancelled === 0` 검사로 정확히 이걸 막는다.
-   */
+  /** 조회한 건수로 로그를 남기면 "내가 취소했다"가 거짓인 줄이 섞인다. */
   it("그 사이 남이 먼저 취소한 건에는 로그를 남기지 않는다", async () => {
     // 조회는 3건인데 실제로는 2건만 뒤집혔다 (a-2는 남이 먼저 취소).
     cancelAwards.mockResolvedValue(["a-1", "a-3"]);
@@ -631,7 +612,7 @@ describe("합계 범위 — 이 모듈의 핵심", () => {
     });
   });
 
-  it("기숙사는 학년도를 넘겨도 무시한다 — 누적이라 고를 것이 없다", async () => {
+  it("기숙사는 학년도를 넘겨도 무시한다", async () => {
     await service.getStudentMerit(admin, "sp-1", "DORM", 2025);
 
     expect(totals).toHaveBeenCalledWith({
@@ -662,7 +643,7 @@ describe("합계 범위 — 이 모듈의 핵심", () => {
 });
 
 describe("getMyMerit", () => {
-  it("세션에서 학생 신원을 끌어온다 — studentProfileId를 인자로 받지 않는다", async () => {
+  it("세션에서 학생 신원을 끌어온다", async () => {
     await service.getMyMerit(student, "SCHOOL");
 
     expect(findStudentProfileByUserId).toHaveBeenCalledWith(student.id);
@@ -671,7 +652,7 @@ describe("getMyMerit", () => {
     );
   });
 
-  it("학생 신원이 없으면 빈 결과를 준다 — 관리자가 자기 화면을 열어도 안 터진다", async () => {
+  it("학생 신원이 없으면 빈 결과를 준다", async () => {
     findStudentProfileByUserId.mockResolvedValue(null);
 
     const view = await service.getMyMerit(admin, "SCHOOL");
@@ -729,7 +710,7 @@ describe("bulkAwardMerit", () => {
     expect(items[0].batchId).toBe(items[1].batchId);
   });
 
-  it("감사로그는 학생 수만큼 남는다 — 건별 추적이 가능해야 한다", async () => {
+  it("감사로그는 학생 수만큼 남는다", async () => {
     await service.bulkAwardMerit(admin, bulk, NOW);
 
     const meritLogs = recordAudit.mock.calls.filter(
@@ -753,7 +734,7 @@ describe("bulkAwardMerit", () => {
     expect(createAwards).not.toHaveBeenCalled();
   });
 
-  it("학생 조회는 한 번만 한다 — 예전엔 인원수만큼 순차로 돌았다", async () => {
+  it("학생 조회는 한 번만 한다", async () => {
     await service.bulkAwardMerit(admin, bulk, NOW);
 
     expect(findAwardableStudents).toHaveBeenCalledTimes(1);
@@ -810,7 +791,7 @@ describe("getClassRoster", () => {
     });
   });
 
-  it("기숙사는 합계만 누적으로 센다 — 반은 그 학년도 기준이다", async () => {
+  it("기숙사는 합계만 누적으로 센다", async () => {
     await service.getClassRoster(admin, {
       grade: 2,
       classNo: 3,
@@ -834,11 +815,8 @@ describe("getClassRoster", () => {
 });
 
 /**
- * 최근 부여 흐름 (/merit/recent).
- *
- * **취소된 것도 함께 보여준다** — 이 화면이 답하는 질문은 "방금 무슨 일이 있었나"이고
- * 취소 역시 일어난 일이다. 목록이 조용히 짧아지면 잘못 넣은 것을 되돌리러 온 사람이
- * 자기가 방금 한 일을 못 찾는다.
+ * 최근 부여 흐름. 취소된 것도 함께 보여준다 — 목록이 조용히 짧아지면
+ * 되돌리러 온 사람이 방금 한 일을 못 찾는다.
  */
 describe("listRecentAwards", () => {
   const ROWS = [
@@ -852,7 +830,7 @@ describe("listRecentAwards", () => {
     expect(listRecentAwards).toHaveBeenCalledWith({ track: "DORM", limit: 30 });
   });
 
-  it("취소된 기록도 그대로 넘긴다 — 서비스가 거르지 않는다", async () => {
+  it("취소된 기록도 그대로 넘긴다", async () => {
     listRecentAwards.mockResolvedValue(ROWS);
 
     expect(await service.listRecentAwards(admin, "SCHOOL")).toEqual(ROWS);
@@ -865,7 +843,7 @@ describe("listRecentAwards", () => {
     expect(listRecentAwards).not.toHaveBeenCalled();
   });
 
-  it("학부모도 볼 수 없다 — 전교 부여 흐름은 관리자 화면이다", async () => {
+  it("학부모도 볼 수 없다", async () => {
     await expect(
       service.listRecentAwards(user("PARENT", "p-1"), "SCHOOL"),
     ).rejects.toThrow("FORBIDDEN");
@@ -874,12 +852,8 @@ describe("listRecentAwards", () => {
 });
 
 /**
- * 검색 결과.
- *
- * **학적을 함께 내보낸다.** 부여는 학적을 안 본다 — 자퇴 처리 중인 학생에게도
- * 기록할 일이 있어 일부러 막지 않았다. 그런데 졸업·자퇴 학생에게 준 벌점은 반
- * 명단(status: ENROLLED만)과 통계 어디에도 안 나타나므로, 주는 사람이 그 사실을
- * 미리 알 수 있어야 한다. 화면이 "졸업"·"자퇴"를 적을 재료를 여기서 낸다.
+ * 검색 결과. 학적을 함께 내보낸다 — 부여는 학적을 안 보므로, 주는 사람이
+ * 그 사실을 미리 알 수 있어야 한다.
  */
 describe("searchStudents", () => {
   function found(over: Record<string, unknown> = {}) {
@@ -940,7 +914,7 @@ describe("searchStudents", () => {
     );
   });
 
-  it("그 학년도 재적 줄이 아예 없으면 학적은 null이다 — 반 미배정", async () => {
+  it("그 학년도 재적 줄이 아예 없으면 학적은 null이다", async () => {
     searchStudents.mockResolvedValue([found({ enrollments: [] })]);
 
     const [row] = await service.searchStudents(admin, "김민준");
@@ -966,11 +940,7 @@ describe("searchStudents", () => {
     expect(searchStudents).not.toHaveBeenCalled();
   });
 
-  /**
-   * 명단에서 빠진 학생을 섞는 것은 **명시적으로 요청했을 때만**이다.
-   * 반 명단·통계와 마찬가지로, 기본 결과가 조용히 늘어나면 그 필터를 넣은
-   * 이유(자퇴생이 재학생 사이에 끼는 것)가 그대로 되살아난다.
-   */
+  /** 빠진 학생은 명시적으로 요청했을 때만 섞는다. */
   describe("명단에서 빠진 학생 (감사 M-2)", () => {
     it("기본은 옵트인하지 않은 것으로 넘긴다", async () => {
       await service.searchStudents(admin, "김민준");
@@ -988,7 +958,7 @@ describe("searchStudents", () => {
       });
     });
 
-    it("명단 제외일을 removedAt으로 낸다 — 화면이 '삭제됨'을 적을 근거다", async () => {
+    it("명단 제외일을 removedAt으로 낸다", async () => {
       const removedAt = new Date("2026-08-01T00:00:00Z");
       searchStudents.mockResolvedValue([
         found({ user: { name: "김민준", deletedAt: removedAt }, enrollments: [] }),
@@ -1004,7 +974,7 @@ describe("searchStudents", () => {
       expect(row.status).toBeNull();
     });
 
-    it("관리자만 볼 수 있다 — 옵트인해도 학생·학부모는 막힌다", async () => {
+    it("관리자만 볼 수 있다", async () => {
       await expect(
         service.searchStudents(student, "김", { includeRemoved: true }),
       ).rejects.toThrow("FORBIDDEN");
@@ -1017,11 +987,8 @@ describe("searchStudents", () => {
 });
 
 /**
- * 화면 머리글 — 감사 M-2가 막혀 있던 자리다.
- *
- * `findStudentHeader`가 null을 주면 상세 화면이 `notFound()`로 떨어져서,
- * 자퇴생의 벌점 내역이 DB에 그대로 있는데도 볼 방법이 없었다. 목록에서만 빼고
- * 상세는 배지와 함께 보여준다 — admin-users의 `findDetail`과 같은 규칙이다.
+ * 화면 머리글. null을 주면 상세가 notFound()로 떨어져 기록에 닿는 경로가
+ * 없어진다 — 목록에서만 빼고 상세는 배지와 함께 보여준다.
  */
 describe("getStudentHeader", () => {
   it("관리자만 볼 수 있다", async () => {
@@ -1050,12 +1017,8 @@ describe("getStudentHeader", () => {
 });
 
 /**
- * 학년도 선택지.
- *
- * 세 호출부가 서로 다른 근거로 studentProfileId를 얻는다 — 관리자는 URL 파라미터,
- * 학부모는 자녀 목록, 학생은 세션. **셋 다 서비스에서 다시 검사한다**는 것이 요점이다.
- * 예전엔 함수 하나가 권한 검사 없이 셋을 다 받았고, 주석은 안전한 경로를 둘만
- * 열거해 실제 호출부를 담지 못했다.
+ * 학년도 선택지. 세 호출부가 서로 다른 근거로 studentProfileId를 얻고,
+ * 셋 다 서비스에서 다시 검사한다는 것이 요점이다.
  */
 describe("listAwardYears", () => {
   it("관리자는 아무 학생의 학년도 선택지를 볼 수 있다", async () => {
@@ -1070,7 +1033,7 @@ describe("listAwardYears", () => {
     expect(listAwardYears).not.toHaveBeenCalled();
   });
 
-  it("학부모도 이 경로로는 볼 수 없다 — 자녀는 listChildAwardYears로 간다", async () => {
+  it("학부모도 이 경로로는 볼 수 없다", async () => {
     await expect(
       service.listAwardYears(user("PARENT", "p-1"), "sp-1"),
     ).rejects.toThrow("FORBIDDEN");
@@ -1079,7 +1042,7 @@ describe("listAwardYears", () => {
 });
 
 describe("listMyAwardYears", () => {
-  it("세션에서 학생 신원을 끌어온다 — id를 인자로 받지 않는다", async () => {
+  it("세션에서 학생 신원을 끌어온다", async () => {
     await service.listMyAwardYears(student);
 
     expect(findStudentProfileByUserId).toHaveBeenCalledWith(student.id);
@@ -1104,7 +1067,7 @@ describe("listChildAwardYears", () => {
     expect(isChildOf).toHaveBeenCalledWith("p-1", "sp-1");
   });
 
-  it("연결되지 않은 학생은 못 본다 — 거부 감사로그가 남는다", async () => {
+  it("연결되지 않은 학생은 못 본다", async () => {
     isChildOf.mockResolvedValue(false);
 
     await expect(service.listChildAwardYears(parent, "sp-9")).rejects.toThrow(
@@ -1129,7 +1092,7 @@ describe("학부모 조회", () => {
     expect(totals).toHaveBeenCalled();
   });
 
-  it("연결되지 않은 학생은 못 본다 — 거부 감사로그가 남는다", async () => {
+  it("연결되지 않은 학생은 못 본다", async () => {
     isChildOf.mockResolvedValue(false);
 
     await expect(
@@ -1151,15 +1114,7 @@ describe("학부모 조회", () => {
   });
 });
 
-/**
- * 엑셀 내보내기.
- *
- * 시트 조립은 예전에 서버 액션(`app/(app)/merit/actions.ts`)이 했다. 명단
- * (`roster.service.exportRoster`)은 진작 서비스에 있었는데 상벌점만 액션에
- * 남아 있었고, 액션에 업무 로직이 있으면 "진입점만 갈아끼워 옮길 수 있다"는
- * 아키텍처 결정(CLAUDE.md)이 그만큼 깨진다. 여기서 보는 것은 그 이사의 결과다 —
- * **권한 · 조회 범위 · 파일명**이 전부 서비스 안에서 정해지는가.
- */
+/** 엑셀 내보내기. 권한·조회 범위·파일명이 전부 서비스 안에서 정해지는가. */
 describe("exportClassRoster", () => {
   const ROSTER = [
     {
@@ -1190,7 +1145,7 @@ describe("exportClassRoster", () => {
     expect(result.rows[0]).toEqual(["2026학년도 2학년 3반 · 교내"]);
   });
 
-  it("학년도를 안 주면 현재 학년도로 채운다 — 파일명도 그 값을 쓴다", async () => {
+  it("학년도를 안 주면 현재 학년도로 채운다", async () => {
     const result = await service.exportClassRoster(admin, {
       grade: 1,
       classNo: 1,
@@ -1201,7 +1156,7 @@ describe("exportClassRoster", () => {
     expect(result.filename).toBe("2026_1학년1반_교내상벌점.xlsx");
   });
 
-  it("기숙사는 합계를 누적으로 센다 — 조회 규칙이 그대로 따라온다", async () => {
+  it("기숙사는 합계를 누적으로 센다", async () => {
     await service.exportClassRoster(admin, { grade: 2, classNo: 3, track: "DORM" });
 
     expect(listClassRoster).toHaveBeenCalledWith(
@@ -1209,7 +1164,7 @@ describe("exportClassRoster", () => {
     );
   });
 
-  it("null을 내보내지 않는다 — 번호가 없어도 빈 문자열이다", async () => {
+  it("null을 내보내지 않는다", async () => {
     listClassRoster.mockResolvedValue([{ ...ROSTER[0], number: null }]);
 
     const result = await service.exportClassRoster(admin, {
@@ -1222,7 +1177,7 @@ describe("exportClassRoster", () => {
     for (const row of result.rows) expect(row).not.toContain(null);
   });
 
-  it("학생은 반 명단을 내려받을 수 없다 — 거부 감사로그가 남는다", async () => {
+  it("학생은 반 명단을 내려받을 수 없다", async () => {
     await expect(
       service.exportClassRoster(student, { grade: 1, classNo: 1, track: "SCHOOL" }),
     ).rejects.toThrow("FORBIDDEN");
@@ -1292,7 +1247,7 @@ describe("exportStudentHistory", () => {
     ).rejects.toThrow(MeritError);
   });
 
-  it("명단에서 빠진 학생도 내려받을 수 있다 — 자퇴생 확인서 경로다 (M-2)", async () => {
+  it("명단에서 빠진 학생도 내려받을 수 있다", async () => {
     findStudentHeader.mockResolvedValue({
       ...HEADER,
       status: null,
@@ -1307,7 +1262,7 @@ describe("exportStudentHistory", () => {
     expect(result.filename).toContain("김민준");
   });
 
-  it("학생은 남의 내역을 내려받을 수 없다 — 거부 감사로그가 남는다", async () => {
+  it("학생은 남의 내역을 내려받을 수 없다", async () => {
     await expect(
       service.exportStudentHistory(student, {
         studentProfileId: "sp-2",

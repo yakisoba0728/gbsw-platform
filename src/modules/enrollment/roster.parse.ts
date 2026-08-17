@@ -18,22 +18,17 @@ import {
 import { ROSTER_COLUMNS } from "@/modules/enrollment/roster.export";
 
 /**
- * 명단 파일을 정규화된 행으로 옮긴다.
- *
- * CSV와 xlsx가 같은 곳으로 모이도록, 형식별 코드는 `string[][]`를 만드는 데까지만 하고
+ * 명단 파일을 정규화된 행으로 옮긴다. 형식별 코드는 `string[][]`까지만 만들고
  * 머리글 해석과 값 검사는 normalizeRows 하나가 맡는다.
- * 순수 함수라 DB 없이 테스트한다 — 분류 규칙 다음으로 자주 바뀔 부분이다.
  *
- * 머리글 이름(ROSTER_COLUMNS)은 roster.export.ts가 정의한다 — 이 파일이
- * read-excel-file/node(서버 전용)를 물고 있어, 반대로 두면 내보내기 화면(브라우저)이
- * 그 의존성을 함께 번들에 끌고 들어간다.
+ * 머리글 이름은 roster.export.ts에서 가져온다 — 이 파일이 서버 전용 의존성을
+ * 물고 있어 반대로 두면 브라우저 번들이 그걸 끌고 들어간다.
  */
 
 export type RosterRow = {
   /** 파일 기준 줄 번호. 머리글이 1행이므로 첫 학생은 2행이다. */
   line: number;
-  /** 비어 있으면 신규 학생이다. `학생코드` 열 자체가 머리글에 없는 파일도 있다 —
-   * 예전 서식이나 손으로 만든 파일이 계속 들어온다. 그 경우 전 줄이 신규가 된다. */
+  /** 비어 있으면 신규 학생이다. `학생코드` 열이 없는 파일은 전 줄이 신규가 된다. */
   studentCode: string;
   name: string;
   birthDate: string;
@@ -50,16 +45,8 @@ const STATUS_BY_LABEL = new Map(
 );
 
 /**
- * CSV를 표로 만든다.
- *
- * 라이브러리를 쓰지 않는다 — 필요한 건 따옴표·BOM·CRLF 처리뿐이고,
- * 그건 아래 40줄이면 된다. 의존성을 하나 줄이는 편이 낫다.
- *
- * 빈 줄도 표에 그대로 담는다 (버리지 않는다). xlsx 경로(`readSheet`)가 빈 행도
- * 그대로 돌려주는 것과 맞추기 위해서다 — 여기서 걸러버리면 그 뒤 줄들이 표에서
- * 한 칸씩 당겨져, normalizeRows가 매기는 `line`(표 안 인덱스 기반)이 실제 파일의
- * 줄 번호와 어긋난다. "전부 빈 칸인 줄은 버린다"는 처리는 normalizeRows 쪽에
- * 이미 있으므로(flatMap에서 빈 raw를 걸러냄) 여기서 중복으로 걸러낼 필요가 없다.
+ * CSV를 표로 만든다. 빈 줄도 그대로 담는다 — 여기서 걸러내면 뒷줄이 당겨져
+ * normalizeRows가 매기는 줄 번호가 실제 파일과 어긋난다.
  */
 export function parseCsv(text: string): string[][] {
   const src = text.replace(/^﻿/, "");
@@ -134,18 +121,15 @@ export function normalizeRows(table: string[][]): RosterRow[] {
 
   const header = table[0]!.map((h) => h.trim());
   const at = (name: string) => header.indexOf(name);
-  // 학생코드는 없어도 오류가 아니다 — 예전 서식·손으로 만든 파일을 계속 받는다.
-  // 그 경우 뒤에서 studentCode가 항상 빈 문자열이 되어 전 줄이 신규로 분류된다.
+  // 학생코드 열은 없어도 오류가 아니다 — 그 경우 전 줄이 신규로 분류된다.
   const missing = ROSTER_COLUMNS.filter((c) => c !== "학생코드" && at(c) === -1);
 
   const idx = Object.fromEntries(
     ROSTER_COLUMNS.map((c) => [c, at(c)]),
   ) as Record<(typeof ROSTER_COLUMNS)[number], number>;
 
-  // NFC로 정규화한다 (I8) — 파일이 macOS 도구를 거치면 한글이 조합형(NFD)으로
-  // 섞여 들어올 수 있다. roster.repo.ts의 listExisting()도 DB에서 읽은 이름을
-  // 같은 형식으로 맞춘다 — 안 그러면 두 값이 눈엔 같아 보여도 roster.plan.ts의
-  // `!==` 비교가 다르다고 판단해 needsAttention으로 잘못 밀어낸다.
+  // macOS를 거친 파일은 한글이 조합형으로 섞여 온다. DB 쪽(listExisting)과 같은
+  // NFC로 맞춰야 눈에 같은 이름이 다른 값으로 잡히지 않는다.
   const cell = (r: string[], name: (typeof ROSTER_COLUMNS)[number]) =>
     idx[name] === -1 ? "" : (r[idx[name]] ?? "").trim().normalize("NFC");
 
@@ -174,13 +158,9 @@ export function normalizeRows(table: string[][]): RosterRow[] {
     const classNoRaw = cell(raw, "반");
     const numberRaw = cell(raw, "번호");
 
-    // 학적·학년·반·번호가 넷 다 비면 "이 학년도 배정 없음"이다 — 오류가 아니다.
-    // roster.export.ts의 buildExportRows가 그 학년도 Enrollment가 없는 학생(졸업 등)을
-    // 정확히 이 모양(넷 다 빈칸)으로 낸다. 여기서 오류로 잡으면 "내려받아 그대로 올리면
-    // 변경 0건"이라는 왕복 불변식이 깨져, 배정 없는 학생이 한 줄이라도 섞인 파일은
-    // 영원히 확정할 수 없게 된다.
-    // 넷 중 일부만 비면(예: 학적만 지움) 얘기가 다르다 — 손댄 흔적이므로 아래에서
-    // 그대로 오류로 잡는다.
+    // 넷 다 비면 "이 학년도 배정 없음"이라 오류가 아니다 — 내보내기가 졸업생을
+    // 이 모양으로 내므로, 오류로 잡으면 내보내 그대로 올린 파일이 막힌다.
+    // 일부만 비면 손댄 흔적이라 아래에서 오류로 잡는다.
     const noAssignment = !statusLabel && !gradeRaw && !classNoRaw && !numberRaw;
 
     let status: EnrollmentStatus | null = null;
@@ -205,10 +185,8 @@ export function normalizeRows(table: string[][]): RosterRow[] {
         errors.push("재학이면 학년·반·번호가 모두 있어야 합니다.");
       }
 
-      // 표 편집 경로(enrollment.schema.ts)와 같은 범위를 여기서도 강제한다.
-      // 안 그러면 "학년 11" 같은 오타가 미리보기를 그냥 통과해 SchoolClass에
-      // 그대로 저장된다 — 미리보기가 확정 전에 실수를 잡으라고 있는 것인데
-      // 이 경로만 비어 있으면 그 존재 이유가 사라진다.
+      // 표 편집과 같은 범위를 여기서도 강제한다 — 안 그러면 "학년 11" 같은 오타가
+      // 미리보기를 그냥 통과한다.
       if (status === "ENROLLED") {
         if (grade !== null && (grade < MIN_GRADE || grade > MAX_GRADE)) {
           errors.push(GRADE_RANGE_MESSAGE);
@@ -236,16 +214,7 @@ export function normalizeRows(table: string[][]): RosterRow[] {
   });
 }
 
-/**
- * 파일 단위 안내. 줄마다 반복해 알릴 오류가 아니라 파일 전체에 한 번만 해당하는
- * 사실이라 normalizeRows(줄 단위 오류를 만드는 곳)가 아니라 따로 둔다.
- *
- * 학생코드 열이 아예 없는 파일은 normalizeRows가 오류로 잡지 않는다(예전 서식·손으로
- * 만든 파일을 계속 받기 위해서다) — 그 대신 왜 전 줄이 신규로 뜨는지 여기서 알려준다.
- * missingFromFile 경고(앰버, 뚜렷한 문구)는 이미 있는데 "왜 그렇게 됐는지"가 어디에도
- * 없어서, 관리자가 원인을 모른 채 전교 배정 초기화를 확정 버튼 한 번으로 실행할 수
- * 있었다 — 그 원인을 미리보기 최상단에 놓기 위한 안내다.
- */
+/** 줄이 아니라 파일 전체에 한 번 해당하는 안내. 미리보기 맨 위에 나온다. */
 export function fileNotices(table: string[][]): string[] {
   if (table.length === 0) return [];
 
@@ -254,8 +223,8 @@ export function fileNotices(table: string[][]): string[] {
 
   if (!header.includes("학생코드")) {
     notices.push(
-      "학생코드 열이 없어 전 줄을 신규로 처리합니다. 기존 학생이 있다면 " +
-        "\"전체 명단 내려받기\"로 받은 파일에 고쳐 올려야 배정이 이어집니다.",
+      "학생코드 열이 없어 전 줄을 신규로 처리합니다. " +
+        "기존 학생을 이으려면 전체 명단을 내보내 고쳐 올리세요.",
     );
   }
 
@@ -273,12 +242,12 @@ export async function parseRoster(input: {
     return { rows: normalizeRows(table), notices: fileNotices(table) };
   }
 
-  // 기본 export는 시트를 전부 돌려준다. 첫 시트만 필요하므로 readSheet를 쓴다.
+  // 첫 시트만 필요하다.
   const rows = await readSheet(input.buffer);
   const table = rows.map((row) =>
     row.map((c) => {
       if (c === null || c === undefined) return "";
-      // 엑셀이 날짜 서식이면 Date로 준다. KST 기준으로 잘라야 하루가 밀리지 않는다.
+      // 날짜 서식 칸은 Date로 온다. KST로 잘라야 하루가 밀리지 않는다.
       if (c instanceof Date) {
         return new Intl.DateTimeFormat("en-CA", {
           timeZone: "Asia/Seoul",

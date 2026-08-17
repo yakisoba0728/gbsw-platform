@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { SectionCard } from "@/components/ui/section-card";
-import { TableFrame, tableCellPadding } from "@/components/ui/table";
+import { DataTable, type Column } from "@/components/ui/table";
 import { RevokeButton } from "./revoke-button";
 
 export type InviteRow = {
@@ -58,19 +58,80 @@ const ROLE_FILTERS = [
 type StatusKey = (typeof STATUS_FILTERS)[number]["key"];
 type RoleKey = (typeof ROLE_FILTERS)[number]["key"];
 
-const HEADERS = [
-  "코드",
-  "역할",
-  "이름",
-  "학년·반·번호",
-  "상태",
-  "발급일",
-  // 폐기 버튼 열 — 머리글에 이름이 없다.
-  "",
-] as const;
-
-/** 본문 셀의 좌우 여백. 머리글과 같은 규칙을 써야 세로줄이 맞는다. */
-const cell = (index: number) => `${tableCellPadding(index, HEADERS.length)} py-3`;
+/** 열 압축이 성립하지 않는 표다 — 코드+상태+폐기만 남겨도 이름 자리가 없다. */
+const COLUMNS: readonly Column<InviteRow>[] = [
+  {
+    key: "code",
+    header: "코드",
+    cell: (row) => (
+      <span className="font-mono font-medium text-ink">{row.code}</span>
+    ),
+  },
+  {
+    key: "role",
+    header: "역할",
+    cell: (row) => <span className="text-mut">{row.roleLabel}</span>,
+  },
+  {
+    key: "name",
+    header: "이름",
+    cell: (row) => (
+      <span className="text-ink">
+        {row.name}
+        {(row.childName || row.birthDate) && (
+          <span className="block text-xs text-mut">
+            {row.childName ? `${row.childName} 학부모` : row.birthDate}
+          </span>
+        )}
+      </span>
+    ),
+  },
+  {
+    key: "class",
+    header: "학년·반·번호",
+    cell: (row) =>
+      row.classLabel ? (
+        <span className="text-ink">{row.classLabel}</span>
+      ) : (
+        <span className="text-mut">—</span>
+      ),
+  },
+  {
+    key: "status",
+    header: "상태",
+    cell: (row) => (
+      <>
+        <Badge tone={STATUS_TONE[row.status] ?? "neutral"}>
+          {STATUS_LABEL[row.status] ?? row.status}
+        </Badge>
+        {row.usedByName && (
+          <span className="mt-1 block text-xs text-mut">{row.usedByName}</span>
+        )}
+      </>
+    ),
+  },
+  {
+    key: "createdAt",
+    header: "발급일",
+    cell: (row) => (
+      <span className="text-mut">
+        {row.createdAt}
+        {row.expiresAt && <span className="block text-xs">~{row.expiresAt}</span>}
+      </span>
+    ),
+  },
+  {
+    key: "revoke",
+    // 폐기 버튼 열 — 머리글에 이름이 없다.
+    header: "",
+    cell: (row) =>
+      row.status === "PENDING" ? (
+        <div className="flex justify-end">
+          <RevokeButton inviteId={row.id} />
+        </div>
+      ) : null,
+  },
+];
 
 export function InviteTable({ rows }: { rows: InviteRow[] }) {
   const [status, setStatus] = useState<StatusKey>("PENDING");
@@ -102,7 +163,7 @@ export function InviteTable({ rows }: { rows: InviteRow[] }) {
   return (
     <SectionCard
       title="발급 내역"
-      aside={<span className="text-[12px] text-mut">{filtered.length}건</span>}
+      aside={<span className="text-xs text-mut">{filtered.length}건</span>}
       controls={
         <>
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
@@ -149,46 +210,12 @@ export function InviteTable({ rows }: { rows: InviteRow[] }) {
       {filtered.length === 0 ? (
         <EmptyState variant="inside">조건에 맞는 코드가 없습니다.</EmptyState>
       ) : (
-        <TableFrame minWidth={680} headers={HEADERS}>
-          <tbody>
-            {filtered.map((row) => (
-              <tr key={row.id} className="border-b border-line2 last:border-0">
-                <td className={`${cell(0)} font-semibold text-ink`}>{row.code}</td>
-                <td className={`${cell(1)} text-mut`}>{row.roleLabel}</td>
-                <td className={`${cell(2)} text-ink`}>
-                  {row.name}
-                  {(row.childName || row.birthDate) && (
-                    <span className="block text-[12px] text-mut">
-                      {row.childName ? `${row.childName} 학부모` : row.birthDate}
-                    </span>
-                  )}
-                </td>
-                <td className={`${cell(3)} text-ink`}>
-                  {row.classLabel ?? <span className="text-mut">—</span>}
-                </td>
-                <td className={cell(4)}>
-                  <Badge tone={STATUS_TONE[row.status] ?? "neutral"}>
-                    {STATUS_LABEL[row.status] ?? row.status}
-                  </Badge>
-                  {row.usedByName && (
-                    <span className="mt-1 block text-[12px] text-mut">
-                      {row.usedByName}
-                    </span>
-                  )}
-                </td>
-                <td className={`${cell(5)} text-mut`}>
-                  {row.createdAt}
-                  {row.expiresAt && (
-                    <span className="block text-[12px]">~{row.expiresAt}</span>
-                  )}
-                </td>
-                <td className={`${cell(6)} text-right`}>
-                  {row.status === "PENDING" && <RevokeButton inviteId={row.id} />}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </TableFrame>
+        <DataTable
+          minWidth={680}
+          rows={filtered}
+          rowKey={(row) => row.id}
+          columns={COLUMNS}
+        />
       )}
     </SectionCard>
   );

@@ -73,7 +73,7 @@ describe("requireAuth()", () => {
       await expect(requireAuth()).rejects.toThrow("REDIRECT:/change-password");
     });
 
-    it("allowMustChangePassword:true면 통과시킨다 — /change-password 자신만 쓴다", async () => {
+    it("allowMustChangePassword:true면 통과시킨다", async () => {
       getSession.mockResolvedValue(sessionUser({ mustChangePassword: true }));
 
       const user = await requireAuth({ allowMustChangePassword: true });
@@ -82,7 +82,7 @@ describe("requireAuth()", () => {
       expect(redirect).not.toHaveBeenCalled();
     });
 
-    it("mustChangePassword가 아니면 allowMustChangePassword 여부와 무관하게 통과한다", async () => {
+    it("mustChangePassword가 아니면 옵션과 무관하게 통과한다", async () => {
       getSession.mockResolvedValue(sessionUser({ mustChangePassword: false }));
 
       const user = await requireAuth({ allowMustChangePassword: true });

@@ -20,8 +20,7 @@ beforeEach(() => {
 });
 
 describe("listStudents()", () => {
-  it("명단에서 빠져 소프트 삭제된 학생은 뺀다 — 더는 재적 학생이 아니라 학부모 " +
-    "코드 발급 대상으로 고를 수 없어야 한다", async () => {
+  it("명단에서 빠진 학생은 학부모 코드 발급 대상에서 뺀다", async () => {
     await listStudents(2026);
 
     expect(studentProfileFindMany).toHaveBeenCalledWith(
@@ -31,9 +30,7 @@ describe("listStudents()", () => {
 });
 
 describe("countActiveByStudent()", () => {
-  it("만료된 PENDING 코드는 세지 않는다 — lib/invite-code.ts의 isInviteUsable과 " +
-    "같은 규칙이어야 한다. 안 맞추면 학생이 못 쓰는 코드 3개 때문에 새 코드를 " +
-    "만들지 못하고, 손으로 셋을 폐기해야만 풀린다", async () => {
+  it("만료된 PENDING 코드는 한도에 세지 않는다", async () => {
     const now = new Date("2026-08-16T00:00:00+09:00");
 
     await countActiveByStudent("sp-1", now);

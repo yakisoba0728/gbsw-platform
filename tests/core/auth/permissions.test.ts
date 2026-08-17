@@ -34,7 +34,7 @@ function grants(
 }
 
 describe("접근제어 정의", () => {
-  it("Better Auth admin 플러그인의 기본 문장으로 만든다 — 우리가 자원·동작을 새로 지어내지 않는다", () => {
+  it("admin 플러그인의 기본 문장으로 만든다", () => {
     expect(ac.statements).toBe(defaultStatements);
     expect(Object.keys(ac.statements).sort()).toEqual(["session", "user"]);
   });
@@ -45,11 +45,11 @@ describe("접근제어 정의", () => {
 });
 
 describe("역할 목록", () => {
-  it("ADMIN / STUDENT / PARENT 셋뿐이다 — 늘어나면 여기가 깨져 계정 관리 권한을 다시 보게 한다", () => {
+  it("역할은 ADMIN / STUDENT / PARENT 셋뿐이다", () => {
     expect(Object.keys(adminRoles).sort()).toEqual([...ROLE_NAMES]);
   });
 
-  it("세 역할 모두 user·session 두 자원을 명시한다 — 빠뜨린 자원은 '권한 없음'이 아니라 '정의 없음'이라 나중에 판단이 갈린다", () => {
+  it("세 역할 모두 user·session 두 자원을 명시한다", () => {
     for (const name of ROLE_NAMES) {
       expect(Object.keys(adminRoles[name].statements).sort()).toEqual(["session", "user"]);
     }
@@ -94,20 +94,20 @@ describe("STUDENT · PARENT는 계정 관리 API 권한이 하나도 없다", ()
 });
 
 describe("ADMIN은 계정 관리 전권을 갖는다", () => {
-  it("defaultStatements의 모든 동작을 통과한다 — 교직원 사이에 권한 차등이 없다", () => {
+  it("ADMIN은 모든 동작을 통과한다", () => {
     for (const [resource, action] of ALL_GRANTS) {
       expect(grants(adminRoles.ADMIN, resource, action)).toBe(true);
     }
   });
 
-  it("허용 목록이 defaultStatements와 정확히 같다 — 새 동작이 생기면 자동으로 따라 들어온다", () => {
+  it("허용 목록이 defaultStatements와 정확히 같다", () => {
     expect(adminRoles.ADMIN.statements).toEqual({
       user: [...defaultStatements.user],
       session: [...defaultStatements.session],
     });
   });
 
-  it("정의된 적 없는 자원은 ADMIN도 통과하지 못한다 — 오타로 만든 자원명이 조용히 허용되면 안 된다", () => {
+  it("정의된 적 없는 자원은 ADMIN도 통과하지 못한다", () => {
     expect(grants(adminRoles.ADMIN, "organization", "delete")).toBe(false);
     expect(grants(adminRoles.ADMIN, "user", "self-destruct")).toBe(false);
   });
@@ -120,7 +120,7 @@ describe("ADMIN은 계정 관리 전권을 갖는다", () => {
    * 이 테스트는 그 차이를 "옳다"고 축복하는 것이 아니라 **드러내 두는 것**이다.
    * 의도한 것이면 그대로 두고, 아니면 여기가 근거가 된다.
    */
-  it("better-auth 기본 admin 역할보다 넓다 — impersonate-admins까지 갖는다 (의도 확인 필요)", () => {
+  it("기본 admin 역할보다 넓다 — impersonate-admins까지 갖는다", () => {
     const ours = new Set<string>(adminRoles.ADMIN.statements.user);
     const theirs = new Set<string>(adminAc.statements.user);
     const extra = [...ours].filter((action) => !theirs.has(action));

@@ -9,31 +9,11 @@ import {
 import { sendVerification } from "./verification.sender";
 
 /**
- * 이메일·전화번호 확인.
- *
- * 가입 이전 경로라 `can()`을 쓰지 않는다 (부트스트랩·가입과 같은 예외).
- * 대신 대상별 발송 횟수 제한과 코드 대조 실패 제한으로 남용을 막는다.
- *
- * ## recordAudit이 없는 것은 빠뜨린 게 아니다
- * 이 모듈은 코드 행을 만들고 고치고 지우면서 **감사로그를 하나도 남기지 않는다.**
- * "모든 생성/수정/삭제는 recordAudit을 남긴다"(CLAUDE.md)에 대해 src/modules/
- * 안에서는 유일한 예외이고, 그 예외는 문서에도 적혀 있다
- * (CLAUDE.md "verification 모듈은 감사로그 예외다").
- *
- * 근거: 인증코드 행은 도메인 데이터가 아니라 가입 흐름을 통제하는 임시 데이터다.
- * 5분짜리 코드의 발급·만료·시도 횟수를 전부 남기면 "누가 무엇을 했는가"를 읽으려는
- * 기록이 그 잡음에 묻힌다. `AUDIT_ACTIONS`(audit-log.labels.ts)에 verification
- * 계열 액션이 아예 없는 것이 설계 단계의 같은 판단이다.
- *
- * **대가는 분명하다** — 발송 남용과 반복 실패 시도가 감사로그로는 보이지 않는다.
- * 그 자리를 아래 MAX_SENDS_PER_HOUR(대상별)·MAX_SENDS_PER_HOUR_PER_IP(IP별)·
- * MAX_ATTEMPTS가 맡는다. 막는 것이지 남기는 것이 아니라서, 나중에 "누가 얼마나
- * 시도했나"를 되짚어야 할 일이 생기면 그때는 예외를 거두고 감사로그를 넣어야 한다.
- *
- * **다른 모듈이 이것을 따라 하면 안 된다.**
+ * 이메일·전화번호 확인. **`recordAudit`을 하나도 남기지 않는 유일한 모듈이다.**
+ * 그 대가로 발송 남용이 감사로그에 안 보인다 — 아래 횟수 제한이 막을 뿐이다.
  */
 
-/** 실물은 verification.error.ts에 하나뿐이다 — 기존 import 경로를 지키려고 다시 내보낸다. */
+/** 실물은 verification.error.ts에 하나뿐이다. 기존 import 경로를 지키려고 다시 낸다. */
 export { VerificationError };
 
 /** 코드 유효시간 */
@@ -43,23 +23,16 @@ const MAX_ATTEMPTS = 5;
 /** 같은 대상에 한 시간 동안 보낼 수 있는 횟수 */
 const MAX_SENDS_PER_HOUR = 5;
 /**
- * 같은 접속 IP에서 한 시간 동안 보낼 수 있는 횟수 (I4).
- *
- * 대상별 제한(MAX_SENDS_PER_HOUR)은 공격자가 대상을 계속 바꾸면 무의미하다
- * — IP별 제한이 그 구멍을 막는 두 번째 방어선이다. 대상별보다 넉넉하게
- * 잡는다: 같은 교내망 IP에서 여러 학생이 동시에 가입하는 정상적인 상황
- * (컴퓨터실 등)을 오탐으로 막지 않아야 한다.
+ * 같은 IP에서 한 시간 동안 보낼 수 있는 횟수 (I4) — 대상을 바꿔 가며 우회하는
+ * 것을 막는다. 교내망에서 여러 학생이 동시에 가입할 수 있어 넉넉하게 잡는다.
  */
 const MAX_SENDS_PER_HOUR_PER_IP = 20;
 /** 확인 후 이 시간 안에 가입을 마쳐야 한다 */
 const VERIFIED_TTL_MINUTES = 30;
 
 /**
- * 목업 모드 — 발송한 코드를 화면에 그대로 채워 준다.
- *
- * 발송 수단이 아직 없을 때 가입 흐름을 눌러보기 위한 장치다.
- * **코드를 클라이언트로 돌려주는 순간 인증은 의미가 없어지므로**,
- * 개발 빌드에서 플래그를 명시했을 때만 켜진다. 둘 중 하나라도 어긋나면 꺼진다.
+ * 목업 모드 — 발송한 코드를 화면에 채워 준다. 코드를 클라이언트로 돌려주면
+ * 인증이 무의미해지므로, 개발 빌드에서 플래그를 명시했을 때만 켜진다.
  */
 export function isMockVerification(): boolean {
   return (
@@ -84,10 +57,7 @@ function minutesFromNow(minutes: number, now: Date): Date {
 
 /**
  * 인증코드 발송. 같은 대상의 이전 코드는 무효가 된다.
- *
- * registration.service.ts의 requestVerification()이 유효한 초대코드를
- * 요구하는 구조적 방어를 먼저 태운 뒤에만 여기 닿는다 (I4) — 이 함수 자신은
- * 대상별·IP별 발송 횟수만 본다.
+ * 초대코드 검사는 registration.service.ts가 먼저 태운다 (I4) — 여기는 횟수만 본다.
  */
 export async function requestCode(
   channel: VerificationChannel,
@@ -105,9 +75,8 @@ export async function requestCode(
   }
 
   const { ip } = await readRequestContext();
-  // ip를 못 읽으면(요청 컨텍스트 밖, 프록시 미설정 로컬 개발 등) 이 검사를
-  // 건너뛴다 — null을 하나의 버킷으로 묶으면 IP를 못 읽는 서로 다른 요청들이
-  // 남의 한도를 갉아먹는다.
+  // ip를 못 읽으면 이 검사를 건너뛴다 — null을 한 버킷으로 묶으면 서로 다른
+  // 요청들이 남의 한도를 갉아먹는다.
   if (ip) {
     const recentByIp = await repo.countRecentSendsByIp(ip, since);
     if (recentByIp >= MAX_SENDS_PER_HOUR_PER_IP) {
@@ -119,7 +88,7 @@ export async function requestCode(
 
   await repo.expirePending(channel, target, now);
 
-  // randomInt는 균등 분포다. 0으로 시작하는 코드도 나오므로 6자리로 채운다.
+  // 0으로 시작하는 코드도 나오므로 6자리로 채운다.
   const code = randomInt(1_000_000).toString().padStart(6, "0");
 
   const row = await repo.insertCode({
@@ -131,7 +100,7 @@ export async function requestCode(
   });
 
   if (isMockVerification()) {
-    // 목업에서는 발송을 건너뛴다. 발송사 설정이 안 끝나도 흐름을 눌러볼 수 있어야 한다.
+    // 목업에서는 발송을 건너뛴다.
     console.log(`[인증코드·목업] ${channel} ${target} : ${code}`);
     return { mockCode: code };
   }
@@ -139,19 +108,16 @@ export async function requestCode(
   try {
     await sendVerification({ channel, target, code });
   } catch (error) {
-    // 발송이 실패했으면 방금 만든 코드는 무의미하다. 지워서 시간당 한도를 갉아먹지 않게 한다.
+    // 발송이 실패했으면 이 코드는 무의미하다. 지워서 한도를 갉아먹지 않게 한다.
     await repo.deleteById(row.id);
 
-    // 공급자 오류 원문(키·IP·계정 정보가 섞여 있다)은 서버에만 남기고
-    // 사용자에게는 일반화된 문구만 보여준다.
+    // 공급자 오류 원문에는 키·계정 정보가 섞여 있다. 서버에만 남긴다.
     console.error("[인증코드] 발송 실패", error);
     throw new VerificationError(
       "인증번호를 보내지 못했습니다. 잠시 후 다시 시도해 주세요.",
     );
   }
 
-  // 목업이면 위에서 이미 돌아갔다 — 여기까지 온 건 실제로 발송한 경우뿐이라
-  // 코드를 돌려주지 않는다.
   return {};
 }
 
@@ -166,9 +132,7 @@ export async function confirmCode(
 
   const row = await repo.findLiveCode(channel, target, now);
   if (!row) {
-    throw new VerificationError(
-      "인증번호가 만료되었습니다. 다시 요청해 주세요.",
-    );
+    throw new VerificationError("인증번호가 만료되었습니다. 다시 요청해 주세요.");
   }
 
   if (!matches(row.codeHash, code)) {
@@ -179,16 +143,13 @@ export async function confirmCode(
         "인증번호를 여러 번 틀렸습니다. 다시 요청해 주세요.",
       );
     }
-    throw new VerificationError("인증번호가 올바르지 않습니다.");
+    throw new VerificationError("인증번호가 맞지 않습니다.");
   }
 
   await repo.markVerified(row.id, now);
 }
 
-/**
- * 가입 시점에 호출한다. 확인이 끝난 코드 행을 돌려주며, 없으면 던진다.
- * 클라이언트가 "인증했다"고 주장하는 건 신뢰하지 않는다 — 항상 DB로 확인한다.
- */
+/** 가입 시점에 부른다. 클라이언트의 "인증했다" 주장을 믿지 않고 DB로 확인한다. */
 export async function requireVerified(
   channel: VerificationChannel,
   rawTarget: string,
@@ -200,8 +161,8 @@ export async function requireVerified(
   if (!row) {
     throw new VerificationError(
       channel === "EMAIL"
-        ? "이메일 인증을 먼저 완료해 주세요."
-        : "휴대폰 인증을 먼저 완료해 주세요.",
+        ? "이메일 인증을 먼저 해 주세요."
+        : "휴대폰 인증을 먼저 해 주세요.",
     );
   }
   return { id: row.id };

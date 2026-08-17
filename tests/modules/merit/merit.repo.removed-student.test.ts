@@ -15,11 +15,8 @@ vi.mock("@/core/db/client", () => ({
 const repo = await import("@/modules/merit/merit.repo");
 
 /**
- * 명단에서 빠진(소프트 삭제된) 학생을 어느 질의가 보고 어느 질의가 못 보는지.
- *
- * repo의 학생 질의는 전부 `user.deletedAt: null`로 걸러서, 자퇴생의 MeritAward
- * 행이 DB에 그대로 남아 있는데도 닿는 경로가 하나도 없었다(감사 M-2).
- * **조회만 열고 부여는 그대로 막는다** — 그 경계가 여기 where 절에 있다.
+ * 명단에서 빠진 학생을 어느 질의가 보고 어느 질의가 못 보는지.
+ * 조회만 열고 부여는 막는다 — 그 경계가 여기 where 절에 있다.
  */
 beforeEach(() => {
   studentProfileFindFirst.mockReset().mockResolvedValue(null);
@@ -32,7 +29,7 @@ function whereOf(mock: ReturnType<typeof vi.fn>): Record<string, unknown> {
 }
 
 describe("searchStudents — 명단에서 빠진 학생은 옵트인해야 나온다", () => {
-  it("기본은 지금과 같다 — 지워진 계정을 거른다", async () => {
+  it("기본은 지금과 같다", async () => {
     await repo.searchStudents("김", 2026, { includeRemoved: false });
 
     expect(whereOf(studentProfileFindMany).user).toEqual(

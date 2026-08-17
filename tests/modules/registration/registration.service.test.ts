@@ -104,7 +104,7 @@ describe("checkInvite()", () => {
     for (const value of cases) {
       findInviteByCode.mockResolvedValue(value);
       await expect(checkInvite("GBSWA3K92M7P")).rejects.toThrow(
-        "가입코드 또는 입력한 정보가 올바르지 않습니다.",
+        "가입코드 또는 입력한 정보가 맞지 않습니다.",
       );
     }
   });
@@ -127,7 +127,7 @@ describe("requestVerification() (I4)", () => {
       findInviteByCode.mockResolvedValue(value);
       await expect(
         requestVerification("GBSWA3K92M7P", "PHONE", "010-1234-5678"),
-      ).rejects.toThrow("가입코드 또는 입력한 정보가 올바르지 않습니다.");
+      ).rejects.toThrow("가입코드 또는 입력한 정보가 맞지 않습니다.");
     }
 
     expect(requestCode).not.toHaveBeenCalled();
@@ -298,7 +298,7 @@ describe("completeRegistration() — 공통 방어", () => {
 
     await expect(
       completeRegistration({ ...base, name: "김학생", birthDate: "2010-03-04" }),
-    ).rejects.toThrow("이미 사용 중인 이메일입니다.");
+    ).rejects.toThrow("이미 쓰이고 있는 이메일입니다.");
 
     expect(completeStudentRegistration).not.toHaveBeenCalled();
   });
@@ -311,12 +311,12 @@ describe("completeRegistration() — 공통 방어", () => {
 
     await expect(
       completeRegistration({ ...base, name: "김학생", birthDate: "2010-03-04" }),
-    ).rejects.toThrow("이미 사용된 가입코드입니다.");
+    ).rejects.toThrow("이미 쓰인 가입코드입니다.");
 
     expect(recordAudit).not.toHaveBeenCalled();
   });
 
-  it("관리자가 이미 쓰인 반·번호로 코드를 발급했으면 우리 문구로 바꾼다 — Prisma 원문이 새면 안 된다", async () => {
+  it("이미 쓰인 반·번호면 우리 문구로 바꾼다 — Prisma 원문이 새면 안 된다", async () => {
     findInviteByCode.mockResolvedValue(invite());
     completeStudentRegistration.mockRejectedValue(
       Object.assign(new NumberTakenError(), {
@@ -331,7 +331,7 @@ describe("completeRegistration() — 공통 방어", () => {
     await expect(
       completeRegistration({ ...base, name: "김학생", birthDate: "2010-03-04" }),
     ).rejects.toThrow(
-      "이 반·번호에 이미 다른 학생이 있습니다. 관리자에게 문의해 주세요.",
+      "이 반·번호에 다른 학생이 있습니다. 관리자에게 문의해 주세요.",
     );
 
     // 실패했으니 코드도 소진되지 않고 감사로그도 남지 않는다.

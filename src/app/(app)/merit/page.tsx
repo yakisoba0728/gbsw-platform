@@ -29,8 +29,7 @@ export default async function MeritPage({
       ? Number(raw.year)
       : undefined;
 
-  // 관리자와 그 외를 여기서 가른다. 서비스가 권한을 다시 검사하므로
-  // 이 분기는 "무엇을 보여줄까"의 문제이지 접근 통제가 아니다.
+  // 서비스가 권한을 다시 검사한다 — 이 분기는 접근 통제가 아니라 화면 선택이다.
   if (can(user, "merit:read:any")) {
     return <AdminMeritView actor={user} track={track} params={raw} />;
   }
@@ -47,10 +46,7 @@ export default async function MeritPage({
         ? raw.child
         : children[0].studentProfileId;
 
-    // getChildMerit이 연결을 다시 검사하므로 위의 children.some(...) 검사는
-    // 편의일 뿐 접근 통제가 아니다 — 조작된 ?child=도 서비스에서 막힌다.
-    // track=SCHOOL이고 연도를 명시하지 않으면 서비스가 내부적으로
-    // getCurrentYear()를 거친다 — 학년도가 아예 없으면 여기서 던진다.
+    // 위의 children.some 검사는 편의일 뿐이다 — 조작된 ?child=는 서비스가 막는다.
     let view: Awaited<ReturnType<typeof getChildMerit>> | null = null;
     try {
       view = await getChildMerit(user, childId, track, year);
@@ -59,8 +55,7 @@ export default async function MeritPage({
     }
     if (!view) return <NoAcademicYearNotice />;
 
-    // 학년도 선택지도 자녀 연결을 다시 검사한다 — 조회가 이미 성공한 뒤라 통과가
-    // 보장되지만, 검사를 여기 두어야 이 호출부만 남기고 위를 옮겨도 안 뚫린다.
+    // 학년도 선택지도 자녀 연결을 다시 검사한다 — 위를 옮겨도 안 뚫리게.
     const years = isYearScoped(track) ? await listChildAwardYears(user, childId) : [];
 
     return (
@@ -68,8 +63,7 @@ export default async function MeritPage({
         title={`${children.find((c) => c.studentProfileId === childId)!.name} 상벌점`}
         view={view}
         years={years}
-        // `children`이라는 prop 이름을 쓰지 않는다 — React가 JSX 자식으로 해석하는
-        // 예약 이름이라, 자녀 목록을 그 이름으로 넘기면 렌더 트리가 망가진다.
+        // prop 이름이 `children`이면 React가 JSX 자식으로 해석해 렌더 트리가 망가진다.
         childOptions={children}
         selectedChild={childId}
         params={{ ...raw, child: childId }}

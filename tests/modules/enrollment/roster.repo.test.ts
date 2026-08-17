@@ -105,9 +105,7 @@ describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
     expect(userUpdateMany).not.toHaveBeenCalled();
   });
 
-  it("삭제 대상의 studentProfileId를 userId로 바꾼 뒤, 아직 안 쓴 초대코드를 폐기하고 " +
-    "계정은 지우지 않고 deletedAt만 찍는다 — 학적·소속·상벌점 기록이 스프레드시트 " +
-    "행 하나로 사라지면 안 된다", async () => {
+  it("안 쓴 초대코드를 폐기하고 계정은 지우지 않고 deletedAt만 찍는다", async () => {
     studentProfileFindMany.mockResolvedValue([{ userId: "u-del-1" }, { userId: "u-del-2" }]);
     inviteFindMany.mockResolvedValue([{ id: "inv-1", role: "PARENT" }]);
 
@@ -140,9 +138,7 @@ describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
     });
   });
 
-  it("삭제 대상 조회가 role: STUDENT로 다시 좁혀진다 (M2) — listExisting과 트랜잭션 " +
-    "사이에 ADMIN으로 승격된 계정은 이 where 절 덕에 findMany 결과에서 빠져 소프트 " +
-    "삭제되지 않는다", async () => {
+  it("삭제 대상 조회를 role: STUDENT로 다시 좁혀 승격된 계정을 뺀다", async () => {
     studentProfileFindMany.mockResolvedValue([]);
 
     await applyRoster(2026, input({ deleteStudentProfileIds: ["sp-del-1"] }));
@@ -171,11 +167,7 @@ describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
     }
   });
 
-  it("아직 안 쓴 초대코드는 지우지 않고 REVOKED로 바꾼다 — 관리자가 대신 만들어 준 " +
-    "학부모 코드(studentId 기준)도 함께 폐기한다. 예전 하드 삭제 시절엔 " +
-    "StudentProfile을 지워 Invite.studentId의 Cascade가 이걸 자동으로 정리했지만, " +
-    "이제 StudentProfile이 안 지워지므로 명시적으로 막지 않으면 몇 달 뒤에도 그 " +
-    "코드로 학부모가 가입해 삭제된 학생에게 연결될 수 있다", async () => {
+  it("안 쓴 코드는 지우지 않고 REVOKED로 바꾼다 — 학부모 코드도 함께", async () => {
     studentProfileFindMany.mockResolvedValue([{ userId: "u-del-1" }]);
 
     await applyRoster(2026, input({ deleteStudentProfileIds: ["sp-del-1"] }));
@@ -186,8 +178,7 @@ describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
     expect(call.where.OR.some((c) => c.studentId?.in.includes("sp-del-1"))).toBe(true);
   });
 
-  it("폐기한 코드를 돌려준다 — 서비스가 커밋 뒤에 감사로그를 남길 수 있어야 한다. " +
-    "repo는 감사로그를 남기지 않는다(계층 규칙)", async () => {
+  it("폐기한 코드를 돌려줘야 서비스가 감사로그를 남길 수 있다", async () => {
     studentProfileFindMany.mockResolvedValue([{ userId: "u-del-1" }]);
     inviteFindMany.mockResolvedValue([
       { id: "inv-1", role: "PARENT" },
@@ -221,7 +212,7 @@ describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
 });
 
 describe("applyRoster()", () => {
-  it("managedStudentProfileIds로 좁혀서만 지운다 (I5) — 관리 범위 밖 학생의 배정은 손대지 않는다", async () => {
+  it("managedStudentProfileIds 범위 밖 배정은 지우지 않는다", async () => {
     await applyRoster(2026, input({ managedStudentProfileIds: ["sp-1", "sp-2"] }));
 
     expect(enrollmentDeleteMany).toHaveBeenCalledWith({
@@ -256,9 +247,7 @@ describe("applyRoster()", () => {
     expect(sessionDeleteMany).not.toHaveBeenCalled();
   });
 
-  it("statusChanged=true고 비재학이면 계정을 잠그고 세션을 지운다 — deletedAt도 " +
-    "함께 지운다(명단에 이 줄이 있다는 것 자체가 더는 소프트 삭제 대상이 아니라는 " +
-    "뜻이다. 비활성 상태는 그대로 유지한다 — 졸업생으로 돌아왔다고 재학은 아니다)", async () => {
+  it("비재학으로 바뀌면 계정을 잠그고 세션과 deletedAt을 지운다", async () => {
     studentProfileFindMany.mockResolvedValue([{ userId: "u-1" }]);
 
     await applyRoster(
@@ -277,8 +266,7 @@ describe("applyRoster()", () => {
     expect(sessionDeleteMany).toHaveBeenCalledWith({ where: { userId: { in: ["u-1"] } } });
   });
 
-  it("statusChanged=true고 재학이면 계정을 활성화하고 deletedAt도 지운다 — " +
-    "이게 재삽입으로 되살아나는 경로다(다시 넣으면 돌아온다)", async () => {
+  it("재학으로 바뀌면 계정을 활성화하고 deletedAt을 지운다", async () => {
     studentProfileFindMany.mockResolvedValue([{ userId: "u-1" }]);
 
     await applyRoster(2026, input({ assignments: [assignment({ statusChanged: true })] }));

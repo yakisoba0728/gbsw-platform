@@ -21,24 +21,16 @@ import * as repo from "./merit.repo";
 import { scopeYear, sumTotals, type MeritTotals } from "./award.service";
 
 /**
- * 통계 화면(app/(app)/merit/stats)이 쓰는 집계.
- *
- * 부여·취소·조회(award.service)와 규정 관리(rule.service)에 이어 **세 번째 책임**이라
- * 파일을 나눈다 — CLAUDE.md의 "repo는 하나, 서비스는 책임별로 나눈다"이고, 화면
- * 경계와도 정확히 겹친다. 합계 접기(sumTotals)와 학년도 범위(scopeYear)는 조회와
- * 공유해야 하므로 award.service에서 가져다 쓴다. 이쪽에서 저쪽으로만 의존한다.
+ * 통계 화면이 쓰는 집계. 합계 접기와 학년도 범위는 조회와 공유해야 하므로
+ * award.service에서 가져다 쓴다 — 이쪽에서 저쪽으로만 의존한다.
  */
 
 export type MeritStats = {
   /** 월별 추이 축 설명 — 교내는 학년도(3월~2월), 기숙사는 최근 12개월. */
   axisLabel: string;
   /**
-   * 그래프(monthly·categories)가 덮는 기간을 짧게 적은 것.
-   *
-   * **머리글 합계(totals)·많이 나온 항목(topRules)의 범위와 다를 수 있다.**
-   * 기숙사는 합계가 입학부터 누적인데 그래프만 최근 12개월로 자르기 때문이다.
-   * 그래서 이 값을 화면이 그래프 옆에 적는다 — 안 적으면 "분류별 분포"의 합이
-   * 머리글 상점·벌점보다 작은 이유가 화면 어디에도 나오지 않는다.
+   * 그래프가 덮는 기간. 머리글 합계·많이 나온 항목의 범위와 다를 수 있다 —
+   * 기숙사는 합계가 누적인데 그래프만 최근 12개월이다. 화면이 그래프 옆에 적는다.
    */
   chartRange: string;
   monthly: MonthlyPoint[];
@@ -57,10 +49,7 @@ export type MeritStats = {
   topRules: Awaited<ReturnType<typeof repo.topRules>>;
   /** 벌점이 기준(warn) 이상인 학생들 — 벌점 많은 순. 표시 전용이다. */
   watchList: WatchListRow[];
-  /**
-   * 지금 적용 중인 기준. **화면에 그대로 적고, 표의 강조 색도 이 값으로 칠한다** —
-   * 관리자가 설정에서 바꾸는 값이라 숫자가 안 보이면 왜 붉은지 알 수 없다.
-   */
+  /** 지금 적용 중인 기준. 화면에 적고 표의 강조 색도 이 값으로 칠한다. */
   thresholds: DemeritThresholds;
 };
 
@@ -80,18 +69,8 @@ export type WatchListRow = {
 };
 
 /**
- * 벌점이 기준(warn) 이상인 학생들 — 벌점 많은 순.
- *
- * **이 목록이 없으면 "전교에서 선을 넘은 사람이 누구인가"에 답하려고 반 명단을
- * 하나씩 열어야 한다.** 선도위원회 준비가 매번 하는 일이 그것이다.
- *
- * **표시만 한다.** 기준을 넘겨도 회부·통보·상태 변경 같은 것은 하나도 일어나지
- * 않는다 — 설계서가 알림·자동 조치를 의도적으로 미뤘고, 불이익을 주는 판단은
- * 사람이 한다. 화면에 기준 숫자를 함께 내보내는 이유도 같다: 관리자가 설정에서
- * 바꾸는 값이라, 지금 몇 점이 기준인지가 명단 옆에 적혀 있어야 읽힌다.
- *
- * **기준은 인자로 받는다** — 같은 요청 안에서 명단·강조·화면 문구가 한 번 읽은
- * 같은 값을 봐야 한다 (읽는 일은 getMeritStats가 한 번만 한다).
+ * 벌점이 기준(warn) 이상인 학생들 — 벌점 많은 순. 표시만 하며 회부·통보는
+ * 일어나지 않는다. 기준은 인자로 받는다 — 명단·강조·문구가 같은 값을 봐야 한다.
  */
 async function readWatchList(
   thresholds: DemeritThresholds,
@@ -108,8 +87,7 @@ async function readWatchList(
     studentProfileIds,
   });
 
-  // 기준 미만은 여기서 걸러 낸다 — 전교 300명 규모라 애플리케이션 필터로 충분하고,
-  // "기준"이라는 업무 규칙이 서비스에 남는다.
+  // 기준 미만은 여기서 걸러 낸다 — "기준"이라는 업무 규칙이 서비스에 남는다.
   const over = sums
     .map((row) => ({ id: row.studentProfileId, demerit: row._sum.points ?? 0 }))
     .filter((row) => row.demerit >= warn);
@@ -124,8 +102,7 @@ async function readWatchList(
   return over
     .flatMap((row) => {
       const student = byId.get(row.id);
-      // 합계는 있는데 신원이 없으면(그 사이 지워진 계정) 줄을 만들지 않는다 —
-      // 이름 없는 줄은 명단으로서 쓸모가 없다.
+      // 합계는 있는데 신원이 없으면 줄을 만들지 않는다 — 이름 없는 줄은 쓸모가 없다.
       if (!student) return [];
 
       const enrollment = student.enrollments[0];
@@ -153,13 +130,8 @@ export type MeritSummary = {
 };
 
 /**
- * 대시보드용 가벼운 요약 — 머리글 숫자만.
- *
- * getMeritStats를 쓰지 않는 이유: 그쪽은 월별 추이를 그리려고 해당 범위의 부여
- * 기록을 **전부** 읽어 오고(listAwardsForChart) 반별 집계까지 낸다. 대시보드는
- * 트랙 두 개를 나란히 보여주므로 그 무거운 일을 두 번 하게 되는데, 정작 쓰는
- * 값은 합계와 건수뿐이다. "대시보드에 통계 화면을 다시 만들지 않는다"는 원칙
- * (app/(app)/page.tsx 머리 주석)이 질의 비용에서도 그대로 성립하게 한다.
+ * 대시보드용 가벼운 요약 — 머리글 숫자만. getMeritStats는 그래프용 기록을 전부
+ * 읽어 오는데, 대시보드는 트랙 둘을 나란히 놓으면서 합계와 건수만 쓴다.
  */
 export async function getMeritSummary(
   actor: SessionUser,
@@ -194,30 +166,22 @@ export async function getMeritStats(
 ): Promise<MeritStats> {
   await assertCan(actor, "merit:read:any");
 
-  // 합계 범위는 트랙 규칙(교내=학년도, 기숙사=누적)을 따르고, 반 편성은 언제나
-  // 어느 학년도의 것인지가 필요하다 — 기숙사가 누적이어도 "지금 2학년 3반"은
-  // 학년도 개념이기 때문이다.
+  // 합계 범위는 트랙 규칙을 따르고, 반 편성은 언제나 어느 학년도의 것인지가 필요하다.
   const scoped = await scopeYear(track, year);
   const rosterYear = year ?? (await getCurrentYear());
 
   // 기준은 여기서 한 번 읽어 명단·화면에 같은 값을 쓴다 (읽기는 캐시된다).
   const thresholds = await getDemeritThresholds(track);
 
-  // 기숙사는 누적이라 학년도 경계가 없다 — 최근 12개월만 그린다. 그렇지 않으면
-  // 3학년 학생이 있는 해에는 축이 3년치로 늘어나 아무것도 안 보인다.
+  // 기숙사는 학년도 경계가 없다 — 최근 12개월만 그린다. 아니면 축이 3년치로 늘어난다.
   const axis = isYearScoped(track)
     ? schoolYearMonths(scoped ?? rosterYear)
     : rollingMonths(now);
-  //
-  // **since는 그래프 조회에만 넘긴다.** 합계(trackTotals)와 많이 나온
-  // 항목(topRules)은 기숙사에서도 누적 그대로 둔다 — 학생 화면·학부모 화면·
-  // 확인서가 모두 누적을 보여주므로 통계 화면만 12개월로 자르면 같은 학생의
-  // 숫자가 화면마다 달라진다. 트랙 정의("기숙사는 입학부터 누적")가 이기는 게
-  // 맞고, 대신 그래프가 덮는 기간을 chartRange로 내보내 화면에 적는다.
+  // since는 그래프 조회에만 넘긴다 — 합계까지 자르면 같은 학생의 숫자가
+  // 화면마다 달라진다. 그래프가 덮는 기간은 chartRange로 내보낸다.
   const since = isYearScoped(track) ? undefined : monthStart(axis[0].key);
 
-  // 반을 골랐으면 그 반 학생만 대상으로 삼는다. 학생 목록을 먼저 뽑아야
-  // 나머지 질의에 넘길 수 있어서 이 조회만 앞선다.
+  // 학생 목록을 먼저 뽑아야 나머지 질의에 넘길 수 있어서 이 조회만 앞선다.
   const classRoster = scope
     ? await repo.listClassRoster({
         year: rosterYear,
@@ -229,8 +193,7 @@ export async function getMeritStats(
     : null;
   const studentProfileIds = classRoster?.map((r) => r.studentProfileId);
 
-  // 반에 학생이 하나도 없으면 빈 배열이 되는데, 그대로 넘기면 Prisma의
-  // `in: []`가 "아무것도 없음"으로 동작해 의도대로 빈 결과가 나온다.
+  // 반이 비면 빈 배열이 되는데, Prisma의 `in: []`가 그대로 빈 결과를 준다.
   const [totalRows, classes, topRules, chartAwards, watchList] = await Promise.all([
     repo.trackTotals({ track, totalsYear: scoped, studentProfileIds }),
     repo.classSummaries({ year: rosterYear, track, totalsYear: scoped }),
@@ -241,7 +204,6 @@ export async function getMeritStats(
       studentProfileIds,
     }),
     repo.listAwardsForChart({ track, year: scoped, since, studentProfileIds }),
-    // 반을 골랐으면 그 반 안에서만 본다 — 화면의 다른 숫자와 범위를 맞춘다.
     readWatchList(thresholds, track, scoped, rosterYear, studentProfileIds),
   ]);
 
@@ -254,8 +216,6 @@ export async function getMeritStats(
     rosterYear,
     scope: scope ?? null,
     students: classRoster,
-    // 반을 골랐으면 그 반만 표에 남긴다 — 다른 반이 함께 보이면 무엇을 보고
-    // 있는지가 흐려진다.
     axisLabel: isYearScoped(track)
       ? `${scoped ?? rosterYear}학년도 (3월~이듬해 2월)`
       : "최근 12개월 (누적)",

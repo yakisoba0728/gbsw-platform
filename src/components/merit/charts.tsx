@@ -13,23 +13,10 @@ import type { CategorySlice, MonthlyPoint } from "@/modules/merit/merit.chart";
 import { scaleToPercent } from "@/modules/merit/merit.chart";
 
 /**
- * 그래프. **서버에서 그대로 그리는 CSS 막대**다 — 차트 라이브러리를 넣지 않는다.
- *
- * 관리자가 훑어보는 막대 몇 개에 100KB짜리 클라이언트 번들을 얹을 이유가 없고,
- * 시안의 카드·테두리·색 토큰을 그대로 쓰려면 직접 그리는 편이 더 정확하다.
- *
- * **값 표시도 JS 없이 한다** — 막대를 감싼 `group`에 hover/focus가 걸리면
- * 말풍선이 뜬다. `title` 속성(브라우저 기본 툴팁)은 뜨는 데 1초 이상 걸리고
- * 줄바꿈도 못 해서 여러 값을 한 번에 보여줄 수 없다.
- *
- * 터치 기기에는 hover가 없으므로 **막대 아래에 숫자를 함께 적는다.** 말풍선은
- * 거들 뿐이고, 없어도 값을 읽을 수 있어야 한다.
+ * 서버에서 그리는 CSS 막대. 차트 라이브러리를 쓰지 않는다.
+ * 터치 기기에는 hover가 없으므로 막대 아래에 숫자를 함께 적는다.
  */
 
-/**
- * 그래프 카드는 ui/SectionCard 그대로다 — 여기 있던 ChartCard가 정확히 그것이라
- * 올려 보내고 이름만 남긴다. merit 전용인 구석이 없었다.
- */
 function ChartCard({
   title,
   hint,
@@ -40,7 +27,8 @@ function ChartCard({
   children: React.ReactNode;
 }) {
   return (
-    <SectionCard title={title} hint={hint}>
+    // 통계 화면은 페이지 <h2> 아래에 카드를 늘어놓는다 — 카드 제목은 h3다.
+    <SectionCard title={title} hint={hint} headingLevel={3}>
       {children}
     </SectionCard>
   );
@@ -51,10 +39,7 @@ function Empty({ children }: { children: React.ReactNode }) {
   return <EmptyState variant="inside">{children}</EmptyState>;
 }
 
-/**
- * 막대 위에 뜨는 말풍선. hover와 focus 둘 다에 반응한다 —
- * 키보드로 훑는 사람도 같은 값을 볼 수 있어야 한다.
- */
+/** 막대 위 말풍선. hover와 focus 둘 다에 반응한다 — 키보드로도 값을 읽는다. */
 function Tooltip({
   title,
   rows,
@@ -65,13 +50,13 @@ function Tooltip({
   return (
     <span
       role="tooltip"
-      className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1.5 hidden -translate-x-1/2 rounded-btn border border-line bg-surface px-3 py-2 whitespace-nowrap shadow-lg group-hover:block group-focus-within:block"
+      className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1.5 hidden -translate-x-1/2 rounded-btn border border-line bg-surface px-3 py-2 whitespace-nowrap shadow-float group-hover:block group-focus-within:block"
     >
-      <span className="block text-[11px] font-bold text-ink">{title}</span>
+      <span className="block text-xs font-medium text-ink">{title}</span>
       {rows.map((row) => (
-        <span key={row.label} className="mt-0.5 flex items-center gap-2 text-[11px]">
+        <span key={row.label} className="mt-0.5 flex items-center gap-2 text-xs">
           <span className="text-mut">{row.label}</span>
-          <span className={`ml-auto font-bold ${row.className ?? "text-ink"}`}>
+          <span className={`ml-auto font-medium ${row.className ?? "text-ink"}`}>
             {row.value}
           </span>
         </span>
@@ -80,10 +65,7 @@ function Tooltip({
   );
 }
 
-/**
- * 월별 추이. 상점은 위로, 벌점은 아래로 그리는 발산형 막대다 —
- * 한 축에 겹쳐 그리면 어느 달이 나빴는지 한눈에 안 들어온다.
- */
+/** 월별 추이. 상점은 위로, 벌점은 아래로 그리는 발산형 막대다. */
 export function MonthlyChart({
   points,
   axisLabel,
@@ -98,22 +80,21 @@ export function MonthlyChart({
   return (
     <ChartCard title="월별 추이" hint={axisLabel}>
       {!hasData ? (
-        <Empty>아직 부여된 상벌점이 없습니다. 부여하면 여기에 그려집니다.</Empty>
+        <Empty>부여된 상벌점이 없습니다.</Empty>
       ) : (
-        <div className="flex items-stretch gap-1 overflow-x-auto pt-14">
+        // 위 여백은 말풍선 자리다. 터치 기기에는 hover가 없어 좁은 폭에서는 빈 칸이다.
+        <div className="@container">
+          <div className="flex items-stretch gap-1 overflow-x-auto pt-4 @md:pt-14">
           {points.map((point, i) => {
             const empty = !point.merit && !point.demerit && !point.offset;
             return (
               <div
                 key={point.key}
                 tabIndex={0}
-                // 키보드로 막대 12개를 지나간다. role 없이 tabIndex만 있으면
-                // 스크린리더가 "그룹" 정도로만 읽어서 무슨 달의 무슨 값인지가
-                // 전혀 안 나온다. 막대 아래 숫자는 늘 보이므로(터치 기기 배려)
-                // 이름에는 그것과 같은 내용만 적고 더 얹지 않는다.
+                // role 없이 tabIndex만 주면 스크린리더가 무슨 달의 무슨 값인지 못 읽는다.
                 role="group"
                 aria-label={`${point.label} 순점수 ${empty ? "없음" : signedNet(point.net)}`}
-                className="group relative flex min-w-[30px] flex-1 flex-col gap-1 rounded-[3px] outline-none focus-visible:ring-2 focus-visible:ring-pri"
+                className="group relative flex min-w-[30px] flex-1 flex-col gap-1 rounded-btn outline-none focus-visible:ring-2 focus-visible:ring-ink"
               >
                 <Tooltip
                   title={point.label}
@@ -140,7 +121,7 @@ export function MonthlyChart({
                 {/* 위: 상점 + 상쇄 */}
                 <div className="flex h-16 items-end">
                   <div
-                    className="w-full rounded-t-[3px] bg-blue transition-opacity group-hover:opacity-80"
+                    className="w-full rounded-t-btn bg-blue transition-opacity group-hover:opacity-80"
                     style={{ height: `${meritScale[i]}%` }}
                   />
                 </div>
@@ -148,15 +129,15 @@ export function MonthlyChart({
                 {/* 아래: 벌점 */}
                 <div className="flex h-16 items-start">
                   <div
-                    className="w-full rounded-b-[3px] bg-rose transition-opacity group-hover:opacity-80"
+                    className="w-full rounded-b-btn bg-rose transition-opacity group-hover:opacity-80"
                     style={{ height: `${demeritScale[i]}%` }}
                   />
                 </div>
 
-                <span className="text-center text-[10px] text-mut">{point.label}</span>
+                <span className="text-center text-xs text-mut">{point.label}</span>
                 {/* 터치 기기에는 hover가 없다 — 순점수는 늘 보이게 한다. */}
                 <span
-                  className={`text-center text-[10px] font-bold ${
+                  className={`text-center text-xs font-medium ${
                     empty ? "text-mut2" : point.net >= 0 ? "text-green" : "text-rose"
                   }`}
                 >
@@ -165,6 +146,7 @@ export function MonthlyChart({
               </div>
             );
           })}
+          </div>
         </div>
       )}
       <Legend
@@ -233,25 +215,25 @@ export function ClassNetChart({
                   { label: "1인 평균", value: signedNet(row.avgNet) },
                 ]}
               />
-              <span className="w-[76px] shrink-0 text-[12px] font-semibold text-ink">
+              <span className="w-[76px] shrink-0 text-xs font-medium text-ink">
                 {row.grade}-{row.classNo}
                 <DemeritFlag thresholds={thresholds} demerit={row.demerit} />
               </span>
               <span className="flex flex-1 justify-end">
                 <span
-                  className="h-4 rounded-l-[3px] bg-rose"
+                  className="h-4 rounded-l-btn bg-rose"
                   style={{ width: row.net < 0 ? `${scale[i]}%` : 0 }}
                 />
               </span>
               <span className="h-5 w-px bg-line" />
               <span className="flex flex-1">
                 <span
-                  className="h-4 rounded-r-[3px] bg-green"
+                  className="h-4 rounded-r-btn bg-green"
                   style={{ width: row.net >= 0 ? `${scale[i]}%` : 0 }}
                 />
               </span>
               <span
-                className={`w-[52px] shrink-0 text-right text-[12px] font-bold ${
+                className={`w-[52px] shrink-0 text-right text-xs font-medium ${
                   row.net >= 0 ? "text-green" : "text-rose"
                 }`}
               >
@@ -261,7 +243,7 @@ export function ClassNetChart({
           );
 
           const shared =
-            "group relative flex items-center gap-2 rounded-btn px-1 py-0.5 outline-none focus-visible:ring-2 focus-visible:ring-pri";
+            "group relative flex items-center gap-2 rounded-btn px-1 py-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ink";
 
           return hrefFor ? (
             <Link
@@ -272,10 +254,7 @@ export function ClassNetChart({
               {body}
             </Link>
           ) : (
-            // 링크가 아닐 때도 키보드로 훑을 수 있어야 말풍선(focus-within)이 뜬다.
-            // role 없이 tabIndex만 주면 스크린리더가 "그룹" 정도로만 읽으므로
-            // 무엇의 무슨 값인지를 이름에 적는다. 막대 아래 숫자는 늘 보이므로
-            // 여기서 더 얹지 않는다.
+            // 링크가 아닐 때도 키보드로 훑어야 말풍선(focus-within)이 뜬다.
             <div
               key={`${row.grade}-${row.classNo}`}
               tabIndex={0}
@@ -330,7 +309,7 @@ export function StudentNetChart({
             <Link
               key={row.studentProfileId}
               href={hrefFor(row.studentProfileId)}
-              className="group relative flex items-center gap-2 rounded-btn px-1 py-0.5 outline-none hover:bg-soft focus-visible:ring-2 focus-visible:ring-pri"
+              className="group relative flex items-center gap-2 rounded-btn px-1 py-0.5 outline-none hover:bg-soft focus-visible:ring-2 focus-visible:ring-ink"
             >
               <Tooltip
                 title={`${row.number ?? "—"}번 ${row.name}`}
@@ -347,25 +326,25 @@ export function StudentNetChart({
                   },
                 ]}
               />
-              <span className="w-[92px] shrink-0 truncate text-[12px] font-semibold text-ink">
+              <span className="w-[92px] shrink-0 truncate text-xs font-medium text-ink">
                 {row.name}
                 <DemeritFlag thresholds={thresholds} demerit={row.demerit} />
               </span>
               <span className="flex flex-1 justify-end">
                 <span
-                  className="h-4 rounded-l-[3px] bg-rose"
+                  className="h-4 rounded-l-btn bg-rose"
                   style={{ width: row.net < 0 ? `${scale[i]}%` : 0 }}
                 />
               </span>
               <span className="h-5 w-px bg-line" />
               <span className="flex flex-1">
                 <span
-                  className="h-4 rounded-r-[3px] bg-green"
+                  className="h-4 rounded-r-btn bg-green"
                   style={{ width: row.net >= 0 ? `${scale[i]}%` : 0 }}
                 />
               </span>
               <span
-                className={`w-[52px] shrink-0 text-right text-[12px] font-bold ${
+                className={`w-[52px] shrink-0 text-right text-xs font-medium ${
                   row.net >= 0 ? "text-green" : "text-rose"
                 }`}
               >
@@ -378,13 +357,9 @@ export function StudentNetChart({
   );
 }
 
-/** 분류별 분포. 무엇 때문에 점수가 오갔는지 보여준다. */
 /**
- * scopeLabel은 이 그래프가 덮는 기간이다(MeritStats.chartRange).
- *
- * **반드시 적는다.** 기숙사는 머리글 합계가 입학부터 누적인데 이 그래프만 최근
- * 12개월을 세므로, 적지 않으면 분류별 합이 머리글 상점·벌점이나 "많이 나온
- * 항목"의 건수보다 작은 이유가 화면 어디에도 나오지 않는다.
+ * 분류별 분포. scopeLabel은 이 그래프가 덮는 기간이며 반드시 적는다 —
+ * 기숙사는 머리글 합계가 누적인데 그래프만 최근 12개월이라 합이 달라 보인다.
  */
 export function CategoryChart({
   slices,
@@ -396,7 +371,7 @@ export function CategoryChart({
   if (slices.length === 0) {
     return (
       <ChartCard title="분류별 분포" hint={`${scopeLabel} · 건수 기준`}>
-        <Empty>아직 부여된 상벌점이 없습니다.</Empty>
+        <Empty>부여된 상벌점이 없습니다.</Empty>
       </ChartCard>
     );
   }
@@ -423,7 +398,7 @@ export function CategoryChart({
             aria-label={`${slice.category} ${
               MERIT_KIND_LABELS[slice.kind as MeritKind] ?? slice.kind
             } ${slice.count}건 ${slice.points}점`}
-            className="group relative flex items-center gap-2.5 rounded-btn px-1 py-0.5 outline-none focus-visible:ring-2 focus-visible:ring-pri"
+            className="group relative flex items-center gap-2.5 rounded-btn px-1 py-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ink"
           >
             <Tooltip
               title={slice.category}
@@ -437,21 +412,21 @@ export function CategoryChart({
                 { label: "합계", value: `${slice.points}점` },
               ]}
             />
-            <span className="w-[132px] shrink-0 truncate text-[12px] text-ink">
+            <span className="w-[132px] shrink-0 truncate text-xs text-ink">
               {slice.category}
             </span>
             <span
-              className={`w-[44px] shrink-0 text-[11px] font-bold ${kindColorClass(slice.kind)}`}
+              className={`w-[44px] shrink-0 text-xs font-medium ${kindColorClass(slice.kind)}`}
             >
               {MERIT_KIND_LABELS[slice.kind as MeritKind] ?? slice.kind}
             </span>
-            <span className="h-4 flex-1 rounded-[3px] bg-soft">
+            <span className="h-4 flex-1 rounded-btn bg-soft">
               <span
-                className={`block h-4 rounded-[3px] ${kindBarClass(slice.kind)} transition-opacity group-hover:opacity-80`}
+                className={`block h-4 rounded-btn ${kindBarClass(slice.kind)} transition-opacity group-hover:opacity-80`}
                 style={{ width: `${scale[i]}%` }}
               />
             </span>
-            <span className="w-[64px] shrink-0 text-right text-[12px] text-mut">
+            <span className="w-[64px] shrink-0 text-right text-xs text-mut">
               {slice.count}건 · {slice.points}점
             </span>
           </div>
@@ -465,8 +440,8 @@ function Legend({ items }: { items: { color: string; label: string }[] }) {
   return (
     <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-line2 pt-3">
       {items.map((item) => (
-        <span key={item.label} className="flex items-center gap-1.5 text-[11px] text-mut">
-          <span className={`size-2.5 rounded-[2px] ${item.color}`} />
+        <span key={item.label} className="flex items-center gap-1.5 text-xs text-mut">
+          <span className={`size-2.5 rounded-full ${item.color}`} />
           {item.label}
         </span>
       ))}

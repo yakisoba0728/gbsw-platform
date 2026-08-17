@@ -19,26 +19,20 @@ import type { ApplyState, PreviewState } from "./action-state";
 
 const MESSAGES: Record<string, string> = {
   EMPTY: "읽을 수 있는 줄이 없습니다. 서식 파일을 받아 확인해 주세요.",
-  // previewRoster의 EMPTY와 문구를 맞춘다 — zod(rosterRowsSchema.min(1))가 정상
-  // 경로에서 항상 막아주므로 화면까지 닿을 일은 없지만, 서비스의 방어(M-1)가
-  // 실제로 걸렸을 때 빈 문자열 대신 사람이 읽을 문구가 나가야 한다.
   EMPTY_ROWS: "반영할 내용이 없습니다.",
   YEAR_CHANGED: "학년도가 바뀌었습니다. 새로고침 후 다시 올려 주세요.",
   BLOCKED: "오류가 있는 줄이 남아 있습니다.",
   CODE_COLLISION: "초대코드가 겹쳤습니다. 다시 시도해 주세요.",
   CANNOT_DEACTIVATE_SELF: "자기 계정은 비활성화할 수 없습니다.",
-  // 미리보기 이후 삭제 대상이 바뀌었다(I-2) — 인원 수만 다시 적는다고 해결되지
-  // 않는다. 새로고침해서 다시 미리보기부터 해야 한다.
-  DELETION_SET_CHANGED: "삭제 대상이 바뀌었습니다. 다시 확인해 주세요.",
-  // 삭제 대상이 있는데 인원 수를 안 넣었거나 틀리게 넣었다 (I-3).
-  DELETION_COUNT_MISMATCH: "삭제할 인원 수를 정확히 입력해 주세요.",
-  CANNOT_DELETE_SELF: "자기 계정은 삭제할 수 없습니다.",
+  // 미리보기 이후 명단에서 빠질 학생이 달라졌다. 미리보기부터 다시 해야 한다.
+  DELETION_SET_CHANGED: "빠지는 학생이 달라졌습니다. 새로고침 후 다시 확인해 주세요.",
+  DELETION_COUNT_MISMATCH: "빠지는 인원 수를 정확히 입력해 주세요.",
+  CANNOT_DELETE_SELF: "자기 계정은 명단에서 뺄 수 없습니다.",
 };
 
-/** getCurrentYear()가 던지는 AcademicYearError는 파일 문제가 아니다 — 따로 알려야
- * 관리자가 멀쩡한 파일을 계속 고치는 일이 없다. /admin/students/page.tsx와 같은 처리. */
+/** 파일 문제와 섞이면 관리자가 멀쩡한 파일을 계속 고치게 된다. 따로 알린다. */
 const NO_CURRENT_YEAR_MESSAGE =
-  "현재 학년도가 설정되어 있지 않습니다. 학생 관리에서 학년도를 먼저 만들어 주세요.";
+  "현재 학년도가 없습니다. 학생 관리에서 학년도를 먼저 만드세요.";
 
 /** 파일 크기 상한. 전교생 300명이면 수십 KB면 충분하다. */
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -81,11 +75,7 @@ export async function previewRosterAction(
   }
 }
 
-/**
- * 전체 명단 내려받기. 클라이언트가 write-excel-file(브라우저)로 xlsx를 직접 만들
- * 수 있도록 행렬만 돌려준다 — 서버는 파일을 만들지 않는다.
- * <form action>이 아니라 버튼 클릭에서 직접 부르므로 useActionState를 쓰지 않는다.
- */
+/** 전체 명단 내보내기. 행렬만 돌려주고 xlsx는 브라우저가 만든다. */
 export async function exportRosterAction(): Promise<{
   error: string | null;
   year: number | null;
@@ -100,10 +90,9 @@ export async function exportRosterAction(): Promise<{
     if (error instanceof AcademicYearError) {
       return { error: NO_CURRENT_YEAR_MESSAGE, year: null, rows: [] };
     }
-    // 예상 못 한 오류는 서버에 남긴다. 화면에는 일반 문구만 나가므로
-    // 여기서 흘리면 무엇이 잘못됐는지 아무 데도 남지 않는다.
+    // 화면에는 일반 문구만 나가므로 여기서 안 남기면 원인이 어디에도 없다.
     console.error("명단 내보내기 실패:", error);
-    return { error: "명단을 내려받지 못했습니다.", year: null, rows: [] };
+    return { error: "명단을 내보내지 못했습니다.", year: null, rows: [] };
   }
 }
 
@@ -120,8 +109,7 @@ export async function applyRosterAction(
     return { error: "반영할 내용을 읽지 못했습니다.", saved: null, deleted: null, excludedNew: [], invites: [] };
   }
 
-  // "zod 검증은 경계에서 한 번만" — 미리보기가 돌려준 값을 그대로 믿지 않는다 (I3).
-  // errors를 지워 보내거나 status/grade·classNo·number 조합을 조작해도 여기서 막힌다.
+  // 미리보기가 돌려준 값을 그대로 믿지 않는다 — 손댄 값도 여기서 막힌다.
   const rowsParsed = rosterRowsSchema.safeParse(parsedJson);
   if (!rowsParsed.success) {
     return {
@@ -138,30 +126,23 @@ export async function applyRosterAction(
     return { error: "학년도가 올바르지 않습니다.", saved: null, deleted: null, excludedNew: [], invites: [] };
   }
 
-  // 미리보기가 보여준 삭제 대상 id 목록을 hidden input(JSON 문자열)으로 받는다 (I-2).
-  // 이건 실수를 막는 첫 방어선일 뿐이다 — 서버 액션을 직접 호출하면 이 필드를 조작해
-  // 보낼 수 있으므로, 진짜 강제는 applyRosterPlan 안에서 다시 세운 삭제 대상 집합과의
-  // 대조가 한다. 이 목록은 동의 표시가 아니라 "화면이 무엇을 보고 있었는가"다 —
-  // 동의는 아래 deletionCount가 받는다.
+  // 화면이 본 삭제 대상 목록. 동의 표시가 아니라 대조용이며, 진짜 강제는
+  // applyRosterPlan이 다시 세운 집합과의 대조가 한다.
   let confirmedDeletionIdsJson: unknown;
   try {
     confirmedDeletionIdsJson = JSON.parse(String(formData.get("confirmedDeletionIds") ?? "[]"));
   } catch {
-    return { error: "삭제 확인 정보를 읽지 못했습니다.", saved: null, deleted: null, excludedNew: [], invites: [] };
+    return { error: "확인 정보를 읽지 못했습니다.", saved: null, deleted: null, excludedNew: [], invites: [] };
   }
   const confirmedDeletionIdsParsed = confirmedDeletionIdsSchema.safeParse(
     confirmedDeletionIdsJson,
   );
   if (!confirmedDeletionIdsParsed.success) {
-    return { error: "삭제 확인 정보를 읽지 못했습니다.", saved: null, deleted: null, excludedNew: [], invites: [] };
+    return { error: "확인 정보를 읽지 못했습니다.", saved: null, deleted: null, excludedNew: [], invites: [] };
   }
 
-  // 삭제 인원 확인 입력 (I-3). 삭제 대상이 없으면 화면에 입력칸이 없어 빈 문자열이
-  // 오는데, deletionCountConfirmationSchema가 그걸 null로 접는다 — 정상이다.
-  // 삭제 대상이 있는데 null인지는 여기서 가르지 않는다: 삭제 건수는 서버가 다시 세운
-  // plan만 알기 때문에 applyRosterPlan이 거부한다.
-  // 형식이 아예 깨진 값(숫자로 못 읽는 문자열 등)은 "건수를 정확히 입력하라"는
-  // 문구로 보낸다 — 애매한 값 자체가 그 오류이기 때문이다.
+  // 빠지는 학생이 없으면 입력칸 자체가 없어 빈 문자열이 오고 스키마가 null로 접는다.
+  // 그때 거부할지는 서버가 다시 세운 plan을 아는 applyRosterPlan이 정한다.
   const deletionCountParsed = deletionCountConfirmationSchema.safeParse(
     formData.get("deletionCount"),
   );
@@ -176,10 +157,6 @@ export async function applyRosterAction(
   }
 
   try {
-    // excludedNewStudents를 구조분해에서 빠뜨리면 서비스가 애써 돌려준 값이
-    // 여기서 조용히 버려진다 — 비재학 신규 줄은 계정이 안 만들어지는데
-    // 미리보기는 "신규 N"으로 세므로, 화면까지 닿지 않으면 관리자는 N명이
-    // 등록됐다고 믿는다.
     const { saved, deleted, invites, excludedNewStudents } = await applyRosterPlan(
       actor,
       yearParsed.data.year,

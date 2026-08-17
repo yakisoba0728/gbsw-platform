@@ -3,16 +3,14 @@
 import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Note } from "@/components/ui/note";
+import { SectionCard } from "@/components/ui/section-card";
 import { Select } from "@/components/ui/select";
 import { MAX_YEAR, MIN_YEAR } from "@/modules/academic-year/academic-year.schema";
 import { YEAR_INITIAL } from "./action-state";
 import { createYearAction, setCurrentYearAction } from "./actions";
 
-/*
- * 각 폼이 자기 결과를 직접 렌더한다.
- * 결과를 부모로 끌어올리면 자식 렌더 중에 부모 setState를 부르게 되어
- * "Cannot update a component while rendering a different component"로 터진다.
- */
+/** 각 폼이 자기 결과를 직접 렌더한다. 부모로 끌어올리면 렌더 중 setState로 터진다. */
 export function YearSwitcher({
   years,
 }: {
@@ -30,16 +28,14 @@ export function YearSwitcher({
   );
 
   return (
-    <section className="rounded-card border border-line bg-surface p-5">
-      <h2 className="text-base font-extrabold text-ink">학년도</h2>
-      <p className="mt-0.5 text-[12px] text-mut">
-        모든 화면이 현재 학년도의 소속을 보여줍니다.
-      </p>
-
-      <div className="mt-4 flex flex-wrap items-end gap-4">
+    <SectionCard
+      variant="panel"
+      title="학년도"
+      hint="모든 화면이 현재 학년도의 소속을 보여줍니다."
+    >
+      <div className="flex flex-wrap items-end gap-4">
         <form action={switchAction} className="flex items-end gap-2">
-          {/* 폭은 바깥에서 준다 — cn()이 tailwind-merge가 아니라 Select의
-              w-full을 className으로 덮을 수 없다. */}
+          {/* 폭은 바깥에서 준다 — cn()이 tailwind-merge가 아니라 w-full을 못 덮는다. */}
           <div className="w-36">
             <Select
               dense
@@ -73,29 +69,29 @@ export function YearSwitcher({
               name="year"
               aria-label="새 학년도"
               placeholder="2027"
-              // 서버(yearFormSchema)가 쓰는 상수를 그대로 쓴다 — 숫자를 다시
-              // 적으면 학교가 범위를 넓힐 때 브라우저 검사만 옛 값에 남는다.
+              // 서버가 쓰는 상수를 그대로 쓴다 — 숫자를 다시 적으면 범위를
+              // 넓힐 때 브라우저 검사만 옛 값에 남는다.
               min={MIN_YEAR}
               max={MAX_YEAR}
               required
             />
           </div>
           <Button type="submit" size="sm" variant="secondary" disabled={creating}>
-            {creating ? "만드는 중…" : "학년도 추가"}
+            {creating ? "만드는 중…" : "추가"}
           </Button>
         </form>
       </div>
 
       {switchState.error && (
-        <p role="alert" className="mt-3 text-[12.5px] font-semibold text-rose">
+        <Note tone="error" className="mt-3">
           {switchState.error}
-        </p>
+        </Note>
       )}
       {createState.error && (
-        <p role="alert" className="mt-3 text-[12.5px] font-semibold text-rose">
+        <Note tone="error" className="mt-3">
           {createState.error}
-        </p>
+        </Note>
       )}
-    </section>
+    </SectionCard>
   );
 }

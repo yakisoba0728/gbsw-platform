@@ -15,12 +15,8 @@ const { classSummaries, demeritTotalsByStudent, listClassRoster } = await import
 );
 
 /**
- * repo의 집계 세 곳.
- *
- * 예전엔 종류→칸 접기와 `net = 상점 + 상쇄 − 벌점`이 여기 두 함수와 서비스·그래프에
- * 각각 복제돼 있었는데 **어느 것도 테스트가 없었다.** 넷 중 하나만 잘못 고치면 같은
- * 학생의 순점수가 학생 상세·반 명단·통계에서 서로 다르게 뜬다. 계산 자체는
- * merit-track으로 모았고, 여기서는 그 헬퍼가 실제로 물려 있는지를 본다.
+ * repo의 집계 세 곳. 계산은 merit-track에 모여 있고, 여기서는 그 헬퍼가 실제로
+ * 물려 있는지를 본다 — 하나만 어긋나도 화면마다 순점수가 달라진다.
  */
 beforeEach(() => {
   enrollmentFindMany.mockReset().mockResolvedValue([]);
@@ -71,7 +67,7 @@ describe("listClassRoster — 반 명단 합계", () => {
   });
 
   /** 상쇄점을 순점수에서 빠뜨리면 선도위원회 의결이 화면에 반영되지 않는다. */
-  it("상쇄점이 순점수를 올린다 — 상점 칸에는 섞이지 않는다", async () => {
+  it("상쇄점이 순점수를 올린다", async () => {
     enrollmentFindMany.mockResolvedValue([enrolled("sp-1", 1)]);
     meritAwardGroupBy.mockResolvedValue([
       sum("sp-1", "DEMERIT", 30),
@@ -117,7 +113,7 @@ describe("listClassRoster — 반 명단 합계", () => {
     expect(meritAwardGroupBy).not.toHaveBeenCalled();
   });
 
-  it("totalsYear가 null이면 학년도 조건 없이 센다 — 기숙사(누적)다", async () => {
+  it("totalsYear가 null이면 학년도 조건 없이 센다", async () => {
     enrollmentFindMany.mockResolvedValue([enrolled("sp-1", 1)]);
 
     await listClassRoster({ ...roster, track: "DORM", totalsYear: null });
@@ -171,7 +167,7 @@ describe("classSummaries — 반별 요약", () => {
   });
 
   /** 기록이 없는 학생이 분모에서 빠지면 평균이 부풀어 반끼리 비교가 안 된다. */
-  it("기록이 없는 학생도 인원에 든다 — 평균의 분모다", async () => {
+  it("기록이 없는 학생도 인원에 든다", async () => {
     enrollmentFindMany.mockResolvedValue([
       enrolled("sp-1", 1),
       enrolled("sp-2", 2),

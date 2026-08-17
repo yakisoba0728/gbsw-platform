@@ -92,7 +92,7 @@ describe("규정 시드 — 형식", () => {
     }
   });
 
-  it("점수는 전부 1~1000의 정수다 — 부호는 kind가 정하므로 음수가 없다", () => {
+  it("점수는 전부 1~1000의 정수다", () => {
     for (const rule of MERIT_RULE_SEED) {
       expect(Number.isInteger(rule.points), rule.label).toBe(true);
       expect(rule.points, rule.label).toBeGreaterThanOrEqual(1);
@@ -111,7 +111,7 @@ describe("규정 시드 — 형식", () => {
     }
   });
 
-  it("앞뒤 공백이 없다 — 있으면 화면에서 줄이 어긋난다", () => {
+  it("앞뒤 공백이 없다", () => {
     for (const rule of MERIT_RULE_SEED) {
       expect(rule.label).toBe(rule.label.trim());
       expect(rule.category).toBe(rule.category.trim());

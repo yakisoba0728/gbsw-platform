@@ -9,8 +9,8 @@ describe("toStyledSheetData()", () => {
   it("머리글 행을 굵게 + 회색 배경으로 만든다", () => {
     const [header] = toStyledSheetData([["이름", "학년"], ["김동혁", "1"]]);
     expect(header).toEqual([
-      { value: "이름", type: String, fontWeight: "bold", backgroundColor: "#eaecf0" },
-      { value: "학년", type: String, fontWeight: "bold", backgroundColor: "#eaecf0" },
+      { value: "이름", type: String, fontWeight: "bold", backgroundColor: "#dfdfdf" },
+      { value: "학년", type: String, fontWeight: "bold", backgroundColor: "#dfdfdf" },
     ]);
   });
 
@@ -19,12 +19,12 @@ describe("toStyledSheetData()", () => {
       [["이름", "학년", "입학반"]],
       { infoColumnCount: 1 },
     );
-    expect(asCellObject(header![0]).backgroundColor).toBe("#eaecf0");
-    expect(asCellObject(header![1]).backgroundColor).toBe("#eaecf0");
-    expect(asCellObject(header![2]).backgroundColor).toBe("#f5f6f8");
+    expect(asCellObject(header![0]).backgroundColor).toBe("#dfdfdf");
+    expect(asCellObject(header![1]).backgroundColor).toBe("#dfdfdf");
+    expect(asCellObject(header![2]).backgroundColor).toBe("#fafafa");
   });
 
-  it("숫자·문자 값 모두 type: String으로 강제한다 — 엑셀이 앞자리 0을 먹거나 지수 표기로 바꾸지 않도록", () => {
+  it("모든 값을 type: String으로 강제한다 — 엑셀이 수로 읽지 않도록", () => {
     const [, row] = toStyledSheetData([["학생코드", "번호"], ["AAAA1111", 7]]);
     expect(row).toEqual([
       { value: "AAAA1111", type: String },

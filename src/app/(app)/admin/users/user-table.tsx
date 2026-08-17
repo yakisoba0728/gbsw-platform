@@ -4,11 +4,11 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { SettingsIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonClass } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { SectionCard } from "@/components/ui/section-card";
-import { TableFrame, tableCellPadding } from "@/components/ui/table";
+import { DataTable, type Column } from "@/components/ui/table";
 
 export type UserRow = {
   id: string;
@@ -41,19 +41,77 @@ const ROLE_FILTERS = [
 type StatusKey = (typeof STATUS_FILTERS)[number]["key"];
 type RoleKey = (typeof ROLE_FILTERS)[number]["key"];
 
-const HEADERS = [
-  "이름",
-  "역할",
-  "소속",
-  "연락처",
-  "상태",
-  "가입일",
-  // 상세 링크 열 — 머리글에 이름이 없다.
-  "",
-] as const;
-
-/** 본문 셀의 좌우 여백. 머리글과 같은 규칙을 써야 세로줄이 맞는다. */
-const cell = (index: number) => `${tableCellPadding(index, HEADERS.length)} py-3`;
+/** 열이 일곱이라 좁은 폭에서 압축이 성립하지 않는다 — 가로 스크롤로 둔다. */
+const COLUMNS: readonly Column<UserRow>[] = [
+  {
+    key: "name",
+    header: "이름",
+    cell: (row) => (
+      <>
+        <span className="font-medium text-ink">{row.name}</span>
+        <span className="block text-xs text-mut">{row.email}</span>
+      </>
+    ),
+  },
+  {
+    key: "role",
+    header: "역할",
+    cell: (row) => <span className="text-mut">{row.roleLabel}</span>,
+  },
+  {
+    key: "class",
+    header: "소속",
+    cell: (row) =>
+      row.classLabel ? (
+        <span className="text-ink">{row.classLabel}</span>
+      ) : (
+        <span className="text-mut">—</span>
+      ),
+  },
+  {
+    key: "phone",
+    header: "연락처",
+    cell: (row) => <span className="text-mut">{row.phone ?? "—"}</span>,
+  },
+  {
+    key: "status",
+    header: "상태",
+    cell: (row) => (
+      <>
+        <Badge tone={row.active ? "approved" : "cancelled"}>
+          {row.active ? "활성" : "비활성"}
+        </Badge>
+        {row.mustChangePassword && (
+          <span className="mt-1 block text-xs text-amber-ink">
+            비밀번호 변경 대기
+          </span>
+        )}
+      </>
+    ),
+  },
+  {
+    key: "createdAt",
+    header: "가입일",
+    cell: (row) => <span className="text-mut">{row.createdAt}</span>,
+  },
+  {
+    key: "detail",
+    // 상세 링크 열 — 머리글에 이름이 없다.
+    header: "",
+    cell: (row) => (
+      <div className="flex justify-end">
+        <Link
+          href={`/admin/users/${row.id}`}
+          aria-label={`${row.name} 상세`}
+          title="상세"
+          className={buttonClass({ size: "icon", variant: "secondary" })}
+        >
+          <SettingsIcon size={16} />
+        </Link>
+      </div>
+    ),
+  },
+];
 
 export function UserTable({ rows }: { rows: UserRow[] }) {
   const [status, setStatus] = useState<StatusKey>("ACTIVE");
@@ -82,8 +140,8 @@ export function UserTable({ rows }: { rows: UserRow[] }) {
 
   return (
     <SectionCard
-      title="사용자"
-      aside={<span className="text-[12px] text-mut">{filtered.length}명</span>}
+      title="계정"
+      aside={<span className="text-xs text-mut">{filtered.length}명</span>}
       controls={
         <>
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
@@ -127,46 +185,14 @@ export function UserTable({ rows }: { rows: UserRow[] }) {
       flush
     >
       {filtered.length === 0 ? (
-        <EmptyState variant="inside">조건에 맞는 사용자가 없습니다.</EmptyState>
+        <EmptyState variant="inside">조건에 맞는 계정이 없습니다.</EmptyState>
       ) : (
-        <TableFrame minWidth={760} headers={HEADERS}>
-          <tbody>
-            {filtered.map((row) => (
-              <tr key={row.id} className="border-b border-line2 last:border-0">
-                <td className={cell(0)}>
-                  <span className="font-semibold text-ink">{row.name}</span>
-                  <span className="block text-[12px] text-mut">{row.email}</span>
-                </td>
-                <td className={`${cell(1)} text-mut`}>{row.roleLabel}</td>
-                <td className={`${cell(2)} text-ink`}>
-                  {row.classLabel ?? <span className="text-mut">—</span>}
-                </td>
-                <td className={`${cell(3)} text-mut`}>{row.phone ?? "—"}</td>
-                <td className={cell(4)}>
-                  <Badge tone={row.active ? "approved" : "cancelled"}>
-                    {row.active ? "활성" : "비활성"}
-                  </Badge>
-                  {row.mustChangePassword && (
-                    <span className="mt-1 block text-[12px] text-amber-ink">
-                      비밀번호 변경 대기
-                    </span>
-                  )}
-                </td>
-                <td className={`${cell(5)} text-mut`}>{row.createdAt}</td>
-                <td className={`${cell(6)} text-right`}>
-                  <Link
-                    href={`/admin/users/${row.id}`}
-                    aria-label={`${row.name} 상세`}
-                    title="상세 · 수정"
-                    className="inline-flex size-8 items-center justify-center rounded-btn border border-line text-mut transition-colors hover:bg-soft hover:text-ink"
-                  >
-                    <SettingsIcon size={16} />
-                  </Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </TableFrame>
+        <DataTable
+          minWidth={760}
+          rows={filtered}
+          rowKey={(row) => row.id}
+          columns={COLUMNS}
+        />
       )}
     </SectionCard>
   );

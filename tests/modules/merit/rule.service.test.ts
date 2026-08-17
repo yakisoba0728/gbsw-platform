@@ -150,7 +150,7 @@ describe("updateRule", () => {
 
 describe("deleteRule", () => {
   it("관리자는 규정을 삭제한다", async () => {
-    await service.deleteRule(admin, "r-1");
+    await service.deleteRule(admin, { ruleId: "r-1", reason: "규정 개정" });
 
     expect(markRuleDeleted).toHaveBeenCalledWith("r-1");
     expect(recordAudit).toHaveBeenCalledWith(
@@ -161,7 +161,25 @@ describe("deleteRule", () => {
     );
   });
 
-  it("이미 지워진 규정이면 아무 일도 하지 않는다 — 감사로그도 안 쌓는다", async () => {
+  it("사유를 감사로그에 남긴다 — 항목이 사라진 이유를 되짚을 자료가 이것뿐이다", async () => {
+    await service.deleteRule(admin, { ruleId: "r-1", reason: "규정 개정으로 없어짐" });
+
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ reason: "규정 개정으로 없어짐" }),
+      }),
+    );
+  });
+
+  it("권한이 없으면 삭제하지 못한다", async () => {
+    await expect(
+      service.deleteRule(student, { ruleId: "r-1", reason: "x" }),
+    ).rejects.toThrow("FORBIDDEN");
+
+    expect(markRuleDeleted).not.toHaveBeenCalled();
+  });
+
+  it("이미 지워진 규정이면 아무 일도 하지 않는다", async () => {
     findRule.mockResolvedValue({
       id: "r-1",
       track: "SCHOOL",
@@ -173,7 +191,7 @@ describe("deleteRule", () => {
       active: false,
     });
 
-    await service.deleteRule(admin, "r-1");
+    await service.deleteRule(admin, { ruleId: "r-1", reason: "x" });
 
     expect(markRuleDeleted).not.toHaveBeenCalled();
     expect(recordAudit).not.toHaveBeenCalled();
@@ -181,7 +199,9 @@ describe("deleteRule", () => {
 
   it("없는 규정은 RULE_NOT_FOUND", async () => {
     findRule.mockResolvedValue(null);
-    await expect(service.deleteRule(admin, "r-1")).rejects.toThrow(
+    await expect(
+      service.deleteRule(admin, { ruleId: "r-1", reason: "x" }),
+    ).rejects.toThrow(
       "RULE_NOT_FOUND",
     );
   });
@@ -195,7 +215,7 @@ describe("조회", () => {
     await expect(service.listRules(student, "SCHOOL")).rejects.toThrow("FORBIDDEN");
   });
 
-  it("listActiveRules는 부여 권한으로 막는다 — 규정 관리 권한이 아니다", async () => {
+  it("listActiveRules는 부여 권한으로 막는다", async () => {
     await service.listActiveRules(admin, "DORM");
     expect(listActiveRules).toHaveBeenCalledWith("DORM");
 

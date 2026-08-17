@@ -70,7 +70,7 @@ describe("액션 라벨 커버리지", () => {
 
 describe("auditActionLabel() / auditActionTone()", () => {
   it("아는 액션은 한글 라벨과 지정된 톤을 돌려준다", () => {
-    expect(auditActionLabel("user:delete")).toBe("계정 삭제");
+    expect(auditActionLabel("user:delete")).toBe("계정 완전 삭제");
     expect(auditActionTone("user:delete")).toBe("rejected");
 
     expect(auditActionLabel("invite:create:parent")).toBe("학부모 코드 발급");
@@ -85,7 +85,7 @@ describe("auditActionLabel() / auditActionTone()", () => {
 
 describe("auditTargetLabel()", () => {
   it("아는 대상 종류는 한글로 바꾼다", () => {
-    expect(auditTargetLabel("User")).toBe("사용자");
+    expect(auditTargetLabel("User")).toBe("계정");
     expect(auditTargetLabel("Invite")).toBe("초대코드");
     expect(auditTargetLabel("StudentProfile")).toBe("학생");
     expect(auditTargetLabel("AcademicYear")).toBe("학년도");

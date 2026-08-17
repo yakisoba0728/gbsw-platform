@@ -17,10 +17,8 @@ export default async function StudentsPage() {
 
   const years = await listYears(actor);
 
-  // 현재 학년도가 아예 없으면 listStudents(→getCurrentYear)가 던진다. 그렇다고
-  // 화면 전체를 에러 페이지로 넘기면 학년도를 지정할 유일한 화면(YearSwitcher)에도
-  // 못 들어간다 — 표 없이 YearSwitcher만이라도 띄운다. (/admin/invites·
-  // /admin/users도 같은 오류를 같은 방식으로 잡는다 — M7.)
+  // 현재 학년도가 없으면 표는 못 그리지만 학년도 카드는 띄워야 한다 — 학년도를
+  // 지정할 수 있는 화면이 여기뿐이다.
   let rows: StudentRow[] | null = null;
   try {
     const students = await listStudents(actor);
@@ -38,19 +36,19 @@ export default async function StudentsPage() {
     if (!(error instanceof AcademicYearError)) throw error;
   }
 
-  // 학년도가 바뀌면 표를 통째로 새로 마운트한다 — 그대로 두면 클라이언트가
-  // 들고 있던 이전 학년도의 편집 상태(drafts)가 새 rows 위에 남아
-  // 존재하지 않는 소속이 편집 중인 것처럼 보인다.
+  // 학년도가 바뀌면 표를 새로 마운트한다 — 안 그러면 이전 학년도의 편집 상태가
+  // 새 목록 위에 남는다.
   const currentYear = years.find((y) => y.isCurrent)?.year;
 
   return (
-    <div className="grid gap-5">
+    // grid로 두면 암시적 열이 max-content라 표의 minWidth가 페이지를 밀어낸다.
+    <div className="flex flex-col gap-4">
       <div className="flex justify-end">
         <Link
           href="/admin/students/import"
-          className="text-[12.5px] font-semibold text-pri hover:underline"
+          className="text-caption font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
         >
-          명단 올리기
+          명단 반영
         </Link>
       </div>
       <YearSwitcher years={years} />
@@ -58,8 +56,7 @@ export default async function StudentsPage() {
         <StudentTable key={currentYear} rows={rows} year={currentYear} />
       ) : (
         <EmptyState>
-          현재 학년도가 없습니다. 위에서 학년도를 만들거나 선택하면 학생 목록이
-          여기 나타납니다.
+          현재 학년도가 없습니다. 위에서 학년도를 만들거나 고르세요.
         </EmptyState>
       )}
     </div>

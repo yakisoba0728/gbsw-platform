@@ -120,7 +120,7 @@ describe("applyAll()", () => {
     expect(enrollmentUpsert).toHaveBeenCalledTimes(2);
   });
 
-  it("반·번호 중복이면 NumberTakenError로 옮긴다 — 서비스 사전 검사를 빠져나간 경합에 대한 backstop", async () => {
+  it("반·번호 중복은 NumberTakenError로 옮긴다", async () => {
     enrollmentUpsert.mockRejectedValue(realWorldNumberP2002());
 
     await expect(applyAll(2026, [planned()])).rejects.toBeInstanceOf(
@@ -150,8 +150,7 @@ describe("applyAll()", () => {
 });
 
 describe("listByYear()", () => {
-  it("role이 STUDENT인 계정만, 명단에서 빠져 소프트 삭제된 학생은 뺀 채로 " +
-    "조회한다 (I3) — 승격된 관리자와 삭제된 학생 둘 다 이 표의 대상이 아니다", async () => {
+  it("role이 STUDENT이고 명단에 남아 있는 학생만 조회한다", async () => {
     await listByYear(2026);
 
     expect(studentProfileFindMany).toHaveBeenCalledWith(

@@ -133,13 +133,21 @@ tests/                  core/ · modules/ — 구조를 src/와 맞춘다
 
 ## 디자인
 
-`~/Downloads/UI 디자인 재개발/`의 Claude Design 시안이 기준. 색·간격·컴포넌트 규격은
-`GBSW 통합관리시스템.dc.html`을 따른다. 시안의 CSS 변수는 `src/app/globals.css`의
-`@theme`에 같은 이름으로 옮겨져 있다 (`--color-pri`, `--color-ink` …).
+`docs/design/2026-08-17-redesign-spec.md`가 기준이다. 원본 시안은
+`docs/design/DESIGN-supabase.md` — **흰 캔버스 · 근검정 잉크 · 에메랄드 하나**.
+색·크기·모서리는 `src/app/globals.css`의 `@theme`에 토큰으로 있고, 화면 코드는
+토큰 이름만 쓴다 (`text-caption`, `rounded-card`, `bg-pri` …).
 
-시안은 인라인 style이라 hover·반응형을 표현하지 못한다 (`style-hover`는 디자인 툴 전용
-속성, `@media`는 0개). 이식할 때 hover는 `hover:`, PC/모바일 전환은 `lg:` 브레이크포인트로
-바꾼다 — 시안의 `device`/`isMobile` prop 토글을 JS로 재현하지 말 것 (SSR 불일치 발생).
+**에메랄드(`--color-pri` `#3ecf8e`)는 배경 전용이다.** 흰 배경에서 대비가 2:1이라
+글자로 쓰면 안 읽힌다 — `text-pri`는 타입 검사도 lint도 잡아 주지 않으므로 스스로
+쓰지 않아야 한다. 초록 글자가 필요하면 `text-pri-ink`(5.3:1)를 쓰고, `bg-pri` 위
+글자는 흰색이 아니라 `text-on-pri`(근검정)다.
+
+그 밖의 금지 사항: `font-bold`·`font-extrabold`(제목은 `font-semibold`, 나머지는
+`font-medium`), `text-[NNpx]` 임의 글자크기, 카드에 `shadow-*`. 페이지 바탕도 흰색
+이라 카드는 `border border-line`으로만 보인다 — 테두리를 빼면 카드가 사라진다.
+
+문구 규칙(한 문장 · 완충어 금지 · 용어 고정표)도 같은 문서 §3에 있다.
 
 ## 주의점
 

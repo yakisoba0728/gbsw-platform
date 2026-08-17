@@ -1,10 +1,6 @@
 import type { ComponentPropsWithoutRef } from "react";
 import { cn } from "@/lib/cn";
 
-/**
- * 시안의 Btn 컴포넌트를 Tailwind로 옮긴 것.
- * variant/size 조합은 "UI 디자인 재개발/Btn.dc.html"의 renderVals()와 1:1 대응한다.
- */
 export type ButtonVariant =
   | "primary"
   | "secondary"
@@ -14,32 +10,63 @@ export type ButtonVariant =
   | "ghost"
   | "chip";
 
-export type ButtonSize = "sm" | "md" | "lg";
+export type ButtonSize = "sm" | "md" | "lg" | "icon";
 
 const VARIANTS: Record<ButtonVariant, string> = {
-  primary: "border-transparent bg-pri text-white hover:bg-pri-press",
-  secondary: "border-line bg-surface text-ink hover:bg-soft",
+  // 에메랄드 위 글자는 근검정이다. 흰 글자는 대비가 2:1까지 떨어진다.
+  primary: "border-transparent bg-pri text-on-pri hover:bg-pri-press",
+  secondary: "border-line-strong bg-surface text-ink hover:bg-soft",
   danger: "border-rose-line bg-surface text-rose hover:bg-rose-soft",
   approve: "border-transparent bg-green text-white hover:bg-green-press",
   reject: "border-transparent bg-rose text-white hover:bg-rose-press",
-  ghost: "border-transparent bg-transparent text-pri hover:bg-pri-soft",
-  chip: "border-line bg-surface text-mut hover:bg-soft",
+  ghost: "border-transparent bg-transparent text-ink hover:bg-soft",
+  chip: "border-line bg-surface text-mut hover:bg-soft hover:text-ink",
+};
+
+/** 고른 칩. 초록이 아니라 잉크색이다 — 에메랄드는 실행 버튼에만 남긴다. */
+const CHIP_ACTIVE = "border-ink bg-ink text-white hover:bg-ink";
+
+/*
+ * 모바일에서 36px 미만이면 안 된다 (시안 Touch Targets). 표 안이 빽빽해지는
+ * 데스크톱에서만 다시 줄인다 — 마우스에는 36px이 필요 없다.
+ */
+const SIZES: Record<ButtonSize, string> = {
+  sm: "h-9 px-3 text-caption lg:h-8",
+  md: "h-9 px-4 text-sm",
+  lg: "h-11 px-4 text-sm",
+  icon: "size-9 lg:size-8",
 };
 
 /**
- * chip variant는 선택 상태를 별도로 그린다.
- *
- * 링크로 된 필터 칩(`ui/chip-link.tsx`)이 이 규격을 그대로 따라간다 —
- * 두 가지가 화면에서 나란히 서기 때문이다(규정 화면의 종류 칩은 링크,
- * 초대 화면의 상태 칩은 버튼인데 사용자에겐 똑같은 알약이다).
+ * 버튼 생김새만 필요한 곳이 쓴다 — `<Link>`는 `<button>`이 아니라서 Button을
+ * 쓸 수 없는데, 클래스를 손으로 베끼면 규격이 갈라진다.
  */
-const CHIP_ACTIVE = "border-pri bg-pri text-white hover:bg-pri-press";
+export function buttonClass({
+  variant = "primary",
+  size = "md",
+  full = false,
+  active = false,
+  className,
+}: {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  full?: boolean;
+  active?: boolean;
+  className?: string;
+} = {}): string {
+  const isChip = variant === "chip";
 
-const SIZES: Record<ButtonSize, string> = {
-  sm: "text-[12.5px] px-3.5 py-[7px]",
-  md: "text-sm px-[18px] py-[11px]",
-  lg: "text-[14.5px] px-[18px] py-3.5",
-};
+  return cn(
+    "inline-flex items-center justify-center gap-1.5 border font-medium leading-none whitespace-nowrap",
+    "transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
+    "disabled:pointer-events-none disabled:opacity-40",
+    isChip ? "rounded-full" : "rounded-btn",
+    isChip && active ? CHIP_ACTIVE : VARIANTS[variant],
+    SIZES[size],
+    full && "w-full",
+    className,
+  );
+}
 
 type ButtonProps = ComponentPropsWithoutRef<"button"> & {
   variant?: ButtonVariant;
@@ -58,34 +85,12 @@ export function Button({
   type = "button",
   ...props
 }: ButtonProps) {
-  const isChip = variant === "chip";
-
   return (
     <button
       type={type}
-      /*
-       * 선택 상태를 색으로만 알리지 않는다. chip은 전부 "켰다/껐다"를 나타내는
-       * 자리라 8덩어리(초대·사용자·로그·학생 표의 필터)가 여기 한 줄로 해결된다.
-       *
-       * 초대 발급 화면의 학생/관리자/학부모 셋만 성격이 다르다 — 필터가 아니라
-       * 아래 폼을 갈아 끼우는 탭이다. 그래도 aria-pressed를 붙인다: 지금 그
-       * 화면은 선택 상태를 색으로만 전달하고 있고, 제대로 된 탭으로 만들려면
-       * role="tab"·tabpanel·화살표키 이동까지 필요해 이 파일 한 곳에서 끝나지
-       * 않는다. "눌려 있다"는 사실이라도 전달되는 편이 아무것도 없는 것보다 낫다.
-       *
-       * {...props}가 뒤에 오므로 호출부가 명시하면 그쪽이 이긴다.
-       */
-      aria-pressed={isChip ? active : undefined}
-      className={cn(
-        "inline-flex items-center justify-center gap-1.5 border font-bold leading-tight whitespace-nowrap",
-        "transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pri",
-        "disabled:pointer-events-none disabled:opacity-50",
-        isChip ? "rounded-full" : size === "lg" ? "rounded-btn-lg" : "rounded-btn",
-        isChip && active ? CHIP_ACTIVE : VARIANTS[variant],
-        SIZES[size],
-        full && "w-full",
-        className,
-      )}
+      // 선택 상태를 색으로만 알리지 않는다. {...props}가 뒤에 오므로 호출부가 이긴다.
+      aria-pressed={variant === "chip" ? active : undefined}
+      className={buttonClass({ variant, size, full, active, className })}
       {...props}
     />
   );

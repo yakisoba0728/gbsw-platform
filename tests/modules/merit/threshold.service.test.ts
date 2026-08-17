@@ -3,11 +3,8 @@ import type { SessionUser } from "@/core/auth/session";
 import { DEFAULT_DEMERIT_THRESHOLDS } from "@/core/authz/merit-track";
 
 /**
- * 벌점 기준 설정.
- *
- * **행이 없어도 화면이 동작해야 한다** — 학교가 아직 한 번도 설정하지 않은
- * 상태가 정상이고, 그때는 코드의 기본값이 그대로 쓰인다. 그래서 "빈 DB"가
- * 여기서 첫 번째 케이스다.
+ * 벌점 기준 설정. 행이 없어도 화면이 동작해야 한다 — 한 번도 설정하지 않은
+ * 상태가 정상이라 "빈 DB"가 첫 번째 케이스다.
  */
 
 const listThresholds = vi.fn();
@@ -54,14 +51,14 @@ beforeEach(() => {
 });
 
 describe("readDemeritThresholds — 읽기와 폴백", () => {
-  it("행이 하나도 없으면 코드 기본값이 그대로 나온다 — 빈 DB에서도 화면이 산다", async () => {
+  it("행이 하나도 없으면 코드 기본값이 그대로 나온다", async () => {
     const all = await service.readDemeritThresholds();
 
     expect(all.SCHOOL).toEqual(DEFAULT_DEMERIT_THRESHOLDS.SCHOOL);
     expect(all.DORM).toEqual(DEFAULT_DEMERIT_THRESHOLDS.DORM);
   });
 
-  it("저장된 트랙은 저장값을, 없는 트랙은 기본값을 쓴다 — 한쪽만 설정한 상태가 정상이다", async () => {
+  it("저장된 트랙은 저장값을, 없는 트랙은 기본값을 쓴다", async () => {
     listThresholds.mockResolvedValue([row("SCHOOL", 15, 25)]);
 
     const all = await service.readDemeritThresholds();
@@ -70,7 +67,7 @@ describe("readDemeritThresholds — 읽기와 폴백", () => {
     expect(all.DORM).toEqual(DEFAULT_DEMERIT_THRESHOLDS.DORM);
   });
 
-  it("모르는 트랙 행은 무시한다 — 트랙이 사라져도 화면 모양이 안 깨진다", async () => {
+  it("모르는 트랙 행은 무시한다", async () => {
     listThresholds.mockResolvedValue([row("CLUB", 1, 2)]);
 
     const all = await service.readDemeritThresholds();
@@ -105,7 +102,7 @@ describe("listThresholdSettings — 설정 화면이 보는 값", () => {
     expect(school.configured).toBe(true);
   });
 
-  it("트랙 순서는 MERIT_TRACKS와 같다 — 화면마다 순서가 흔들리지 않게", async () => {
+  it("트랙 순서는 MERIT_TRACKS와 같다", async () => {
     const rows = await service.listThresholdSettings(admin);
     expect(rows.map((r) => r.track)).toEqual(["SCHOOL", "DORM"]);
   });
@@ -151,7 +148,7 @@ describe("setDemeritThresholds — 저장", () => {
     );
   });
 
-  it("첫 저장의 '이전'은 실제로 쓰이던 기본값이다 — null이면 로그에서 무엇이 바뀌었는지 못 읽는다", async () => {
+  it("첫 저장의 '이전'은 실제로 쓰이던 기본값이다", async () => {
     listThresholds.mockResolvedValue([]);
 
     await service.setDemeritThresholds(admin, input);
@@ -169,7 +166,7 @@ describe("setDemeritThresholds — 저장", () => {
     );
   });
 
-  it("값이 그대로면 쓰지도 기록하지도 않는다 — 저장만 눌러도 로그가 쌓이면 안 된다", async () => {
+  it("값이 그대로면 쓰지도 기록하지도 않는다", async () => {
     listThresholds.mockResolvedValue([row("SCHOOL", 20, 30)]);
 
     await service.setDemeritThresholds(admin, { track: "SCHOOL", warn: 20, danger: 30 });
@@ -178,7 +175,7 @@ describe("setDemeritThresholds — 저장", () => {
     expect(recordAudit).not.toHaveBeenCalled();
   });
 
-  it("행이 없을 때 기본값과 똑같은 값을 넣으면 저장한다 — '학교가 확인했다'는 사실 자체가 기록이다", async () => {
+  it("행이 없을 때 기본값과 똑같은 값을 넣으면 저장한다", async () => {
     listThresholds.mockResolvedValue([]);
 
     await service.setDemeritThresholds(admin, {
@@ -198,7 +195,7 @@ describe("setDemeritThresholds — 저장", () => {
     expect(upsertThreshold).not.toHaveBeenCalled();
   });
 
-  it("위험이 경고 이하면 서비스도 거부한다 — 스키마를 안 거친 호출이 있어도 막힌다", async () => {
+  it("위험이 경고 이하면 서비스도 거부한다", async () => {
     await expect(
       service.setDemeritThresholds(admin, { track: "SCHOOL", warn: 30, danger: 20 }),
     ).rejects.toThrow("INVALID_THRESHOLD_ORDER");

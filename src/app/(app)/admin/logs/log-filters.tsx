@@ -1,9 +1,8 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { SearchForm } from "@/components/ui/search-form";
 import { auditActionLabel } from "@/modules/audit-log/audit-log.labels";
 import { AUDIT_PERIODS, type AuditPeriod } from "@/modules/audit-log/audit-log.schema";
 
@@ -14,11 +13,7 @@ const PERIOD_LABEL: Record<AuditPeriod, string> = {
   all: "전체",
 };
 
-/**
- * 필터는 URL 쿼리에 싣는다.
- * 로그는 서버에서 걸러 페이지 단위로 가져오므로 상태를 주소에 두는 게 맞다
- * (새로고침·뒤로가기·링크 공유가 그대로 동작한다).
- */
+/** 필터는 URL 쿼리에 싣는다 — 새로고침·뒤로가기·링크 공유가 그대로 동작한다. */
 export function LogFilters({
   actions,
   period,
@@ -33,7 +28,6 @@ export function LogFilters({
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  const [actorInput, setActorInput] = useState(actor);
 
   function apply(next: Record<string, string>) {
     const query = new URLSearchParams(params.toString());
@@ -47,8 +41,7 @@ export function LogFilters({
   }
 
   return (
-    // 카드 머리글 안(SectionCard의 controls)에 들어간다 — 여백·구분선은 머리글이
-    // 이미 갖고 있다. 초대·사용자·학생 화면의 필터와 같은 자리다.
+    // 카드 머리글 안에 들어간다 — 여백·구분선은 머리글이 이미 갖고 있다.
     <>
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         {AUDIT_PERIODS.map((p) => (
@@ -86,23 +79,16 @@ export function LogFilters({
         ))}
       </div>
 
-      <form
+      {/* 검색은 GET으로 보낸다 — 지금 고른 기간·동작은 hidden으로 함께 실어야
+          검색과 동시에 필터가 풀리지 않는다. */}
+      <SearchForm
+        name="actor"
+        defaultValue={actor}
+        placeholder="행위자 이름 · 이메일"
+        ariaLabel="행위자 이름 · 이메일 검색"
+        hidden={{ period, action: action || null }}
         className="mt-2.5 flex gap-2"
-        action={() => apply({ actor: actorInput })}
-      >
-        <Input
-          dense
-          name="actor"
-          value={actorInput}
-          onChange={(e) => setActorInput(e.currentTarget.value)}
-          aria-label="행위자 이름 · 이메일 검색"
-          placeholder="행위자 이름 · 이메일"
-          className="min-w-0 flex-1"
-        />
-        <Button type="submit" variant="secondary" size="sm" className="shrink-0">
-          검색
-        </Button>
-      </form>
+      />
     </>
   );
 }

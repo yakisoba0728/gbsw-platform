@@ -7,7 +7,7 @@ import { TrackTabs } from "@/components/merit/track-tabs";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionCard } from "@/components/ui/section-card";
-import { TableFrame } from "@/components/ui/table";
+import { DataTable, type Column } from "@/components/ui/table";
 import { formatDate, formatDateTime, isSameKstDate } from "@/lib/datetime";
 import { listRecentAwards } from "@/modules/merit/award.service";
 import { CancelBatchButton } from "./cancel-batch-button";
@@ -24,23 +24,119 @@ export default async function RecentAwardsPage({
   const raw = await searchParams;
   const track: MeritTrack = isMeritTrack(raw.track) ? raw.track : "SCHOOL";
 
-  /*
-   * 다른 상벌점 화면과 달리 AcademicYearError를 잡지 않는다 — listRecentAwards는
-   * getCurrentYear()를 타지 않아서다(트랙만 받아 repo로 바로 내려간다). 잡는
-   * 코드와 NoAcademicYearNotice 분기가 있었지만 닿을 수 없는 길이었고, 학년도가
-   * 없는 것처럼 보이는 화면을 만들 수 있다는 착각만 남겼다.
-   */
+  // AcademicYearError를 잡지 않는다 — listRecentAwards는 getCurrentYear()를 타지 않는다.
   const rows = await listRecentAwards(actor, track);
 
-  // 같은 묶음이 몇 건인지 세어 둔다 — 일괄 취소 버튼에 건수를 적어야
-  // "이 버튼이 몇 명을 되돌리는지" 누르기 전에 알 수 있다.
+  // 같은 묶음이 몇 건인지 세어 둔다 — 취소 버튼에 건수를 적어야 무엇을 되돌리는지 안다.
   const batchSizes = new Map<string, number>();
   for (const row of rows) {
     if (row.batchId && row.status === "ACTIVE") {
       batchSizes.set(row.batchId, (batchSizes.get(row.batchId) ?? 0) + 1);
     }
   }
+
+  // 묶음의 첫 줄에만 일괄 취소를 붙인다. 같은 버튼이 30번 뜨면 무엇을 누르는지가
+  // 오히려 흐려진다. 표와 카드가 같은 행을 두 번 그리므로 판정은 여기서 끝낸다.
   const seenBatches = new Set<string>();
+  const items = rows.map((row) => {
+    const batchSize = row.batchId ? (batchSizes.get(row.batchId) ?? 0) : 0;
+    const showBatchCancel =
+      row.status !== "CANCELLED" &&
+      row.batchId !== null &&
+      batchSize > 1 &&
+      !seenBatches.has(row.batchId);
+    if (row.batchId) seenBatches.add(row.batchId);
+    return { ...row, batchSize, showBatchCancel };
+  });
+
+  const columns: Column<(typeof items)[number]>[] = [
+    {
+      // 이 목록만 입력순이다 — 앞에 서는 시각도 입력 시각이고, 발생일이 다르면 덧붙인다.
+      key: "createdAt",
+      header: "시각",
+      width: "w-[128px]",
+      card: "meta",
+      cardLabel: false,
+      cell: (row) => (
+        <span className="font-mono text-xs whitespace-nowrap text-mut">
+          {formatDateTime(row.createdAt)}
+          {!isSameKstDate(row.occurredOn, row.createdAt) && (
+            <span className="block text-mut2">발생 {formatDate(row.occurredOn)}</span>
+          )}
+        </span>
+      ),
+    },
+    {
+      key: "kind",
+      header: "구분",
+      width: "w-[72px]",
+      cell: (row) => <KindBadge kind={row.kind} />,
+    },
+    {
+      key: "student",
+      header: "학생",
+      width: "w-[96px]",
+      card: "title",
+      cell: (row) => (
+        <Link
+          href={`/merit/students/${row.studentProfileId}?track=${track}`}
+          className="inline-flex min-h-9 items-center font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink lg:min-h-0"
+        >
+          {row.studentName}
+        </Link>
+      ),
+    },
+    {
+      key: "label",
+      header: "항목",
+      card: "meta",
+      cardLabel: false,
+      cell: (row) => (
+        <span
+          className={`text-caption ${
+            row.status === "CANCELLED" ? "text-mut line-through" : "text-ink"
+          }`}
+        >
+          {row.label}
+        </span>
+      ),
+    },
+    {
+      key: "points",
+      header: <span className="block text-right">점수</span>,
+      width: "w-[68px]",
+      card: "trailing",
+      cell: (row) => (
+        <span
+          className={`block text-right font-medium whitespace-nowrap lg:text-right ${
+            row.status === "CANCELLED" ? "text-mut" : kindColorClass(row.kind)
+          }`}
+        >
+          {signedPoints(row.kind, row.points)}
+        </span>
+      ),
+    },
+    {
+      key: "awardedBy",
+      header: "부여자",
+      width: "w-[92px]",
+      card: "meta",
+      cell: (row) => <span className="text-xs text-mut">{row.awardedByName}</span>,
+    },
+    {
+      key: "status",
+      header: "상태",
+      width: "w-[108px]",
+      card: "actions",
+      cell: (row) =>
+        row.status === "CANCELLED" ? (
+          <Badge tone="cancelled">취소</Badge>
+        ) : row.showBatchCancel && row.batchId ? (
+          // 묶음 건수를 버튼에 적는다 — 배지로는 무엇을 하라는 건지가 없다.
+          <CancelBatchButton batchId={row.batchId} count={row.batchSize} />
+        ) : null,
+    },
+  ];
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
@@ -48,121 +144,16 @@ export default async function RecentAwardsPage({
       <TrackTabs current={track} hrefFor={(t) => `/merit/recent?track=${t}`} />
 
       {rows.length === 0 ? (
-        <EmptyState>아직 부여된 상벌점이 없습니다.</EmptyState>
+        <EmptyState>부여된 상벌점이 없습니다.</EmptyState>
       ) : (
         <SectionCard title={`최근 부여 ${rows.length}건`} flush>
-          {/*
-            표로 그린다. flex 목록이었을 때는 항목명 길이에 따라 점수·부여자가
-            줄마다 다른 자리에 섰다 — 눈으로 세로로 훑을 수가 없었다.
-            colgroup으로 자리를 고정하고, 넘치는 글자는 잘라낸다.
-
-            열 폭이 다른 표보다 넉넉한 이유: 이 표만 px-2를 쓰고 있었는데 공용
-            규칙(첫·끝 px-5, 나머지 px-3)으로 맞추면서 가운데 다섯 열이 열당
-            4px씩 좁아졌다. table-fixed라 좁아진 만큼 글자가 잘리므로 그만큼
-            폭을 되돌려 준다.
-          */}
-          <TableFrame
-            fixed
-            minWidth={800}
-            cols={[
-              "w-[128px]",
-              "w-[72px]",
-              "w-[96px]",
-              undefined,
-              "w-[68px]",
-              "w-[92px]",
-              "w-[108px]",
-            ]}
-            headers={[
-              "시각",
-              "구분",
-              "학생",
-              "항목",
-              <span key="points" className="block text-right">
-                점수
-              </span>,
-              "부여자",
-              "상태",
-            ]}
-          >
-            <tbody>
-              {rows.map((row) => {
-                const cancelled = row.status === "CANCELLED";
-                // 묶음의 첫 줄에만 일괄 취소를 붙인다. 같은 버튼이 30번 뜨면
-                // 무엇을 누르는지가 오히려 흐려진다.
-                const batchSize = row.batchId ? (batchSizes.get(row.batchId) ?? 0) : 0;
-                const showBatchCancel =
-                  !cancelled &&
-                  row.batchId !== null &&
-                  batchSize > 1 &&
-                  !seenBatches.has(row.batchId);
-                if (row.batchId) seenBatches.add(row.batchId);
-
-                return (
-                  <tr key={row.id} className="border-b border-line2 last:border-0">
-                    {/*
-                      이 목록만 입력순이다 ("방금 무엇이 들어왔나"를 보는 화면).
-                      그래서 앞에 서는 시각도 입력 시각이고, 발생일이 다른 날이면
-                      그것을 덧붙인다 — 두 날짜가 갈린 기록을 여기서 알아채야
-                      잘못 넣은 것을 바로 되돌릴 수 있다.
-                    */}
-                    <td className="px-5 py-2.5 align-top text-[12px] whitespace-nowrap text-mut">
-                      {formatDateTime(row.createdAt)}
-                      {!isSameKstDate(row.occurredOn, row.createdAt) && (
-                        <span className="block text-mut2">
-                          발생 {formatDate(row.occurredOn)}
-                        </span>
-                      )}
-                    </td>
-
-                    <td className="px-3 py-2.5 align-top">
-                      <KindBadge kind={row.kind} />
-                    </td>
-
-                    <td className="px-3 py-2.5 align-top">
-                      <Link
-                        href={`/merit/students/${row.studentProfileId}?track=${track}`}
-                        className="block truncate font-semibold text-ink hover:text-pri hover:underline"
-                      >
-                        {row.studentName}
-                      </Link>
-                    </td>
-
-                    <td
-                      className={`truncate px-3 py-2.5 align-top text-[13px] ${
-                        cancelled ? "text-mut line-through" : "text-ink"
-                      }`}
-                      title={row.label}
-                    >
-                      {row.label}
-                    </td>
-
-                    <td
-                      className={`px-3 py-2.5 text-right align-top font-bold whitespace-nowrap ${
-                        cancelled ? "text-mut" : kindColorClass(row.kind)
-                      }`}
-                    >
-                      {signedPoints(row.kind, row.points)}
-                    </td>
-
-                    <td className="truncate px-3 py-2.5 align-top text-[12px] text-mut">
-                      {row.awardedByName}
-                    </td>
-
-                    <td className="px-5 py-2.5 align-top">
-                      {cancelled ? (
-                        <Badge tone="cancelled">취소</Badge>
-                      ) : showBatchCancel && row.batchId ? (
-                        // 같은 묶음으로 나간 건수를 버튼에 적는다 — 배지로
-                        // "일괄 4"만 띄우면 그래서 뭘 하라는 건지가 없다.
-                        <CancelBatchButton batchId={row.batchId} count={batchSize} />
-                      ) : null}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </TableFrame>
+          <DataTable
+            minWidth={720}
+            narrow="cards"
+            rows={items}
+            rowKey={(row) => row.id}
+            columns={columns}
+          />
         </SectionCard>
       )}
     </div>

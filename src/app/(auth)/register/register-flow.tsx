@@ -26,11 +26,8 @@ export function RegisterFlow() {
     CHECK_INITIAL,
   );
 
-  /*
-   * 폼 action에는 서버 액션을 그대로 물린다. 여기에 클라이언트 함수를 끼우면
-   * React가 progressive enhancement용 히든 필드를 심지 못해 JS 없이는 동작하지 않는다.
-   * 그래서 "뒤로"는 상태가 아니라 /register 재진입으로 처리한다.
-   */
+  // 폼 action에는 서버 액션을 그대로 물린다 — 클라이언트 함수를 끼우면 JS 없이
+  // 동작하지 않는다. 그래서 "뒤로"도 상태가 아니라 /register 재진입으로 푼다.
   return check.code && check.role ? (
     <ProfileStep code={check.code} role={check.role} />
   ) : (
@@ -38,9 +35,9 @@ export function RegisterFlow() {
   );
 }
 
-/** 라벨 옆에 옅게 붙는 보조 문구. 시안의 `비밀번호 (8자 이상)` 패턴. */
+/** 라벨 옆에 옅게 붙는 보조 문구. */
 function Hint({ children }: { children: React.ReactNode }) {
-  return <span className="font-medium text-mut">{children}</span>;
+  return <span className="font-normal text-mut">{children}</span>;
 }
 
 function CodeStep({
@@ -54,12 +51,8 @@ function CodeStep({
 }) {
   return (
     <form action={formAction} className="animate-auth-in">
-      <h1 className="mb-1.5 text-2xl font-extrabold tracking-[-0.02em] text-ink">
-        가입코드 확인
-      </h1>
-      <p className="mb-[26px] text-[13.5px] text-mut">
-        발급받은 가입코드를 입력해 주세요.
-      </p>
+      <h1 className="mb-2 text-title font-semibold text-ink">가입</h1>
+      <p className="mb-8 text-caption text-mut">받으신 가입코드를 입력합니다.</p>
 
       <Label htmlFor="code">가입코드</Label>
       <MaskedInput
@@ -70,7 +63,7 @@ function CodeStep({
         autoCapitalize="characters"
         required
         format={formatInviteCodeInput}
-        className="mb-[22px]"
+        className="mb-6 font-mono"
       />
 
       {error && (
@@ -80,12 +73,15 @@ function CodeStep({
       )}
 
       <Button type="submit" size="lg" full disabled={pending}>
-        {pending ? "확인 중…" : "코드 확인 후 계속"}
+        {pending ? "확인 중…" : "다음"}
       </Button>
 
-      <p className="mt-5 text-center text-[13px] text-mut">
+      <p className="mt-6 text-center text-caption text-mut">
         이미 계정이 있으신가요?{" "}
-        <Link href="/login" className="font-bold text-pri hover:underline">
+        <Link
+          href="/login"
+          className="text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
+        >
           로그인
         </Link>
       </p>
@@ -106,18 +102,16 @@ function ProfileStep({ code, role }: { code: string; role: Role }) {
       {/* 같은 주소로 되돌아가 1단계부터 다시 시작한다 (JS 없이도 동작). */}
       <a
         href="/register"
-        className="mb-3 inline-flex items-center gap-1 text-[12.5px] font-semibold text-mut transition-colors hover:text-ink"
+        className="mb-3 inline-flex items-center gap-1 text-xs font-medium text-mut transition-colors hover:text-ink"
       >
         <ChevronLeftIcon size={15} />
         가입코드 다시 입력
       </a>
 
-      <h1 className="mb-4 text-2xl font-extrabold tracking-[-0.02em] text-ink">
-        정보 입력
-      </h1>
+      <h1 className="mb-6 text-title font-semibold text-ink">정보 입력</h1>
 
       {role === "STUDENT" ? (
-        <div className="mb-[13px] grid grid-cols-2 gap-2">
+        <div className="mb-3 grid grid-cols-2 gap-2">
           <div>
             <Label htmlFor="name">이름</Label>
             <Input
@@ -146,7 +140,7 @@ function ProfileStep({ code, role }: { code: string; role: Role }) {
             placeholder="이름"
             maxLength={50}
             required
-            className="mb-[13px]"
+            className="mb-3"
           />
         </>
       )}
@@ -186,7 +180,7 @@ function ProfileStep({ code, role }: { code: string; role: Role }) {
         placeholder="비밀번호"
         minLength={10}
         required
-        className="mb-[13px]"
+        className="mb-3"
       />
 
       <Label htmlFor="confirmPassword">비밀번호 확인</Label>
@@ -198,7 +192,7 @@ function ProfileStep({ code, role }: { code: string; role: Role }) {
         autoComplete="new-password"
         placeholder="비밀번호 확인"
         required
-        className="mb-5"
+        className="mb-6"
       />
 
       {state.error && (
@@ -208,7 +202,7 @@ function ProfileStep({ code, role }: { code: string; role: Role }) {
       )}
 
       <Button type="submit" size="lg" full disabled={pending}>
-        {pending ? "가입 중…" : "가입하고 시작하기"}
+        {pending ? "가입 중…" : "가입"}
       </Button>
     </form>
   );

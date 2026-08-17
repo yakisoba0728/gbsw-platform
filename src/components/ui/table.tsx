@@ -3,28 +3,12 @@ import { cn } from "@/lib/cn";
 
 /**
  * 표 껍데기 — 가로 스크롤 상자 + `<table>` + `<colgroup>` + 머리글.
+ * `<tbody>`는 호출부가 children으로 넘긴다.
  *
- * **완전 제네릭한 DataTable은 만들지 않는다.** 13개 표의 셀은 링크·배지·입력칸·
- * 취소 버튼이 제각각이라 열을 데이터로 기술하려 들면 렌더 콜백 표를 또 만들게
- * 된다. 실제로 똑같은 건 껍데기와 머리글뿐이라 거기까지만 뽑는다. `<tbody>`는
- * 호출부가 children으로 그대로 넘긴다.
+ * 좁은 폭에서 카드로 바꿔야 하는 표는 이걸 직접 쓰지 말고 `DataTable`을 쓴다.
  *
- * ## 셀 패딩 규칙 (여기서 정한다)
- * **첫 열과 마지막 열은 `px-5`, 나머지는 `px-3`.** 카드 안쪽 여백(px-5)과 첫/끝
- * 열을 맞춰야 표가 카드에 붙어 보이지 않는다. 화면마다 `px-2`(최근 부여)와
- * `px-3`(나머지)로 갈려 있었는데, 좁은 쪽에 맞추면 열이 다닥다닥 붙고 화면 간
- * 눈금이 어긋나므로 다수인 `px-3`으로 통일한다. `<tbody>`의 셀도 이 규칙을 따라
- * 적어야 머리글과 세로줄이 맞는다.
- *
- * ## 정렬·오른쪽 맞춤
- * 머리글 칸은 `ReactNode`라 `<button>`(정렬 가능한 헤더)을 그대로 넣을 수 있다.
- * 오른쪽 맞춤이 필요하면 `<span className="block text-right">`으로 감싼다 —
- * `<th>`에 클래스를 따로 받는 인자를 두면 열마다 예외가 늘어난다.
- *
- * 다만 `aria-sort`만은 예외로 인자를 둔다(`sort`). 정렬 상태는 **`<th>` 자신이
- * 갖는 속성**이라 headers에 넣은 `<button>` 안으로 내려보낼 수 없다 — 보조기술은
- * 헤더 셀에서 이 값을 읽는다. 클래스와 달리 열마다 예외가 늘어날 성질의 값도
- * 아니다(정렬 가능한 열만 값을 갖는다).
+ * 셀 패딩: 첫 열과 마지막 열은 `px-5`, 나머지는 `px-3`. `<tbody>`도 같은 규칙을
+ * 따라야 머리글과 세로줄이 맞는다 (`tableCellPadding`).
  */
 export function TableFrame({
   minWidth,
@@ -35,29 +19,26 @@ export function TableFrame({
   className,
   children,
 }: {
-  /**
-   * 표가 찌그러지지 않는 최소 폭(px). 420~840으로 제각각인 건 열 구성이 달라서라
-   * 정상이다. Tailwind는 `min-w-[${n}px]`처럼 실행 중에 만들어지는 클래스를
-   * 생성하지 못하므로 인라인 style로 준다.
-   */
+  /** 표가 찌그러지지 않는 최소 폭(px). Tailwind는 실행 중 클래스를 못 만든다. */
   minWidth: number;
   /** `<colgroup>`의 열별 클래스. `undefined`면 폭을 지정하지 않는 열이다. */
   cols?: readonly (string | undefined)[];
   headers: readonly ReactNode[];
   /**
-   * 열별 `aria-sort`. headers와 같은 순서로 늘어놓고, 정렬과 무관한 열은
-   * `undefined`로 비운다. 지금 정렬 중인 열에만 `ascending`/`descending`을 주고
-   * 나머지 정렬 가능한 열은 `none`이다 — 표 하나에 정렬 열은 하나뿐이다.
+   * 열별 `aria-sort`. headers와 같은 순서로 늘어놓는다. 보조기술은 헤더 셀에서
+   * 이 값을 읽으므로 headers 안의 `<button>`으로 내려보낼 수 없다.
    */
   sort?: readonly (AriaAttributes["aria-sort"] | undefined)[];
-  /** 글자 길이와 무관하게 열 폭을 고정한다 (최근 부여·감사로그처럼 넘치는 표). */
+  /** 글자 길이와 무관하게 열 폭을 고정한다. */
   fixed?: boolean;
   className?: string;
   /** `<tbody>` */
   children: ReactNode;
 }) {
   return (
-    <div className={cn("overflow-x-auto", className)}>
+    // scroll-x-hint — 넘칠 때만 양끝에 그림자가 선다. 없으면 잘린 열이 있다는
+    // 사실 자체가 화면에 안 보인다 (수정·삭제 버튼이 300px 뒤에 숨는다).
+    <div className={cn("scroll-x-hint overflow-x-auto", className)}>
       <table
         className={cn("w-full text-left text-sm", fixed && "table-fixed")}
         style={{ minWidth }}
@@ -70,13 +51,13 @@ export function TableFrame({
           </colgroup>
         )}
         <thead>
-          <tr className="border-b border-line2 text-[12px] text-mut">
+          <tr className="border-b border-line bg-soft text-xs text-mut">
             {headers.map((header, i) => (
               <th
                 key={i}
                 aria-sort={sort?.[i]}
                 className={cn(
-                  "py-2.5 font-semibold",
+                  "py-2.5 font-medium",
                   tableCellPadding(i, headers.length),
                 )}
               >
@@ -91,10 +72,193 @@ export function TableFrame({
   );
 }
 
-/**
- * 위의 패딩 규칙을 `<tbody>` 셀도 쓸 수 있게 내보낸다 — 머리글과 본문이 각자
- * 다른 숫자를 적기 시작하면 세로줄이 어긋난다.
- */
+/** 위의 패딩 규칙을 `<tbody>` 셀도 쓴다. 각자 적으면 세로줄이 어긋난다. */
 export function tableCellPadding(index: number, count: number): string {
   return index === 0 || index === count - 1 ? "px-5" : "px-3";
+}
+
+/** 카드 모드에서 이 열이 앉는 자리. */
+export type CardSlot = "title" | "trailing" | "meta" | "actions";
+
+export type Column<Row> = {
+  key: string;
+  header: ReactNode;
+  cell: (row: Row, index: number) => ReactNode;
+  /** `<colgroup>`용 폭 클래스. */
+  width?: string;
+  sort?: AriaAttributes["aria-sort"];
+  /**
+   * 카드 모드에서 앉는 자리. **비우면 카드에 나오지 않는다** — 375px에 안 들어가는
+   * 열을 여기서 걸러 낸다. 열을 "접는" 대신 빼는 이유: 접힌 열은 값이 없는 것처럼
+   * 읽힌다(순점수가 없는 게 아니라 안 보이는 것이다).
+   */
+  card?: CardSlot;
+  /** `card: "meta"`일 때 값 앞 라벨. 기본은 header, `false`면 라벨 없음. */
+  cardLabel?: ReactNode | false;
+  /**
+   * `<th>`·`<td>`에 함께 붙는 클래스. 정렬·색처럼 **열 전체의 성질**을 여기 적는다.
+   * 행마다 래퍼로 감싸면 같은 말을 행 수만큼 되풀이하게 된다.
+   */
+  className?: string;
+};
+
+/**
+ * 열을 데이터로 기술하는 표. 좁은 폭에서 카드 목록으로 바뀔 수 있다.
+ *
+ * `narrow="cards"`면 표와 카드를 **함께 렌더하고 CSS로 하나만 보인다.**
+ * `display:none`이라 접근성 트리에도 한쪽만 남는다. `<td>`를 `display:block`으로
+ * 굽히는 방식은 표의 의미(행↔열 관계)를 파괴하므로 쓰지 않는다.
+ */
+export function DataTable<Row>({
+  minWidth,
+  rows,
+  rowKey,
+  columns,
+  narrow = "scroll",
+  fixed = false,
+  className,
+  rowClassName,
+}: {
+  minWidth: number;
+  rows: readonly Row[];
+  rowKey: (row: Row) => string;
+  columns: readonly Column<Row>[];
+  /**
+   * 좁은 폭에서 어떻게 굽히는가. 기본은 지금까지의 동작(가로 스크롤).
+   * `cards-always`는 어느 폭에서도 표를 그리지 않는다 — 길이가 제각각인 자유
+   * 텍스트처럼 애초에 열로 세울 수 없는 목록이 쓴다.
+   */
+  narrow?: "scroll" | "cards" | "cards-always";
+  fixed?: boolean;
+  className?: string;
+  rowClassName?: (row: Row) => string;
+}) {
+  const table = (
+    <TableFrame
+      minWidth={minWidth}
+      cols={columns.map((c) => c.width)}
+      headers={columns.map((c) =>
+        c.className ? (
+          <span key={c.key} className={cn("block", c.className)}>
+            {c.header}
+          </span>
+        ) : (
+          c.header
+        ),
+      )}
+      sort={columns.map((c) => c.sort)}
+      fixed={fixed}
+      className={className}
+    >
+      <tbody>
+        {rows.map((row, index) => (
+          <tr
+            key={rowKey(row)}
+            className={cn("border-b border-line2 last:border-0", rowClassName?.(row))}
+          >
+            {columns.map((column, i) => (
+              <td
+                key={column.key}
+                className={cn(
+                  tableCellPadding(i, columns.length),
+                  "py-2.5",
+                  column.className,
+                )}
+              >
+                {column.cell(row, index)}
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </TableFrame>
+  );
+
+  if (narrow === "scroll") return table;
+
+  const cards = (
+    <ul>
+        {rows.map((row, index) => (
+          <CardRow
+            key={rowKey(row)}
+            row={row}
+            index={index}
+            columns={columns}
+            className={rowClassName?.(row)}
+          />
+        ))}
+    </ul>
+  );
+
+  if (narrow === "cards-always") return cards;
+
+  return (
+    <>
+      <div className="lg:hidden">{cards}</div>
+      <div className="hidden lg:block">{table}</div>
+    </>
+  );
+}
+
+/**
+ * 카드 한 장. 생김새를 여기 한 번만 정의한다 — 화면마다 따로 그리면 표 14개가
+ * 카드 14벌이 된다.
+ */
+function CardRow<Row>({
+  row,
+  index,
+  columns,
+  className,
+}: {
+  row: Row;
+  index: number;
+  columns: readonly Column<Row>[];
+  className?: string;
+}) {
+  const pick = (slot: CardSlot) =>
+    columns
+      .filter((c) => c.card === slot)
+      .map((c) => ({ key: c.key, label: c.cardLabel ?? c.header, node: c.cell(row, index) }))
+      // ② 렌더 결과로 판정한다. 열 개수로 세면 셀이 전부 null인 행(취소된 부여의
+      //    작업 칸)에도 빈 자리가 생긴다.
+      .filter((c) => c.node !== null && c.node !== undefined && c.node !== false);
+
+  const meta = pick("meta");
+  const actions = pick("actions");
+
+  return (
+    <li className={cn("border-b border-line2 px-5 py-3 last:border-0", className)}>
+      <div className="flex items-baseline justify-between gap-3">
+        <div className="min-w-0">
+          {pick("title").map((c) => (
+            <div key={c.key}>{c.node}</div>
+          ))}
+        </div>
+        <div className="flex shrink-0 items-baseline gap-2">
+          {pick("trailing").map((c) => (
+            <div key={c.key}>{c.node}</div>
+          ))}
+        </div>
+      </div>
+
+      {meta.length > 0 && (
+        <dl className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs text-mut">
+          {meta.map((c) => (
+            <div key={c.key} className="flex items-baseline gap-1">
+              {c.label !== false && <dt className="text-mut2">{c.label}</dt>}
+              <dd>{c.node}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+
+      {actions.length > 0 && (
+        <div className="mt-2.5 flex flex-wrap gap-2">
+          {actions.map((c) => (
+            <div key={c.key}>{c.node}</div>
+          ))}
+        </div>
+      )}
+    </li>
+  );
 }

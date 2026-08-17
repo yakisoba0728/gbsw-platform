@@ -19,7 +19,7 @@ describe("상벌점 메뉴 구성", () => {
       "기숙사 상벌점",
       "최근 부여",
       "통계",
-      "항목 관리",
+      "규정 관리",
     ]);
   });
 
@@ -27,7 +27,7 @@ describe("상벌점 메뉴 구성", () => {
     expect(merit.roles).toBeUndefined();
   });
 
-  it("최근 부여·통계·항목 관리는 관리자만 본다", () => {
+  it("최근 부여·통계·규정 관리는 관리자만 본다", () => {
     expect(visibleChildren(merit, "STUDENT").map((c) => c.label)).toEqual([
       "그린마일리지",
       "기숙사 상벌점",
@@ -75,7 +75,7 @@ describe("isGroupActive — 부모가 켜지는 조건", () => {
     expect(isGroupActive("/merit/students/abc", merit)).toBe(true);
   });
 
-  it("하위 메뉴가 다른 경로에 있어도 켜진다 (항목 관리 = /admin/merit/rules)", () => {
+  it("하위 메뉴가 다른 경로에 있어도 켜진다 (규정 관리 = /admin/merit/rules)", () => {
     expect(isGroupActive("/admin/merit/rules", merit)).toBe(true);
   });
 
@@ -113,8 +113,8 @@ describe("activeChild — 하나만 켜진다", () => {
     expect(active("/merit/stats", "track=DORM")).toBe("통계");
   });
 
-  it("항목 관리 화면에서는 항목 관리만 켜진다", () => {
-    expect(active("/admin/merit/rules", "")).toBe("항목 관리");
+  it("규정 관리 화면에서는 규정 관리만 켜진다", () => {
+    expect(active("/admin/merit/rules", "")).toBe("규정 관리");
   });
 
   it("역할 때문에 안 보이는 항목은 켜질 수 없다", () => {
@@ -135,7 +135,7 @@ describe("activeChild — 하나만 켜진다", () => {
 
 describe("titleForPath — 하위 메뉴까지 훑는다", () => {
   it("하위 메뉴 화면에서 기본값으로 떨어지지 않는다", () => {
-    expect(titleForPath("/admin/merit/rules")).toBe("항목 관리");
+    expect(titleForPath("/admin/merit/rules")).toBe("규정 관리");
     expect(titleForPath("/merit/stats")).toBe("통계");
   });
 

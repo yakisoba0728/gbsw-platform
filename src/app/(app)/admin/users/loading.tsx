@@ -1,9 +1,6 @@
 import { Skeleton, SkeletonScreen } from "@/components/ui/skeleton";
 
-/**
- * `/admin/users`의 뼈대 — 카드 하나(머리글 + 상태·역할 칩 + 검색칸 + 표).
- * 폭도 화면과 같은 max-w-6xl로 맞춘다.
- */
+/** `/admin/users`의 뼈대 — 머리글 + 상태·역할 칩 + 검색칸 + 표. */
 export default function Loading() {
   return (
     <SkeletonScreen className="mx-auto max-w-6xl">

@@ -2,15 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionUser } from "@/core/auth/session";
 
 /**
- * 기준 초과 학생 명단.
- *
- * **여기서 틀리면 조용히 틀린다.** 명단이 한 명 짧게 나와도 화면은 아무 이상이
- * 없어 보이고, 빠진 사람은 선도위원회 준비에서 그대로 누락된다. 그래서 경계값
- * (기준 정확히 = 포함), 트랙별 집계 범위, 반 범위를 못 박아 둔다.
- *
- * 기준은 관리자가 설정 화면에서 정하는 값이라 **여기서는 목으로 고정한다** —
- * 코드 기본값을 그대로 쓰면 "설정을 읽는가"가 아니라 "상수가 무엇인가"를
- * 검증하게 되고, 학교가 기준을 바꾸는 순간 이 테스트가 의미를 잃는다.
+ * 기준 초과 학생 명단. 명단이 한 명 짧아도 화면은 멀쩡해 보이므로 경계값과
+ * 집계 범위를 못 박아 둔다. 기준은 목으로 고정한다 — 코드 기본값을 쓰면
+ * "설정을 읽는가"가 아니라 "상수가 무엇인가"를 검증하게 된다.
  */
 
 const WARN = 12;
@@ -107,7 +101,7 @@ describe("기준 초과 명단 — 경계", () => {
     expect(findStudentsWithClass).not.toHaveBeenCalled();
   });
 
-  it("위험 기준을 넘으면 danger 단계가 붙는다 — 화면이 붉게 칠할 근거다", async () => {
+  it("위험 기준을 넘으면 danger 단계가 붙는다", async () => {
     demeritTotalsByStudent.mockResolvedValue([
       sum("sp-1", DANGER),
       sum("sp-2", WARN),
@@ -123,12 +117,12 @@ describe("기준 초과 명단 — 경계", () => {
     expect(stats.watchList[1].level).toBe("warn");
   });
 
-  it("설정된 기준 숫자를 화면으로 내보낸다 — 화면이 왜 붉은지 적을 근거다", async () => {
+  it("설정된 기준 숫자를 화면으로 내보낸다", async () => {
     const stats = await service.getMeritStats(admin, "SCHOOL", undefined, NOW);
     expect(stats.thresholds).toEqual({ warn: WARN, danger: DANGER });
   });
 
-  it("기준을 바꾸면 명단이 달라진다 — 이 기능의 존재 이유다", async () => {
+  it("기준을 바꾸면 명단이 달라진다", async () => {
     demeritTotalsByStudent.mockResolvedValue([sum("sp-1", 10)]);
     findStudentsWithClass.mockResolvedValue([student("sp-1", "김민준")]);
 
@@ -143,7 +137,7 @@ describe("기준 초과 명단 — 경계", () => {
     expect(after.watchList[0].level).toBe("warn");
   });
 
-  it("트랙마다 자기 기준을 읽는다 — 교내와 기숙사가 다를 수 있다", async () => {
+  it("트랙마다 자기 기준을 읽는다", async () => {
     await service.getMeritStats(admin, "DORM", undefined, NOW);
     expect(getDemeritThresholds).toHaveBeenCalledWith("DORM");
   });
@@ -167,7 +161,7 @@ describe("기준 초과 명단 — 순서와 소속", () => {
     expect(stats.watchList.map((r) => r.name)).toEqual(["정하윤", "김민준", "한지우"]);
   });
 
-  it("소속이 없어도 명단에 남는다 — 반 미배정 학생이 제일 놓치기 쉽다", async () => {
+  it("소속이 없어도 명단에 남는다", async () => {
     demeritTotalsByStudent.mockResolvedValue([sum("sp-1", DANGER)]);
     findStudentsWithClass.mockResolvedValue([student("sp-1", "김민준", false)]);
 
@@ -178,7 +172,7 @@ describe("기준 초과 명단 — 순서와 소속", () => {
     expect(stats.watchList[0].classNo).toBeNull();
   });
 
-  it("신원을 못 찾은 합계는 줄을 만들지 않는다 — 이름 없는 줄은 명단이 아니다", async () => {
+  it("신원을 못 찾은 합계는 줄을 만들지 않는다", async () => {
     demeritTotalsByStudent.mockResolvedValue([
       sum("sp-1", DANGER),
       sum("sp-gone", DANGER),
@@ -200,7 +194,7 @@ describe("기준 초과 명단 — 집계 범위", () => {
     );
   });
 
-  it("기숙사는 입학부터 누적이다 — 학년도 조건이 붙지 않는다", async () => {
+  it("기숙사는 입학부터 누적이다", async () => {
     await service.getMeritStats(admin, "DORM", undefined, NOW);
 
     expect(demeritTotalsByStudent).toHaveBeenCalledWith(
@@ -208,7 +202,7 @@ describe("기준 초과 명단 — 집계 범위", () => {
     );
   });
 
-  it("반을 골랐으면 그 반 학생만 본다 — 화면의 다른 숫자와 범위를 맞춘다", async () => {
+  it("반을 골랐으면 그 반 학생만 본다", async () => {
     listClassRoster.mockResolvedValue([
       { studentProfileId: "sp-1" },
       { studentProfileId: "sp-2" },
@@ -230,7 +224,7 @@ describe("기준 초과 명단 — 집계 범위", () => {
     expect(demeritTotalsByStudent.mock.calls[0][0].studentProfileIds).toBeUndefined();
   });
 
-  it("소속 조회는 반 편성 학년도 기준이다 — 기숙사(누적)여도 반은 어느 해 것인지가 필요하다", async () => {
+  it("소속 조회는 반 편성 학년도 기준이다", async () => {
     demeritTotalsByStudent.mockResolvedValue([sum("sp-1", DANGER)]);
     findStudentsWithClass.mockResolvedValue([student("sp-1", "김민준")]);
 
@@ -241,7 +235,7 @@ describe("기준 초과 명단 — 집계 범위", () => {
 });
 
 describe("기준 초과 명단 — 권한", () => {
-  it("학생은 볼 수 없다 — merit:read:any 하나로 막는다 (새 액션을 만들지 않았다)", async () => {
+  it("학생은 볼 수 없다", async () => {
     await expect(
       service.getMeritStats(user("STUDENT"), "SCHOOL", undefined, NOW),
     ).rejects.toThrow("FORBIDDEN");

@@ -1,6 +1,6 @@
 import type { SVGProps } from "react";
 
-/** 시안에서 그대로 가져온 라인 아이콘들. currentColor를 따른다. */
+/** 라인 아이콘. 색은 currentColor를 따른다. */
 
 type IconProps = SVGProps<SVGSVGElement> & { size?: number };
 

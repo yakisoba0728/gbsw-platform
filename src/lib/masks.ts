@@ -1,9 +1,6 @@
 /**
- * 입력칸 자동 서식.
- *
- * 원칙: **의미 있는 문자(영숫자)를 넣거나 빼지 않는다.** 서식 문자만 끼워 넣는다.
- * 그래야 커서 위치를 "앞쪽 영숫자 개수"로 정확히 되돌릴 수 있고,
- * 붙여넣기·자동완성·IME로 값이 통째로 바뀌어도 같은 규칙이 그대로 적용된다.
+ * 입력칸 자동 서식. 영숫자를 넣거나 빼지 않고 서식 문자만 끼워 넣는다 —
+ * 그래야 커서 위치를 "앞쪽 영숫자 개수"로 되돌릴 수 있다.
  */
 
 /** 서식 문자가 아닌, 값 자체를 이루는 문자 */
@@ -38,10 +35,8 @@ export function formatPhone(input: string): string {
 }
 
 /**
- * `gbsw3hh25nfk` → `GBSW-3HH2-5NFK`
- *
- * GBSW를 자동으로 붙이지는 않는다. 사용자가 치지 않은 글자를 넣으면
- * 커서 위치가 어긋나기 때문이다. 앞머리를 빼먹어도 서버가 채워준다.
+ * `gbsw3hh25nfk` → `GBSW-3HH2-5NFK`. GBSW를 자동으로 붙이지 않는다 —
+ * 안 친 글자를 넣으면 커서가 어긋난다. 앞머리는 서버가 채운다.
  */
 export function formatInviteCodeInput(input: string): string {
   const s = input.toUpperCase().replaceAll(/[^A-Z0-9]/g, "");

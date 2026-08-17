@@ -10,11 +10,8 @@ import { EMPTY_THRESHOLD_FORM_STATE } from "./action-state";
 import { saveThresholdAction } from "./actions";
 
 /**
- * 트랙 하나의 기준 폼.
- *
- * **트랙마다 폼이 따로다.** 한 폼으로 둘을 같이 저장하면 감사로그가 "무엇이
- * 바뀌었나"를 트랙별로 못 남기고, 기숙사만 고치려다 교내까지 덮어쓰는 실수가
- * 생긴다. 화면에서도 두 줄이 서로 독립이라는 사실이 그대로 보인다.
+ * 트랙 하나의 기준 폼. 트랙마다 폼이 따로다 — 한 폼으로 묶으면 감사로그가
+ * 트랙별로 안 남고 한쪽만 고치려다 다른 쪽까지 덮어쓴다.
  */
 export function ThresholdForm({
   track,
@@ -42,16 +39,14 @@ export function ThresholdForm({
       <form action={formAction} className="flex flex-wrap items-end gap-2.5">
         <input type="hidden" name="track" value={track} />
 
-        <div className="w-[104px]">
-          <span className="mb-[7px] block text-[12.5px] font-semibold text-mut">
-            트랙
-          </span>
-          <p className="py-[13px] text-sm font-extrabold text-ink">
+        <div className="w-26">
+          <span className="mb-1.5 block text-caption font-medium text-mut">트랙</span>
+          <p className="py-3 text-sm font-medium text-ink">
             {MERIT_TRACK_LABELS[track]}
           </p>
         </div>
 
-        <div className="w-[124px]">
+        <div className="w-31">
           <Label htmlFor={`${fieldId}-warn`}>경고 기준</Label>
           <Input
             id={`${fieldId}-warn`}
@@ -63,7 +58,7 @@ export function ThresholdForm({
           />
         </div>
 
-        <div className="w-[124px]">
+        <div className="w-31">
           <Label htmlFor={`${fieldId}-danger`}>위험 기준</Label>
           <Input
             id={`${fieldId}-danger`}
@@ -80,13 +75,13 @@ export function ThresholdForm({
         </Button>
       </form>
 
-      <p id={`${fieldId}-help`} className="mt-2 text-[12px] text-mut">
+      <p id={`${fieldId}-help`} className="mt-2 text-caption text-mut">
         경고 기준부터 진하게, 위험 기준부터 붉은 배경으로 보입니다. 위험이 경고보다
         커야 하고 둘 다 1~{MAX_THRESHOLD} 사이의 정수입니다.
         {configured && updatedLabel ? (
           <> · 마지막 변경 {updatedLabel}</>
         ) : (
-          <> · 아직 한 번도 정하지 않아 기본값을 쓰고 있습니다.</>
+          <> · 아직 정한 적이 없어 기본값을 쓰고 있습니다.</>
         )}
       </p>
 

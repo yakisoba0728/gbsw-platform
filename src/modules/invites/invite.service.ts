@@ -17,19 +17,10 @@ export class InviteError extends Error {}
 /** 학생 한 명이 동시에 살려둘 수 있는 학부모 코드 수. */
 export const MAX_ACTIVE_PARENT_INVITES = 3;
 
-/**
- * 코드 충돌 시 재시도 횟수. 31^8 ≈ 8.5 × 10^11 공간이라 실제로는 거의 일어나지
- * 않는다 — 값의 근거는 generate-invite-code.ts에 있다. 여기 숫자를 손으로
- * 옮겨 적었다가 한 번 틀렸으므로(31^10), 바꿀 일이 있으면 그쪽부터 본다.
- */
+/** 코드 충돌 시 재시도 횟수. 코드 공간의 근거는 generate-invite-code.ts에 있다. */
 const CODE_RETRIES = 5;
 
-/**
- * DB에 없는 코드를 뽑을 때까지 재시도한다.
- *
- * 코드 발급 경로는 전부 여기를 거쳐야 한다 — roster.service.ts(명단 일괄 발급)도
- * 이 함수를 그대로 쓴다 (I2). 한 곳만 벗어나면 유일성 재시도가 없는 경로가 생긴다.
- */
+/** DB에 없는 코드를 뽑을 때까지 재시도한다. 발급 경로는 전부 여기를 거친다. */
 export async function generateUniqueCode(): Promise<string> {
   for (let i = 0; i < CODE_RETRIES; i += 1) {
     const code = generateInviteCode();
@@ -106,11 +97,8 @@ export async function createAdminInvite(
 // ── 학생이 만드는 학부모 코드 ──────────────────────────────────
 
 /**
- * 학부모 초대코드 생성.
- *
- * `studentId`를 인자로 받지 않는다 — 세션에서 본인 StudentProfile을 찾아 쓴다.
- * 따라서 학생이 남의 자녀에 붙는 코드를 만들 경로가 없다.
- * 관리자가 대신 발급할 때는 아래 createParentInviteFor를 쓴다.
+ * 학부모 초대코드 생성. studentId를 인자로 받지 않는다 — 세션에서 본인 프로필을
+ * 찾으므로 학생이 남의 자녀에 붙는 코드를 만들 경로가 없다.
  */
 export async function createParentInvite(
   actor: SessionUser,
@@ -147,11 +135,8 @@ export async function createParentInvite(
 }
 
 /**
- * 관리자가 학생을 지정해 학부모 코드를 발급한다.
- *
- * 학생 본인 경로(createParentInvite)와 달리 studentId를 인자로 받는다.
- * 관리자는 원래 모든 학생을 관리하므로 대상 지정이 정상 권한 범위 안이다.
- * 다만 실재하는 학생인지는 서버에서 확인한다.
+ * 관리자가 학생을 지정해 학부모 코드를 발급한다. 관리자는 모든 학생이 권한
+ * 범위라 studentId를 받되, 실재하는 학생인지는 서버가 확인한다.
  */
 export async function createParentInviteFor(
   actor: SessionUser,
@@ -220,9 +205,8 @@ export async function revokeInvite(actor: SessionUser, inviteId: string) {
   const isAdmin = can(actor, "invite:revoke");
 
   if (!isAdmin) {
-    // 학생 소유권 검사 — 자기 학생 프로필에 귀속된 코드인가. can()만으로는 못
-    // 잡는 거부라 assertCan을 못 쓴다 — 여기서도 같은 방식(거부 기록 + ForbiddenError)을
-    // 직접 맞춘다 (I5).
+    // 소유권 검사는 can()으로 못 가르는 거부라 assertCan을 못 쓴다. 거부 기록과
+    // ForbiddenError를 같은 방식으로 직접 맞춘다.
     const profile = await repo.getStudentProfileByUserId(actor.id);
     const owns = profile !== null && invite.studentId === profile.id;
     if (!owns) {

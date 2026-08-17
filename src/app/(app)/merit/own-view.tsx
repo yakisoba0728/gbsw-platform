@@ -15,7 +15,7 @@ function hrefWithTrack(params: Params, track: MeritTrack): string {
   return hrefWith("/merit", params, { track, year: null });
 }
 
-/** 학생·학부모 본인 조회. Task 6의 MeritTotalsCards·AwardHistory를 그대로 재사용한다. */
+/** 학생·학부모 본인 조회. */
 export function OwnMeritView({
   title,
   view,
@@ -34,13 +34,8 @@ export function OwnMeritView({
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        {/*
-          <h2>다. 상단바(app-shell/topbar)가 (app) 안의 모든 화면에 이미 <h1>을
-          그리므로, 여기서 또 <h1>을 두면 화면에 최상위 제목이 둘이 된다 —
-          제목만 훑어 화면 구조를 파악하는 사람에게 어느 쪽이 이 화면인지가
-          흐려진다. 글자 크기는 그대로 둔다(단계와 생김새는 별개다).
-        */}
-        <h2 className="text-xl font-extrabold text-ink">{title}</h2>
+        {/* h1은 상단바가 (app)의 모든 화면에 이미 그린다 — 여기는 h2다. */}
+        <h2 className="text-title font-semibold text-ink">{title}</h2>
         {childOptions && childOptions.length > 1 && (
           <ChildPicker options={childOptions} selected={selectedChild} params={params} />
         )}
@@ -57,9 +52,7 @@ export function OwnMeritView({
 
       <MeritTotalsCards totals={view.totals} />
 
-      {/* 취소 액션을 넘기지 않으므로 "작업" 열 자체가 없고, studentProfileId도
-          실제로 쓰이지 않는다 — StudentMeritView가 애초에 이 id를 담지 않는다
-          (본인 조회에 불필요). */}
+      {/* 취소 액션이 없으므로 "작업" 열도 없고 studentProfileId도 쓰이지 않는다. */}
       <AwardHistory awards={view.awards} studentProfileId="" />
     </div>
   );
@@ -74,8 +67,7 @@ function ChildPicker({
   selected?: string;
   params: Params;
 }) {
-  // 자녀를 바꾸면 학년도는 버린다 — 기록이 있는 학년도가 자녀마다 다르므로,
-  // 들고 가면 그 해에 기록이 없는 자녀에게 빈 화면이 뜬다.
+  // 자녀를 바꾸면 학년도는 버린다 — 기록이 있는 해가 자녀마다 달라 빈 화면이 뜬다.
   function href(id: string): string {
     return hrefWith("/merit", params, { child: id, year: null });
   }

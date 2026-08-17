@@ -10,8 +10,7 @@ function yearHref(basePath: string, params: Params, year: number): string {
 
 /**
  * 교내 탭에서만 보인다 — 기숙사는 누적이라 고를 학년도가 없다.
- * 선택지는 **이 학생에게 기록이 있는 학년도들뿐**이다. 없는 해를 고를 수 있으면
- * 빈 화면만 나온다.
+ * 선택지는 이 학생에게 기록이 있는 학년도들뿐이다.
  */
 export function YearPicker({
   years,
@@ -29,7 +28,7 @@ export function YearPicker({
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <span className="mr-1 text-[12px] font-semibold text-mut">학년도</span>
+      <span className="mr-1 text-xs font-medium text-mut">학년도</span>
       {years.map((y) => (
         <ChipLink
           key={y}

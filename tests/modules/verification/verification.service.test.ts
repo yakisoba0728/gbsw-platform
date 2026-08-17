@@ -121,7 +121,7 @@ describe("requestCode()", () => {
       expect(sendVerification).not.toHaveBeenCalled();
     });
 
-    it("IP를 못 읽으면(null) IP별 검사를 건너뛴다 — 서로 다른 요청이 한도를 나눠 갖지 않게", async () => {
+    it("IP를 못 읽으면 IP별 검사를 건너뛴다", async () => {
       readRequestContext.mockResolvedValue({ ip: null, userAgent: null });
 
       await requestCode("EMAIL", "a@b.kr");
@@ -161,7 +161,7 @@ describe("confirmCode()", () => {
     findLiveCode.mockResolvedValue({ id: "v1", codeHash: hash("123456") });
 
     await expect(confirmCode("EMAIL", "a@b.kr", "000000")).rejects.toThrow(
-      "올바르지 않습니다",
+      "인증번호가 맞지 않습니다.",
     );
     expect(bumpAttempts).toHaveBeenCalledWith("v1");
     expect(markVerified).not.toHaveBeenCalled();

@@ -4,7 +4,11 @@ import { assertCan } from "@/core/authz/errors";
 import type { MeritTrack } from "@/core/authz/merit-track";
 import { MeritError } from "./merit.error";
 import * as repo from "./merit.repo";
-import type { CreateRuleInput, UpdateRuleInput } from "./merit.schema";
+import type {
+  CreateRuleInput,
+  DeleteRuleInput,
+  UpdateRuleInput,
+} from "./merit.schema";
 
 export async function createRule(
   actor: SessionUser,
@@ -33,10 +37,8 @@ export async function createRule(
 const EDITABLE = ["label", "points", "category", "description"] as const;
 
 /**
- * 규정 수정. **track·kind는 인자에 없다** — 생성 시 고정이다 (merit.schema.ts 참고).
- *
- * 실제로 바뀐 항목이 없으면 쓰지도, 기록하지도 않는다. 안 그러면 저장만 눌러도
- * 감사로그가 쌓인다 (enrollment.service.saveEnrollments와 같은 원칙).
+ * 규정 수정. track·kind는 인자에 없다 — 생성 시 고정이다.
+ * 바뀐 항목이 없으면 쓰지도 기록하지도 않는다.
  */
 export async function updateRule(
   actor: SessionUser,
@@ -68,9 +70,8 @@ export async function updateRule(
     metadata: {
       changed,
       label: next.label,
-      // 점수 변경은 앞으로 나갈 부여에만 영향을 준다 — 이미 나간 기록은
-      // 스냅샷이라 안 바뀐다. 그래도 전/후를 남겨야 "왜 이 학생만 3점이지"를
-      // 나중에 설명할 수 있다.
+      // 이미 나간 기록은 스냅샷이라 안 바뀐다 — 그래도 전/후를 남겨야
+      // "왜 이 학생만 3점이지"를 나중에 설명할 수 있다.
       pointsFrom: current.points,
       pointsTo: next.points,
     },
@@ -78,37 +79,34 @@ export async function updateRule(
 }
 
 /**
- * 규정 삭제. 목록에서 사라지고 부여 화면의 선택지에서도 빠진다.
- *
- * **행 자체는 남는다** — 이미 나간 부여가 이 규정을 참조하기 때문이다
- * (repo.markRuleDeleted 설명 참고). 지난 기록은 값을 스냅샷해 두어 그대로다.
- *
- * 이미 지워진 규정이면 아무 일도 하지 않는다 — 같은 버튼을 두 번 눌러도
- * 감사로그가 두 줄 쌓이지 않는다.
+ * 규정 삭제. 목록과 부여 선택지에서 빠지되 행 자체는 남는다.
+ * 이미 지워진 규정이면 아무 일도 하지 않는다 — 감사로그가 두 줄 쌓이지 않게.
  */
 export async function deleteRule(
   actor: SessionUser,
-  ruleId: string,
+  input: DeleteRuleInput,
 ): Promise<void> {
   await assertCan(actor, "merit:rule:manage");
 
-  const current = await repo.findRule(ruleId);
+  const current = await repo.findRule(input.ruleId);
   if (!current) throw new MeritError("RULE_NOT_FOUND");
+  // 이미 지운 규정에 사유만 새로 남기지 않는다 — 삭제는 한 번만 일어난 일이다.
   if (!current.active) return;
 
-  await repo.markRuleDeleted(ruleId);
+  await repo.markRuleDeleted(input.ruleId);
 
   await recordAudit({
     actorUserId: actor.id,
     actorName: actor.name,
     action: "merit:rule:delete",
     targetType: "MeritRule",
-    targetId: ruleId,
+    targetId: input.ruleId,
     metadata: {
       track: current.track,
       kind: current.kind,
       label: current.label,
       points: current.points,
+      reason: input.reason,
     },
   });
 }
@@ -119,9 +117,8 @@ export async function listRules(actor: SessionUser, track: MeritTrack) {
 }
 
 /**
- * 부여 화면의 선택지. **`merit:award`로 막는다** — 규정 관리 권한이 아니다.
- * 지금은 둘 다 관리자 전용이라 결과가 같지만, 나중에 부여만 열 때
- * 이 구분이 없으면 규정 관리 권한을 함께 줘야 한다.
+ * 부여 화면의 선택지. `merit:award`로 막는다 — 규정 관리 권한이 아니다.
+ * 나중에 부여만 열 때 이 구분이 없으면 규정 관리 권한을 함께 줘야 한다.
  */
 export async function listActiveRules(actor: SessionUser, track: MeritTrack) {
   await assertCan(actor, "merit:award");

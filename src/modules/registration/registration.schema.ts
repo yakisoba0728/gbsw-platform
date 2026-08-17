@@ -22,12 +22,7 @@ const credentials = {
   confirmPassword: z.string(),
 };
 
-/**
- * 가입 입력.
- *
- * 역할은 여기에 없다 — 서버가 코드 레코드에서만 읽는다.
- * birthDate는 학생만 채우며, 나머지 역할에서는 무시된다.
- */
+/** 역할은 여기 없다 — 서버가 코드 레코드에서만 읽는다. birthDate는 학생만 채운다. */
 export const completeRegistrationSchema = z
   .object({
     code: inviteCodeSchema,

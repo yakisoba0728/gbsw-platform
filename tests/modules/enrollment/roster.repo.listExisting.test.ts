@@ -41,9 +41,7 @@ describe("listExisting() — 이름을 NFC로 정규화한다 (I8)", () => {
 });
 
 describe("listExisting() — 소프트 삭제된 학생도 매칭을 위해 계속 들고 있는다", () => {
-  it("WHERE에 deletedAt 조건을 넣지 않는다 — 명단에 다시 나타나면 원래 " +
-    "studentCode로 이어붙어 되살아나야 한다(byCode 매칭). 여기서 걸러내면 그 " +
-    "코드가 '명단에 없는 학생코드'로 보여 영영 못 돌아온다.", async () => {
+  it("WHERE에 deletedAt을 넣지 않는다 — 걸러내면 되살아날 길이 없다", async () => {
     studentProfileFindMany.mockResolvedValue([]);
 
     await listExisting(2026);

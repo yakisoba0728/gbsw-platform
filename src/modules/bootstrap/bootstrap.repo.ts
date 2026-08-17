@@ -1,6 +1,6 @@
 import { prisma } from "@/core/db/client";
 
-/** Prisma 호출만 둔다. 권한 검사도, 업무 규칙도 여기 두지 않는다. */
+/** Prisma 호출만 둔다. `can()` 없이 쓰는 유일한 모듈이다 (service 주석 참고). */
 
 export async function countUsers(): Promise<number> {
   return prisma.user.count();
@@ -28,7 +28,7 @@ export async function createAdminUser(
         emailVerified: true,
         role: "ADMIN",
         status: "ACTIVE",
-        // 본인이 방금 직접 정한 비밀번호이므로 강제 변경이 필요 없다.
+        // 본인이 방금 정한 비밀번호라 강제 변경이 필요 없다.
         mustChangePassword: false,
       },
     }),

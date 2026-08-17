@@ -36,7 +36,7 @@ describe("ForbiddenError", () => {
     expect(new ForbiddenError("merit:award").message).toBe("FORBIDDEN");
   });
 
-  it("어떤 액션에서 막혔는지는 action 필드에만 남는다 — message가 고정이라 여기가 유일한 단서다", () => {
+  it("어떤 액션에서 막혔는지는 action 필드에만 남는다", () => {
     expect(new ForbiddenError("merit:cancel").action).toBe("merit:cancel");
   });
 });
@@ -50,7 +50,7 @@ describe("assertCan() — 통과", () => {
     await expect(assertCan(ADMIN, "user:manage")).resolves.toBeUndefined();
   });
 
-  it("허용은 감사로그를 남기지 않는다 — 정상 통과까지 기록하면 authz 로그가 잡음에 묻혀 거부를 못 찾는다", async () => {
+  it("허용은 감사로그를 남기지 않는다", async () => {
     await assertCan(ADMIN, "user:manage");
     await assertCan(ADMIN, "merit:award");
     await assertCan(STUDENT, "invite:create:parent"); // 학생에게 허용된 유일한 액션
@@ -81,7 +81,7 @@ describe("assertCan() — 거부", () => {
     });
   });
 
-  it("거부를 authz:denied로 남긴다 — 페이지 가드를 건너뛴 직접 호출이 흔적 없이 지나가지 않게", async () => {
+  it("거부를 authz:denied로 남긴다", async () => {
     await expect(assertCan(STUDENT, "user:manage")).rejects.toThrow();
 
     expect(recordAudit).toHaveBeenCalledTimes(1);
@@ -93,7 +93,7 @@ describe("assertCan() — 거부", () => {
     });
   });
 
-  it("어떤 권한에서 막혔는지는 metadata.action에 담긴다 — action 칸은 authz:denied로 고정이다", async () => {
+  it("어떤 권한에서 막혔는지는 metadata.action에 담긴다", async () => {
     await expect(assertCan(STUDENT, "merit:cancel")).rejects.toThrow();
 
     expect(recordAudit.mock.calls[0]![0]).toMatchObject({
@@ -116,7 +116,7 @@ describe("assertCan() — 감사 기록이 실패해도 거부는 그대로 나�
     recordAudit.mockReset();
   });
 
-  it("recordAudit이 거부(reject)해도 ForbiddenError가 나온다 — 감사 DB 장애가 권한 거부를 다른 오류로 바꾸면 안 된다", async () => {
+  it("recordAudit이 거부해도 ForbiddenError가 나온다", async () => {
     recordAudit.mockRejectedValue(new Error("감사 DB 연결 실패"));
 
     await expect(assertCan(STUDENT, "user:manage")).rejects.toBeInstanceOf(ForbiddenError);
@@ -134,7 +134,7 @@ describe("assertCan() — 감사 기록이 실패해도 거부는 그대로 나�
     expect(error).toMatchObject({ message: "FORBIDDEN", action: "merit:award" });
   });
 
-  it("감사 기록의 실패 원인이 거부 오류를 덮어쓰지 않는다 — 삼킨 오류가 새어 나오면 원인 추적이 뒤집힌다", async () => {
+  it("감사 기록의 실패 원인이 거부 오류를 덮어쓰지 않는다", async () => {
     const auditFailure = new Error("감사 DB 연결 실패");
     recordAudit.mockRejectedValue(auditFailure);
 

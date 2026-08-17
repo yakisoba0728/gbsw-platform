@@ -1,13 +1,9 @@
 import { Skeleton, SkeletonScreen } from "@/components/ui/skeleton";
 
-/**
- * `/admin/students`의 뼈대 — 명단 올리기 링크 · 학년도 카드 · 학생 표.
- * 학년도 카드가 표 위에 있으므로 뼈대에서도 같은 순서로 둔다. 화면이 폭을
- * 제한하지 않으므로(`grid gap-5`) 여기서도 max-w를 두지 않는다.
- */
+/** `/admin/students`의 뼈대 — 명단 반영 링크 · 학년도 카드 · 학생 표. */
 export default function Loading() {
   return (
-    <SkeletonScreen className="grid gap-5">
+    <SkeletonScreen className="flex flex-col gap-4">
       <div className="flex justify-end">
         <Skeleton className="h-4 w-24 rounded-btn" />
       </div>
@@ -17,8 +13,8 @@ export default function Loading() {
         <Skeleton className="h-5 w-16 rounded-btn" />
         <Skeleton className="mt-2 h-4 w-56 rounded-btn" />
         <div className="mt-4 flex flex-wrap items-end gap-4">
-          <Skeleton className="h-11 w-[220px] rounded-field" />
-          <Skeleton className="h-11 w-[200px] rounded-field" />
+          <Skeleton className="h-11 w-56 rounded-field" />
+          <Skeleton className="h-11 w-50 rounded-field" />
         </div>
       </div>
 

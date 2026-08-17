@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { Note } from "@/components/ui/note";
+import { SecretPanel } from "@/components/ui/secret-panel";
 import { formatPhone } from "@/lib/masks";
 import {
   UPDATE_USER_INITIAL,
@@ -17,11 +18,7 @@ import {
   updateUserAction,
 } from "../actions";
 
-/*
- * 각 폼이 자기 결과를 직접 렌더한다.
- * 결과를 부모로 끌어올리면 자식 렌더 중에 부모 setState를 부르게 되어
- * "Cannot update a component while rendering a different component"로 터진다.
- */
+/** 각 폼이 자기 결과를 직접 렌더한다. 부모로 끌어올리면 렌더 중 setState로 터진다. */
 
 export type EditableUser = {
   id: string;
@@ -29,7 +26,7 @@ export type EditableUser = {
   email: string;
   phone: string;
   isStudent: boolean;
-  /** 재학(ENROLLED) 중일 때만 true — 이때만 학년·반·번호를 이 화면에서 고칠 수 있다 (I2). */
+  /** 재학 중일 때만 true — 이때만 학년·반·번호를 이 화면에서 고칠 수 있다. */
   canEditAssignment: boolean;
   birthDate: string;
   grade: string;
@@ -67,7 +64,7 @@ export function EditUserForm({ user }: { user: EditableUser }) {
         defaultValue={user.name}
         maxLength={50}
         required
-        className="mb-[13px]"
+        className="mb-4"
       />
 
       <Label htmlFor="email">이메일</Label>
@@ -79,7 +76,7 @@ export function EditUserForm({ user }: { user: EditableUser }) {
         defaultValue={user.email}
         maxLength={200}
         required
-        className="mb-[13px]"
+        className="mb-4"
       />
 
       <Label htmlFor="phone">전화번호</Label>
@@ -92,7 +89,7 @@ export function EditUserForm({ user }: { user: EditableUser }) {
         placeholder="010-0000-0000"
         format={formatPhone}
         required
-        className="mb-[13px]"
+        className="mb-4"
       />
 
       {user.isStudent && (
@@ -105,11 +102,11 @@ export function EditUserForm({ user }: { user: EditableUser }) {
             dense
             defaultValue={user.birthDate}
             required
-            className="mb-[13px]"
+            className="mb-4"
           />
 
           {user.canEditAssignment ? (
-            <div className="mb-[13px] grid grid-cols-3 gap-2">
+            <div className="mb-4 grid grid-cols-3 gap-2">
               <div>
                 <Label htmlFor="grade">학년</Label>
                 <Input
@@ -151,13 +148,11 @@ export function EditUserForm({ user }: { user: EditableUser }) {
               </div>
             </div>
           ) : (
-            // 재학 중이 아니면(졸업·자퇴 등) 학년·반·번호 칸을 감춘다 (I2) —
-            // 관리자가 생년월일 오타 하나를 고치려고 학년·반·번호를 지어낼 필요가
-            // 없게 한다. 학적 변경은 /admin/students 표(계정 상태 동기화가 있는
-            // 곳) 한 곳에서만 한다.
-            <p className="mb-[13px] text-[11.5px] text-mut">
-              재학 중이 아니라 학년·반·번호는 여기서 고칠 수 없습니다. 학적을
-              바꾸려면 학생 관리에서 진행해 주세요.
+            // 재학 중이 아니면 칸을 감춘다 — 생년월일 오타 하나를 고치려고
+            // 학년·반·번호를 지어낼 필요가 없어야 한다.
+            <p className="mb-4 text-caption text-mut">
+              재학 중이 아니라 학년·반·번호는 여기서 고칠 수 없습니다. 학적은 학생
+              관리에서 바꿉니다.
             </p>
           )}
         </>
@@ -173,8 +168,7 @@ export function EditUserForm({ user }: { user: EditableUser }) {
           <Note tone="success" className="mt-3">바뀐 내용이 없습니다.</Note>
         ) : (
           <Note tone="success" className="mt-3">
-            저장했습니다 —{" "}
-            {state.changed.map((f) => FIELD_LABEL[f] ?? f).join(", ")}
+            저장했습니다 — {state.changed.map((f) => FIELD_LABEL[f] ?? f).join(", ")}
           </Note>
         ))}
     </form>
@@ -197,15 +191,12 @@ export function ResetPasswordForm({ user }: { user: EditableUser }) {
       {state.error && <Note tone="error" className="mt-3">{state.error}</Note>}
 
       {state.tempPassword && (
-        <div className="mt-3 rounded-btn bg-pri-soft px-4 py-3">
-          <p className="text-[11.5px] font-semibold text-pri">임시 비밀번호</p>
-          <p className="mt-0.5 text-xl font-extrabold text-ink">
-            {state.tempPassword}
-          </p>
-          <p className="mt-1 text-[11.5px] text-mut">
-            지금 전달해 주세요. 이 화면을 벗어나면 다시 볼 수 없습니다.
-          </p>
-        </div>
+        <SecretPanel
+          label="임시 비밀번호"
+          value={state.tempPassword}
+          note="지금 전달해 주세요. 이 화면을 벗어나면 다시 볼 수 없습니다."
+          className="mt-3"
+        />
       )}
     </form>
   );
@@ -233,7 +224,7 @@ export function ToggleActiveForm({ user }: { user: EditableUser }) {
       </Button>
 
       {blocked && (
-        <p className="mt-1.5 text-[11.5px] text-mut">
+        <p className="mt-1.5 text-xs text-mut">
           자기 계정은 비활성화할 수 없습니다.
         </p>
       )}
@@ -243,13 +234,8 @@ export function ToggleActiveForm({ user }: { user: EditableUser }) {
 }
 
 /**
- * 완전 삭제 (오등록 정리 전용). 이미 명단에서 빠진(소프트 삭제된) 계정에만
- * 보인다 — 서비스도 같은 조건을 다시 검사한다(NOT_SOFT_DELETED).
- *
- * 체크박스가 아니라 이름 직접 입력을 요구한다 — 되돌릴 수 없는 유일한 동작이라
- * 습관적으로 눌리는 확인 절차로는 부족하다. 서버 액션도 같은 이름을 받아
- * 대조한다(NAME_MISMATCH) — 여기서 막는 건 실수 방지일 뿐, 서버 액션을 직접
- * 부르면 이 disabled를 건너뛸 수 있기 때문이다.
+ * 완전 삭제 (오등록 정리 전용). 명단에서 빠진 계정에만 보이고 서비스가 같은
+ * 조건을 다시 검사한다. 이름 직접 입력을 요구하는 것도 서버가 다시 대조한다.
  */
 export function HardDeleteForm({ user }: { user: EditableUser }) {
   const [state, formAction, pending] = useActionState(
@@ -263,13 +249,13 @@ export function HardDeleteForm({ user }: { user: EditableUser }) {
     <form action={formAction}>
       <input type="hidden" name="userId" value={user.id} />
 
-      <p className="mb-3 text-[12.5px] text-mut">
-        되돌릴 수 없습니다. 소속 이력·상벌점·초대코드가 함께 사라집니다.
-        감사로그는 남습니다.
+      <p className="mb-3 text-caption text-mut">
+        되돌릴 수 없습니다. 소속 이력·상벌점·초대코드가 함께 사라집니다. 감사로그는
+        남습니다.
       </p>
 
       <Label htmlFor="confirmName">
-        확인을 위해 이름(<span className="font-bold text-ink">{user.name}</span>)을
+        확인을 위해 이름(<span className="font-medium text-ink">{user.name}</span>)을
         그대로 입력해 주세요
       </Label>
       <Input
@@ -283,7 +269,7 @@ export function HardDeleteForm({ user }: { user: EditableUser }) {
       />
 
       <Button type="submit" variant="danger" full disabled={pending || !matches}>
-        {pending ? "삭제하는 중…" : "완전 삭제"}
+        {pending ? "삭제 중…" : "완전 삭제"}
       </Button>
 
       {state.error && <Note tone="error" className="mt-3">{state.error}</Note>}

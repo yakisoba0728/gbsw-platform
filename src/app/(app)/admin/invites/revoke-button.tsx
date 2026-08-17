@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
+import { Note } from "@/components/ui/note";
 import { REVOKE_INITIAL } from "./action-state";
 import { revokeInviteAction } from "./actions";
 
@@ -12,15 +13,16 @@ export function RevokeButton({ inviteId }: { inviteId: string }) {
   );
 
   return (
-    <form action={formAction} className="inline">
+    <form action={formAction}>
       <input type="hidden" name="inviteId" value={inviteId} />
       <Button type="submit" variant="danger" size="sm" disabled={pending}>
         {pending ? "폐기 중…" : "폐기"}
       </Button>
+      {/* Note가 role="alert"을 붙이는 유일한 장치다. 표 셀 안이라 왼쪽 정렬로 되돌린다. */}
       {state.error && (
-        <span role="alert" className="ml-2 text-[11.5px] text-rose">
+        <Note tone="error" className="mt-1.5 text-left">
           {state.error}
-        </span>
+        </Note>
       )}
     </form>
   );

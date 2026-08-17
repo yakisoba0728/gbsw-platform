@@ -26,7 +26,7 @@ function classLabel(
   return `${grade}학년 ${classNo}반${number == null ? "" : ` ${number}번`}`;
 }
 
-/** DB 행을 화면이 그대로 쓸 형태로 눕힌다 (metadata 원본은 클라이언트로 내보내지 않는다). */
+/** DB 행을 화면이 쓸 형태로 눕힌다. metadata 원본은 클라이언트로 내보내지 않는다. */
 function toRow(invite: Listed): InviteRow {
   const base = {
     id: invite.id,
@@ -82,9 +82,7 @@ function toRow(invite: Listed): InviteRow {
 export default async function InvitesPage() {
   const actor = await requirePermission("invite:list");
 
-  // 둘 다 내부에서 getCurrentYear()를 부른다 — 현재 학년도가 없으면
-  // AcademicYearError를 던진다. 잡지 않으면 500으로 떨어진다.
-  // /admin/students·/admin/users와 같은 방식으로 잡는다 (M7).
+  // 둘 다 getCurrentYear()를 부른다. 현재 학년도가 없으면 안내 화면으로 떨어뜨린다.
   let data: {
     invites: Awaited<ReturnType<typeof listInvites>>;
     students: Awaited<ReturnType<typeof listStudentsForInvite>>;
@@ -114,9 +112,12 @@ export default async function InvitesPage() {
   });
 
   return (
-    <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[360px_1fr]">
-      <InviteForm students={options} />
-      <InviteTable rows={invites.map(toRow)} />
+    // 두 단이 서는 기준은 뷰포트가 아니라 이 자리의 폭이다.
+    <div className="@container mx-auto max-w-7xl">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 @2xl:grid-cols-[360px_1fr]">
+        <InviteForm students={options} />
+        <InviteTable rows={invites.map(toRow)} />
+      </div>
     </div>
   );
 }

@@ -34,7 +34,7 @@ describe("schoolYearMonths — 학년도 축은 3월에 시작한다", () => {
     expect(axis[11]).toEqual({ key: "2027-02", label: "2월" });
   });
 
-  it("1~12월이 아니다 — 학년도가 두 토막으로 보이면 안 된다", () => {
+  it("1~12월이 아니다", () => {
     expect(schoolYearMonths(2026)[0].label).not.toBe("1월");
   });
 });
@@ -59,7 +59,7 @@ describe("rollingMonths — 누적 트랙의 최근 12개월", () => {
 describe("monthlyTotals", () => {
   const axis = schoolYearMonths(2026);
 
-  it("상쇄점이 순점수에 반영된다 — 상점 10 + 상쇄 6 − 벌점 20 = −4", () => {
+  it("상쇄점이 순점수에 반영된다", () => {
     const points = monthlyTotals(
       [
         award({ kind: "MERIT", points: 10 }),
@@ -82,14 +82,14 @@ describe("monthlyTotals", () => {
     expect(march.offset).toBe(60);
   });
 
-  it("기록이 없는 달도 0으로 남는다 — 빼면 시간 간격이 왜곡된다", () => {
+  it("기록이 없는 달도 0으로 남는다", () => {
     const points = monthlyTotals([award()], axis);
 
     expect(points).toHaveLength(12);
     expect(points.filter((p) => p.merit === 0 && p.demerit === 0)).toHaveLength(11);
   });
 
-  it("월 구분이 KST 기준이다 — 밤 11시에 일어난 일이 전날로 밀리지 않는다", () => {
+  it("월 구분이 KST 기준이다", () => {
     // KST 4월 1일 00:30 = UTC 3월 31일 15:30. UTC로 자르면 3월로 새어 나간다.
     const points = monthlyTotals(
       [award({ occurredOn: kst("2026-04-01T00:30:00"), points: 7 })],
@@ -175,7 +175,7 @@ describe("scaleToPercent", () => {
     expect(scaleToPercent([5, 10, 20])).toEqual([25, 50, 100]);
   });
 
-  it("음수는 절댓값으로 잰다 — 길이는 방향과 무관하다", () => {
+  it("음수는 절댓값으로 잰다", () => {
     expect(scaleToPercent([-20, 10])).toEqual([100, 50]);
   });
 

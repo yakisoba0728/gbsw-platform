@@ -174,7 +174,7 @@ describe("saveEnrollmentsAction — 경계 검증", () => {
 
     const state = await saveEnrollmentsAction(SAVE_INITIAL, saveForm());
 
-    expect(state.error).toBe("학년도가 바뀌었습니다. 새로고침 후 다시 시도해 주세요.");
+    expect(state.error).toBe("학년도가 바뀌었습니다. 새로고침 후 다시 저장해 주세요.");
   });
 
   it("사전에 없는 코드는 영문 코드를 화면에 흘리지 않는다", async () => {

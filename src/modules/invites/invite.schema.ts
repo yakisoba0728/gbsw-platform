@@ -25,22 +25,15 @@ const expiresInDays = z
   .optional()
   .describe("비우면 무기한");
 
-/**
- * 관리자가 학생 코드를 발급할 때 입력하는 값.
- *
- * 학년·반·번호 범위는 enrollment.schema.ts의 상수를 그대로 쓴다 (M6) — 표
- * 편집·명단 업로드와 같은 SchoolClass 테이블에 쓰는 값이다.
- */
+/** 관리자가 학생 코드를 발급할 때 입력하는 값. */
 export const createStudentInviteSchema = z.object({
   name,
   birthDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "생년월일은 YYYY-MM-DD 형식으로 입력해 주세요.")
     .refine((v) => !Number.isNaN(Date.parse(v)), "존재하지 않는 날짜입니다."),
-  // 문구도 enrollment.schema의 상수를 쓴다. 범위 상수만 가져오고 메시지를
-  // 비워 두면 zod의 영문 기본 문구("Too big: expected number to be <=3")가
-  // 그대로 화면에 나간다 — 액션의 `?? "입력값을 확인해 주세요."` 폴백은
-  // issues[0].message가 이미 채워져 있어서 절대 닿지 않는다.
+  // 범위와 문구를 같은 곳에서 가져온다 — 문구를 비우면 zod의 영문 기본 문구가
+  // 화면에 그대로 나간다.
   grade: z
     .number()
     .int(GRADE_RANGE_MESSAGE)
@@ -87,7 +80,7 @@ export type CreateAdminInviteInput = z.infer<typeof createAdminInviteSchema>;
 export type CreateParentInviteInput = z.infer<typeof createParentInviteSchema>;
 
 /**
- * 코드에 저장하는 사전등록 신원. 가입 시 이 값과 입력을 대조한다.
+ * 코드에 저장하는 사전등록 신원. 가입 때 이 값과 입력을 대조한다.
  * DB에는 Json으로 들어가므로 읽을 때 반드시 이 스키마로 파싱한다.
  */
 export const studentInviteMetaSchema = z.object({

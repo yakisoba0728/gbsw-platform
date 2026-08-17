@@ -7,10 +7,7 @@ import { thresholdSchema } from "@/modules/merit/merit.schema";
 import { setDemeritThresholds } from "@/modules/merit/threshold.service";
 import type { ThresholdFormState } from "./action-state";
 
-/**
- * 서비스가 던지는 **코드**를 화면 문구로 옮긴다 (CLAUDE.md의 오류 규약).
- * 입력 모양 오류는 zod가 이미 한글 문구를 갖고 있어 그대로 쓴다.
- */
+/** 서비스가 던지는 오류 코드를 화면 문구로 옮긴다. */
 const MESSAGES: Record<string, string> = {
   INVALID_THRESHOLD_ORDER: "위험 기준은 경고 기준보다 커야 합니다.",
 };
@@ -21,9 +18,9 @@ function fail(error: string): ThresholdFormState {
 
 function toMessage(error: unknown): string {
   if (error instanceof MeritError) {
-    return MESSAGES[error.message] ?? "처리하지 못했습니다.";
+    return MESSAGES[error.message] ?? "저장하지 못했습니다.";
   }
-  return "처리하지 못했습니다.";
+  return "저장하지 못했습니다.";
 }
 
 export async function saveThresholdAction(
@@ -48,11 +45,8 @@ export async function saveThresholdAction(
   }
 
   revalidatePath("/admin/settings");
-  /*
-   * 기준이 바뀌면 강조·명단이 달라지는 화면들도 함께 새로 그린다 — 안 그러면
-   * 저장은 됐는데 통계 화면의 "기준 초과 학생"이 옛 명단 그대로 남는다.
-   * layout으로 지정해 그 아래 반별 화면·학생 상세까지 한 번에 덮는다.
-   */
+  // 기준이 바뀌면 강조·명단이 달라지는 화면도 함께 새로 그린다. layout으로
+  // 지정해 그 아래 반별 화면·학생 상세까지 덮는다.
   revalidatePath("/merit", "layout");
   return { error: null, ok: true };
 }

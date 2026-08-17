@@ -22,8 +22,7 @@ describe("rosterRowsSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("errors를 지워도 재학인데 자리가 없는 행은 통과하지 못한다 (I3) — " +
-    "설계서가 오류로 잡기로 한 상태가 그대로 저장되는 걸 경계에서 막는다", () => {
+  it("errors를 지워도 재학인데 자리가 없는 행은 통과하지 못한다", () => {
     const tampered = row({ grade: null, classNo: null, number: null, errors: [] });
 
     const result = rosterRowsSchema.safeParse([tampered]);
@@ -41,8 +40,7 @@ describe("rosterRowsSchema", () => {
     expect(rosterRowsSchema.safeParse([graduated]).success).toBe(true);
   });
 
-  it("status:null(그 학년도 배정 없음)도 학년·반·번호가 비면 통과한다 — " +
-    "Critical 결함 회귀: 배정 없는 학생이 섞인 반영이 확정 경계에서 막히면 안 된다", () => {
+  it("status:null이고 학년·반·번호가 비면 통과한다", () => {
     const noAssignment = row({
       status: null,
       grade: null,
