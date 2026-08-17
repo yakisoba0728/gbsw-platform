@@ -203,8 +203,14 @@ function WatchList({
       controls={
         <p className="mt-1 text-[12px] text-mut">
           <strong className="font-bold">보여주기만 합니다</strong> — 기준을 넘어도
-          자동으로 회부·통보되는 것은 없습니다. 기준 점수는 학칙·기숙사 규정에
-          맞춰 관리자가 정합니다.
+          자동으로 회부·통보되는 것은 없습니다. 기준 점수는{" "}
+          <Link
+            href="/admin/settings"
+            className="font-semibold text-pri hover:underline"
+          >
+            설정
+          </Link>
+          에서 학칙·기숙사 규정에 맞춰 바꿀 수 있습니다.
         </p>
       }
     >
