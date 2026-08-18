@@ -183,7 +183,6 @@ model ParentStudent {
   @@index([studentId])
 }
 
-/// 학년도. isCurrent는 항상 하나만 true다 (부분 유니크 인덱스로 DB가 막는다).
 /// 학년도. **현재 학년도는 항상 하나뿐**이며, 그것을 DB가 직접 막는다.
 ///
 /// 그 제약은 부분 유니크 인덱스 `AcademicYear_single_current`
