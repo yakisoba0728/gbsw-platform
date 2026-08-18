@@ -19,7 +19,7 @@ describe("상벌점 메뉴 구성", () => {
       "기숙사 상벌점",
       "최근 부여",
       "통계 개요",
-      "반·학생별",
+      "순위 · 현황",
       "교사별",
       "규정별",
       "규정 관리",
@@ -118,7 +118,7 @@ describe("activeChild — 하나만 켜진다", () => {
 
   it("통계 하위 화면은 개요가 아니라 자기 것이 켜진다 — 경로가 더 길다", () => {
     expect(active("/merit/stats/teachers", "")).toBe("교사별");
-    expect(active("/merit/stats/classes", "track=DORM")).toBe("반·학생별");
+    expect(active("/merit/stats/ranking", "track=DORM")).toBe("순위 · 현황");
     expect(active("/merit/stats/rules", "")).toBe("규정별");
   });
 
@@ -147,7 +147,7 @@ describe("titleForPath — 하위 메뉴까지 훑는다", () => {
     expect(titleForPath("/admin/merit/rules")).toBe("규정 관리");
     expect(titleForPath("/merit/stats")).toBe("통계 개요");
     expect(titleForPath("/merit/stats/teachers")).toBe("교사별");
-    expect(titleForPath("/merit/stats/classes")).toBe("반·학생별");
+    expect(titleForPath("/merit/stats/ranking")).toBe("순위 · 현황");
     // /admin/merit/rules와 경로가 안 겹쳐야 한다 — 겹치면 제목이 뒤바뀐다.
     expect(titleForPath("/merit/stats/rules")).toBe("규정별");
   });

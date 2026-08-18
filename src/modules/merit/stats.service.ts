@@ -444,3 +444,120 @@ export async function getRuleStats(
     totalCount: list.reduce((sum, r) => sum + r.count, 0),
   };
 }
+
+export type RankedStudent = Awaited<ReturnType<typeof repo.studentTotals>>[number] & {
+  /** 같은 순점수는 같은 등수다. 다음 등수는 인원만큼 건너뛴다 (1,2,2,4). */
+  rank: number;
+  level: DemeritLevel;
+};
+
+export type RankingStats = {
+  track: MeritTrack;
+  year: number | null;
+  rosterYear: number;
+  /** 반을 골랐으면 그 반. 안 골랐으면 null(전교). */
+  scope: { grade: number; classNo: number } | null;
+  /**
+   * 전교면 순점수 순, 반을 골랐으면 **번호순**이다. 반 안에서는 등수보다
+   * 명단이 먼저다 — 담임이 찾는 것은 "몇 등"이 아니라 "그 학생 줄"이다.
+   */
+  students: RankedStudent[];
+  /** 반 순위 — 1인 평균 순점수 순. 인원이 다른 반을 합계로 줄 세우면 큰 반이 불리하다. */
+  classes: (Awaited<ReturnType<typeof repo.classSummaries>>[number] & { rank: number })[];
+  thresholds: DemeritThresholds;
+};
+
+/**
+ * 순위·현황. 전교에서는 학생과 반을 각각 줄 세우고, 반을 고르면 그 반 **전원**을
+ * 번호순으로 낸다 — 점수가 있는 학생만 내면 명단에 구멍이 생겨 "빠진 건지 0점인지"를
+ * 구별할 수 없다.
+ */
+export async function getRankingStats(
+  actor: SessionUser,
+  track: MeritTrack,
+  year?: number,
+  scope?: { grade: number; classNo: number },
+): Promise<RankingStats> {
+  await assertCan(actor, "merit:read:any");
+
+  const scoped = await scopeYear(track, year);
+  const rosterYear = year ?? (await getCurrentYear());
+  const thresholds = await getDemeritThresholds(track);
+
+  // 두 갈래를 따로 쓴다 — 한 삼항으로 묶으면 두 조회의 합집합 타입이 되어
+  // 어느 쪽에도 없는 필드를 컴파일러가 막지 못한다.
+  const classesPromise = repo.classSummaries({
+    year: rosterYear,
+    track,
+    totalsYear: scoped,
+  });
+
+  let students: RankedStudent[];
+  if (scope) {
+    // repo가 이미 번호순으로 준다. 반 소속은 고른 반 그 자체다.
+    const roster = await repo.listClassRoster({
+      year: rosterYear,
+      grade: scope.grade,
+      classNo: scope.classNo,
+      track,
+      totalsYear: scoped,
+    });
+    students = withRanks(
+      roster.map((r) => ({ ...r, grade: scope.grade, classNo: scope.classNo })),
+      thresholds,
+      true,
+    );
+  } else {
+    const all = await repo.studentTotals({ year: rosterYear, track, totalsYear: scoped });
+    students = withRanks(
+      [...all].sort((a, b) => b.net - a.net || a.name.localeCompare(b.name, "ko")),
+      thresholds,
+      false,
+    );
+  }
+
+  return {
+    track,
+    year: scoped,
+    rosterYear,
+    scope: scope ?? null,
+    students,
+    classes: rankClasses(await classesPromise),
+    thresholds,
+  };
+}
+
+/**
+ * 등수를 매긴다. 반을 볼 때는 번호순이라 등수가 뜻을 잃으므로 붙이지 않는다(0).
+ * 동점은 같은 등수다 — 1점 차이도 아닌데 줄을 세우면 그 숫자가 사실보다 세진다.
+ */
+function withRanks<T extends { net: number; demerit: number }>(
+  rows: T[],
+  thresholds: DemeritThresholds,
+  skipRank: boolean,
+): (T & { rank: number; level: DemeritLevel })[] {
+  let rank = 0;
+  let lastNet: number | null = null;
+
+  return rows.map((row, i) => {
+    if (!skipRank && row.net !== lastNet) {
+      rank = i + 1;
+      lastNet = row.net;
+    }
+    return { ...row, rank: skipRank ? 0 : rank, level: demeritLevel(thresholds, row.demerit) };
+  });
+}
+
+/** 반 등수. 1인 평균으로 센다 — 인원이 다른 반을 합계로 줄 세우면 큰 반이 불리하다. */
+function rankClasses<T extends { avgNet: number }>(rows: T[]): (T & { rank: number })[] {
+  const sorted = [...rows].sort((a, b) => b.avgNet - a.avgNet);
+  let rank = 0;
+  let last: number | null = null;
+  return sorted.map((row, i) => {
+    if (row.avgNet !== last) {
+      rank = i + 1;
+      last = row.avgNet;
+    }
+    return { ...row, rank };
+  });
+}

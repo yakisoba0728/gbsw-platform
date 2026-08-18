@@ -48,7 +48,7 @@ export const NAV_ITEMS: NavItem[] = [
       { href: "/merit?track=DORM", label: "기숙사 상벌점" },
       { href: "/merit/recent", label: "최근 부여", roles: ["ADMIN"] },
       { href: "/merit/stats", label: "통계 개요", roles: ["ADMIN"] },
-      { href: "/merit/stats/classes", label: "반·학생별", roles: ["ADMIN"] },
+      { href: "/merit/stats/ranking", label: "순위 · 현황", roles: ["ADMIN"] },
       { href: "/merit/stats/teachers", label: "교사별", roles: ["ADMIN"] },
       { href: "/merit/stats/rules", label: "규정별", roles: ["ADMIN"] },
       { href: "/admin/merit/rules", label: "규정 관리", roles: ["ADMIN"] },
