@@ -8,6 +8,16 @@ export const MERIT_TRACK_LABELS: Record<MeritTrack, string> = {
   DORM: "기숙사",
 };
 
+/**
+ * 화면 제목에 쓰는 이름. `MERIT_TRACK_LABELS`(교내·기숙사)는 표 안처럼 좁은
+ * 자리의 짧은 표기고, 이쪽은 메뉴(nav.ts)에 적힌 정식 이름이다 — 상단바 제목이
+ * 쿼리를 못 보므로 두 트랙을 가르는 글자가 화면 안에 반드시 하나는 있어야 한다.
+ */
+export const MERIT_TRACK_TITLES: Record<MeritTrack, string> = {
+  SCHOOL: "그린마일리지",
+  DORM: "기숙사 상벌점",
+};
+
 export function isMeritTrack(value: unknown): value is MeritTrack {
   return (
     typeof value === "string" && (MERIT_TRACKS as readonly string[]).includes(value)

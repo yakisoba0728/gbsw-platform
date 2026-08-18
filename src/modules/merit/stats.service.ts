@@ -17,6 +17,7 @@ import {
   type MonthlyPoint,
 } from "./merit.chart";
 import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
+import { kstDayStart } from "@/lib/datetime";
 import * as repo from "./merit.repo";
 import { scopeYear, sumTotals, type MeritTotals } from "./award.service";
 
@@ -122,34 +123,73 @@ async function readWatchList(
     .sort((a, b) => b.demerit - a.demerit || a.name.localeCompare(b.name, "ko"));
 }
 
+/** 대시보드가 덮는 기간. 오늘을 포함한 날 수다. */
+export const SUMMARY_DAYS = 7;
+
+/** 최근 활동에서 세는 종류. 상쇄점은 뺀다 — 아래 getMeritSummary의 주석을 볼 것. */
+const SUMMARY_KINDS = ["MERIT", "DEMERIT"] as const;
+
 export type MeritSummary = {
   track: MeritTrack;
-  /** 교내면 보고 있는 학년도, 기숙사면 null(전체 누적). */
-  year: number | null;
+  /**
+   * 상쇄점이 창에서 빠져 있으므로 offset은 항상 0이고 net은 상점 − 벌점이다.
+   * MeritTotalsCards가 offset이 0이면 칸을 안 만드는 것이 여기서는 옳다 —
+   * 감춘 게 아니라 실제로 세지 않은 값이다.
+   */
   totals: MeritTotals & { awardCount: number };
 };
 
 /**
- * 대시보드용 가벼운 요약 — 머리글 숫자만. getMeritStats는 그래프용 기록을 전부
- * 읽어 오는데, 대시보드는 트랙 둘을 나란히 놓으면서 합계와 건수만 쓴다.
+ * 대시보드용 요약 — **최근 7일에 무슨 일이 있었나**만 센다. 누적은 통계 화면이 맡는다.
+ *
+ * 세 가지가 이 함수의 판단이며, 화면이 다시 정하지 않는다.
+ *
+ * 1. **발생일(occurredOn) 기준이다.** 교사는 금요일 일을 월요일에 넣고 사감은
+ *    어젯밤 점호를 아침에 넣는다 — 입력 시각으로 세면 밀린 기록을 한꺼번에 넣은
+ *    날이 "사건이 몰린 주"로 보인다. 월별 추이도 같은 기준이라 두 화면이 어긋나지 않는다.
+ * 2. **학년도로 자르지 않는다.** 3월 초에는 지난 7일이 두 학년도에 걸친다.
+ *    학년도를 함께 걸면 2월 며칠치가 소리 없이 빠져 조용한 주로 읽힌다.
+ * 3. **상쇄점을 통째로 뺀다.** 선도위의 상쇄는 한 건이 수십 점이라, 주간 활동에
+ *    섞으면 그 한 건이 나머지 전부를 덮는다. 건수에서도 뺀다 — 절반만 빼면
+ *    "3건인데 점수는 0점"처럼 서로 안 맞는 숫자가 남는다. 화면이 "상쇄점 제외"를 적는다.
  */
 export async function getMeritSummary(
   actor: SessionUser,
   track: MeritTrack,
+  /** 창의 기준 시각. 인자로 받아야 테스트가 오늘 날짜에 안 흔들린다. */
+  now: Date = new Date(),
 ): Promise<MeritSummary> {
   await assertCan(actor, "merit:read:any");
 
-  const scoped = await scopeYear(track);
-  const rows = await repo.trackTotals({ track, totalsYear: scoped });
+  // 창 계산에는 학년도가 필요 없지만, 학년도가 없으면 숫자를 내지 않는다 —
+  // 상벌점을 줄 수 없는 상태와 "이번 주는 조용했다"가 화면에서 똑같이 0으로
+  // 보이기 때문이다. 화면은 이 오류를 안내 카드로 바꾼다.
+  await getCurrentYear();
+
+  // 오늘을 포함해 SUMMARY_DAYS일. 상한은 내일 자정(제외)이다.
+  const today = kstDayStart(now);
+  const since = addDays(today, -(SUMMARY_DAYS - 1));
+  const until = addDays(today, 1);
+
+  const rows = await repo.trackTotalsBetween({
+    track,
+    since,
+    until,
+    kinds: SUMMARY_KINDS,
+  });
 
   return {
     track,
-    year: scoped,
     totals: {
       ...sumTotals(rows),
       awardCount: rows.reduce((sum, row) => sum + row._count._all, 0),
     },
   };
+}
+
+/** 한국은 서머타임이 없어 하루는 항상 24시간이다. */
+function addDays(from: Date, days: number): Date {
+  return new Date(from.getTime() + days * 24 * 60 * 60 * 1000);
 }
 
 /** 순위 표시는 관리자 화면에만 둔다 — 학생에게 등수를 띄우는 건 별개 결정이다. */

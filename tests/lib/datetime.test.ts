@@ -3,6 +3,8 @@ import {
   formatDate,
   formatDateInput,
   formatDateTime,
+  kstDayStart,
+  kstHour,
   isSameKstDate,
   KST,
   parseDateInputKst,
@@ -254,5 +256,34 @@ describe("잘못된 입력에서의 현재 동작", () => {
     expect(() => formatDateInput(parseDateInputKst("2026-13-45"))).toThrow(RangeError);
     expect(() => formatDate(new Date(Number.NaN))).toThrow(RangeError);
     expect(() => isSameKstDate(new Date(Number.NaN), new Date())).toThrow(RangeError);
+  });
+});
+
+describe("kstDayStart", () => {
+  it("그 시각이 속한 KST 날짜의 자정으로 내린다", () => {
+    expect(kstDayStart(new Date("2026-08-16T23:59:59+09:00"))).toEqual(
+      new Date("2026-08-16T00:00:00+09:00"),
+    );
+    expect(kstDayStart(new Date("2026-08-16T00:00:00+09:00"))).toEqual(
+      new Date("2026-08-16T00:00:00+09:00"),
+    );
+  });
+
+  it("UTC가 아니라 KST 날짜다 — 여기가 어긋나면 창이 하루 밀린다", () => {
+    // UTC로는 아직 8월 16일이지만 KST로는 17일이 시작됐다.
+    expect(kstDayStart(new Date("2026-08-16T15:30:00Z"))).toEqual(
+      new Date("2026-08-17T00:00:00+09:00"),
+    );
+  });
+});
+
+describe("kstHour", () => {
+  it("KST 기준 시를 준다", () => {
+    expect(kstHour(new Date("2026-08-18T00:10:00+09:00"))).toBe(0);
+    expect(kstHour(new Date("2026-08-18T23:59:00+09:00"))).toBe(23);
+  });
+
+  it("UTC 자정이 KST 오전 9시다 — 서버 시간대를 따라가면 안 된다", () => {
+    expect(kstHour(new Date("2026-08-18T00:00:00Z"))).toBe(9);
   });
 });

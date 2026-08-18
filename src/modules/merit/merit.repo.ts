@@ -6,6 +6,7 @@ import {
   netScore,
   withNetScore,
   type KindTotals,
+  type MeritKind,
   type MeritTrack,
 } from "@/core/authz/merit-track";
 import type { CreateRuleInput, UpdateRuleInput } from "./merit.schema";
@@ -464,8 +465,14 @@ export async function listClassRoster(params: {
 export async function searchStudents(
   query: string,
   year: number,
-  options: { includeRemoved: boolean },
+  options: {
+    includeRemoved: boolean;
+    /** 학번을 읽어낸 경우에만 온다. 파싱은 서비스가 한다. */
+    studentNumber?: { grade: number; classNo: number; number: number };
+  },
 ) {
+  const { studentNumber } = options;
+
   return prisma.studentProfile.findMany({
     where: {
       user: {
@@ -475,6 +482,24 @@ export async function searchStudents(
       OR: [
         { user: { name: { contains: query, mode: "insensitive" } } },
         { studentCode: { contains: query, mode: "insensitive" } },
+        // 학번은 그 학년도 재적에만 있다 — 명단에서 빠진 학생은 이 갈래로 안 잡히고
+        // 학생코드로만 찾힌다. 여기서 year를 빼면 작년 번호로 남의 학생이 나온다.
+        ...(studentNumber
+          ? [
+              {
+                enrollments: {
+                  some: {
+                    year,
+                    number: studentNumber.number,
+                    schoolClass: {
+                      grade: studentNumber.grade,
+                      classNo: studentNumber.classNo,
+                    },
+                  },
+                },
+              },
+            ]
+          : []),
       ],
     },
     take: 30,
@@ -734,6 +759,37 @@ export async function trackTotals(params: {
       ...(params.studentProfileIds
         ? { studentProfileId: { in: params.studentProfileIds } }
         : {}),
+    },
+    _count: { _all: true },
+    _sum: { points: true },
+  });
+}
+
+/**
+ * 트랙 집계를 **발생일 창**으로 자른다 — 대시보드의 "최근 7일"이 쓴다.
+ *
+ * 학년도로 자르지 않는 게 핵심이다: 3월 초에는 지난 7일이 두 학년도에 걸치는데,
+ * 학년도 필터를 함께 걸면 2월 며칠치가 소리 없이 빠져 "이번 주는 조용했다"로 읽힌다.
+ * 창은 날짜만 정한다.
+ *
+ * kind를 인자로 받는 이유도 같다 — 상쇄점을 뺄지는 화면마다 다른 판단이라
+ * 여기서 정하지 않는다.
+ */
+export async function trackTotalsBetween(params: {
+  track: MeritTrack;
+  /** 발생일 하한(포함). KST 자정이어야 한다 — occurredOn이 그 눈금이다. */
+  since: Date;
+  /** 발생일 상한(제외). */
+  until: Date;
+  kinds: readonly MeritKind[];
+}) {
+  return prisma.meritAward.groupBy({
+    by: ["kind"],
+    where: {
+      track: params.track,
+      status: "ACTIVE",
+      kind: { in: [...params.kinds] },
+      occurredOn: { gte: params.since, lt: params.until },
     },
     _count: { _all: true },
     _sum: { points: true },

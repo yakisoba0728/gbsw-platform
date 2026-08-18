@@ -8,6 +8,7 @@ import type { SessionUser } from "@/core/auth/session";
  */
 
 const trackTotals = vi.fn();
+const trackTotalsBetween = vi.fn();
 const classSummaries = vi.fn();
 const topRules = vi.fn();
 const listAwardsForChart = vi.fn();
@@ -17,6 +18,7 @@ const findStudentsWithClass = vi.fn();
 
 vi.mock("@/modules/merit/merit.repo", () => ({
   trackTotals,
+  trackTotalsBetween,
   classSummaries,
   topRules,
   listAwardsForChart,
@@ -25,9 +27,11 @@ vi.mock("@/modules/merit/merit.repo", () => ({
   findStudentsWithClass,
 }));
 vi.mock("@/core/audit/audit", () => ({ recordAudit: vi.fn() }));
+class AcademicYearError extends Error {}
+const getCurrentYear = vi.fn();
 vi.mock("@/modules/academic-year/academic-year.service", () => ({
-  getCurrentYear: vi.fn().mockResolvedValue(2026),
-  AcademicYearError: class extends Error {},
+  getCurrentYear,
+  AcademicYearError,
 }));
 // 기준은 이 파일이 검증하는 대상이 아니다 — 목으로 고정해 두어야 학교가 기준을
 // 바꿔도 여기 테스트가 흔들리지 않는다 (merit.watch-list.test.ts가 그쪽을 본다).
@@ -53,6 +57,8 @@ const NOW = new Date("2026-08-16T12:00:00+09:00");
 beforeEach(() => {
   vi.clearAllMocks();
   trackTotals.mockResolvedValue([]);
+  trackTotalsBetween.mockResolvedValue([]);
+  getCurrentYear.mockResolvedValue(2026);
   classSummaries.mockResolvedValue([]);
   topRules.mockResolvedValue([]);
   listAwardsForChart.mockResolvedValue([]);
@@ -105,29 +111,92 @@ describe("getMeritStats — 교내(학년도 트랙)", () => {
   });
 });
 
-describe("getMeritSummary — 대시보드 요약", () => {
-  it("그래프용 조회를 부르지 않는다", async () => {
-    await service.getMeritSummary(admin, "DORM");
+describe("getMeritSummary — 대시보드 최근 활동", () => {
+  it("오늘을 포함한 7일 창을 발생일로 자른다", async () => {
+    await service.getMeritSummary(admin, "SCHOOL", NOW);
 
-    expect(trackTotals).toHaveBeenCalledTimes(1);
+    const call = trackTotalsBetween.mock.calls[0][0];
+    // NOW가 8월 16일이므로 10일 00:00 ~ 17일 00:00(제외) = 10·11·12·13·14·15·16.
+    expect(call.since).toEqual(new Date("2026-08-10T00:00:00+09:00"));
+    expect(call.until).toEqual(new Date("2026-08-17T00:00:00+09:00"));
+  });
+
+  it("KST 자정 눈금에 맞춘다 — 발생일이 그 눈금이라 UTC로 자르면 하루 밀린다", async () => {
+    // UTC로는 8월 16일 15:30이지만 KST로는 17일 00:30이다.
+    await service.getMeritSummary(admin, "SCHOOL", new Date("2026-08-17T00:30:00+09:00"));
+
+    expect(trackTotalsBetween.mock.calls[0][0].since).toEqual(
+      new Date("2026-08-11T00:00:00+09:00"),
+    );
+  });
+
+  it("상쇄점은 창에서 통째로 빠진다 — 건수에서도 빠진다", async () => {
+    await service.getMeritSummary(admin, "SCHOOL", NOW);
+
+    expect([...trackTotalsBetween.mock.calls[0][0].kinds]).toEqual([
+      "MERIT",
+      "DEMERIT",
+    ]);
+  });
+
+  it("순점수는 상점 − 벌점이다 (상쇄점이 없으므로)", async () => {
+    trackTotalsBetween.mockResolvedValue([
+      { kind: "MERIT", _count: { _all: 4 }, _sum: { points: 12 } },
+      { kind: "DEMERIT", _count: { _all: 3 }, _sum: { points: 5 } },
+    ]);
+
+    const summary = await service.getMeritSummary(admin, "SCHOOL", NOW);
+
+    expect(summary.totals.awardCount).toBe(7);
+    expect(summary.totals.merit).toBe(12);
+    expect(summary.totals.demerit).toBe(5);
+    expect(summary.totals.offset).toBe(0);
+    expect(summary.totals.net).toBe(7);
+  });
+
+  it("학년도로 자르지 않는다 — 3월 초 창이 두 학년도에 걸쳐도 잘리면 안 된다", async () => {
+    await service.getMeritSummary(admin, "SCHOOL", NOW);
+
+    const call = trackTotalsBetween.mock.calls[0][0];
+    expect(call).not.toHaveProperty("totalsYear");
+    expect(call).not.toHaveProperty("year");
+  });
+
+  it("두 트랙이 같은 창을 보고, 트랙만 다르다", async () => {
+    await service.getMeritSummary(admin, "SCHOOL", NOW);
+    await service.getMeritSummary(admin, "DORM", NOW);
+
+    const [school, dorm] = trackTotalsBetween.mock.calls.map((c) => c[0]);
+    expect(school.track).toBe("SCHOOL");
+    expect(dorm.track).toBe("DORM");
+    // 기숙사가 누적 트랙이라고 해서 창이 넓어지지 않는다 — 최근 활동은 트랙과 무관하다.
+    expect(dorm.since).toEqual(school.since);
+    expect(dorm.until).toEqual(school.until);
+  });
+
+  it("그래프용 조회를 부르지 않는다", async () => {
+    await service.getMeritSummary(admin, "DORM", NOW);
+
+    expect(trackTotals).not.toHaveBeenCalled();
     expect(listAwardsForChart).not.toHaveBeenCalled();
     expect(classSummaries).not.toHaveBeenCalled();
     expect(topRules).not.toHaveBeenCalled();
   });
 
-  it("트랙 규칙을 그대로 따른다", async () => {
-    const school = await service.getMeritSummary(admin, "SCHOOL");
-    expect(school.year).toBe(2026);
-    expect(trackTotals.mock.calls[0][0].totalsYear).toBe(2026);
-
-    const dorm = await service.getMeritSummary(admin, "DORM");
-    expect(dorm.year).toBeNull();
-    expect(trackTotals.mock.calls[1][0].totalsYear).toBeNull();
-  });
-
   it("권한이 없으면 거부한다", async () => {
     const student: SessionUser = { ...admin, id: "u-1", role: "STUDENT" };
-    await expect(service.getMeritSummary(student, "SCHOOL")).rejects.toThrow();
-    expect(trackTotals).not.toHaveBeenCalled();
+    await expect(service.getMeritSummary(student, "SCHOOL", NOW)).rejects.toThrow();
+    expect(trackTotalsBetween).not.toHaveBeenCalled();
+  });
+
+  // 창 계산에는 학년도가 필요 없지만, 없는 상태에서 0을 내면 "조용한 주"와
+  // 구별되지 않는다. 대시보드가 안내 카드로 바꿔 보여줄 수 있게 던져야 한다.
+  it("현재 학년도가 없으면 숫자 대신 오류를 낸다", async () => {
+    getCurrentYear.mockRejectedValue(new AcademicYearError("NO_CURRENT_YEAR"));
+
+    await expect(service.getMeritSummary(admin, "SCHOOL", NOW)).rejects.toBeInstanceOf(
+      AcademicYearError,
+    );
+    expect(trackTotalsBetween).not.toHaveBeenCalled();
   });
 });
