@@ -134,7 +134,6 @@ export default async function MeritStatsPage({
           ) : (
             <ClassNetChart
               rows={stats.classes}
-              thresholds={stats.thresholds}
               hrefFor={(row) =>
                 statsHref({ grade: String(row.grade), classNo: String(row.classNo) })
               }

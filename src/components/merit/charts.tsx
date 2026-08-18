@@ -170,9 +170,13 @@ export function MonthlyChart({
 }
 
 /** 반별 순점수. 0을 가운데 두고 좌우로 뻗는다 — 순점수는 음수가 될 수 있다. */
+/**
+ * 반별 순점수. **벌점 기준 표시가 없다** — 기준은 학생 한 명에게 정한 값이라
+ * 반 합계에 대면 인원이 많은 반은 예외 없이 넘는다. 위험한 학생은 이름으로
+ * 짚는 「기준 초과 학생」이 맡는다.
+ */
 export function ClassNetChart({
   rows,
-  thresholds,
   hrefFor,
 }: {
   rows: {
@@ -185,8 +189,6 @@ export function ClassNetChart({
     net: number;
     avgNet: number;
   }[];
-  /** 벌점 기준 — 막대 옆 "!" 표시를 칠 기준이다. 관리자가 설정에서 정한다. */
-  thresholds: DemeritThresholds;
   /** 주면 각 반이 링크가 된다 — 눌러서 그 반만 볼 수 있게. */
   hrefFor?: (row: { grade: number; classNo: number }) => string;
 }) {
@@ -227,7 +229,6 @@ export function ClassNetChart({
               />
               <span className="w-[76px] shrink-0 text-xs font-medium text-ink">
                 {row.grade}-{row.classNo}
-                <DemeritFlag thresholds={thresholds} demerit={row.demerit} />
               </span>
               <span className="flex flex-1 justify-end">
                 <span
