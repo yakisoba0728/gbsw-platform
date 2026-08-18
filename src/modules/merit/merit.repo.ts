@@ -181,7 +181,6 @@ export type NewAward = {
   note: string | null;
   awardedByUserId: string;
   awardedByName: string;
-  batchId: string | null;
 };
 
 export async function createAward(data: NewAward): Promise<{ id: string }> {
@@ -335,54 +334,6 @@ export async function findAwardableStudents(ids: string[]) {
     select: { id: true, user: { select: { name: true } } },
   });
 }
-
-/** 한 묶음에 속한, 아직 살아 있는 기록들. 일괄 취소가 무엇을 지울지 미리 센다. */
-export async function findBatch(batchId: string) {
-  return prisma.meritAward.findMany({
-    where: { batchId, status: "ACTIVE" },
-    // 순서를 고정한다 — 감사로그를 이 순서로 남기므로 매번 같아야 읽기 좋다.
-    orderBy: { createdAt: "asc" },
-    select: {
-      id: true,
-      studentProfileId: true,
-      track: true,
-      kind: true,
-      label: true,
-      points: true,
-      // 이름이 없으면 묶음의 감사로그 줄이 전부 똑같아져 누구 것인지 구분되지 않는다.
-      studentProfile: { select: { user: { select: { name: true } } } },
-    },
-  });
-}
-
-/**
- * 여러 건을 한 번에 취소하고 실제로 고친 것의 id만 돌려준다. batchId가 아니라
- * id 목록을 받는 것은 감사로그의 근거가 된 목록과 갱신 범위를 맞추기 위해서다.
- * ACTIVE인 것만 고친다 — 먼저 취소한 사람의 기록을 덮지 않는다.
- */
-export async function cancelAwards(
-  ids: string[],
-  by: { userId: string; name: string; reason: string },
-): Promise<string[]> {
-  if (ids.length === 0) return [];
-
-  const rows = await prisma.meritAward.updateManyAndReturn({
-    where: { id: { in: ids }, status: "ACTIVE" },
-    data: {
-      status: "CANCELLED",
-      cancelledByUserId: by.userId,
-      cancelledByName: by.name,
-      // 한 번의 취소는 한 시각이다 — 행마다 부르면 로그를 시각으로 묶을 수 없다.
-      cancelledAt: new Date(),
-      cancelReason: by.reason,
-    },
-    select: { id: true },
-  });
-
-  return rows.map((row) => row.id);
-}
-
-// ── 목록 조회 ─────────────────────────────────────────────────
 
 /**
  * groupBy(학생·종류) 결과를 학생별 합계로 접는다. 접는 규칙은 merit-track이
@@ -621,7 +572,6 @@ export async function listRecentAwards(params: { track: MeritTrack; limit: numbe
       awardedByName: true,
       occurredOn: true,
       createdAt: true,
-      batchId: true,
       studentProfile: {
         select: { id: true, user: { select: { name: true } } },
       },
@@ -637,7 +587,6 @@ export async function listRecentAwards(params: { track: MeritTrack; limit: numbe
     awardedByName: row.awardedByName,
     occurredOn: row.occurredOn,
     createdAt: row.createdAt,
-    batchId: row.batchId,
     studentProfileId: row.studentProfile.id,
     studentName: row.studentProfile.user.name,
   }));

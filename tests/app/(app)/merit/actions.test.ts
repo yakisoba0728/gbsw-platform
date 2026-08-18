@@ -14,7 +14,6 @@ const revalidatePath = vi.fn();
 const awardMerit = vi.fn();
 const bulkAwardMerit = vi.fn();
 const cancelAward = vi.fn();
-const cancelBatch = vi.fn();
 const exportClassRoster = vi.fn();
 const exportStudentHistory = vi.fn();
 
@@ -26,7 +25,6 @@ vi.mock("@/modules/merit/award.service", () => ({
   awardMerit,
   bulkAwardMerit,
   cancelAward,
-  cancelBatch,
   exportClassRoster,
   exportStudentHistory,
 }));
@@ -42,7 +40,6 @@ const {
   awardAction,
   bulkAwardAction,
   cancelAction,
-  cancelBatchAction,
   exportClassRosterAction,
   exportStudentHistoryAction,
 } = await import("@/app/(app)/merit/actions");
@@ -87,13 +84,6 @@ function cancelForm(over: Record<string, string> = {}): FormData {
 }
 
 /** cancel-batch-button.tsx의 hidden input + ConfirmDialog의 reason. */
-function cancelBatchForm(over: Record<string, string> = {}): FormData {
-  return form({
-    batchId: "batch-1",
-    reason: "항목을 잘못 골랐습니다",
-    ...over,
-  });
-}
 
 const INITIAL = { error: null, ok: false, count: null };
 
@@ -101,7 +91,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   requireAuth.mockResolvedValue({ id: "admin-1", role: "ADMIN" });
   bulkAwardMerit.mockResolvedValue({ count: 3 });
-  cancelBatch.mockResolvedValue({ count: 3 });
   exportClassRoster.mockResolvedValue({
     rows: [["2026학년도 2학년 3반 · 기숙사(누적)"]],
     filename: "2026_2학년3반_기숙사상벌점.xlsx",
@@ -266,38 +255,6 @@ describe("cancelAction — 경계 검증", () => {
   });
 });
 
-describe("cancelBatchAction — 경계 검증", () => {
-  it("폼이 보내는 값 그대로면 서비스까지 도달한다", async () => {
-    const state = await cancelBatchAction(INITIAL, cancelBatchForm());
-
-    expect(cancelBatch).toHaveBeenCalledWith(
-      expect.anything(),
-      { batchId: "batch-1", reason: "항목을 잘못 골랐습니다" },
-    );
-    expect(state.count).toBe(3);
-  });
-
-  it("사유가 비면 서비스를 부르지 않는다", async () => {
-    const state = await cancelBatchAction(INITIAL, cancelBatchForm({ reason: "" }));
-
-    expect(cancelBatch).not.toHaveBeenCalled();
-    expect(state.error).toBe("취소 사유를 입력해 주세요.");
-  });
-
-  it("이미 없는 묶음은 그 이유를 알린다", async () => {
-    cancelBatch.mockRejectedValueOnce(new MeritError("BATCH_NOT_FOUND"));
-
-    const state = await cancelBatchAction(INITIAL, cancelBatchForm());
-
-    expect(state.error).toBe("취소할 묶음을 찾을 수 없습니다.");
-  });
-});
-
-/*
- * 내보내기 둘은 버튼 클릭에서 인수를 그대로 받는다 — FormData 경계는 없지만
- * safeParse 경계는 있다. 시트 조립과 파일명은 서비스가 만들므로 여기서는
- * 경계 검증 · 서비스 호출 · 오류 문구 변환 셋만 본다.
- */
 describe("exportClassRosterAction — 경계 검증", () => {
   it("조건이 맞으면 서비스까지 도달하고 결과를 그대로 넘긴다", async () => {
     const result = await exportClassRosterAction({

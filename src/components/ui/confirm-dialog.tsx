@@ -116,7 +116,7 @@ export function ConfirmDialog({
             }}
             placeholder={reasonPlaceholder}
             required
-            // cancelSchema·cancelBatchSchema의 상한과 같다.
+            // cancelSchema의 상한과 같다.
             maxLength={500}
           />
 

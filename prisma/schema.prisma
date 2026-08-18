@@ -491,8 +491,6 @@ model MeritAward {
   cancelledAt       DateTime?
   cancelReason      String?
 
-  /// 여러 명에게 한 번에 준 묶음. 단건 부여는 null.
-  batchId String?
 
   createdAt DateTime @default(now())
 
@@ -500,5 +498,4 @@ model MeritAward {
   @@index([studentProfileId, track])
   /// 반별 목록(그 학년도 전체를 훑는다).
   @@index([year, track])
-  @@index([batchId])
 }

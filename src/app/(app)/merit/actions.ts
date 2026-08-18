@@ -11,7 +11,6 @@ import {
   awardSchema,
   BULK_AWARD_LIMIT,
   bulkAwardSchema,
-  cancelBatchSchema,
   cancelSchema,
   classRosterSchema,
   studentHistoryExportSchema,
@@ -26,7 +25,6 @@ const MESSAGES: Record<string, string> = {
   ALREADY_CANCELLED: "이미 취소된 기록입니다.",
   STUDENT_NOT_FOUND: "학생을 찾을 수 없습니다.",
   NO_STUDENTS: "학생을 선택해 주세요.",
-  BATCH_NOT_FOUND: "취소할 묶음을 찾을 수 없습니다.",
   TOO_MANY_STUDENTS: `한 번에 ${BULK_AWARD_LIMIT}명까지 줄 수 있습니다.`,
   OCCURRED_OUT_OF_YEAR: "현재 학년도 안의 날짜만 고를 수 있습니다.",
   OCCURRED_IN_FUTURE: "오늘까지의 날짜만 고를 수 있습니다.",
@@ -137,34 +135,6 @@ export async function cancelAction(
   const studentProfileId = String(formData.get("studentProfileId") ?? "");
   if (studentProfileId) revalidatePath(`/merit/students/${studentProfileId}`);
   return { error: null, ok: true, count: null };
-}
-
-/** 묶음 통째로 취소. 일괄 부여를 잘못했을 때 한 번에 되돌린다. */
-export async function cancelBatchAction(
-  _prev: MeritActionState,
-  formData: FormData,
-): Promise<MeritActionState> {
-  const actor = await requireAuth();
-
-  const parsed = cancelBatchSchema.safeParse({
-    batchId: formData.get("batchId"),
-    reason: formData.get("reason"),
-  });
-  if (!parsed.success) {
-    return {
-      error: parsed.error.issues[0]?.message ?? "취소 사유를 입력해 주세요.",
-      ok: false,
-      count: null,
-    };
-  }
-
-  try {
-    const { count } = await service.cancelBatch(actor, parsed.data);
-    revalidatePath("/merit");
-    return { error: null, ok: true, count };
-  } catch (error) {
-    return toState(error);
-  }
 }
 
 /**

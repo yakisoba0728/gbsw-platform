@@ -172,10 +172,3 @@ export const studentHistoryExportSchema = z.object({
 
 export type StudentHistoryExportInput = z.infer<typeof studentHistoryExportSchema>;
 
-/** 묶음 통째로 취소. 사유는 단건과 같은 이유로 필수다. */
-export const cancelBatchSchema = z.object({
-  batchId: z.string().trim().min(1),
-  reason: z.string().trim().min(1, "취소 사유를 입력해 주세요.").max(500),
-});
-
-export type CancelBatchInput = z.infer<typeof cancelBatchSchema>;

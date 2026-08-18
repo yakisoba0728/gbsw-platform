@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { recordAudit } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
 import { assertCan, ForbiddenError } from "@/core/authz/errors";
@@ -22,7 +21,6 @@ import { BULK_AWARD_LIMIT } from "./merit.schema";
 import type {
   AwardInput,
   BulkAwardInput,
-  CancelBatchInput,
   CancelInput,
   ClassRosterInput,
   StudentHistoryExportInput,
@@ -124,7 +122,6 @@ export async function awardMerit(
     note: input.note,
     awardedByUserId: actor.id,
     awardedByName: actor.name,
-    batchId: null,
   });
 
   await recordAudit({
@@ -189,57 +186,6 @@ export async function cancelAward(
   });
 }
 
-/**
- * 묶음 통째로 취소. 단건과 같은 규칙을 따른다: 사유 필수, ACTIVE인 것만,
- * 감사로그는 건별 1줄. 그 사이 남이 먼저 취소한 건은 건드리지 않는다.
- */
-export async function cancelBatch(
-  actor: SessionUser,
-  input: CancelBatchInput,
-): Promise<{ count: number }> {
-  await assertCan(actor, "merit:cancel");
-
-  const awards = await repo.findBatch(input.batchId);
-  if (awards.length === 0) throw new MeritError("BATCH_NOT_FOUND");
-
-  // repo는 실제로 뒤집힌 것의 id만 돌려주고 감사로그는 그것들에만 남긴다 —
-  // 조회한 건수로 남기면 남이 취소한 건까지 "내가 취소했다"로 기록된다.
-  const cancelled = new Set(
-    await repo.cancelAwards(
-      awards.map((award) => award.id),
-      { userId: actor.id, name: actor.name, reason: input.reason },
-    ),
-  );
-  if (cancelled.size === 0) throw new MeritError("ALREADY_CANCELLED");
-
-  await Promise.all(
-    awards
-      .filter((award) => cancelled.has(award.id))
-      .map((award) =>
-        recordAudit({
-          actorUserId: actor.id,
-          actorName: actor.name,
-          action: "merit:cancel",
-          targetType: "MeritAward",
-          targetId: award.id,
-          metadata: {
-            studentProfileId: award.studentProfileId,
-            // 묶음은 나머지 값이 전부 같다 — 이름이 없으면 로그 줄이 동일해진다.
-            studentName: award.studentProfile.user.name,
-            track: award.track,
-            kind: award.kind,
-            label: award.label,
-            points: award.points,
-            reason: input.reason,
-            batchId: input.batchId,
-          },
-        }),
-      ),
-  );
-
-  return { count: cancelled.size };
-}
-
 /** 관리자가 보는 한 학생의 트랙별 현황. */
 export async function getStudentMerit(
   actor: SessionUser,
@@ -297,7 +243,7 @@ async function readMerit(
 }
 
 /**
- * 여러 명에게 한 번에 부여. 한 트랜잭션으로 넣고 같은 batchId를 공유하되,
+ * 여러 명에게 한 번에 부여. 한 트랜잭션으로 넣되 기록은 서로 독립이다 —
  * 감사로그는 학생 1명당 1줄이다. 한 명이라도 없으면 아무것도 넣지 않는다.
  */
 export async function bulkAwardMerit(
@@ -318,7 +264,7 @@ export async function bulkAwardMerit(
   // zod가 이미 막지만 업무 규칙이라 서비스에서도 센다.
   if (ids.length > BULK_AWARD_LIMIT) throw new MeritError("TOO_MANY_STUDENTS");
 
-  // DB에 쓰기 전에 전부 확인한다 — 명단에서 빠진 학생이 있으면 묶음 전체가 거부된다.
+  // DB에 쓰기 전에 전부 확인한다 — 한 명이라도 명단에 없으면 아무도 받지 않는다.
   const found = await repo.findAwardableStudents(ids);
   if (found.length !== ids.length) throw new MeritError("STUDENT_NOT_FOUND");
 
@@ -330,7 +276,6 @@ export async function bulkAwardMerit(
   const occurredOn = kstDayStart(now);
   assertOccurredOn(occurredOn, year, now);
 
-  const batchId = randomUUID();
 
   const created = await repo.createAwards(
     students.map((student) => ({
@@ -345,7 +290,6 @@ export async function bulkAwardMerit(
       note: input.note,
       awardedByUserId: actor.id,
       awardedByName: actor.name,
-      batchId,
     })),
   );
 
@@ -368,7 +312,6 @@ export async function bulkAwardMerit(
           label: rule.label,
           points: rule.points,
           occurredOn: occurredOn.toISOString(),
-          batchId,
         },
       });
     }),

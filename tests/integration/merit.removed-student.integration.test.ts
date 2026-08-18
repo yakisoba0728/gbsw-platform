@@ -107,7 +107,6 @@ async function giveDemerit(studentProfileId: string, points: number) {
       note: null,
       awardedByUserId: admin.id,
       awardedByName: admin.name,
-      batchId: null,
     },
   });
 }
@@ -317,7 +316,7 @@ describe("부여는 열지 않는다", () => {
     ).toBe(2);
   });
 
-  it("일괄 부여는 한 명만 빠져도 묶음 전체를 거부한다", async () => {
+  it("일괄 부여는 한 명만 빠져도 아무도 받지 않는다", async () => {
     await expect(
       service.bulkAwardMerit(
         admin,

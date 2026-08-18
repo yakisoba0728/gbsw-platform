@@ -266,7 +266,9 @@ function meritAwardSummary(metadata: Record<string, unknown>): string | null {
     }
   }
 
-  // batchId는 내부 식별자라 "일괄"이라는 사실만 남긴다.
+  // 묶음 개념을 없애기 전(2026-08-18)에 남은 기록에만 batchId가 있다. 감사로그는
+  // append-only라 지난 줄을 고쳐 쓰지 않으므로, 그 줄들이 "일괄"을 잃지 않게 남긴다.
+  // 새 기록에는 이 키가 없어 이 줄이 걸리지 않는다.
   if (typeof metadata.batchId === "string") parts.push("일괄");
   return parts.length > 0 ? parts.join(" · ") : null;
 }
