@@ -13,12 +13,15 @@ const merit = NAV_ITEMS.find((item) => item.href === "/merit") as NavItem;
 const q = (search: string) => new URLSearchParams(search);
 
 describe("상벌점 메뉴 구성", () => {
-  it("하위 메뉴 다섯을 갖는다", () => {
+  it("하위 메뉴 여덟을 갖는다 — 통계가 네 갈래다", () => {
     expect(merit.children?.map((c) => c.label)).toEqual([
       "그린마일리지",
       "기숙사 상벌점",
       "최근 부여",
-      "통계",
+      "통계 개요",
+      "반·학생별",
+      "교사별",
+      "규정별",
       "규정 관리",
     ]);
   });
@@ -27,7 +30,7 @@ describe("상벌점 메뉴 구성", () => {
     expect(merit.roles).toBeUndefined();
   });
 
-  it("최근 부여·통계·규정 관리는 관리자만 본다", () => {
+  it("학생·학부모에게는 트랙 둘만 보인다 — 통계 네 갈래는 관리자만", () => {
     expect(visibleChildren(merit, "STUDENT").map((c) => c.label)).toEqual([
       "그린마일리지",
       "기숙사 상벌점",
@@ -36,7 +39,7 @@ describe("상벌점 메뉴 구성", () => {
       "그린마일리지",
       "기숙사 상벌점",
     ]);
-    expect(visibleChildren(merit, "ADMIN")).toHaveLength(5);
+    expect(visibleChildren(merit, "ADMIN")).toHaveLength(8);
   });
 
   it("로그인 전(role null)에는 역할 제한이 걸린 하위 메뉴가 안 보인다", () => {
@@ -109,8 +112,14 @@ describe("activeChild — 하나만 켜진다", () => {
   });
 
   it("통계 화면에서는 통계만 켜진다 — /merit로도 시작하지만 더 긴 경로가 이긴다", () => {
-    expect(active("/merit/stats", "")).toBe("통계");
-    expect(active("/merit/stats", "track=DORM")).toBe("통계");
+    expect(active("/merit/stats", "")).toBe("통계 개요");
+    expect(active("/merit/stats", "track=DORM")).toBe("통계 개요");
+  });
+
+  it("통계 하위 화면은 개요가 아니라 자기 것이 켜진다 — 경로가 더 길다", () => {
+    expect(active("/merit/stats/teachers", "")).toBe("교사별");
+    expect(active("/merit/stats/classes", "track=DORM")).toBe("반·학생별");
+    expect(active("/merit/stats/rules", "")).toBe("규정별");
   });
 
   it("규정 관리 화면에서는 규정 관리만 켜진다", () => {
@@ -136,7 +145,11 @@ describe("activeChild — 하나만 켜진다", () => {
 describe("titleForPath — 하위 메뉴까지 훑는다", () => {
   it("하위 메뉴 화면에서 기본값으로 떨어지지 않는다", () => {
     expect(titleForPath("/admin/merit/rules")).toBe("규정 관리");
-    expect(titleForPath("/merit/stats")).toBe("통계");
+    expect(titleForPath("/merit/stats")).toBe("통계 개요");
+    expect(titleForPath("/merit/stats/teachers")).toBe("교사별");
+    expect(titleForPath("/merit/stats/classes")).toBe("반·학생별");
+    // /admin/merit/rules와 경로가 안 겹쳐야 한다 — 겹치면 제목이 뒤바뀐다.
+    expect(titleForPath("/merit/stats/rules")).toBe("규정별");
   });
 
   it("부모 화면은 부모 이름이 나온다", () => {

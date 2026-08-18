@@ -96,7 +96,8 @@ function AdminTrackCard({ summary }: { summary: MeritSummary }) {
       <p className="mt-3 text-xs text-mut">
         최근 {SUMMARY_DAYS}일 · {summary.totals.awardCount}건 ·{" "}
         <Link
-          href={`/merit/stats?track=${summary.track}`}
+          // 이름이 「전체 교사 통계」인데 개요로 보내면 교사 차원이 없는 화면이 나온다.
+          href={`/merit/stats/teachers?track=${summary.track}`}
           className="text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
         >
           전체 교사 통계

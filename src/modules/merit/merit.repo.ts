@@ -744,6 +744,103 @@ export async function topRules(params: {
   }));
 }
 
+/**
+ * 부여자별 집계 — "누가 얼마나 줬나".
+ *
+ * `awardedByUserId`로 묶는다. 계정이 지워지면 SetNull이 되므로 null 묶음이 생기고,
+ * 그쪽은 이름 스냅샷(`awardedByName`)으로 다시 묶어야 "삭제된 계정 3명"이 한 덩어리로
+ * 뭉치지 않는다 — 두 질의로 나누는 이유다. 이름을 붙이는 일은 서비스가 한다.
+ */
+export async function teacherTotals(params: {
+  track: MeritTrack;
+  totalsYear: number | null;
+}) {
+  const where = {
+    track: params.track,
+    status: "ACTIVE",
+    ...(params.totalsYear === null ? {} : { year: params.totalsYear }),
+  };
+
+  const [byUser, byName] = await Promise.all([
+    prisma.meritAward.groupBy({
+      by: ["awardedByUserId", "kind"],
+      where: { ...where, awardedByUserId: { not: null } },
+      _count: { _all: true },
+      _sum: { points: true },
+    }),
+    // 계정이 사라진 기록. 이름 스냅샷이 유일하게 남은 신원이다.
+    prisma.meritAward.groupBy({
+      by: ["awardedByName", "kind"],
+      where: { ...where, awardedByUserId: null },
+      _count: { _all: true },
+      _sum: { points: true },
+    }),
+  ]);
+
+  return { byUser, byName };
+}
+
+/** 부여자 이름을 살아 있는 계정에서 읽는다 — 스냅샷이 아니라 지금 이름을 보여준다. */
+export async function findUserNames(ids: string[]) {
+  if (ids.length === 0) return [];
+  return prisma.user.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, name: true, email: true, deletedAt: true },
+  });
+}
+
+/**
+ * 규정별 집계 — 전체 목록이다(「많이 나온 항목」의 상위 10개와 달리 자르지 않는다).
+ * 분류까지 함께 묶어 화면이 분류로 접을 수 있게 한다.
+ */
+export async function ruleStats(params: {
+  track: MeritTrack;
+  totalsYear: number | null;
+}) {
+  const rows = await prisma.meritAward.groupBy({
+    by: ["ruleId", "label", "kind"],
+    where: {
+      track: params.track,
+      status: "ACTIVE",
+      ...(params.totalsYear === null ? {} : { year: params.totalsYear }),
+    },
+    _count: { _all: true },
+    _sum: { points: true },
+  });
+
+  // 분류는 부여 기록에 복사돼 있지 않다(규정이 갖는다) — 규정 쪽에서 가져와 붙인다.
+  const rules = await prisma.meritRule.findMany({
+    where: { id: { in: rows.map((r) => r.ruleId) } },
+    select: { id: true, category: true, active: true },
+  });
+
+  return { rows, rules };
+}
+
+/**
+ * 한 번도 쓰이지 않은 규정. 규정표를 다듬을 때 쓴다 — 쓰지 않는 항목이 부여
+ * 목록을 길게 만들어 고르는 시간을 늘린다.
+ */
+export async function unusedRules(params: {
+  track: MeritTrack;
+  totalsYear: number | null;
+}) {
+  return prisma.meritRule.findMany({
+    where: {
+      track: params.track,
+      active: true,
+      awards: {
+        none: {
+          status: "ACTIVE",
+          ...(params.totalsYear === null ? {} : { year: params.totalsYear }),
+        },
+      },
+    },
+    select: { id: true, kind: true, label: true, points: true, category: true },
+    orderBy: { label: "asc" },
+  });
+}
+
 /** 트랙 전체 합계 — 통계 화면 머리글. */
 export async function trackTotals(params: {
   track: MeritTrack;

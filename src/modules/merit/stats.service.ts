@@ -1,8 +1,12 @@
 import type { SessionUser } from "@/core/auth/session";
 import { assertCan } from "@/core/authz/errors";
 import {
+  addKindPoints,
+  addKindTotals,
   demeritLevel,
+  emptyKindTotals,
   isYearScoped,
+  withNetScore,
   type DemeritLevel,
   type DemeritThresholds,
   type MeritTrack,
@@ -20,6 +24,9 @@ import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
 import { kstDayStart } from "@/lib/datetime";
 import * as repo from "./merit.repo";
 import { scopeYear, sumTotals, type MeritTotals } from "./award.service";
+
+/** 아직 아무것도 안 더한 합계. 부여자 줄을 만들 때의 출발점이다. */
+const EMPTY_TOTALS: MeritTotals = withNetScore(emptyKindTotals());
 
 /**
  * 통계 화면이 쓰는 집계. 합계 접기와 학년도 범위는 조회와 공유해야 하므로
@@ -276,4 +283,164 @@ export async function getMeritStats(
 function monthStart(key: string): Date {
   const [year, month] = key.split("-");
   return new Date(`${year}-${month}-01T00:00:00+09:00`);
+}
+
+// ── 화면별 집계 ────────────────────────────────────────────────
+//
+// getMeritStats 하나에 다 붙이지 않고 화면마다 나눈다 — 통계가 여러 화면으로
+// 갈라졌고, 한 덩어리로 두면 어느 화면이든 자기가 안 쓰는 질의까지 치른다.
+
+export type TeacherRow = {
+  /** 계정이 지워졌으면 null. 그때는 이름 스냅샷이 유일한 신원이다. */
+  userId: string | null;
+  name: string;
+  /** 계정이 사라진 사람인가. 화면이 배지로 구분한다. */
+  removed: boolean;
+  totals: MeritTotals;
+  awardCount: number;
+};
+
+export type TeacherStats = {
+  track: MeritTrack;
+  year: number | null;
+  rows: TeacherRow[];
+  /** 부여한 사람이 몇 명인가. 표 머리글에 적는다. */
+  teacherCount: number;
+};
+
+/**
+ * 부여자별 집계. "누가 얼마나 줬나"는 교사 사이의 기준 차이를 드러내는 유일한
+ * 자료다 — 같은 반에서 한 사람만 벌점을 몰아 주고 있으면 여기서만 보인다.
+ *
+ * 순위를 매기지 않는다. 많이 준 사람이 일을 잘한 것도, 못한 것도 아니다 —
+ * 숫자만 내고 해석은 사람이 한다.
+ */
+export async function getTeacherStats(
+  actor: SessionUser,
+  track: MeritTrack,
+  year?: number,
+): Promise<TeacherStats> {
+  await assertCan(actor, "merit:read:any");
+
+  const scoped = await scopeYear(track, year);
+  const { byUser, byName } = await repo.teacherTotals({ track, totalsYear: scoped });
+
+  // 살아 있는 계정은 지금 이름을 쓴다 — 스냅샷은 개명 전 이름일 수 있다.
+  const ids = [...new Set(byUser.map((r) => r.awardedByUserId!))];
+  const users = await repo.findUserNames(ids);
+  const nameById = new Map(users.map((u) => [u.id, u.name]));
+
+  const rows = new Map<string, TeacherRow>();
+
+  for (const row of byUser) {
+    const id = row.awardedByUserId!;
+    const key = `u:${id}`;
+    const entry =
+      rows.get(key) ??
+      ({
+        userId: id,
+        name: nameById.get(id) ?? "이름 없음",
+        removed: false,
+        totals: EMPTY_TOTALS,
+        awardCount: 0,
+      } satisfies TeacherRow);
+    rows.set(key, addTeacherRow(entry, row));
+  }
+
+  for (const row of byName) {
+    const key = `n:${row.awardedByName}`;
+    const entry =
+      rows.get(key) ??
+      ({
+        userId: null,
+        name: row.awardedByName,
+        removed: true,
+        totals: EMPTY_TOTALS,
+        awardCount: 0,
+      } satisfies TeacherRow);
+    rows.set(key, addTeacherRow(entry, row));
+  }
+
+  const list = [...rows.values()].sort(
+    (a, b) => b.awardCount - a.awardCount || a.name.localeCompare(b.name, "ko"),
+  );
+
+  return { track, year: scoped, rows: list, teacherCount: list.length };
+}
+
+/** 한 줄에 종류별 합계를 더한다. 접는 규칙은 merit-track이 갖고 있다. */
+function addTeacherRow(
+  row: TeacherRow,
+  group: { kind: string; _count: { _all: number }; _sum: { points: number | null } },
+): TeacherRow {
+  const totals = emptyKindTotals();
+  addKindTotals(totals, row.totals);
+  addKindPoints(totals, group.kind, group._sum.points ?? 0);
+  return {
+    ...row,
+    totals: withNetScore(totals),
+    awardCount: row.awardCount + group._count._all,
+  };
+}
+
+export type RuleStatRow = {
+  ruleId: string;
+  label: string;
+  kind: string;
+  category: string | null;
+  /** 규정 관리에서 지워진 규정인가. 기록은 남아 여기 나온다. */
+  deleted: boolean;
+  count: number;
+  points: number;
+};
+
+export type RuleStats = {
+  track: MeritTrack;
+  year: number | null;
+  rows: RuleStatRow[];
+  /** 한 번도 쓰이지 않은 규정. 규정표를 다듬는 자료다. */
+  unused: Awaited<ReturnType<typeof repo.unusedRules>>;
+  /** 부여 건수 합계 — 각 줄의 비중을 화면이 계산할 수 있게. */
+  totalCount: number;
+};
+
+/**
+ * 규정별 집계. 「많이 나온 항목」의 상위 10개와 달리 **전부** 낸다 —
+ * 규정표를 손보려면 안 쓰이는 항목까지 봐야 하고, 그게 이 화면의 목적이다.
+ */
+export async function getRuleStats(
+  actor: SessionUser,
+  track: MeritTrack,
+  year?: number,
+): Promise<RuleStats> {
+  await assertCan(actor, "merit:read:any");
+
+  const scoped = await scopeYear(track, year);
+  const [{ rows, rules }, unused] = await Promise.all([
+    repo.ruleStats({ track, totalsYear: scoped }),
+    repo.unusedRules({ track, totalsYear: scoped }),
+  ]);
+
+  const byId = new Map(rules.map((r) => [r.id, r]));
+
+  const list: RuleStatRow[] = rows
+    .map((row) => ({
+      ruleId: row.ruleId,
+      label: row.label,
+      kind: row.kind,
+      category: byId.get(row.ruleId)?.category ?? null,
+      // active가 false면 규정 관리에서 지운 것이다. 기록은 남으므로 여기 나온다.
+      deleted: byId.get(row.ruleId)?.active === false,
+      count: row._count._all,
+      points: row._sum.points ?? 0,
+    }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "ko"));
+
+  return {
+    track,
+    year: scoped,
+    rows: list,
+    unused,
+    totalCount: list.reduce((sum, r) => sum + r.count, 0),
+  };
 }
