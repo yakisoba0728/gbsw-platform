@@ -114,7 +114,12 @@ export default async function InvitesPage() {
   return (
     // 두 단이 서는 기준은 뷰포트가 아니라 이 자리의 폭이다.
     <div className="@container mx-auto max-w-7xl">
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 @2xl:grid-cols-[360px_1fr]">
+      {/*
+        @6xl(1152px)부터 두 단이다. @2xl(672px)로 두었더니 오른쪽 칸이 296px인데
+        목록 표는 680px을 요구해, 그 사이 폭에서는 표의 오른쪽 절반이 반드시
+        잘렸다 — 왼쪽 폼 아래는 비어 있는 채로.
+      */}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 @6xl:grid-cols-[360px_1fr]">
         <InviteForm students={options} />
         <InviteTable rows={invites.map(toRow)} />
       </div>

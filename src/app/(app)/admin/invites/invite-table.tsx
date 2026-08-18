@@ -58,11 +58,15 @@ const ROLE_FILTERS = [
 type StatusKey = (typeof STATUS_FILTERS)[number]["key"];
 type RoleKey = (typeof ROLE_FILTERS)[number]["key"];
 
-/** 열 압축이 성립하지 않는 표다 — 코드+상태+폐기만 남겨도 이름 자리가 없다. */
+/**
+ * 좁은 폭에서는 카드로 접힌다. 표로 두면 768·1024에서 오른쪽 절반(상태·발급일·
+ * 폐기)이 통째로 스크롤 뒤에 숨어, 폐기 버튼에 닿을 방법이 없었다.
+ */
 const COLUMNS: readonly Column<InviteRow>[] = [
   {
     key: "code",
     header: "코드",
+    card: "title",
     cell: (row) => (
       <span className="font-mono font-medium text-ink">{row.code}</span>
     ),
@@ -70,11 +74,13 @@ const COLUMNS: readonly Column<InviteRow>[] = [
   {
     key: "role",
     header: "역할",
+    card: "meta",
     cell: (row) => <span className="text-mut">{row.roleLabel}</span>,
   },
   {
     key: "name",
     header: "이름",
+    card: "title",
     cell: (row) => (
       <span className="text-ink">
         {row.name}
@@ -89,6 +95,7 @@ const COLUMNS: readonly Column<InviteRow>[] = [
   {
     key: "class",
     header: "학년·반·번호",
+    card: "meta",
     cell: (row) =>
       row.classLabel ? (
         <span className="text-ink">{row.classLabel}</span>
@@ -99,6 +106,7 @@ const COLUMNS: readonly Column<InviteRow>[] = [
   {
     key: "status",
     header: "상태",
+    card: "trailing",
     cell: (row) => (
       <>
         <Badge tone={STATUS_TONE[row.status] ?? "neutral"}>
@@ -113,6 +121,7 @@ const COLUMNS: readonly Column<InviteRow>[] = [
   {
     key: "createdAt",
     header: "발급일",
+    card: "meta",
     cell: (row) => (
       <span className="text-mut">
         {row.createdAt}
@@ -124,6 +133,7 @@ const COLUMNS: readonly Column<InviteRow>[] = [
     key: "revoke",
     // 폐기 버튼 열 — 머리글에 이름이 없다.
     header: "",
+    card: "actions",
     cell: (row) =>
       row.status === "PENDING" ? (
         <div className="flex justify-end">
@@ -212,6 +222,7 @@ export function InviteTable({ rows }: { rows: InviteRow[] }) {
       ) : (
         <DataTable
           minWidth={680}
+          narrow="cards"
           rows={filtered}
           rowKey={(row) => row.id}
           columns={COLUMNS}

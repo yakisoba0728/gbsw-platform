@@ -30,6 +30,8 @@ const COLUMNS: readonly Column<LogEntry>[] = [
   {
     key: "createdAt",
     header: "시각",
+    card: "meta",
+    cardLabel: false,
     // 초까지 적는다 — 감사로그는 순서를 가려야 하는 자리다.
     width: "w-[152px]",
     cell: (entry) => (
@@ -39,6 +41,7 @@ const COLUMNS: readonly Column<LogEntry>[] = [
   {
     key: "actor",
     header: "행위자",
+    card: "title",
     width: "w-[132px]",
     cell: (entry) => (
       <>
@@ -56,6 +59,7 @@ const COLUMNS: readonly Column<LogEntry>[] = [
   {
     key: "action",
     header: "동작",
+    card: "trailing",
     width: "w-[116px]",
     cell: (entry) => (
       <Badge tone={auditActionTone(entry.action)}>
@@ -66,6 +70,7 @@ const COLUMNS: readonly Column<LogEntry>[] = [
   {
     key: "target",
     header: "대상",
+    card: "meta",
     width: "w-[76px]",
     cell: (entry) => (
       <span className="text-mut">{auditTargetLabel(entry.targetType)}</span>
@@ -75,6 +80,7 @@ const COLUMNS: readonly Column<LogEntry>[] = [
     key: "ip",
     // IP는 172.18.0.1 꼴이라 108px이면 넉넉하다.
     header: "접속",
+    card: "meta",
     width: "w-[108px]",
     cell: (entry) => (
       <span className="font-mono text-mut" title={entry.userAgent ?? undefined}>
@@ -85,6 +91,9 @@ const COLUMNS: readonly Column<LogEntry>[] = [
   {
     key: "metadata",
     header: "상세",
+    // 로그의 알맹이다 — meta 줄에 끼우면 다른 값들과 한 줄에 섞여 읽히지 않는다.
+    // title 자리는 한 줄을 통째로 쓴다.
+    card: "title",
     cell: (entry) => (
       <span className="block text-xs break-words text-mut">
         {formatAuditMetadata(entry.action, entry.metadata) ?? "—"}
@@ -130,6 +139,7 @@ export default async function LogsPage({
       ) : (
         <DataTable
           minWidth={700}
+          narrow="cards"
           fixed
           rows={entries}
           rowKey={(entry) => entry.id}

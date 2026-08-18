@@ -52,6 +52,7 @@ const COLUMNS: readonly Column<UserRow>[] = [
   {
     key: "name",
     header: "이름",
+    card: "title",
     cell: (row) => (
       <Link
         href={`/admin/users/${row.id}`}
@@ -67,11 +68,13 @@ const COLUMNS: readonly Column<UserRow>[] = [
   {
     key: "role",
     header: "역할",
+    card: "meta",
     cell: (row) => <span className="text-mut">{row.roleLabel}</span>,
   },
   {
     key: "class",
     header: "소속",
+    card: "meta",
     cell: (row) =>
       row.classLabel ? (
         <span className="text-ink">{row.classLabel}</span>
@@ -82,11 +85,13 @@ const COLUMNS: readonly Column<UserRow>[] = [
   {
     key: "phone",
     header: "연락처",
+    card: "meta",
     cell: (row) => <span className="text-mut">{row.phone ?? "—"}</span>,
   },
   {
     key: "status",
     header: "상태",
+    card: "trailing",
     cell: (row) => (
       <>
         <Badge tone={row.active ? "approved" : "cancelled"}>
@@ -103,6 +108,7 @@ const COLUMNS: readonly Column<UserRow>[] = [
   {
     key: "createdAt",
     header: "가입일",
+    card: "meta",
     cell: (row) => <span className="text-mut">{row.createdAt}</span>,
   },
 ];
@@ -183,6 +189,7 @@ export function UserTable({ rows }: { rows: UserRow[] }) {
       ) : (
         <DataTable
           minWidth={700}
+          narrow="cards"
           rows={filtered}
           rowKey={(row) => row.id}
           columns={COLUMNS}
