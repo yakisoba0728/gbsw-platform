@@ -230,7 +230,9 @@ docker compose up -d --build
 `db` → `migrate`(1회성) → `app` 순으로 뜬다. **마이그레이션이 성공해야 앱이 시작된다.**
 런타임 이미지를 가볍게 유지하려고 Prisma CLI는 `migrate` 서비스에만 들어 있다.
 
-HTTPS는 별도 리버스 프록시에서 처리하고, 운영에서는 `BETTER_AUTH_URL`을 실제 도메인으로 바꾼다.
+앱과 DB는 **루프백에만 묶여 있다** — HTTPS는 같은 호스트의 리버스 프록시가 맡는다.
+교내 서버에 올리는 절차는 [`docs/deploy.md`](docs/deploy.md)에 있다: 환경변수,
+nginx·Caddy 설정, 최초 관리자 만들기, 배포 후 확인 다섯 가지, 백업.
 
 ---
 

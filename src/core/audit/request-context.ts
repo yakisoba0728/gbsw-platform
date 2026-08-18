@@ -16,6 +16,11 @@ export async function readRequestContext(): Promise<RequestContext> {
     const h = await headers();
 
     // 리버스 프록시 뒤라 원 IP는 x-forwarded-for 첫 항목이다.
+    //
+    // 이 헤더는 클라이언트가 마음대로 보낼 수 있으므로, **앱이 프록시로만
+    // 닿을 때에만** 믿을 수 있다. compose가 앱을 127.0.0.1에 묶고 프록시가
+    // 이 헤더를 자기 값으로 덮어쓰는 것이 그 전제다. 앱을 외부에 직접
+    // 노출하면 누구나 아무 IP나 감사로그에 심을 수 있다.
     const forwarded = h.get("x-forwarded-for");
     const ip =
       forwarded?.split(",")[0]?.trim() || h.get("x-real-ip")?.trim() || null;
