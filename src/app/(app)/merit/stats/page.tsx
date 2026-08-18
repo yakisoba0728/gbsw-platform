@@ -18,7 +18,7 @@ import { StatTile } from "@/components/ui/stat-tile";
 import { DataTable, type Column } from "@/components/ui/table";
 import { hrefWith } from "@/lib/search-params";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
-import { demeritCellClass, ThresholdHint } from "@/components/merit/demerit-level";
+import { demeritCellClass } from "@/components/merit/demerit-level";
 import {
   CategoryChart,
   ClassNetChart,
@@ -230,8 +230,8 @@ function WatchList({
       // 기준 숫자를 적는다 — 관리자가 설정에서 바꾸는 값이라 안 보이면 명단 길이가 설명되지 않는다.
       hint={
         <>
-          {where}에서 벌점 {thresholds.warn}점 이상인 학생입니다. 상점·상쇄점과
-          무관하게 벌점 총합만 세며, 회부·통보는 일어나지 않습니다.
+          {where}에서 벌점 {thresholds.warn}점 이상인 학생입니다. 벌점 총합 기준이며,
+          회부·통보는 일어나지 않습니다.
         </>
       }
       // 둘째 문단은 controls로 넘긴다 — hint는 <p> 하나라 안에 문단을 또 넣을 수 없다.
@@ -346,12 +346,6 @@ function ClassTable({
       flush
       headingLevel={3}
       title="반별 현황"
-      // ThresholdHint가 <p>라 hint(역시 <p>) 안에 넣을 수 없다.
-      controls={
-        <div className="mt-1">
-          <ThresholdHint thresholds={thresholds} />
-        </div>
-      }
     >
       <DataTable
         minWidth={520}

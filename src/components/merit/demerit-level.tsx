@@ -35,15 +35,3 @@ export function DemeritFlag({
     </span>
   );
 }
-
-/**
- * 기준을 화면에 적어 둔다 — 숫자가 안 보이면 왜 붉은지 알 수 없다.
- * 바꾸러 가는 링크는 넣지 않는다: 표 머리글 한 줄이라 링크까지는 안 읽힌다.
- */
-export function ThresholdHint({ thresholds }: { thresholds: DemeritThresholds }) {
-  return (
-    <p className="text-xs text-mut">
-      벌점 {thresholds.warn}점↑ 진하게 · {thresholds.danger}점↑ 붉은 배경 · 표시만
-    </p>
-  );
-}

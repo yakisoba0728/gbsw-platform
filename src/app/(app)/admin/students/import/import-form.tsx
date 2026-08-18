@@ -186,7 +186,7 @@ function UploadCard({
         학생으로 등록됩니다.
       </p>
       <p className="mt-1 text-caption text-mut">
-        이름·생년월일은 대조용이라 여기서 고쳐도 반영되지 않습니다.
+        이름·생년월일은 여기서 고쳐도 반영되지 않습니다.
       </p>
 
       {exportError && (

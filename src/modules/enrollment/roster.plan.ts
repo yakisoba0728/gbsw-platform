@@ -120,7 +120,7 @@ export function planRoster(
         ...r,
         studentProfileId: null,
         beforeName: null,
-        reason: "명단에 없는 학생코드입니다. 오타이거나 다른 학교 파일일 수 있습니다.",
+        reason: "명단에 없는 학생코드입니다.",
       });
       continue;
     }

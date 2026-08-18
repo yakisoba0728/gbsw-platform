@@ -50,7 +50,7 @@ export function DeleteRuleButton({
       description={
         <>
           <span className="font-medium text-ink">{label}</span> 규정이 목록과 부여
-          화면에서 사라집니다. 되돌릴 수 없고, 이미 부여한 기록은 그대로 남습니다.
+          화면에서 사라집니다. 되돌릴 수 없습니다.
         </>
       }
       reasonLabel="삭제 사유"

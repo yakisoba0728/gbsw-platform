@@ -33,7 +33,7 @@ export function CancelBatchButton({
       description={
         <>
           한 번에 부여한 <b className="font-medium text-rose">{count}건</b>을 통째로
-          취소합니다. 기록은 남고 합계에서만 빠집니다.
+          취소합니다. 되돌릴 수 없습니다.
         </>
       }
       reasonLabel="취소 사유"

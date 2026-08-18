@@ -28,11 +28,7 @@ export function YearSwitcher({
   );
 
   return (
-    <SectionCard
-      variant="panel"
-      title="학년도"
-      hint="모든 화면이 현재 학년도의 소속을 보여줍니다."
-    >
+    <SectionCard variant="panel" title="학년도">
       <div className="flex flex-wrap items-end gap-4">
         <form action={switchAction} className="flex items-end gap-2">
           {/* 폭은 바깥에서 준다 — cn()이 tailwind-merge가 아니라 w-full을 못 덮는다. */}

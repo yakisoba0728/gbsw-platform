@@ -46,7 +46,7 @@ export function CancelButton({
         </Button>
       )}
       title="상벌점 취소"
-      description="기록은 남고 합계에서만 빠집니다."
+      description="되돌릴 수 없습니다."
       reasonLabel="취소 사유"
       reasonPlaceholder="예: 항목을 잘못 골라 부여함"
       confirmLabel="취소 처리"

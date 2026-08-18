@@ -250,8 +250,7 @@ export function HardDeleteForm({ user }: { user: EditableUser }) {
       <input type="hidden" name="userId" value={user.id} />
 
       <p className="mb-3 text-caption text-mut">
-        되돌릴 수 없습니다. 소속 이력·상벌점·초대코드가 함께 사라집니다. 감사로그는
-        남습니다.
+        되돌릴 수 없습니다. 소속 이력·상벌점·초대코드가 함께 사라집니다.
       </p>
 
       <Label htmlFor="confirmName">

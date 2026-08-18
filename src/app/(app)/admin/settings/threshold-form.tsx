@@ -76,8 +76,7 @@ export function ThresholdForm({
       </form>
 
       <p id={`${fieldId}-help`} className="mt-2 text-caption text-mut">
-        경고 기준부터 진하게, 위험 기준부터 붉은 배경으로 보입니다. 위험이 경고보다
-        커야 하고 둘 다 1~{MAX_THRESHOLD} 사이의 정수입니다.
+        위험이 경고보다 커야 하고 둘 다 1~{MAX_THRESHOLD} 사이의 정수입니다.
         {configured && updatedLabel ? (
           <> · 마지막 변경 {updatedLabel}</>
         ) : (

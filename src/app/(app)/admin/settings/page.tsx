@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { requirePermission } from "@/core/auth/session";
 import { SectionCard } from "@/components/ui/section-card";
 import { formatDateTime } from "@/lib/datetime";
@@ -22,19 +21,11 @@ export default async function SettingsPage() {
       <SectionCard
         flush
         title="벌점 기준"
-        hint="벌점이 몇 점부터 눈에 띄게 보일지 정합니다. 교내와 기숙사가 다를 수 있습니다."
+        hint="벌점이 몇 점부터 눈에 띄게 보일지 정합니다."
         controls={
           <p className="mt-1 text-caption text-mut">
             <strong className="font-medium">보여주기만 합니다</strong> — 기준을 넘어도
-            회부·통보 같은 처리는 자동으로 일어나지 않습니다. 바꾸면{" "}
-            <Link
-              href="/merit/stats"
-              className="font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
-            >
-              통계
-            </Link>
-            의 기준 초과 명단과 반 명단의 강조가 곧바로 달라집니다. 이미 부여된
-            점수는 그대로입니다.
+            회부·통보 같은 처리는 자동으로 일어나지 않습니다.
           </p>
         }
       >
