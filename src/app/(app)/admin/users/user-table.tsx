@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { SettingsIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonClass } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { SectionCard } from "@/components/ui/section-card";
@@ -41,16 +40,28 @@ const ROLE_FILTERS = [
 type StatusKey = (typeof STATUS_FILTERS)[number]["key"];
 type RoleKey = (typeof ROLE_FILTERS)[number]["key"];
 
-/** 열이 일곱이라 좁은 폭에서 압축이 성립하지 않는다 — 가로 스크롤로 둔다. */
+/**
+ * 열이 여섯이라 좁은 폭에서 압축이 성립하지 않는다 — 가로 스크롤로 둔다.
+ *
+ * 그래서 **상세로 가는 길은 첫 열(이름)이 갖는다.** 예전에는 마지막 열의 아이콘
+ * 하나뿐이었는데, 1024px에서 그 버튼은 32px 중 8px만 보이고 가운데를 누르면
+ * 표 바깥이 잡혔다 — 가로로 밀지 않으면 계정 상세에 들어갈 방법이 없었다.
+ * 첫 열은 어느 폭에서도 밀려나지 않는다.
+ */
 const COLUMNS: readonly Column<UserRow>[] = [
   {
     key: "name",
     header: "이름",
     cell: (row) => (
-      <>
-        <span className="font-medium text-ink">{row.name}</span>
+      <Link
+        href={`/admin/users/${row.id}`}
+        className="inline-flex min-h-9 flex-col justify-center lg:min-h-0"
+      >
+        <span className="font-medium text-ink underline decoration-line-strong underline-offset-2 group-hover:decoration-ink">
+          {row.name}
+        </span>
         <span className="block text-xs text-mut">{row.email}</span>
-      </>
+      </Link>
     ),
   },
   {
@@ -93,23 +104,6 @@ const COLUMNS: readonly Column<UserRow>[] = [
     key: "createdAt",
     header: "가입일",
     cell: (row) => <span className="text-mut">{row.createdAt}</span>,
-  },
-  {
-    key: "detail",
-    // 상세 링크 열 — 머리글에 이름이 없다.
-    header: "",
-    cell: (row) => (
-      <div className="flex justify-end">
-        <Link
-          href={`/admin/users/${row.id}`}
-          aria-label={`${row.name} 상세`}
-          title="상세"
-          className={buttonClass({ size: "icon", variant: "secondary" })}
-        >
-          <SettingsIcon size={16} />
-        </Link>
-      </div>
-    ),
   },
 ];
 
@@ -188,7 +182,7 @@ export function UserTable({ rows }: { rows: UserRow[] }) {
         <EmptyState variant="inside">조건에 맞는 계정이 없습니다.</EmptyState>
       ) : (
         <DataTable
-          minWidth={760}
+          minWidth={700}
           rows={filtered}
           rowKey={(row) => row.id}
           columns={COLUMNS}

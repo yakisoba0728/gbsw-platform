@@ -38,7 +38,12 @@ export function TableFrame({
   return (
     // scroll-x-hint — 넘칠 때만 양끝에 그림자가 선다. 없으면 잘린 열이 있다는
     // 사실 자체가 화면에 안 보인다 (수정·삭제 버튼이 300px 뒤에 숨는다).
-    <div className={cn("scroll-x-hint overflow-x-auto", className)}>
+    //
+    // rounded-b-card — 이 상자는 불투명한 흰 그라디언트를 칠하는데(그림자를 가리는
+    // 장치다), 카드 바닥에 붙으면 그 사각형이 카드의 둥근 모서리를 덮어 모서리가
+    // 잘린 것처럼 보인다. 카드 중간에 있을 때는 양끝 32px 그라디언트에만 닿아
+    // 눈에 띄지 않으므로, 자리를 따지지 않고 늘 둥글린다.
+    <div className={cn("scroll-x-hint overflow-x-auto rounded-b-card", className)}>
       <table
         className={cn("w-full text-left text-sm", fixed && "table-fixed")}
         style={{ minWidth }}

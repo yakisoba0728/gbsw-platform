@@ -30,7 +30,8 @@ const COLUMNS: readonly Column<LogEntry>[] = [
   {
     key: "createdAt",
     header: "시각",
-    width: "w-[188px]",
+    // 초까지 적는다 — 감사로그는 순서를 가려야 하는 자리다.
+    width: "w-[152px]",
     cell: (entry) => (
       <span className="font-mono text-mut">{formatDateTime(entry.createdAt)}</span>
     ),
@@ -38,7 +39,7 @@ const COLUMNS: readonly Column<LogEntry>[] = [
   {
     key: "actor",
     header: "행위자",
-    width: "w-[148px]",
+    width: "w-[132px]",
     cell: (entry) => (
       <>
         <span className="block truncate text-ink">{entry.actorName}</span>
@@ -55,7 +56,7 @@ const COLUMNS: readonly Column<LogEntry>[] = [
   {
     key: "action",
     header: "동작",
-    width: "w-[132px]",
+    width: "w-[116px]",
     cell: (entry) => (
       <Badge tone={auditActionTone(entry.action)}>
         {auditActionLabel(entry.action)}
@@ -72,8 +73,9 @@ const COLUMNS: readonly Column<LogEntry>[] = [
   },
   {
     key: "ip",
+    // IP는 172.18.0.1 꼴이라 108px이면 넉넉하다.
     header: "접속",
-    width: "w-[132px]",
+    width: "w-[108px]",
     cell: (entry) => (
       <span className="font-mono text-mut" title={entry.userAgent ?? undefined}>
         {entry.ip ?? "—"}
@@ -127,7 +129,7 @@ export default async function LogsPage({
         <EmptyState variant="inside">조건에 맞는 기록이 없습니다.</EmptyState>
       ) : (
         <DataTable
-          minWidth={840}
+          minWidth={700}
           fixed
           rows={entries}
           rowKey={(entry) => entry.id}

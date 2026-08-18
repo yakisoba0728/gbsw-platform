@@ -84,7 +84,17 @@ export function MonthlyChart({
       ) : (
         // 위 여백은 말풍선 자리다. 터치 기기에는 hover가 없어 좁은 폭에서는 빈 칸이다.
         <div className="@container">
-          <div className="flex items-stretch gap-1 overflow-x-auto pt-4 @md:pt-14">
+          {/*
+            @md부터 overflow를 푼다. `overflow-x: auto`는 계산값 `overflow-y`까지
+            `auto`로 만들어(둘 중 하나가 visible이 아니면 나머지도 아니게 된다)
+            막대 위로 뜨는 말풍선(`bottom-full`)이 이 상자를 못 벗어난다 — 1440에서
+            말풍선 88px 중 38px이 잘려 나갔다.
+
+            @md(448px)면 막대 12개(30px)와 간격 11개(4px)를 더해 404px이라 언제나
+            들어가므로, 스크롤 상자를 만들 이유가 없다. 그보다 좁을 때만 스크롤한다
+            (그 폭에는 hover가 없고 순점수는 막대 아래에 늘 적혀 있다).
+          */}
+          <div className="flex items-stretch gap-1 overflow-x-auto pt-4 @md:overflow-x-visible @md:pt-14">
           {points.map((point, i) => {
             const empty = !point.merit && !point.demerit && !point.offset;
             return (

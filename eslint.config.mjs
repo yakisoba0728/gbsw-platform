@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // 브라우저 도구가 남기는 스크린샷·조사 스크립트. gitignore에도 있다 —
+    // 저장소 코드가 아니므로 lint 대상이 아니고, 여기 없으면 그 스크립트의
+    // 문법 오류 하나가 `npm run verify`를 통째로 멈춰 세운다.
+    ".playwright-mcp/**",
   ]),
 ]);
 

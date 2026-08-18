@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionCard } from "@/components/ui/section-card";
 import { DataTable, type Column } from "@/components/ui/table";
-import { formatDate, formatDateTime, isSameKstDate } from "@/lib/datetime";
+import { formatDate, formatDateTimeShort, isSameKstDate } from "@/lib/datetime";
 import { listRecentAwards } from "@/modules/merit/award.service";
 import { CancelBatchButton } from "./cancel-batch-button";
 
@@ -58,8 +58,11 @@ export default async function RecentAwardsPage({
       card: "meta",
       cardLabel: false,
       cell: (row) => (
-        <span className="font-mono text-xs whitespace-nowrap text-mut">
-          {formatDateTime(row.createdAt)}
+        // whitespace-nowrap을 쓰지 않는다 — table-layout이 auto라 nowrap인 칸은
+        // colgroup의 128px을 무시하고 198px까지 벌어지고, 그만큼 「항목」이 눌려
+        // 1024px에서 규정 한 줄이 6줄로 접혔다.
+        <span className="font-mono text-xs text-mut">
+          {formatDateTimeShort(row.createdAt)}
           {!isSameKstDate(row.occurredOn, row.createdAt) && (
             <span className="block text-mut2">발생 {formatDate(row.occurredOn)}</span>
           )}
@@ -148,7 +151,7 @@ export default async function RecentAwardsPage({
       ) : (
         <SectionCard title={`최근 부여 ${rows.length}건`} flush>
           <DataTable
-            minWidth={720}
+            minWidth={700}
             narrow="cards"
             rows={items}
             rowKey={(row) => row.id}
