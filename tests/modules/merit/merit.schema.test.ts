@@ -88,7 +88,6 @@ describe("선택 입력(메모·분류·설명)의 길이", () => {
     const result = awardSchema.safeParse({
       studentProfileId: "sp-1",
       ruleId: "r-1",
-      occurredOn: "2026-06-12",
       note: "가".repeat(501),
     });
     expect(result.success).toBe(false);
@@ -99,7 +98,6 @@ describe("선택 입력(메모·분류·설명)의 길이", () => {
     const parsed = awardSchema.parse({
       studentProfileId: "sp-1",
       ruleId: "r-1",
-      occurredOn: "2026-06-12",
       note,
     });
     expect(parsed.note).toBe(note);
@@ -109,7 +107,6 @@ describe("선택 입력(메모·분류·설명)의 길이", () => {
     const parsed = awardSchema.parse({
       studentProfileId: "sp-1",
       ruleId: "r-1",
-      occurredOn: "2026-06-12",
       note: null,
     });
     expect(parsed.note).toBeNull();
@@ -119,7 +116,6 @@ describe("선택 입력(메모·분류·설명)의 길이", () => {
     const parsed = awardSchema.parse({
       studentProfileId: "sp-1",
       ruleId: "r-1",
-      occurredOn: "2026-06-12",
       note: "   ",
     });
     expect(parsed.note).toBeNull();
@@ -242,11 +238,9 @@ describe("검증 실패 문구", () => {
       firstMessage(createRuleSchema.safeParse({ track: "SCHOOL", kind: "MERIT", label: "", points: "5" })),
       firstMessage(createRuleSchema.safeParse({ track: "SCHOOL", kind: "MERIT", label: "x", points: "0" })),
       firstMessage(createRuleSchema.safeParse({ track: "SCHOOL", kind: "MERIT", label: "x", points: "5", category: "가".repeat(51) })),
-      firstMessage(awardSchema.safeParse({ studentProfileId: "sp-1", ruleId: "", occurredOn: "2026-06-12" })),
-      firstMessage(awardSchema.safeParse({ studentProfileId: "sp-1", ruleId: "r-1", occurredOn: "" })),
-      firstMessage(awardSchema.safeParse({ studentProfileId: "sp-1", ruleId: "r-1", occurredOn: "2026-13-01" })),
+      firstMessage(awardSchema.safeParse({ studentProfileId: "sp-1", ruleId: "" })),
       firstMessage(cancelSchema.safeParse({ awardId: "a-1", reason: "" })),
-      firstMessage(bulkAwardSchema.safeParse({ studentProfileIds: [], ruleId: "r-1", occurredOn: "2026-06-12" })),
+      firstMessage(bulkAwardSchema.safeParse({ studentProfileIds: [], ruleId: "r-1" })),
     ];
 
     for (const message of messages) {
@@ -259,7 +253,6 @@ describe("검증 실패 문구", () => {
     const result = bulkAwardSchema.safeParse({
       studentProfileIds: Array.from({ length: BULK_AWARD_LIMIT + 1 }, (_, i) => `sp-${i}`),
       ruleId: "r-1",
-      occurredOn: "2026-06-12",
     });
 
     expect(firstMessage(result)).toBe(`한 번에 ${BULK_AWARD_LIMIT}명까지 줄 수 있습니다.`);

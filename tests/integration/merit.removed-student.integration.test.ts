@@ -306,7 +306,7 @@ describe("부여는 열지 않는다", () => {
     await expect(
       service.awardMerit(
         admin,
-        { studentProfileId: removedId, ruleId, occurredOn: OCCURRED_ON, note: null },
+        { studentProfileId: removedId, ruleId, note: null },
         NOW,
       ),
     ).rejects.toThrow("STUDENT_NOT_FOUND");
@@ -324,7 +324,6 @@ describe("부여는 열지 않는다", () => {
         {
           studentProfileIds: [stayingId, removedId],
           ruleId,
-          occurredOn: OCCURRED_ON,
           note: null,
         },
         NOW,

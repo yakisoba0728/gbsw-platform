@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Input, Label } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
 import { SectionCard } from "@/components/ui/section-card";
 import { DataTable, type Column } from "@/components/ui/table";
@@ -15,7 +15,11 @@ import {
   type MeritTrack,
 } from "@/core/authz/merit-track";
 import { RulePicker, type RuleOption } from "@/components/merit/rule-picker";
-import { demeritCellClass, ThresholdHint } from "@/components/merit/demerit-level";
+import {
+  AwardSuccessDialog,
+  type AwardSuccess,
+} from "@/components/merit/award-success-dialog";
+import { demeritCellClass } from "@/components/merit/demerit-level";
 import { EMPTY_MERIT_STATE } from "./action-state";
 import { bulkAwardAction } from "./actions";
 import { ExportButton } from "./export-button";
@@ -45,7 +49,6 @@ export function ClassRoster({
   year,
   viewingPast,
   rules,
-  today,
 }: {
   rows: RosterRow[];
   grade: number;
@@ -57,22 +60,27 @@ export function ClassRoster({
   /** 지난 학년도를 보고 있는가. true면 부여 폼을 감춘다. */
   viewingPast: boolean;
   rules: RuleOption[];
-  /** 오늘 날짜(KST, `YYYY-MM-DD`). 서버가 계산해 내려준다 (하이드레이션 불일치 방지). */
-  today: string;
 }) {
-  const fieldId = useId();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>("number");
   const [state, formAction, pending] = useActionState(bulkAwardAction, EMPTY_MERIT_STATE);
   // 고른 항목은 hidden input이 싣고 가지만, 제출 버튼을 잠그려면 화면도 알아야 한다.
   const [rule, setRule] = useState<RuleOption | null>(null);
 
+  // 성공 알림에 쓸 값. 제출한 순간을 찍어 둔다 — 성공하면 선택과 항목이 비워져
+  // 그때 가서 읽으면 이미 없다.
+  const [submitted, setSubmitted] = useState<AwardSuccess | null>(null);
+  const [success, setSuccess] = useState<AwardSuccess | null>(null);
+
   // 일괄 부여가 성공하면 선택을 비운다. 렌더 중 비교로 처리한다 — effect 안에서
   // 곧바로 setState하면 리렌더가 한 번 더 발생한다.
   const [handled, setHandled] = useState(state);
   if (state !== handled) {
     setHandled(state);
-    if (state.ok) setSelected(new Set());
+    if (state.ok) {
+      setSelected(new Set());
+      if (submitted) setSuccess({ ...submitted, count: state.count });
+    }
   }
 
   const sorted = useMemo(() => {
@@ -216,11 +224,6 @@ export function ClassRoster({
         flush
         title={`${grade}학년 ${classNo}반`}
         hint={`${rows.length}명`}
-        controls={
-          <div className="mt-1">
-            <ThresholdHint thresholds={thresholds} />
-          </div>
-        }
         aside={
           <ExportButton grade={grade} classNo={classNo} track={track} year={year} />
         }
@@ -260,19 +263,6 @@ export function ClassRoster({
             <RulePicker rules={rules} onChange={setRule} />
 
             <div className="flex flex-col gap-2.5 @md:flex-row @md:flex-wrap @md:items-end">
-              {/* 한 묶음은 같은 날 일어난 일이다 — 발생일도 하나만 받는다. */}
-              <div className="@md:w-[150px]">
-                <Label htmlFor={`${fieldId}-occurred`}>발생일</Label>
-                <Input
-                  id={`${fieldId}-occurred`}
-                  type="date"
-                  name="occurredOn"
-                  defaultValue={today}
-                  max={today}
-                  required
-                />
-              </div>
-
               <div className="@md:min-w-[160px] @md:flex-1">
                 <Input name="note" placeholder="메모 (선택)" aria-label="메모" />
               </div>
@@ -281,6 +271,11 @@ export function ClassRoster({
                 type="submit"
                 className="w-full @md:w-auto"
                 disabled={pending || selected.size === 0 || !rule}
+                onClick={() => {
+                  if (rule) {
+                    setSubmitted({ ...rule, count: selected.size });
+                  }
+                }}
               >
                 {pending ? "부여하는 중…" : "일괄 부여"}
               </Button>
@@ -293,11 +288,10 @@ export function ClassRoster({
             {state.error}
           </Note>
         )}
-        {state.ok && state.count !== null && (
-          <Note tone="success" className="mx-5 mb-4">
-            {state.count}명에게 부여했습니다.
-          </Note>
-        )}
+        <AwardSuccessDialog
+          result={success}
+          onClose={() => setSuccess(null)}
+        />
       </SectionCard>
     </form>
   );

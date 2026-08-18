@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonClass } from "@/components/ui/button";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { Note } from "@/components/ui/note";
-import { formatDate, formatDateInput } from "@/lib/datetime";
+import { formatDate } from "@/lib/datetime";
 import { hrefWith, type SearchParamsInput } from "@/lib/search-params";
 import {
   AcademicYearError,
@@ -155,8 +155,6 @@ export default async function StudentMeritPage({
             <AwardForm
               studentProfileId={studentId}
               rules={rules}
-              // 오늘 날짜는 서버에서 만든다 — 아니면 하이드레이션이 깨진다.
-              today={formatDateInput(new Date())}
             />
           )}
 

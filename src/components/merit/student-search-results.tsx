@@ -19,8 +19,9 @@ export type StudentSearchRow = {
 };
 
 /**
- * 학생 검색 결과. `/merit`의 검색과 `/merit/students`의 검색이 같은 열·같은 뜻이라
- * 한 컴포넌트를 쓴다. 어디로 가는 링크인지는 화면이 정한다.
+ * 학생 검색 결과. 명단에 있는 학생과 빠진 학생이 한 목록에 섞이므로, 빠진 쪽은
+ * 「삭제됨」과 명단 제외일로 구분된다 — 이 표시가 없으면 같은 이름 둘 중 어느 쪽이
+ * 지금 재학생인지 알 수 없다.
  */
 export function StudentSearchResults({
   rows,

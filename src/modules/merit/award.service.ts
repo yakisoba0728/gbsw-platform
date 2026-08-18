@@ -15,6 +15,8 @@ import { schoolYearRange } from "./merit.chart";
 import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
 import { MeritError } from "./merit.error";
 import { toHistorySheet, toRosterSheet } from "./merit.export";
+import { kstDayStart } from "@/lib/datetime";
+import { parseStudentNumber } from "@/lib/student-number";
 import * as repo from "./merit.repo";
 import { BULK_AWARD_LIMIT } from "./merit.schema";
 import type {
@@ -69,7 +71,10 @@ export function sumTotals(
 /**
  * 발생일이 그 학년도 안이고 미래가 아닌지 본다. monthlyTotals가 축 밖의 기록을
  * 말없이 버리므로, 이 검사가 없으면 부여에 성공한 기록이 어느 화면에도 안 나타난다.
- * 미래 날짜는 학년도 창만으로는 못 거른다 — 8월에 다음 1월을 골라도 창 안이다.
+ *
+ * 발생일이 이제 항상 오늘이라 미래 검사는 걸릴 일이 없지만, **학년도 창 검사는
+ * 여전히 걸린다** — 현재 학년도를 넘기지 않은 채 3월을 맞으면 오늘이 지난
+ * 학년도 창 밖이 된다. 그때 조용히 저장되면 그 기록은 어느 집계에도 안 잡힌다.
  */
 function assertOccurredOn(occurredOn: Date, year: number, now: Date): void {
   const { start, endExclusive } = schoolYearRange(year);
@@ -83,7 +88,7 @@ function assertOccurredOn(occurredOn: Date, year: number, now: Date): void {
 
 /**
  * 상벌점 부여. 학년도는 입력이 아니라 getCurrentYear()가 정한다 — 화면의 학년도
- * 선택은 조회 전용이다. 발생일은 입력이되 학년도 창 안인지 여기서 본다.
+ * 선택은 조회 전용이다. 발생일도 입력이 아니라 오늘(KST)이다.
  * 규정 값을 복사해 넣는다 — 나중에 규정을 고쳐도 이미 준 기록은 안 흔들린다.
  */
 export async function awardMerit(
@@ -103,7 +108,9 @@ export async function awardMerit(
   if (!student) throw new MeritError("STUDENT_NOT_FOUND");
 
   const year = await getCurrentYear();
-  assertOccurredOn(input.occurredOn, year, now);
+  // 발생일은 입력이 아니라 오늘이다. 소급 입력 경로는 없앴다.
+  const occurredOn = kstDayStart(now);
+  assertOccurredOn(occurredOn, year, now);
 
   const { id } = await repo.createAward({
     studentProfileId: student.id,
@@ -113,7 +120,7 @@ export async function awardMerit(
     kind: rule.kind,
     label: rule.label,
     points: rule.points,
-    occurredOn: input.occurredOn,
+    occurredOn,
     note: input.note,
     awardedByUserId: actor.id,
     awardedByName: actor.name,
@@ -135,7 +142,7 @@ export async function awardMerit(
       label: rule.label,
       points: rule.points,
       // 로그의 createdAt은 입력 시각이다 — 사람이 고른 발생일은 따로 남긴다.
-      occurredOn: input.occurredOn.toISOString(),
+      occurredOn: occurredOn.toISOString(),
     },
   });
 }
@@ -320,7 +327,8 @@ export async function bulkAwardMerit(
   const students = ids.map((id) => byId.get(id)!);
 
   const year = await getCurrentYear();
-  assertOccurredOn(input.occurredOn, year, now);
+  const occurredOn = kstDayStart(now);
+  assertOccurredOn(occurredOn, year, now);
 
   const batchId = randomUUID();
 
@@ -333,7 +341,7 @@ export async function bulkAwardMerit(
       kind: rule.kind,
       label: rule.label,
       points: rule.points,
-      occurredOn: input.occurredOn,
+      occurredOn,
       note: input.note,
       awardedByUserId: actor.id,
       awardedByName: actor.name,
@@ -359,7 +367,7 @@ export async function bulkAwardMerit(
           kind: rule.kind,
           label: rule.label,
           points: rule.points,
-          occurredOn: input.occurredOn.toISOString(),
+          occurredOn: occurredOn.toISOString(),
           batchId,
         },
       });
@@ -406,8 +414,11 @@ export async function searchStudents(
   if (trimmed.length === 0) return [];
 
   const year = await getCurrentYear();
+  // 4자리 숫자면 학번으로도 읽는다. 아니면 null이 되어 이름·학생코드만 본다 —
+  // 어느 쪽이든 한 번의 질의로 끝난다.
   const rows = await repo.searchStudents(trimmed, year, {
     includeRemoved: options.includeRemoved ?? false,
+    studentNumber: parseStudentNumber(trimmed) ?? undefined,
   });
 
   return rows.map((row) => {

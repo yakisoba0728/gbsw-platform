@@ -56,11 +56,10 @@ export async function awardAction(
 ): Promise<MeritActionState> {
   const actor = await requireAuth();
 
-  // 학년도는 받지 않는다 — 서비스가 getCurrentYear()로 정한다.
+  // 학년도도 발생일도 받지 않는다 — 서비스가 정한다.
   const parsed = awardSchema.safeParse({
     studentProfileId: formData.get("studentProfileId"),
     ruleId: formData.get("ruleId"),
-    occurredOn: formData.get("occurredOn"),
     note: formData.get("note"),
   });
   if (!parsed.success) {
@@ -91,7 +90,6 @@ export async function bulkAwardAction(
     // 체크박스는 같은 name으로 여러 개 온다.
     studentProfileIds: formData.getAll("studentProfileIds").map(String),
     ruleId: formData.get("ruleId"),
-    occurredOn: formData.get("occurredOn"),
     note: formData.get("note"),
   });
   if (!parsed.success) {

@@ -61,7 +61,6 @@ function awardForm(over: Record<string, string> = {}): FormData {
   return form({
     studentProfileId: "sp-1",
     ruleId: "rule-1",
-    occurredOn: "2026-08-14",
     note: "",
     ...over,
   });
@@ -72,7 +71,6 @@ function bulkForm(over: Record<string, string | string[]> = {}): FormData {
   return form({
     studentProfileIds: ["sp-1", "sp-2", "sp-3"],
     ruleId: "rule-1",
-    occurredOn: "2026-08-14",
     note: "",
     ...over,
   });
@@ -123,7 +121,7 @@ describe("awardAction — 경계 검증", () => {
     expect(state).toEqual({ error: null, ok: true, count: 1 });
   });
 
-  it("폼의 네 필드를 모두 읽는다", async () => {
+  it("폼의 세 필드를 모두 읽는다", async () => {
     await awardAction(INITIAL, awardForm({ note: "점호 지각" }));
 
     expect(awardMerit).toHaveBeenCalledWith(
@@ -134,8 +132,8 @@ describe("awardAction — 경계 검증", () => {
         note: "점호 지각",
       }),
     );
-    // occurredOn은 KST 자정 Date로 변환돼 넘어간다 (문자열 그대로가 아니다).
-    expect(awardMerit.mock.calls[0]?.[1].occurredOn).toBeInstanceOf(Date);
+    // 발생일은 경계에서 받지 않는다 — 서비스가 오늘로 정한다.
+    expect(awardMerit.mock.calls[0]?.[1]).not.toHaveProperty("occurredOn");
   });
 
   it("항목을 안 고르면 서비스를 부르지 않고 한국어로 알린다", async () => {
@@ -144,13 +142,6 @@ describe("awardAction — 경계 검증", () => {
 
     expect(awardMerit).not.toHaveBeenCalled();
     expect(state.error).toBe("부여할 항목을 골라 주세요.");
-  });
-
-  it("발생일이 깨져 있으면 서비스를 부르지 않고 한국어로 알린다", async () => {
-    const state = await awardAction(INITIAL, awardForm({ occurredOn: "" }));
-
-    expect(awardMerit).not.toHaveBeenCalled();
-    expect(state.error).toBe("발생일을 골라 주세요.");
   });
 
   it("메모가 상한을 넘으면 조용히 버리지 않고 막는다", async () => {

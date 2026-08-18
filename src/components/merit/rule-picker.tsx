@@ -2,8 +2,8 @@
 
 import { useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { cn } from "@/lib/cn";
-import { buttonClass } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ChevronDownIcon } from "@/components/icons";
 import { KindBadge, kindColorClass, signedPoints } from "@/components/merit/kind-badge";
 import {
   filterRules,
@@ -46,21 +46,22 @@ export function RulePicker({
   // 대신 렌더 때 잘라 쓴다 — 여분의 리렌더가 없다.
   const activeIndex = Math.min(active, Math.max(filtered.length - 1, 0));
 
+  /**
+   * 목록을 연다. 검색어를 비우고 여는 이유: 닫혀 있을 때 칸의 값은 "고른 항목"이라
+   * 그대로 두면 그 글자가 검색어가 되어 자기 자신만 남는다.
+   */
+  function openList() {
+    setQuery("");
+    setActive(0);
+    setOpen(true);
+  }
+
   function choose(rule: RuleOption) {
     setSelected(rule);
     onChange?.(rule);
     setQuery("");
     setActive(0);
     setOpen(false);
-  }
-
-  function clear() {
-    setSelected(null);
-    onChange?.(null);
-    setQuery("");
-    setActive(0);
-    setOpen(true);
-    inputRef.current?.focus();
   }
 
   /** 방향키로 옮긴 자리가 스크롤 밖이면 끌어온다. */
@@ -124,53 +125,64 @@ export function RulePicker({
     >
       <input type="hidden" name={name} value={selected?.id ?? ""} />
 
-      <Input
-        ref={inputRef}
-        type="text"
-        role="combobox"
-        aria-expanded={open}
-        aria-controls={`${baseId}-list`}
-        aria-activedescendant={
-          open && filtered[activeIndex] ? `${baseId}-opt-${activeIndex}` : undefined
-        }
-        aria-autocomplete="list"
-        aria-label={`${label} 검색`}
-        autoComplete="off"
-        disabled={rules.length === 0}
-        value={query}
-        placeholder={selected ? "다른 항목 검색" : "항목 검색 — 이름 또는 분류"}
-        onChange={(event) => {
-          setQuery(event.target.value);
-          setActive(0);
-          setOpen(true);
-        }}
-        onFocus={() => setOpen(true)}
-        onKeyDown={onKeyDown}
-      />
+      <div className="relative">
+        <Input
+          ref={inputRef}
+          type="text"
+          role="combobox"
+          aria-expanded={open}
+          aria-controls={`${baseId}-list`}
+          aria-activedescendant={
+            open && filtered[activeIndex] ? `${baseId}-opt-${activeIndex}` : undefined
+          }
+          aria-autocomplete="list"
+          aria-label={label}
+          autoComplete="off"
+          disabled={rules.length === 0}
+          // 닫혀 있을 때는 고른 항목이 칸의 값이다 — 셀렉트가 그렇게 동작하고,
+          // 보조기술이 읽는 것도 겹쳐 그린 그림이 아니라 이 값이다.
+          value={open ? query : selected ? optionLabel(selected) : ""}
+          placeholder={rules.length === 0 ? "등록된 규정이 없습니다" : "항목 고르기"}
+          className="pr-9"
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setActive(0);
+            setOpen(true);
+          }}
+          onFocus={openList}
+          // 포커스만으로는 부족하다. 항목을 고르고 나면 포커스가 이 칸에 남아 있어
+          // (목록의 mousedown을 막아 두었다) 다시 눌러도 onFocus가 나지 않는다 —
+          // 그러면 고른 뒤에는 목록이 영영 안 열린다.
+          onMouseDown={() => {
+            if (!open) openList();
+          }}
+          onKeyDown={onKeyDown}
+        />
 
-      {/* 고른 뒤에도 종류·점수·항목명이 남아야 한다 — 다음에 누르는 것이 "부여"다. */}
-      {selected ? (
-        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-btn border border-line bg-soft px-3 py-2">
-          <KindBadge kind={selected.kind} />
-          <span className="min-w-0 flex-1 text-caption font-medium text-ink">
-            {selected.label}
-          </span>
-          <span className={`text-caption font-medium ${kindColorClass(selected.kind)}`}>
-            {signedPoints(selected.kind, selected.points)}
-          </span>
-          <button
-            type="button"
-            onClick={clear}
-            className={buttonClass({ variant: "secondary", size: "sm" })}
-          >
-            변경
-          </button>
-        </div>
-      ) : (
-        rules.length > 0 && (
-          <p className="mt-1.5 text-xs text-mut">항목을 골라야 부여할 수 있습니다.</p>
-        )
-      )}
+        {/* 닫혀 있고 고른 것이 있으면 종류·점수를 칸 위에 겹쳐 보인다.
+            pointer-events-none이라 누르면 그대로 아래 칸이 잡힌다. */}
+        {!open && selected && (
+          <div className="pointer-events-none absolute inset-y-0 left-0 right-9 flex items-center gap-2 rounded-field bg-surface px-3">
+            <KindBadge kind={selected.kind} />
+            <span className="min-w-0 flex-1 truncate text-caption text-ink">
+              {selected.label}
+            </span>
+            <span
+              className={`shrink-0 text-caption font-medium ${kindColorClass(selected.kind)}`}
+            >
+              {signedPoints(selected.kind, selected.points)}
+            </span>
+          </div>
+        )}
+
+        <ChevronDownIcon
+          size={17}
+          className={cn(
+            "pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-mut2 transition-transform",
+            open && "rotate-180",
+          )}
+        />
+      </div>
 
       {open && rules.length > 0 && (
         <div className="absolute inset-x-0 top-full z-20 mt-1 max-h-[280px] overflow-y-auto rounded-field border border-line bg-surface shadow-float">

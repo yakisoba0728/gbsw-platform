@@ -102,6 +102,14 @@ export function ChevronLeftIcon(props: IconProps) {
   );
 }
 
+export function ChevronDownIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={1.9} {...props}>
+      <path d="M6 9l6 6 6-6" />
+    </Icon>
+  );
+}
+
 export function LogoutIcon(props: IconProps) {
   return (
     <Icon strokeWidth={1.7} {...props}>

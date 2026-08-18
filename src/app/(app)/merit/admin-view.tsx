@@ -1,13 +1,14 @@
-import Link from "next/link";
 import type { SessionUser } from "@/core/auth/session";
-import { isYearScoped, type MeritTrack } from "@/core/authz/merit-track";
+import {
+  isYearScoped,
+  MERIT_TRACK_TITLES,
+  type MeritTrack,
+} from "@/core/authz/merit-track";
 import { ChipLink } from "@/components/ui/chip-link";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { SearchForm } from "@/components/ui/search-form";
 import { SectionCard } from "@/components/ui/section-card";
 import { StudentSearchResults } from "@/components/merit/student-search-results";
-import { TrackTabs } from "@/components/merit/track-tabs";
-import { formatDateInput } from "@/lib/datetime";
 import { hrefWith, type SearchParamsInput } from "@/lib/search-params";
 import {
   AcademicYearError,
@@ -44,7 +45,11 @@ export async function AdminMeritView({
   let results: Awaited<ReturnType<typeof searchStudents>> = [];
   if (q) {
     try {
-      results = await searchStudents(actor, q);
+      // 명단에서 빠진 학생도 함께 낸다. 화면을 따로 두었더니 "명단에서 빠진 학생까지
+      // 찾기"라는 링크가 무슨 뜻인지 아무도 몰랐고, 그 화면이 빠진 학생을 찾을 수 있는
+      // 유일한 길이었다(계정 관리 목록도 deletedAt으로 거른다). 결과에 「삭제됨」이
+      // 붙고 부여는 서비스가 막으므로, 한 칸에서 찾아도 잘못 줄 수 없다.
+      results = await searchStudents(actor, q, { includeRemoved: true });
     } catch (error) {
       if (!(error instanceof AcademicYearError)) throw error;
       noCurrentYear = true;
@@ -92,15 +97,19 @@ export async function AdminMeritView({
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
-      <TrackTabs current={track} hrefFor={(t) => meritHref(params, { track: t })} />
+      {/* 트랙을 가르는 유일한 글자다 — 상단바 제목(titleForPath)은 쿼리를 떼고
+          찾으므로 교내·기숙사 어느 쪽이든 "상벌점"으로만 나온다. */}
+      <h2 className="text-title font-semibold text-ink">
+        {MERIT_TRACK_TITLES[track]}
+      </h2>
 
       {noCurrentYear && <NoAcademicYearNotice />}
 
       {/* 트랙만 함께 싣는다 — 검색은 전교 대상이라 골라 둔 학년·반을 들고 가면 안 맞는다. */}
       <SearchForm
         defaultValue={q}
-        placeholder="이름 또는 학생코드로 검색"
-        ariaLabel="학생 이름 또는 학생코드 검색"
+        placeholder="학번 · 이름 · 학생코드로 검색"
+        ariaLabel="학번 · 이름 · 학생코드로 학생 검색"
         hidden={{ track }}
       />
 
@@ -109,18 +118,6 @@ export async function AdminMeritView({
           rows={results}
           hrefFor={(row) => `/merit/students/${row.studentProfileId}?track=${track}`}
         />
-      )}
-
-      {/* 이 검색은 명단에 있는 학생만 찾는다. 그 밖을 찾는 화면으로 가는 길을 둔다. */}
-      {q && (
-        <p className="text-xs text-mut">
-          <Link
-            href={`/merit/students?q=${encodeURIComponent(q)}`}
-            className="text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
-          >
-            명단에서 빠진 학생까지 찾기
-          </Link>
-        </p>
       )}
 
       <ClassPicker params={params} track={track} />
@@ -138,8 +135,6 @@ export async function AdminMeritView({
           year={rosterQuery.data.year}
           viewingPast={viewingPast}
           rules={rules}
-          // 오늘 날짜는 서버에서 만든다 — 클라이언트에서 만들면 하이드레이션이 깨진다.
-          today={formatDateInput(new Date())}
         />
       )}
     </div>

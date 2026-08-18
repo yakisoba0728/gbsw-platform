@@ -177,12 +177,12 @@ const BATCH_AWARDS = [
  * 기준 시각을 인자로 넘기는 이유는 오늘 날짜가 바뀌어도 테스트가 안 흔들리게 하기 위해서다.
  */
 const NOW = new Date("2026-08-16T10:00:00+09:00");
-const OCCURRED_ON = parseDateInputKst("2026-06-12");
+/** 발생일은 입력이 아니라 NOW의 KST 날짜다. */
+const OCCURRED_ON = parseDateInputKst("2026-08-16");
 
 const awardInput = {
   studentProfileId: "sp-1",
   ruleId: "r-1",
-  occurredOn: OCCURRED_ON,
   note: null,
 };
 
@@ -208,10 +208,10 @@ describe("awardMerit", () => {
 
   it("학년도는 항상 현재 학년도다", async () => {
     getCurrentYear.mockResolvedValue(2027);
-    // 발생일 검사는 그 학년도 창을 보므로 함께 옮겨 준다 (검사 자체는 아래에서 따로 본다).
+    // 발생일 검사는 그 학년도 창을 보므로 기준 시각도 함께 옮긴다.
     await service.awardMerit(
       admin,
-      { ...awardInput, occurredOn: parseDateInputKst("2027-06-12") },
+      awardInput,
       new Date("2027-08-16T10:00:00+09:00"),
     );
 
@@ -292,19 +292,21 @@ describe("awardMerit", () => {
 });
 
 /**
- * 발생일 검사. monthlyTotals가 축 밖의 기록을 말없이 버리므로, 검사가 없으면
- * 부여에 성공한 기록이 어느 화면에도 안 나타난다. 두 부여 경로를 함께 본다.
+ * 발생일 검사. 발생일은 이제 입력이 아니라 **부여한 날(KST)** 이라 미래일 수 없다.
+ * 그래도 학년도 창 검사는 남는다 — 3월이 지났는데 현재 학년도를 안 넘기면 오늘이
+ * 그 학년도 창 밖이 되고, 조용히 저장되면 그 기록은 어느 집계에도 안 잡힌다.
+ * monthlyTotals가 축 밖의 기록을 말없이 버리기 때문이다. 두 부여 경로를 함께 본다.
  */
-describe("발생일 검사 (현재 학년도 2026 = 2026-03-01 ~ 2027-02-28)", () => {
-  const cases: [name: string, run: (occurredOn: Date, now?: Date) => Promise<unknown>][] = [
-    ["단건", (occurredOn, now = NOW) => service.awardMerit(admin, { ...awardInput, occurredOn }, now)],
+describe("발생일 (현재 학년도 2026 = 2026-03-01 ~ 2027-02-28)", () => {
+  const cases: [name: string, run: (now: Date) => Promise<unknown>][] = [
+    ["단건", (now) => service.awardMerit(admin, awardInput, now)],
     [
       "일괄",
-      (occurredOn, now = NOW) =>
+      (now) =>
         service.bulkAwardMerit(
           admin,
           // createAwards 목이 2건을 돌려주므로 대상도 2명이어야 짝이 맞는다.
-          { studentProfileIds: ["sp-1", "sp-2"], ruleId: "r-1", occurredOn, note: null },
+          { studentProfileIds: ["sp-1", "sp-2"], ruleId: "r-1", note: null },
           now,
         ),
     ],
@@ -314,41 +316,40 @@ describe("발생일 검사 (현재 학년도 2026 = 2026-03-01 ~ 2027-02-28)", (
   const writes = () => createAward.mock.calls.length + createAwards.mock.calls.length;
 
   for (const [name, run] of cases) {
-    it(`${name} — 학년도 첫날(3월 1일)은 통과한다`, async () => {
-      await run(parseDateInputKst("2026-03-01"));
+    it(`${name} — 학년도 첫날(3월 1일)에 부여하면 통과한다`, async () => {
+      await run(new Date("2026-03-01T09:00:00+09:00"));
       expect(writes()).toBe(1);
     });
 
     it(`${name} — 학년도 마지막 날(이듬해 2월 28일)도 통과한다`, async () => {
-      // 그 시점에서는 미래가 아니어야 하므로 기준 시각을 함께 옮긴다.
-      await run(parseDateInputKst("2027-02-28"), new Date("2027-02-28T23:00:00+09:00"));
+      await run(new Date("2027-02-28T23:00:00+09:00"));
       expect(writes()).toBe(1);
     });
 
-    it(`${name} — 학년도 시작 하루 전(2월 28일)은 거부한다`, async () => {
-      await expect(run(parseDateInputKst("2026-02-28"))).rejects.toThrow(
+    it(`${name} — 학년도를 안 넘긴 채 3월을 맞으면 거부한다`, async () => {
+      // 현재 학년도는 2026인데 오늘은 2027학년도다. 여기서 막지 않으면 그 기록은
+      // 2026 집계에도, 2027 집계에도 안 잡힌다.
+      await expect(run(new Date("2027-03-02T10:00:00+09:00"))).rejects.toThrow(
         "OCCURRED_OUT_OF_YEAR",
       );
       expect(writes()).toBe(0);
     });
 
-    it(`${name} — 학년도가 끝난 다음 날(3월 1일)은 거부한다`, async () => {
-      await expect(
-        run(parseDateInputKst("2027-03-01"), new Date("2027-03-02T10:00:00+09:00")),
-      ).rejects.toThrow("OCCURRED_OUT_OF_YEAR");
-    });
-
-    it(`${name} — 학년도 안이어도 미래면 거부한다`, async () => {
-      // 8월에 다음 1월을 고르면 학년도 창 안이다 — 창만으로는 못 거른다.
-      await expect(run(parseDateInputKst("2027-01-15"))).rejects.toThrow(
-        "OCCURRED_IN_FUTURE",
+    it(`${name} — 학년도가 시작되기 전이면 거부한다`, async () => {
+      await expect(run(new Date("2026-02-28T10:00:00+09:00"))).rejects.toThrow(
+        "OCCURRED_OUT_OF_YEAR",
       );
       expect(writes()).toBe(0);
     });
 
-    it(`${name} — 오늘은 통과한다 (기본값이 오늘이다)`, async () => {
-      await run(parseDateInputKst("2026-08-16"));
-      expect(writes()).toBe(1);
+    it(`${name} — 저장되는 발생일은 그날의 KST 자정이다`, async () => {
+      // UTC로는 아직 8월 16일이지만 KST로는 17일이다. 시각이 아니라 날짜여야
+      // 월별 추이·최근 7일이 같은 눈금을 본다.
+      await run(new Date("2026-08-16T15:30:00Z"));
+
+      const written =
+        createAward.mock.calls[0]?.[0] ?? createAwards.mock.calls[0]?.[0][0];
+      expect(written.occurredOn).toEqual(parseDateInputKst("2026-08-17"));
     });
   }
 

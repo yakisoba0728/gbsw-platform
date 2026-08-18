@@ -1,19 +1,12 @@
 import { AwardHistory } from "@/components/merit/award-history";
 import { MeritTotalsCards } from "@/components/merit/merit-totals";
-import { TrackTabs } from "@/components/merit/track-tabs";
 import { ChipLink } from "@/components/ui/chip-link";
-import type { MeritTrack } from "@/core/authz/merit-track";
 import { hrefWith, type SearchParamsInput } from "@/lib/search-params";
 import type { StudentMeritView } from "@/modules/merit/award.service";
 import { YearPicker } from "./year-picker";
 
 type Params = SearchParamsInput;
 type ChildOption = { studentProfileId: string; name: string };
-
-/** year는 트랙마다 의미가 다르다(교내만 쓴다) — 탭을 옮기면 지운다. */
-function hrefWithTrack(params: Params, track: MeritTrack): string {
-  return hrefWith("/merit", params, { track, year: null });
-}
 
 /** 학생·학부모 본인 조회. */
 export function OwnMeritView({
@@ -40,11 +33,6 @@ export function OwnMeritView({
           <ChildPicker options={childOptions} selected={selectedChild} params={params} />
         )}
       </div>
-
-      <TrackTabs
-        current={view.track}
-        hrefFor={(t) => hrefWithTrack(params, t)}
-      />
 
       {view.track === "SCHOOL" && (
         <YearPicker years={years} selected={view.year} params={params} />

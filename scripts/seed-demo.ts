@@ -238,7 +238,6 @@ async function build(prisma: Awaited<typeof import("../src/core/db/client")>["pr
   // 흩는다 — 서비스가 "현재 학년도 안, 미래 아님"을 검사하므로 지어낸 날짜를
   // 서비스에 통과시키려면 학년도 시작일을 여기서 다시 계산해야 하고, 그건 검사
   // 규칙을 두 벌로 만드는 일이다.
-  const todayKst = datetime.parseDateInputKst(datetime.formatDateInput(new Date()));
 
   // 단건 — 여러 학생에게 서로 다른 항목
   const singles: [name: string, track: "school" | "dorm", needle: string, note: string | null][] =
@@ -258,7 +257,6 @@ async function build(prisma: Awaited<typeof import("../src/core/db/client")>["pr
     await merit.awardMerit(admin, {
       studentProfileId: studentIds.get(name)!,
       ruleId: find(track, needle),
-      occurredOn: todayKst,
       note,
     });
   }
@@ -271,7 +269,6 @@ async function build(prisma: Awaited<typeof import("../src/core/db/client")>["pr
   const bulk = await merit.bulkAwardMerit(admin, {
     studentProfileIds: class2_3,
     ruleId: find("dorm", "인원 점검 시 지각"),
-    occurredOn: todayKst,
     // 날짜를 메모에 적지 않는다 — 발생일 열이 생기기 전에는 그렇게 새어 나갔고,
     // 그래서 월별 추이가 엉뚱한 달을 셌다.
     note: "22시 점호",
@@ -283,7 +280,6 @@ async function build(prisma: Awaited<typeof import("../src/core/db/client")>["pr
     await merit.awardMerit(admin, {
       studentProfileId: studentIds.get("정하윤")!,
       ruleId: find("school", needle),
-      occurredOn: todayKst,
       note: null,
     });
   }
@@ -293,7 +289,6 @@ async function build(prisma: Awaited<typeof import("../src/core/db/client")>["pr
   await merit.awardMerit(admin, {
     studentProfileId: studentIds.get("정하윤")!,
     ruleId: find("school", "선도관리위원회 징계후"),
-    occurredOn: todayKst,
     note: "선도관리위원회 의결",
   });
   awarded.push({ label: "상쇄점 (정하윤)", count: 1 });

@@ -1,29 +1,39 @@
 "use client";
 
-import { useActionState, useId, useState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input, Label } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
 import { SectionCard } from "@/components/ui/section-card";
 import { RulePicker, type RuleOption } from "@/components/merit/rule-picker";
+import {
+  AwardSuccessDialog,
+  type AwardSuccess,
+} from "@/components/merit/award-success-dialog";
 import { EMPTY_MERIT_STATE } from "@/app/(app)/merit/action-state";
 import { awardAction } from "@/app/(app)/merit/actions";
 
-/** 상벌점 부여 카드. 항목 고르기 · 발생일 · 메모(선택) · 부여 버튼. */
+/** 상벌점 부여 카드. 항목 고르기 · 메모(선택) · 부여 버튼. */
 export function AwardForm({
   studentProfileId,
   rules,
-  today,
 }: {
   studentProfileId: string;
   rules: RuleOption[];
-  /** 오늘 날짜(KST, `YYYY-MM-DD`). 서버가 계산해 내려준다. */
-  today: string;
 }) {
-  const fieldId = useId();
   const [state, formAction, pending] = useActionState(awardAction, EMPTY_MERIT_STATE);
   // 고른 항목은 hidden input이 싣고 가지만, 제출 버튼을 잠그려면 화면도 알아야 한다.
   const [rule, setRule] = useState<RuleOption | null>(null);
+
+  // 성공 알림에 쓸 값. 제출한 순간을 찍어 둔다 (class-roster.tsx와 같은 이유).
+  const [submitted, setSubmitted] = useState<AwardSuccess | null>(null);
+  const [success, setSuccess] = useState<AwardSuccess | null>(null);
+
+  const [handled, setHandled] = useState(state);
+  if (state !== handled) {
+    setHandled(state);
+    if (state.ok && submitted) setSuccess(submitted);
+  }
 
   return (
     <SectionCard
@@ -39,20 +49,6 @@ export function AwardForm({
         <RulePicker rules={rules} onChange={setRule} />
 
         <div className="flex flex-col gap-2.5 @md:flex-row @md:flex-wrap @md:items-end">
-          {/* 발생일은 고칠 수 있어야 한다 — 금요일 일을 월요일에 넣는다.
-              max로 미래를 막고, 학년도 창 검사는 서버가 한다. */}
-          <div className="@md:w-[150px]">
-            <Label htmlFor={`${fieldId}-occurred`}>발생일</Label>
-            <Input
-              id={`${fieldId}-occurred`}
-              type="date"
-              name="occurredOn"
-              defaultValue={today}
-              max={today}
-              required
-            />
-          </div>
-
           <div className="@md:min-w-[160px] @md:flex-1">
             <Input name="note" placeholder="메모 (선택)" aria-label="메모" />
           </div>
@@ -61,6 +57,10 @@ export function AwardForm({
             type="submit"
             className="w-full @md:w-auto"
             disabled={pending || rules.length === 0 || !rule}
+            onClick={() => {
+              // 단건이라 인원 줄은 없다.
+              if (rule) setSubmitted({ ...rule, count: null });
+            }}
           >
             {pending ? "부여하는 중…" : "부여"}
           </Button>
@@ -77,11 +77,10 @@ export function AwardForm({
           {state.error}
         </Note>
       )}
-      {state.ok && (
-        <Note tone="success" className="mt-3">
-          부여했습니다.
-        </Note>
-      )}
+      <AwardSuccessDialog
+        result={success}
+        onClose={() => setSuccess(null)}
+      />
     </SectionCard>
   );
 }

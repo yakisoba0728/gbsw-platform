@@ -169,7 +169,7 @@ describe("service.bulkAwardMerit — 실제 경로", () => {
 
     const result = await service.bulkAwardMerit(
       admin,
-      { studentProfileIds: [a, b], ruleId, occurredOn: OCCURRED_ON, note: null },
+      { studentProfileIds: [a, b], ruleId, note: null },
       NOW,
     );
     expect(result).toEqual({ count: 2 });
@@ -202,7 +202,6 @@ describe("service.bulkAwardMerit — 실제 경로", () => {
         {
           studentProfileIds: [a, "존재하지-않는-학생"],
           ruleId,
-          occurredOn: OCCURRED_ON,
           note: null,
         },
         NOW,
@@ -235,7 +234,7 @@ describe("service.cancelBatch — 실제 경로", () => {
 
     await service.bulkAwardMerit(
       admin,
-      { studentProfileIds: students, ruleId, occurredOn: OCCURRED_ON, note: null },
+      { studentProfileIds: students, ruleId, note: null },
       NOW,
     );
 

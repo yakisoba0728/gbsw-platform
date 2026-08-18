@@ -2,7 +2,12 @@ import type { Metadata } from "next";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { requireAuth } from "@/core/auth/session";
 import { can } from "@/core/authz/can";
-import { isMeritTrack, isYearScoped, type MeritTrack } from "@/core/authz/merit-track";
+import {
+  isMeritTrack,
+  isYearScoped,
+  MERIT_TRACK_TITLES,
+  type MeritTrack,
+} from "@/core/authz/merit-track";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import {
   getChildMerit,
@@ -60,7 +65,7 @@ export default async function MeritPage({
 
     return (
       <OwnMeritView
-        title={`${children.find((c) => c.studentProfileId === childId)!.name} 상벌점`}
+        title={`${children.find((c) => c.studentProfileId === childId)!.name} ${MERIT_TRACK_TITLES[track]}`}
         view={view}
         years={years}
         // prop 이름이 `children`이면 React가 JSX 자식으로 해석해 렌더 트리가 망가진다.
@@ -81,5 +86,10 @@ export default async function MeritPage({
 
   const years = isYearScoped(track) ? await listMyAwardYears(user) : [];
 
-  return <OwnMeritView title="내 상벌점" view={view} years={years} params={raw} />;
+  return <OwnMeritView
+      title={`내 ${MERIT_TRACK_TITLES[track]}`}
+      view={view}
+      years={years}
+      params={raw}
+    />;
 }
