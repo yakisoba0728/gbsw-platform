@@ -498,4 +498,6 @@ model MeritAward {
   @@index([studentProfileId, track])
   /// 반별 목록(그 학년도 전체를 훑는다).
   @@index([year, track])
+  /// 최근 부여 목록 — 트랙별 입력 최신순 페이지네이션.
+  @@index([track, createdAt(sort: Desc)])
 }

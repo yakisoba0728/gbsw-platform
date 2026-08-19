@@ -5,7 +5,11 @@ import {
   type MeritKind,
   type MeritTrack,
 } from "@/core/authz/merit-track";
-import { formatDate } from "@/lib/datetime";
+import { formatDate, formatDateTime } from "@/lib/datetime";
+import type {
+  RecentAwardFilter,
+  RecentAwardStatus,
+} from "./merit.schema";
 
 /**
  * 엑셀 행렬을 만드는 순수 함수들. null을 내보내지 않는다 — write-excel-file이
@@ -104,6 +108,76 @@ export function toHistorySheet(
       a.awardedByName,
       a.status === "CANCELLED" ? "취소" : "반영",
       a.cancelReason ?? "",
+    ]),
+  ];
+}
+
+export type RecentAwardExportRow = {
+  year: number;
+  studentName: string;
+  kind: string;
+  label: string;
+  points: number;
+  note: string | null;
+  awardedByName: string;
+  status: string;
+  cancelledByName: string | null;
+  cancelledAt: Date | null;
+  cancelReason: string | null;
+  occurredOn: Date;
+  createdAt: Date;
+};
+
+const RECENT_STATUS_LABELS: Record<RecentAwardStatus, string> = {
+  ACTIVE: "반영",
+  CANCELLED: "취소",
+};
+
+/** 현재 화면의 필터 전체를 내려받는다. 첫 줄에도 범위를 남겨 파일만 봐도 조건을 안다. */
+export function toRecentAwardsSheet(
+  awards: RecentAwardExportRow[],
+  filter: RecentAwardFilter,
+): (string | number)[][] {
+  const scope = [
+    `${MERIT_TRACK_LABELS[filter.track]} 최근 부여`,
+    filter.kind ? MERIT_KIND_LABELS[filter.kind] : "전체 종류",
+    filter.status ? RECENT_STATUS_LABELS[filter.status] : "전체 상태",
+    filter.q ? `검색: ${filter.q}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return [
+    [scope],
+    [
+      "학년도",
+      "입력 시각",
+      "발생일",
+      "학생",
+      "구분",
+      "항목",
+      "점수",
+      "메모",
+      "부여자",
+      "상태",
+      "취소자",
+      "취소 시각",
+      "취소 사유",
+    ],
+    ...awards.map((award) => [
+      award.year,
+      formatDateTime(award.createdAt),
+      formatDate(award.occurredOn),
+      award.studentName,
+      MERIT_KIND_LABELS[award.kind as MeritKind] ?? award.kind,
+      award.label,
+      award.points,
+      award.note ?? "",
+      award.awardedByName,
+      award.status === "CANCELLED" ? "취소" : "반영",
+      award.cancelledByName ?? "",
+      award.cancelledAt ? formatDateTime(award.cancelledAt) : "",
+      award.cancelReason ?? "",
     ]),
   ];
 }

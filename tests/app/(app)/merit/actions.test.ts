@@ -16,6 +16,7 @@ const bulkAwardMerit = vi.fn();
 const cancelAward = vi.fn();
 const exportClassRoster = vi.fn();
 const exportStudentHistory = vi.fn();
+const exportRecentAwards = vi.fn();
 
 const getCurrentYear = vi.fn();
 
@@ -26,6 +27,7 @@ vi.mock("@/modules/merit/award.service", () => ({
   bulkAwardMerit,
   cancelAward,
   exportClassRoster,
+  exportRecentAwards,
   exportStudentHistory,
 }));
 vi.mock("@/modules/academic-year/academic-year.service", () => ({
@@ -41,6 +43,7 @@ const {
   bulkAwardAction,
   cancelAction,
   exportClassRosterAction,
+  exportRecentAwardsAction,
   exportStudentHistoryAction,
 } = await import("@/app/(app)/merit/actions");
 
@@ -98,6 +101,10 @@ beforeEach(() => {
   exportStudentHistory.mockResolvedValue({
     rows: [["홍길동 · 교내 상벌점"]],
     filename: "홍길동_교내상벌점_2026.xlsx",
+  });
+  exportRecentAwards.mockResolvedValue({
+    rows: [["기숙사 최근 부여 · 전체 종류 · 전체 상태"]],
+    filename: "기숙사_최근부여.xlsx",
   });
   getCurrentYear.mockResolvedValue(2026);
 });
@@ -244,6 +251,7 @@ describe("cancelAction — 경계 검증", () => {
     await cancelAction(INITIAL, cancelForm());
 
     expect(revalidatePath).toHaveBeenCalledWith("/merit/students/sp-1");
+    expect(revalidatePath).toHaveBeenCalledWith("/merit/recent");
   });
 
   it("이미 취소된 기록은 그 이유를 알린다", async () => {
@@ -384,6 +392,43 @@ describe("exportStudentHistoryAction — 경계 검증", () => {
     expect(result.error).toBe("이 작업을 할 권한이 없습니다.");
     expect(logged).not.toHaveBeenCalled();
     logged.mockRestore();
+  });
+});
+
+describe("exportRecentAwardsAction — 경계 검증", () => {
+  it("현재 필터를 검증해 서비스로 넘긴다", async () => {
+    const result = await exportRecentAwardsAction({
+      track: "DORM",
+      kind: "DEMERIT",
+      status: "CANCELLED",
+      q: " 점호 ",
+    });
+
+    expect(exportRecentAwards).toHaveBeenCalledWith(expect.anything(), {
+      track: "DORM",
+      kind: "DEMERIT",
+      status: "CANCELLED",
+      q: "점호",
+    });
+    expect(result.filename).toBe("기숙사_최근부여.xlsx");
+  });
+
+  it("모르는 필터는 서비스를 부르지 않는다", async () => {
+    const result = await exportRecentAwardsAction({
+      track: "SCHOOL",
+      kind: "BONUS" as "MERIT",
+    });
+
+    expect(exportRecentAwards).not.toHaveBeenCalled();
+    expect(result.error).toBe("조회 조건을 확인해 주세요.");
+  });
+
+  it("권한 거부는 다운로드 실패가 아니라 권한 문제로 안내한다", async () => {
+    exportRecentAwards.mockRejectedValueOnce(new ForbiddenError("merit:read:any"));
+
+    const result = await exportRecentAwardsAction({ track: "SCHOOL" });
+
+    expect(result.error).toBe("이 작업을 할 권한이 없습니다.");
   });
 });
 

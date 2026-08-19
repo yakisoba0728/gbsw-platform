@@ -31,7 +31,9 @@ const searchStudents = vi.fn();
 const listChildren = vi.fn();
 const isChildOf = vi.fn();
 const listAwardYears = vi.fn();
-const listRecentAwards = vi.fn();
+const findRecentAwardPage = vi.fn();
+const countRecentAwards = vi.fn();
+const findRecentAwardsForExport = vi.fn();
 const findStudentHeader = vi.fn();
 
 vi.mock("@/modules/merit/merit.repo", () => ({
@@ -51,7 +53,9 @@ vi.mock("@/modules/merit/merit.repo", () => ({
   listChildren,
   isChildOf,
   listAwardYears,
-  listRecentAwards,
+  findRecentAwardPage,
+  countRecentAwards,
+  findRecentAwardsForExport,
   findStudentHeader,
 }));
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
@@ -144,7 +148,9 @@ beforeEach(() => {
   isChildOf.mockReset().mockResolvedValue(true);
   // 실제로 취소된 것의 id만 돌려준다 — 기본은 넘긴 것 전부가 취소된 경우다.
   listAwardYears.mockReset().mockResolvedValue([2026, 2025]);
-  listRecentAwards.mockReset().mockResolvedValue([]);
+  findRecentAwardPage.mockReset().mockResolvedValue([]);
+  countRecentAwards.mockReset().mockResolvedValue(0);
+  findRecentAwardsForExport.mockReset().mockResolvedValue([]);
   findStudentHeader.mockReset().mockResolvedValue(HEADER);
 });
 
@@ -760,30 +766,69 @@ describe("listRecentAwards", () => {
     { id: "a-2", kind: "DEMERIT", status: "CANCELLED" },
   ];
 
-  it("트랙별로 정해진 개수만 가져온다", async () => {
-    await service.listRecentAwards(admin, "DORM");
+  it("필터를 넘기고 한 페이지를 20건씩 가져온다", async () => {
+    await service.listRecentAwards(admin, {
+      track: "DORM",
+      kind: "DEMERIT",
+      status: "ACTIVE",
+      q: "점호",
+      page: 3,
+    });
 
-    expect(listRecentAwards).toHaveBeenCalledWith({ track: "DORM", limit: 30 });
+    expect(findRecentAwardPage).toHaveBeenCalledWith(
+      {
+        track: "DORM",
+        kind: "DEMERIT",
+        status: "ACTIVE",
+        q: "점호",
+      },
+      40,
+      20,
+    );
   });
 
-  it("취소된 기록도 그대로 넘긴다", async () => {
-    listRecentAwards.mockResolvedValue(ROWS);
+  it("취소된 기록도 그대로 넘기고 총 건수로 페이지 수를 계산한다", async () => {
+    findRecentAwardPage.mockResolvedValue(ROWS);
+    countRecentAwards.mockResolvedValue(41);
 
-    expect(await service.listRecentAwards(admin, "SCHOOL")).toEqual(ROWS);
+    expect(
+      await service.listRecentAwards(admin, { track: "SCHOOL", page: 2 }),
+    ).toEqual({ entries: ROWS, total: 41, page: 2, pageCount: 3 });
   });
 
   it("학생은 볼 수 없다", async () => {
-    await expect(service.listRecentAwards(student, "SCHOOL")).rejects.toThrow(
-      "FORBIDDEN",
-    );
-    expect(listRecentAwards).not.toHaveBeenCalled();
+    await expect(
+      service.listRecentAwards(student, { track: "SCHOOL", page: 1 }),
+    ).rejects.toThrow("FORBIDDEN");
+    expect(findRecentAwardPage).not.toHaveBeenCalled();
   });
 
   it("학부모도 볼 수 없다", async () => {
     await expect(
-      service.listRecentAwards(user("PARENT", "p-1"), "SCHOOL"),
+      service.listRecentAwards(user("PARENT", "p-1"), {
+        track: "SCHOOL",
+        page: 1,
+      }),
     ).rejects.toThrow("FORBIDDEN");
-    expect(listRecentAwards).not.toHaveBeenCalled();
+    expect(findRecentAwardPage).not.toHaveBeenCalled();
+  });
+
+  it("내보내기는 페이지와 무관하게 같은 필터 전체를 가져온다", async () => {
+    const result = await service.exportRecentAwards(admin, {
+      track: "SCHOOL",
+      kind: "MERIT",
+      status: "ACTIVE",
+      q: "봉사",
+    });
+
+    expect(findRecentAwardsForExport).toHaveBeenCalledWith({
+      track: "SCHOOL",
+      kind: "MERIT",
+      status: "ACTIVE",
+      q: "봉사",
+    });
+    expect(result.filename).toBe("교내_최근부여.xlsx");
+    expect(result.rows[0][0]).toContain("검색: 봉사");
   });
 });
 

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { toHistorySheet, toRosterSheet } from "@/modules/merit/merit.export";
+import {
+  toHistorySheet,
+  toRecentAwardsSheet,
+  toRosterSheet,
+} from "@/modules/merit/merit.export";
 
 describe("toRosterSheet", () => {
   const rows = [
@@ -117,5 +121,47 @@ describe("toHistorySheet", () => {
   it("메모가 없으면 빈 문자열이다", () => {
     const sheet = toHistorySheet(awards, { track: "DORM", studentName: "김민준" });
     expect(sheet[3][6]).toBe("");
+  });
+});
+
+describe("toRecentAwardsSheet", () => {
+  const awards = [
+    {
+      year: 2026,
+      studentName: "김민준",
+      kind: "DEMERIT",
+      label: "점호 지각",
+      points: 3,
+      note: "22시 점호",
+      awardedByName: "이정민",
+      status: "CANCELLED",
+      cancelledByName: "박서연",
+      cancelledAt: new Date("2026-08-19T03:00:00.000Z"),
+      cancelReason: "오기입",
+      occurredOn: new Date("2026-08-18T15:00:00.000Z"),
+      createdAt: new Date("2026-08-19T01:00:00.000Z"),
+    },
+  ];
+
+  it("첫 줄에 현재 필터를 적고 둘째 줄에 머리글을 둔다", () => {
+    const sheet = toRecentAwardsSheet(awards, {
+      track: "DORM",
+      kind: "DEMERIT",
+      status: "CANCELLED",
+      q: "점호",
+    });
+
+    expect(sheet[0][0]).toBe("기숙사 최근 부여 · 벌점 · 취소 · 검색: 점호");
+    expect(sheet[1]).toContain("학생");
+    expect(sheet[1]).toContain("취소 사유");
+  });
+
+  it("학생·메모·취소 정보를 빠뜨리지 않는다", () => {
+    const sheet = toRecentAwardsSheet(awards, { track: "DORM" });
+
+    expect(sheet[2]).toContain("김민준");
+    expect(sheet[2]).toContain("22시 점호");
+    expect(sheet[2]).toContain("박서연");
+    expect(sheet[2]).toContain("오기입");
   });
 });

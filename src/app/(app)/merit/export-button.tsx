@@ -4,7 +4,12 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Note } from "@/components/ui/note";
 import type { MeritTrack } from "@/core/authz/merit-track";
-import { exportClassRosterAction, exportStudentHistoryAction } from "./actions";
+import type { RecentAwardsExportInput } from "@/modules/merit/merit.schema";
+import {
+  exportClassRosterAction,
+  exportRecentAwardsAction,
+  exportStudentHistoryAction,
+} from "./actions";
 
 type SheetResult = {
   error: string | null;
@@ -98,6 +103,22 @@ export function ExportHistoryButton(props: {
       error={error}
       onClick={download}
       label="내역 내보내기"
+    />
+  );
+}
+
+/** 최근 부여의 현재 필터 전체를 내려받는다. 페이지 번호는 일부러 받지 않는다. */
+export function ExportRecentAwardsButton(props: RecentAwardsExportInput) {
+  const { pending, error, download } = useSheetDownload(() =>
+    exportRecentAwardsAction(props),
+  );
+
+  return (
+    <DownloadButton
+      pending={pending}
+      error={error}
+      onClick={download}
+      label="다운로드"
     />
   );
 }

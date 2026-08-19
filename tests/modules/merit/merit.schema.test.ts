@@ -9,6 +9,9 @@ import {
   createRuleSchema,
   deleteRuleSchema,
   MAX_THRESHOLD,
+  RECENT_AWARD_PAGE_SIZE,
+  recentAwardsExportSchema,
+  recentAwardsQuerySchema,
   studentHistoryExportSchema,
   thresholdSchema,
   updateRuleSchema,
@@ -160,6 +163,50 @@ describe("조회 학년도", () => {
 
   it("학년도는 선택 입력이다", () => {
     expect(classRosterSchema.parse(roster).year).toBeUndefined();
+  });
+});
+
+describe("recentAwardsQuerySchema", () => {
+  it("기본 트랙과 첫 페이지를 정한다", () => {
+    expect(recentAwardsQuerySchema.parse({})).toEqual({
+      track: "SCHOOL",
+      page: 1,
+    });
+    expect(RECENT_AWARD_PAGE_SIZE).toBe(20);
+  });
+
+  it("종류·상태·검색어·페이지를 검증하고 검색어 공백을 다듬는다", () => {
+    expect(
+      recentAwardsQuerySchema.parse({
+        track: "DORM",
+        kind: "DEMERIT",
+        status: "CANCELLED",
+        q: "  점호 지각  ",
+        page: "3",
+      }),
+    ).toEqual({
+      track: "DORM",
+      kind: "DEMERIT",
+      status: "CANCELLED",
+      q: "점호 지각",
+      page: 3,
+    });
+  });
+
+  it("빈 검색어는 필터에서 빠진다", () => {
+    expect(recentAwardsQuerySchema.parse({ q: "   " }).q).toBeUndefined();
+  });
+
+  it("모르는 종류·상태와 범위 밖 페이지를 거부한다", () => {
+    expect(recentAwardsQuerySchema.safeParse({ kind: "BONUS" }).success).toBe(false);
+    expect(recentAwardsQuerySchema.safeParse({ status: "DELETED" }).success).toBe(false);
+    expect(recentAwardsQuerySchema.safeParse({ page: 0 }).success).toBe(false);
+  });
+
+  it("내보내기 조건에는 페이지가 포함되지 않는다", () => {
+    expect(
+      recentAwardsExportSchema.parse({ track: "SCHOOL", page: "9" }),
+    ).toEqual({ track: "SCHOOL" });
   });
 });
 

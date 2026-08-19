@@ -13,8 +13,10 @@ import {
   bulkAwardSchema,
   cancelSchema,
   classRosterSchema,
+  recentAwardsExportSchema,
   studentHistoryExportSchema,
 } from "@/modules/merit/merit.schema";
+import type { RecentAwardsExportInput } from "@/modules/merit/merit.schema";
 import type { MeritActionState } from "./action-state";
 
 const MESSAGES: Record<string, string> = {
@@ -134,6 +136,8 @@ export async function cancelAction(
   // 어느 학생인지는 폼이 함께 보낸다 — 취소 후 그 학생 화면을 다시 그린다.
   const studentProfileId = String(formData.get("studentProfileId") ?? "");
   if (studentProfileId) revalidatePath(`/merit/students/${studentProfileId}`);
+  // 최근 부여의 상태 필터·건수도 즉시 바뀌어야 한다.
+  revalidatePath("/merit/recent");
   return { error: null, ok: true, count: null };
 }
 
@@ -205,5 +209,23 @@ export async function exportStudentHistoryAction(input: {
     return { error: null, ...(await service.exportStudentHistory(actor, parsed.data)) };
   } catch (error) {
     return toExportState(error, "상벌점 내역 내보내기 실패:");
+  }
+}
+
+/** 최근 부여 화면의 현재 필터 전체를 내보낸다. */
+export async function exportRecentAwardsAction(
+  input: RecentAwardsExportInput,
+): Promise<ExportState> {
+  const actor = await requireAuth();
+
+  const parsed = recentAwardsExportSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: "조회 조건을 확인해 주세요.", rows: [], filename: "" };
+  }
+
+  try {
+    return { error: null, ...(await service.exportRecentAwards(actor, parsed.data)) };
+  } catch (error) {
+    return toExportState(error, "최근 부여 내보내기 실패:");
   }
 }

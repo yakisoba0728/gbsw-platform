@@ -1,20 +1,40 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requirePermission } from "@/core/auth/session";
-import { isMeritTrack, type MeritTrack } from "@/core/authz/merit-track";
+import {
+  MERIT_KIND_LABELS,
+  MERIT_KINDS,
+} from "@/core/authz/merit-track";
 import { KindBadge, kindColorClass, signedPoints } from "@/components/merit/kind-badge";
 import { CancelButton } from "@/components/merit/cancel-button";
 import { TrackTabs } from "@/components/merit/track-tabs";
 import { Badge } from "@/components/ui/badge";
+import { buttonClass } from "@/components/ui/button";
+import { ChipLink } from "@/components/ui/chip-link";
 import { EmptyState } from "@/components/ui/empty-state";
+import { SearchForm } from "@/components/ui/search-form";
 import { SectionCard } from "@/components/ui/section-card";
 import { DataTable, type Column } from "@/components/ui/table";
 import { formatDate, formatDateTimeShort, isSameKstDate } from "@/lib/datetime";
+import { hrefWith, type SearchParamsInput } from "@/lib/search-params";
 import { listRecentAwards } from "@/modules/merit/award.service";
+import {
+  RECENT_AWARD_STATUSES,
+  recentAwardsQuerySchema,
+  type RecentAwardsQuery,
+} from "@/modules/merit/merit.schema";
 import { EMPTY_MERIT_STATE } from "../action-state";
 import { cancelAction } from "../actions";
+import { ExportRecentAwardsButton } from "../export-button";
 
 export const metadata: Metadata = { title: "최근 부여" };
+
+const PATH = "/merit/recent";
+
+const STATUS_LABELS = {
+  ACTIVE: "반영",
+  CANCELLED: "취소",
+} as const;
 
 export default async function RecentAwardsPage({
   searchParams,
@@ -24,10 +44,24 @@ export default async function RecentAwardsPage({
   const actor = await requirePermission("merit:read:any");
 
   const raw = await searchParams;
-  const track: MeritTrack = isMeritTrack(raw.track) ? raw.track : "SCHOOL";
+  // 검증은 URL 경계에서 한 번만. 잘못된 쿼리는 안전한 기본 필터로 되돌린다.
+  const parsed = recentAwardsQuerySchema.safeParse(raw);
+  const query = parsed.success ? parsed.data : recentAwardsQuerySchema.parse({});
+  const { track } = query;
 
   // AcademicYearError를 잡지 않는다 — listRecentAwards는 getCurrentYear()를 타지 않는다.
-  const rows = await listRecentAwards(actor, track);
+  const result = await listRecentAwards(actor, query);
+  const rows = result.entries;
+
+  // 화면이 이해한 값만 주소에 다시 싣는다. 손으로 넣은 모르는 쿼리를 전파하지 않는다.
+  const params: SearchParamsInput = {
+    track: query.track,
+    kind: query.kind,
+    status: query.status,
+    q: query.q,
+    page: String(query.page),
+  };
+  const href = (patch: Record<string, string | null>) => hrefWith(PATH, params, patch);
 
   const columns: Column<(typeof rows)[number]>[] = [
     {
@@ -130,13 +164,40 @@ export default async function RecentAwardsPage({
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
-      {/* 이 화면의 쿼리는 track 하나뿐이라 보존할 것이 없다. */}
-      <TrackTabs current={track} hrefFor={(t) => `/merit/recent?track=${t}`} />
+      <TrackTabs
+        current={track}
+        hrefFor={(nextTrack) => href({ track: nextTrack, page: null })}
+      />
 
-      {rows.length === 0 ? (
-        <EmptyState>부여된 상벌점이 없습니다.</EmptyState>
-      ) : (
-        <SectionCard title={`최근 부여 ${rows.length}건`} flush>
+      <SectionCard
+        title="최근 부여"
+        aside={
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            <span className="text-xs text-mut">총 {result.total}건</span>
+            <ExportRecentAwardsButton
+              track={query.track}
+              kind={query.kind}
+              status={query.status}
+              q={query.q}
+            />
+          </div>
+        }
+        controls={
+          <RecentAwardControls
+            query={query}
+            href={href}
+            pageCount={result.pageCount}
+          />
+        }
+        flush
+      >
+        {rows.length === 0 ? (
+          <EmptyState variant="inside">
+            {query.kind || query.status || query.q
+              ? "조건에 맞는 기록이 없습니다."
+              : "부여된 상벌점이 없습니다."}
+          </EmptyState>
+        ) : (
           <DataTable
             minWidth={700}
             narrow="cards"
@@ -144,8 +205,170 @@ export default async function RecentAwardsPage({
             rowKey={(row) => row.id}
             columns={columns}
           />
-        </SectionCard>
+        )}
+      </SectionCard>
+    </div>
+  );
+}
+
+function RecentAwardControls({
+  query,
+  href,
+  pageCount,
+}: {
+  query: RecentAwardsQuery;
+  href: (patch: Record<string, string | null>) => string;
+  pageCount: number;
+}) {
+  return (
+    <div className="mt-3 space-y-2.5">
+      <FilterRow label="종류">
+        <ChipLink
+          href={href({ kind: null, page: null })}
+          active={!query.kind}
+          size="sm"
+        >
+          전체
+        </ChipLink>
+        {MERIT_KINDS.map((kind) => (
+          <ChipLink
+            key={kind}
+            href={href({ kind, page: null })}
+            active={query.kind === kind}
+            size="sm"
+          >
+            {MERIT_KIND_LABELS[kind]}
+          </ChipLink>
+        ))}
+      </FilterRow>
+
+      <FilterRow label="상태">
+        <ChipLink
+          href={href({ status: null, page: null })}
+          active={!query.status}
+          size="sm"
+        >
+          전체
+        </ChipLink>
+        {RECENT_AWARD_STATUSES.map((status) => (
+          <ChipLink
+            key={status}
+            href={href({ status, page: null })}
+            active={query.status === status}
+            size="sm"
+          >
+            {STATUS_LABELS[status]}
+          </ChipLink>
+        ))}
+      </FilterRow>
+
+      <SearchForm
+        defaultValue={query.q}
+        placeholder="학생 · 항목 · 메모 · 부여자"
+        ariaLabel="학생, 항목, 메모 또는 부여자 검색"
+        maxLength={60}
+        hidden={{
+          track: query.track,
+          kind: query.kind,
+          status: query.status,
+        }}
+        className="flex max-w-xl gap-2"
+      />
+
+      {pageCount > 1 && (
+        <Pagination
+          page={query.page}
+          pageCount={pageCount}
+          href={(page) => href({ page: String(page) })}
+        />
       )}
     </div>
+  );
+}
+
+function FilterRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="mr-1 w-8 text-xs font-medium text-mut">{label}</span>
+      {children}
+    </div>
+  );
+}
+
+/** 첫·끝과 현재 주변 두 페이지만 보여 긴 목록에서도 조작부 폭이 고정된다. */
+function paginationItems(page: number, pageCount: number): (number | "gap")[] {
+  const pages = new Set([1, pageCount]);
+  for (let value = page - 2; value <= page + 2; value += 1) {
+    if (value >= 1 && value <= pageCount) pages.add(value);
+  }
+
+  const sorted = [...pages].sort((a, b) => a - b);
+  const items: (number | "gap")[] = [];
+  for (const value of sorted) {
+    const previous = items.at(-1);
+    if (typeof previous === "number" && value - previous > 1) items.push("gap");
+    items.push(value);
+  }
+  return items;
+}
+
+function Pagination({
+  page,
+  pageCount,
+  href,
+}: {
+  page: number;
+  pageCount: number;
+  href: (page: number) => string;
+}) {
+  const items = paginationItems(page, pageCount);
+  const secondary = buttonClass({ variant: "secondary", size: "sm" });
+  const pageClass = (active: boolean) =>
+    buttonClass({ variant: "chip", size: "sm", active, className: "min-w-9 px-2" });
+
+  return (
+    <nav aria-label="최근 부여 페이지" className="flex flex-wrap items-center gap-1.5 pt-0.5">
+      {page <= 1 ? (
+        <span aria-disabled="true" className={`${secondary} opacity-40`}>
+          이전
+        </span>
+      ) : (
+        <Link href={href(page - 1)} className={secondary}>
+          이전
+        </Link>
+      )}
+
+      {items.map((item, index) =>
+        item === "gap" ? (
+          <span key={`gap-${index}`} className="px-1 text-mut2" aria-hidden>
+            …
+          </span>
+        ) : item === page ? (
+          <span key={item} aria-current="page" className={pageClass(true)}>
+            {item}
+          </span>
+        ) : (
+          <Link key={item} href={href(item)} className={pageClass(false)}>
+            {item}
+          </Link>
+        ),
+      )}
+
+      {page >= pageCount ? (
+        <span aria-disabled="true" className={`${secondary} opacity-40`}>
+          다음
+        </span>
+      ) : (
+        <Link href={href(page + 1)} className={secondary}>
+          다음
+        </Link>
+      )}
+    </nav>
   );
 }

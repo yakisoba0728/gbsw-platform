@@ -17,7 +17,7 @@ import {
   getCurrentYear,
 } from "@/modules/academic-year/academic-year.service";
 import { MeritError } from "./merit.error";
-import { toHistorySheet, toRosterSheet } from "./merit.export";
+import { toHistorySheet, toRecentAwardsSheet, toRosterSheet } from "./merit.export";
 import { kstDayStart } from "@/lib/datetime";
 import { parseStudentNumber } from "@/lib/student-number";
 import * as repo from "./merit.repo";
@@ -27,8 +27,12 @@ import type {
   BulkAwardInput,
   CancelInput,
   ClassRosterInput,
+  RecentAwardFilter,
+  RecentAwardsExportInput,
+  RecentAwardsQuery,
   StudentHistoryExportInput,
 } from "./merit.schema";
+import { RECENT_AWARD_PAGE_SIZE } from "./merit.schema";
 
 /**
  * 순점수 = 상점 + 상쇄점 − 벌점. 계산은 전부 core/authz/merit-track이 한다.
@@ -469,13 +473,33 @@ export async function getChildMerit(
   return readMerit(childProfileId, track, year);
 }
 
-/** 최근 부여 흐름. 취소된 것도 보여준다 — 취소 역시 일어난 일이다. */
-export async function listRecentAwards(actor: SessionUser, track: MeritTrack) {
-  await assertCan(actor, "merit:read:any");
-  return repo.listRecentAwards({ track, limit: RECENT_AWARD_LIMIT });
+function recentAwardFilter(input: RecentAwardsExportInput): RecentAwardFilter {
+  return {
+    track: input.track,
+    kind: input.kind,
+    status: input.status,
+    q: input.q,
+  };
 }
 
-const RECENT_AWARD_LIMIT = 30;
+/** 최근 부여 흐름. 취소된 것도 보여주고, DB에서 20건씩 페이지를 자른다. */
+export async function listRecentAwards(actor: SessionUser, query: RecentAwardsQuery) {
+  await assertCan(actor, "merit:read:any");
+
+  const filter = recentAwardFilter(query);
+  const skip = (query.page - 1) * RECENT_AWARD_PAGE_SIZE;
+  const [entries, total] = await Promise.all([
+    repo.findRecentAwardPage(filter, skip, RECENT_AWARD_PAGE_SIZE),
+    repo.countRecentAwards(filter),
+  ]);
+
+  return {
+    entries,
+    total,
+    page: query.page,
+    pageCount: Math.max(1, Math.ceil(total / RECENT_AWARD_PAGE_SIZE)),
+  };
+}
 
 // ── 엑셀 내보내기 ───────────────────────────────────────────────
 //
@@ -531,5 +555,21 @@ export async function exportStudentHistory(
       studentName: header.name,
     }),
     filename: `${header.name}_${MERIT_TRACK_LABELS[params.track]}상벌점_${scope}.xlsx`,
+  };
+}
+
+/** 최근 부여의 현재 필터 전체를 시트로 만든다. 페이지 번호는 내보내기 범위가 아니다. */
+export async function exportRecentAwards(
+  actor: SessionUser,
+  input: RecentAwardsExportInput,
+): Promise<{ rows: (string | number)[][]; filename: string }> {
+  await assertCan(actor, "merit:read:any");
+
+  const filter = recentAwardFilter(input);
+  const awards = await repo.findRecentAwardsForExport(filter);
+
+  return {
+    rows: toRecentAwardsSheet(awards, filter),
+    filename: `${MERIT_TRACK_LABELS[input.track]}_최근부여.xlsx`,
   };
 }

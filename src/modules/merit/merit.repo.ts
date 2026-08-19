@@ -1,4 +1,5 @@
 import { prisma, type DbClient, withTransaction } from "@/core/db/client";
+import type { Prisma } from "@/generated/prisma/client";
 import { isUniqueViolation } from "@/core/db/unique-violation";
 import {
   addKindPoints,
@@ -10,7 +11,11 @@ import {
   type MeritKind,
   type MeritTrack,
 } from "@/core/authz/merit-track";
-import type { CreateRuleInput, UpdateRuleInput } from "./merit.schema";
+import type {
+  CreateRuleInput,
+  RecentAwardFilter,
+  UpdateRuleInput,
+} from "./merit.schema";
 
 /** Prisma 호출만 둔다. 권한 검사도, 업무 규칙도 여기 두지 않는다. */
 
@@ -725,43 +730,105 @@ export async function findStudentHeader(id: string, year: number) {
   };
 }
 
-/**
- * 최근 부여 흐름. 취소된 것도 포함한다 — 취소 역시 일어난 일이다.
- * 여기만 입력순(createdAt)이다 — 발생일순으로 세우면 방금 넣은 지난주 기록이
- * 아래로 내려가, 잘못 넣은 것을 되돌리러 온 사람이 못 찾는다.
- */
-export async function listRecentAwards(params: { track: MeritTrack; limit: number }) {
-  const rows = await prisma.meritAward.findMany({
-    where: { track: params.track },
-    orderBy: { createdAt: "desc" },
-    take: params.limit,
-    select: {
-      id: true,
-      kind: true,
-      label: true,
-      points: true,
-      status: true,
-      awardedByName: true,
-      occurredOn: true,
-      createdAt: true,
-      studentProfile: {
-        select: { id: true, user: { select: { name: true } } },
-      },
-    },
-  });
+const RECENT_AWARD_SELECT = {
+  id: true,
+  year: true,
+  kind: true,
+  label: true,
+  points: true,
+  note: true,
+  status: true,
+  awardedByName: true,
+  cancelledByName: true,
+  cancelledAt: true,
+  cancelReason: true,
+  occurredOn: true,
+  createdAt: true,
+  studentProfile: {
+    select: { id: true, user: { select: { name: true } } },
+  },
+} satisfies Prisma.MeritAwardSelect;
 
-  return rows.map((row) => ({
+type RecentAwardRecord = Prisma.MeritAwardGetPayload<{
+  select: typeof RECENT_AWARD_SELECT;
+}>;
+
+function recentAwardWhere(filter: RecentAwardFilter): Prisma.MeritAwardWhereInput {
+  return {
+    track: filter.track,
+    ...(filter.kind ? { kind: filter.kind } : {}),
+    ...(filter.status ? { status: filter.status } : {}),
+    ...(filter.q
+      ? {
+          OR: [
+            { label: { contains: filter.q, mode: "insensitive" } },
+            { note: { contains: filter.q, mode: "insensitive" } },
+            { awardedByName: { contains: filter.q, mode: "insensitive" } },
+            {
+              studentProfile: {
+                user: { name: { contains: filter.q, mode: "insensitive" } },
+              },
+            },
+          ],
+        }
+      : {}),
+  };
+}
+
+function toRecentAwardRow(row: RecentAwardRecord) {
+  return {
     id: row.id,
+    year: row.year,
     kind: row.kind,
     label: row.label,
     points: row.points,
+    note: row.note,
     status: row.status,
     awardedByName: row.awardedByName,
+    cancelledByName: row.cancelledByName,
+    cancelledAt: row.cancelledAt,
+    cancelReason: row.cancelReason,
     occurredOn: row.occurredOn,
     createdAt: row.createdAt,
     studentProfileId: row.studentProfile.id,
     studentName: row.studentProfile.user.name,
-  }));
+  };
+}
+
+/**
+ * 최근 부여 한 페이지. 취소된 것도 포함한다 — 취소 역시 일어난 일이다.
+ * 여기만 입력순(createdAt)이다 — 발생일순으로 세우면 방금 넣은 지난주 기록이
+ * 아래로 내려가, 잘못 넣은 것을 되돌리러 온 사람이 못 찾는다.
+ */
+export async function findRecentAwardPage(
+  filter: RecentAwardFilter,
+  skip: number,
+  take: number,
+) {
+  const rows = await prisma.meritAward.findMany({
+    where: recentAwardWhere(filter),
+    orderBy: { createdAt: "desc" },
+    skip,
+    take,
+    select: RECENT_AWARD_SELECT,
+  });
+
+  return rows.map(toRecentAwardRow);
+}
+
+export async function countRecentAwards(filter: RecentAwardFilter): Promise<number> {
+  return prisma.meritAward.count({ where: recentAwardWhere(filter) });
+}
+
+/** 같은 필터의 전체 결과. 화면 페이지와 달리 다운로드용이라 take를 두지 않는다. */
+export async function findRecentAwardsForExport(filter: RecentAwardFilter) {
+  const rows = await prisma.meritAward.findMany({
+    where: recentAwardWhere(filter),
+    orderBy: { createdAt: "desc" },
+    select: RECENT_AWARD_SELECT,
+  });
+
+  return rows.map(toRecentAwardRow);
 }
 
 // ── 통계 ──────────────────────────────────────────────────────

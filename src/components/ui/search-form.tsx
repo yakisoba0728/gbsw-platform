@@ -10,6 +10,7 @@ export function SearchForm({
   defaultValue,
   placeholder,
   ariaLabel,
+  maxLength,
   hidden,
   submitLabel = "검색",
   className = "flex gap-2",
@@ -19,6 +20,7 @@ export function SearchForm({
   placeholder?: string;
   /** placeholder는 라벨이 아니다. 글자를 넣는 순간 사라진다. 그래서 필수다. */
   ariaLabel: string;
+  maxLength?: number;
   /**
    * 함께 실어 보낼 쿼리. GET 폼은 주소를 통째로 갈아치우므로 지금 보고 있는
    * 트랙·종류를 넣지 않으면 검색과 동시에 필터가 풀린다.
@@ -41,6 +43,7 @@ export function SearchForm({
         defaultValue={defaultValue}
         placeholder={placeholder}
         aria-label={ariaLabel}
+        maxLength={maxLength}
         className="min-w-0 flex-1"
       />
       <Button type="submit" variant="secondary" className="shrink-0">

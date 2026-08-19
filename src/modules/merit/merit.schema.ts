@@ -191,3 +191,35 @@ export const studentHistoryExportSchema = z.object({
 });
 
 export type StudentHistoryExportInput = z.infer<typeof studentHistoryExportSchema>;
+
+/** 최근 부여 목록은 화면과 DB가 같은 단위로 페이지를 센다. */
+export const RECENT_AWARD_PAGE_SIZE = 20;
+
+export const RECENT_AWARD_STATUSES = ["ACTIVE", "CANCELLED"] as const;
+export type RecentAwardStatus = (typeof RECENT_AWARD_STATUSES)[number];
+
+const recentAwardSearch = z.preprocess(
+  (value) =>
+    typeof value === "string" && value.trim().length === 0 ? undefined : value,
+  z.string().trim().max(60, "검색어는 60자를 넘을 수 없습니다.").optional(),
+);
+
+/** URL에 실리는 최근 부여 필터와 페이지. 잘못된 값은 화면 경계에서 기본값으로 되돌린다. */
+export const recentAwardsQuerySchema = z.object({
+  track: trackSchema.default("SCHOOL"),
+  kind: kindSchema.optional(),
+  status: z.enum(RECENT_AWARD_STATUSES).optional(),
+  q: recentAwardSearch,
+  page: z.coerce.number().int().min(1).max(1000).default(1),
+});
+
+export type RecentAwardsQuery = z.infer<typeof recentAwardsQuerySchema>;
+
+/** 내보내기는 현재 페이지가 아니라 같은 필터의 전체 결과를 대상으로 한다. */
+export const recentAwardsExportSchema = recentAwardsQuerySchema.omit({ page: true });
+export type RecentAwardsExportInput = z.infer<typeof recentAwardsExportSchema>;
+
+export type RecentAwardFilter = Pick<
+  RecentAwardsExportInput,
+  "track" | "kind" | "status" | "q"
+>;
