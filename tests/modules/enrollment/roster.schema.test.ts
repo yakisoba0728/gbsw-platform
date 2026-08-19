@@ -22,6 +22,40 @@ describe("rosterRowsSchema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("이름은 trim하고 NFC로 정규화해서 내보낸다", () => {
+    const decomposed = "김동혁";
+
+    const result = rosterRowsSchema.parse([row({ name: `  ${decomposed}  ` })]);
+
+    expect(result[0]!.name).toBe("김동혁");
+  });
+
+  it("공백뿐인 이름은 통과하지 못한다", () => {
+    const result = rosterRowsSchema.safeParse([row({ name: "   " })]);
+
+    expect(result.success).toBe(false);
+  });
+
+  it("실제 달력 날짜가 아닌 생년월일은 통과하지 못한다", () => {
+    const result = rosterRowsSchema.safeParse([row({ birthDate: "2010-02-30" })]);
+
+    expect(result.success).toBe(false);
+  });
+
+  it("YYYY-MM-DD 정규형이 아닌 생년월일은 통과하지 못한다", () => {
+    const result = rosterRowsSchema.safeParse([row({ birthDate: "2010-2-03" })]);
+
+    expect(result.success).toBe(false);
+  });
+
+  it("클라이언트가 보낸 errors는 무시하고 빈 배열로 정규화한다", () => {
+    const result = rosterRowsSchema.parse([
+      row({ errors: ["조작된 오류", "생년월일을 읽을 수 없습니다."] }),
+    ]);
+
+    expect(result[0]!.errors).toEqual([]);
+  });
+
   it("errors를 지워도 재학인데 자리가 없는 행은 통과하지 못한다", () => {
     const tampered = row({ grade: null, classNo: null, number: null, errors: [] });
 
@@ -39,6 +73,22 @@ describe("rosterRowsSchema", () => {
 
     expect(rosterRowsSchema.safeParse([graduated]).success).toBe(true);
   });
+
+  it.each(["GRADUATED", "WITHDRAWN", null] as const)(
+    "비재학(%s) 행은 조작된 학년·반·번호를 null로 정규화한다",
+    (status) => {
+      const result = rosterRowsSchema.parse([
+        row({ status, grade: 1, classNo: 3, number: 7 }),
+      ]);
+
+      expect(result[0]).toMatchObject({
+        status,
+        grade: null,
+        classNo: null,
+        number: null,
+      });
+    },
+  );
 
   it("status:null이고 학년·반·번호가 비면 통과한다", () => {
     const noAssignment = row({

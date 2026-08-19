@@ -23,6 +23,11 @@ export const NUMBER_RANGE_MESSAGE = `번호는 ${MIN_NUMBER}~${MAX_NUMBER}이어
  */
 export const enrollmentChangeSchema = z.object({
   studentProfileId: z.string().min(1),
+  // 표를 그릴 때 읽은 재적 행의 버전. null은 그 학년도 재적 행이 아직 없었다는
+  // 뜻이다. 저장 시 현재 값과 다르면 오래된 화면이므로 덮어쓰지 않는다.
+  expectedUpdatedAt: z
+    .union([z.iso.datetime(), z.null()])
+    .transform((value) => (value === null ? null : new Date(value))),
   grade: z.coerce
     .number()
     .int()

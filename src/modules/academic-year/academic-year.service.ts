@@ -2,6 +2,7 @@ import { cache } from "react";
 import { recordAudit } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
 import { assertCan } from "@/core/authz/errors";
+import { withTransaction } from "@/core/db/client";
 import { MAX_YEAR, MIN_YEAR } from "./academic-year.schema";
 import * as repo from "./academic-year.repo";
 
@@ -32,7 +33,16 @@ export async function createYear(actor: SessionUser, year: number): Promise<void
   }
 
   try {
-    await repo.createYear(year);
+    await withTransaction(async (tx) => {
+      await repo.createYear(year, tx);
+
+      await recordAudit({
+        actorUserId: actor.id,
+        action: "academic-year:create",
+        targetType: "AcademicYear",
+        targetId: String(year),
+      }, tx);
+    });
   } catch (error) {
     if (error instanceof repo.YearTakenError) {
       throw new AcademicYearError("YEAR_TAKEN");
@@ -40,12 +50,6 @@ export async function createYear(actor: SessionUser, year: number): Promise<void
     throw error;
   }
 
-  await recordAudit({
-    actorUserId: actor.id,
-    action: "academic-year:create",
-    targetType: "AcademicYear",
-    targetId: String(year),
-  });
 }
 
 export async function setCurrentYear(
@@ -54,17 +58,19 @@ export async function setCurrentYear(
 ): Promise<void> {
   await assertCan(actor, "academic-year:manage");
 
-  // 이미 현재 학년도면 기록도 남기지 않는다 (no-op으로 감사로그가 오염되지 않게).
-  const current = await repo.findCurrent();
-  if (current?.year === year) return;
+  await withTransaction(async (tx) => {
+    // 직전 학년도 조회와 전환을 같은 잠금/트랜잭션에서 수행한다. 그래야 병렬
+    // 전환이 끼어들어도 감사로그의 from이 실제 직전 값과 일치한다.
+    const result = await repo.setCurrent(year, tx);
+    // 이미 현재 학년도면 기록도 남기지 않는다 (no-op 감사로그 방지).
+    if (!result.changed) return;
 
-  await repo.setCurrent(year);
-
-  await recordAudit({
-    actorUserId: actor.id,
-    action: "academic-year:set-current",
-    targetType: "AcademicYear",
-    targetId: String(year),
-    metadata: { from: current?.year ?? null },
+    await recordAudit({
+      actorUserId: actor.id,
+      action: "academic-year:set-current",
+      targetType: "AcademicYear",
+      targetId: String(year),
+      metadata: { from: result.previousYear },
+    }, tx);
   });
 }

@@ -49,6 +49,10 @@ export type CreateRuleInput = z.infer<typeof createRuleSchema>;
  */
 export const updateRuleSchema = z.object({
   ruleId: z.string().trim().min(1),
+  updatedAt: z
+    .iso
+    .datetime("다른 관리자가 규정을 바꿨습니다. 새로고침 후 다시 저장해 주세요.")
+    .transform((value) => new Date(value)),
   label: labelSchema,
   points: positiveInt,
   category: optionalText(50),
@@ -64,6 +68,10 @@ export type UpdateRuleInput = z.infer<typeof updateRuleSchema>;
  */
 export const deleteRuleSchema = z.object({
   ruleId: z.string().trim().min(1),
+  updatedAt: z
+    .iso
+    .datetime("다른 관리자가 규정을 바꿨습니다. 새로고침 후 다시 삭제해 주세요.")
+    .transform((value) => new Date(value)),
   reason: z
     .string("삭제 사유를 입력해 주세요.")
     .trim()
@@ -91,6 +99,17 @@ const thresholdInt = (label: string) =>
       `${label} 기준은 1~${MAX_THRESHOLD} 사이여야 합니다.`,
     );
 
+/** 기준 화면이 읽은 행 revision. 아직 행이 없으면 빈 문자열 → null이다. */
+const thresholdUpdatedAt = z
+  .preprocess((v) => (v == null ? "" : v), z.string().trim())
+  .pipe(
+    z.union([
+      z.literal(""),
+      z.iso.datetime("다른 관리자가 기준을 바꿨습니다. 새로고침 후 다시 저장해 주세요."),
+    ]),
+  )
+  .transform((value) => (value === "" ? null : new Date(value)));
+
 /**
  * 벌점 기준 설정. 위험이 경고보다 커야 한다 — 같거나 작으면 경고 구간이
  * 통째로 사라지는데 화면에는 아무 이상이 없어 보인다.
@@ -98,6 +117,7 @@ const thresholdInt = (label: string) =>
 export const thresholdSchema = z
   .object({
     track: trackSchema,
+    updatedAt: thresholdUpdatedAt,
     warn: thresholdInt("경고"),
     danger: thresholdInt("위험"),
   })
@@ -171,4 +191,3 @@ export const studentHistoryExportSchema = z.object({
 });
 
 export type StudentHistoryExportInput = z.infer<typeof studentHistoryExportSchema>;
-

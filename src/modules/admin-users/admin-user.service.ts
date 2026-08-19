@@ -2,6 +2,7 @@ import { hashPassword } from "better-auth/crypto";
 import { recordAudit } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
 import { assertCan } from "@/core/authz/errors";
+import { withTransaction } from "@/core/db/client";
 import { formatDateInput, parseDateInputKst } from "@/lib/datetime";
 import { generateTempPassword } from "@/lib/temp-password";
 import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
@@ -9,6 +10,22 @@ import * as repo from "./admin-user.repo";
 import type { UpdateUserInput } from "./admin-user.schema";
 
 export class AdminUserError extends Error {}
+
+function isSerializationConflict(error: unknown): boolean {
+  if (typeof error !== "object" || error === null || !("code" in error)) {
+    return false;
+  }
+  if (error.code === "P2034") return true;
+  if (error.code !== "P2010" || !("meta" in error)) return false;
+
+  const meta = error.meta as {
+    driverAdapterError?: {
+      cause?: { originalCode?: unknown; kind?: unknown };
+    };
+  };
+  const cause = meta.driverAdapterError?.cause;
+  return cause?.originalCode === "40001" || cause?.kind === "TransactionWriteConflict";
+}
 
 export async function listUsers(actor: SessionUser) {
   await assertCan(actor, "user:manage");
@@ -106,43 +123,58 @@ export async function updateUser(
 
   // 셋을 한 트랜잭션으로 저장한다 — 절반만 저장되는 상태를 막는다.
   try {
-    await repo.updateUserAndEnrollment(userId, {
-      profile: profileChanged
-        ? { name: input.name, email: input.email, phone: input.phone }
-        : null,
-      studentProfile:
-        isStudent && birthDateChanged
-          ? {
-              studentProfileId: profile.id,
-              // 생년월일은 날짜만 의미가 있다. KST 자정으로 고정해 하루 밀림을 막는다.
-              birthDate: parseDateInputKst(input.birthDate!),
-            }
+    await withTransaction(async (tx) => {
+      if (assignmentChanged) {
+        const currentYear = await repo.findCurrentYearForUpdate(tx);
+        if (currentYear !== year) throw new AdminUserError("YEAR_CHANGED");
+      }
+
+      await repo.updateUserAndEnrollment(userId, {
+        expectedUpdatedAt: input.updatedAt,
+        profile: profileChanged
+          ? { name: input.name, email: input.email, phone: input.phone }
           : null,
-      enrollment:
-        isStudent && assignmentChanged
-          ? {
-              studentProfileId: profile.id,
-              year,
-              grade: input.grade!,
-              classNo: input.classNo!,
-              number: input.number!,
-            }
-          : null,
+        studentProfile:
+          isStudent && birthDateChanged
+            ? {
+                studentProfileId: profile.id,
+                // 생년월일은 날짜만 의미가 있다. KST 자정으로 고정해 하루 밀림을 막는다.
+                birthDate: parseDateInputKst(input.birthDate!),
+              }
+            : null,
+        enrollment:
+          isStudent && assignmentChanged
+            ? {
+                studentProfileId: profile.id,
+                year,
+                grade: input.grade!,
+                classNo: input.classNo!,
+                number: input.number!,
+              }
+            : null,
+      }, tx);
+
+      await recordAudit({
+        actorUserId: actor.id,
+        action: "user:update",
+        targetType: "User",
+        targetId: userId,
+        // 바뀐 값이 아니라 바뀐 항목 이름만 남긴다.
+        metadata: { changed },
+      }, tx);
     });
   } catch (error) {
     if (error instanceof repo.EmailTakenError) throw new AdminUserError("EMAIL_TAKEN");
     if (error instanceof repo.NumberTakenError) throw new AdminUserError("NUMBER_TAKEN");
+    if (error instanceof repo.UserRevisionConflictError) {
+      throw new AdminUserError("USER_CHANGED");
+    }
+    if (isSerializationConflict(error)) {
+      const currentYear = await repo.findCurrentYear();
+      throw new AdminUserError(currentYear === year ? "USER_CHANGED" : "YEAR_CHANGED");
+    }
     throw error;
   }
-
-  await recordAudit({
-    actorUserId: actor.id,
-    action: "user:update",
-    targetType: "User",
-    targetId: userId,
-    // 바뀐 값이 아니라 바뀐 항목 이름만 남긴다.
-    metadata: { changed },
-  });
 
   return { changed };
 }
@@ -165,13 +197,15 @@ export async function setUserActive(
   // 화면이 이 폼을 감추는 건 실수 방지일 뿐이라 서버에서도 막는다.
   if (target.deletedAt) throw new AdminUserError("ACCOUNT_DELETED");
 
-  await repo.setActive(userId, active);
+  await withTransaction(async (tx) => {
+    await repo.setActive(userId, active, tx);
 
-  await recordAudit({
-    actorUserId: actor.id,
-    action: active ? "user:activate" : "user:deactivate",
-    targetType: "User",
-    targetId: userId,
+    await recordAudit({
+      actorUserId: actor.id,
+      action: active ? "user:activate" : "user:deactivate",
+      targetType: "User",
+      targetId: userId,
+    }, tx);
   });
 }
 
@@ -190,27 +224,31 @@ export async function resetPassword(
   if (target.deletedAt) throw new AdminUserError("ACCOUNT_DELETED");
 
   const tempPassword = generateTempPassword();
-  const updated = await repo.resetCredential(userId, await hashPassword(tempPassword));
+  const passwordHash = await hashPassword(tempPassword);
 
-  if (updated === 0) {
-    // 비밀번호 로그인 수단이 없는 계정 — 초기화할 대상이 없다.
-    throw new AdminUserError("NO_CREDENTIAL_ACCOUNT");
-  }
+  await withTransaction(async (tx) => {
+    const updated = await repo.resetCredential(userId, passwordHash, tx);
 
-  await recordAudit({
-    actorUserId: actor.id,
-    action: "user:reset-password",
-    targetType: "User",
-    targetId: userId,
-    // 임시 비밀번호는 감사로그에도 남기지 않는다.
+    if (updated === 0) {
+      // 비밀번호 로그인 수단이 없는 계정 — 초기화할 대상이 없다.
+      throw new AdminUserError("NO_CREDENTIAL_ACCOUNT");
+    }
+
+    await recordAudit({
+      actorUserId: actor.id,
+      action: "user:reset-password",
+      targetType: "User",
+      targetId: userId,
+      // 임시 비밀번호는 감사로그에도 남기지 않는다.
+    }, tx);
   });
 
   return { tempPassword };
 }
 
 /**
- * 완전 삭제 (오등록 정리 전용). 되돌릴 수 없다. 명단에서 이미 빠진 계정만
- * 대상이며, 이름 대조도 화면이 아니라 여기가 강제한다.
+ * 완전 삭제 (오등록 정리 전용). 되돌릴 수 없다. 이름 대조도 화면이 아니라
+ * 여기가 강제하고, 삭제 직전 조건에도 다시 들어간다.
  */
 export async function deleteUserPermanently(
   actor: SessionUser,
@@ -221,18 +259,21 @@ export async function deleteUserPermanently(
 
   if (userId === actor.id) throw new AdminUserError("CANNOT_DELETE_SELF");
 
-  const target = await repo.findById(userId);
-  if (!target) throw new AdminUserError("NOT_FOUND");
-  if (!target.deletedAt) throw new AdminUserError("NOT_SOFT_DELETED");
-  if (target.name !== confirmName) throw new AdminUserError("NAME_MISMATCH");
+  await withTransaction(async (tx) => {
+    const target = await repo.findById(userId, tx);
+    if (!target) throw new AdminUserError("NOT_FOUND");
+    if (target.role !== "STUDENT") throw new AdminUserError("DELETE_STUDENT_ONLY");
+    if (target.name !== confirmName) throw new AdminUserError("NAME_MISMATCH");
 
-  await repo.deletePermanently(userId);
+    const deleted = await repo.deletePermanently(userId, confirmName, tx);
+    if (!deleted) throw new AdminUserError("NAME_MISMATCH");
 
-  await recordAudit({
-    actorUserId: actor.id,
-    action: "user:delete",
-    targetType: "User",
-    targetId: userId,
-    // 이름은 남기지 않는다 — 삭제된 사람의 개인정보가 감사로그에 남으면 안 된다.
-  });
+    await recordAudit({
+      actorUserId: actor.id,
+      action: "user:delete",
+      targetType: "User",
+      targetId: userId,
+      // 이름은 남기지 않는다 — 삭제된 사람의 개인정보가 감사로그에 남으면 안 된다.
+    }, tx);
+  }, { isolationLevel: "Serializable" });
 }

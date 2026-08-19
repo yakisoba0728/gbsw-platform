@@ -11,7 +11,9 @@ x-db-env: &db-env
 
 services:
   db:
-    image: postgres:18
+    # postgres:18 OCI index digest resolved 2026-08-19:
+    #   docker buildx imagetools inspect postgres:18
+    image: postgres:18@sha256:06cad38a5d9f5d24b4d83d86def30795d5e4b757fedbf5281172b576dedcd941
     container_name: gbsw-db
     restart: unless-stopped
     environment: *db-env
@@ -79,9 +81,8 @@ services:
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET를 .env에 설정해야 합니다}
       # 기본값(localhost)을 운영에서 빠뜨리면 세션 쿠키에 Secure가 안 붙는다 — 반드시 https:// 값을 넣게 한다.
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:?BETTER_AUTH_URL를 .env에 설정해야 합니다}
-      # 비우면(로컬 기본) 인증코드가 콘솔로 나간다 — 알리고 미설정 시의 의도된 동작.
-      # 지금까지는 여기 안 넘겨서 compose로 띄우면 SMS_*를 .env에 채워도 문자가
-      # 항상 콘솔로 나갔다.
+      # 현재 가입은 유효한 초대코드 뒤 즉시 확인 proof를 만들어 발송기를 호출하지
+      # 않는다. 아래 값은 실제 SMS 인증을 다시 켤 때 쓸 설정이라 보존한다.
       SMS_KEY: ${SMS_KEY:-}
       SMS_USER_ID: ${SMS_USER_ID:-}
       SMS_SENDER: ${SMS_SENDER:-}

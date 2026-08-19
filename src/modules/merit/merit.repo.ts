@@ -1,4 +1,5 @@
-import { prisma } from "@/core/db/client";
+import { prisma, type DbClient, withTransaction } from "@/core/db/client";
+import { isUniqueViolation } from "@/core/db/unique-violation";
 import {
   addKindPoints,
   addKindTotals,
@@ -15,8 +16,11 @@ import type { CreateRuleInput, UpdateRuleInput } from "./merit.schema";
 
 // ── 규정 ──────────────────────────────────────────────────────
 
-export async function createRule(input: CreateRuleInput): Promise<{ id: string }> {
-  const rule = await prisma.meritRule.create({
+export async function createRule(
+  input: CreateRuleInput,
+  db: DbClient = prisma,
+): Promise<{ id: string }> {
+  const rule = await db.meritRule.create({
     data: {
       track: input.track,
       kind: input.kind,
@@ -30,8 +34,8 @@ export async function createRule(input: CreateRuleInput): Promise<{ id: string }
   return rule;
 }
 
-export async function findRule(id: string) {
-  return prisma.meritRule.findUnique({
+export async function findRule(id: string, db: DbClient = prisma) {
+  return db.meritRule.findUnique({
     where: { id },
     select: {
       id: true,
@@ -42,17 +46,63 @@ export async function findRule(id: string) {
       category: true,
       description: true,
       active: true,
+      updatedAt: true,
     },
   });
+}
+
+export type MeritRuleSnapshot = NonNullable<Awaited<ReturnType<typeof findRule>>>;
+
+/**
+ * 부여는 규정 삭제와 같은 행을 잠근 뒤 상태를 본다. 그래야 삭제 트랜잭션이
+ * 먼저 커밋되면 비활성을 보고 멈추고, 부여가 먼저 잠그면 삭제가 그 뒤로 선다.
+ */
+export async function findRuleForUpdate(
+  id: string,
+  db: DbClient,
+): Promise<MeritRuleSnapshot | null> {
+  const rows = await db.$queryRaw<MeritRuleSnapshot[]>`
+    SELECT
+      "id",
+      "track",
+      "kind",
+      "label",
+      "points",
+      "category",
+      "description",
+      "active",
+      "updatedAt"
+    FROM "MeritRule"
+    WHERE "id" = ${id}
+    FOR UPDATE
+  `;
+  return rows[0] ?? null;
+}
+
+export async function findCurrentYearForUpdate(db: DbClient): Promise<number | null> {
+  await db.$queryRaw<Array<{ year: number }>>`
+    SELECT "year"
+    FROM "AcademicYear"
+    ORDER BY "year"
+    FOR UPDATE
+  `;
+
+  const current = await db.academicYear.findFirst({
+    where: { isCurrent: true },
+    select: { year: true },
+  });
+  return current?.year ?? null;
 }
 
 /** track·kind는 인자에 없다 — 생성 시 고정이다. */
 export async function updateRule(
   id: string,
-  data: Omit<UpdateRuleInput, "ruleId">,
-): Promise<void> {
-  await prisma.meritRule.update({
-    where: { id },
+  data: Omit<UpdateRuleInput, "ruleId" | "updatedAt">,
+  expectedUpdatedAt: Date,
+  db: DbClient = prisma,
+): Promise<boolean> {
+  const { count } = await db.meritRule.updateMany({
+    where: { id, updatedAt: expectedUpdatedAt },
     data: {
       label: data.label,
       points: data.points,
@@ -60,14 +110,23 @@ export async function updateRule(
       description: data.description,
     },
   });
+  return count === 1;
 }
 
 /**
  * 규정 삭제. 행은 지우지 않고 active를 내린다 — 이미 나간 부여가 ruleId를
  * 참조한다(onDelete: Restrict).
  */
-export async function markRuleDeleted(id: string): Promise<void> {
-  await prisma.meritRule.update({ where: { id }, data: { active: false } });
+export async function markRuleDeleted(
+  id: string,
+  expectedUpdatedAt: Date,
+  db: DbClient = prisma,
+): Promise<number> {
+  const { count } = await db.meritRule.updateMany({
+    where: { id, active: true, updatedAt: expectedUpdatedAt },
+    data: { active: false },
+  });
+  return count;
 }
 
 /**
@@ -114,6 +173,7 @@ export async function listRules(track: MeritTrack) {
       category: true,
       description: true,
       active: true,
+      updatedAt: true,
     },
   });
 
@@ -136,30 +196,77 @@ export async function listActiveRules(track: MeritTrack) {
  * 저장된 기준 전부. 행이 트랙 수만큼이라 한 번에 다 읽는다.
  * 없는 트랙은 빠져 나오고, 기본값으로 채우는 일은 서비스가 한다.
  */
-export async function listThresholds() {
-  return prisma.meritThreshold.findMany({
-    select: {
-      track: true,
-      warn: true,
-      danger: true,
-      updatedAt: true,
-      updatedByName: true,
-    },
+const THRESHOLD_SELECT = {
+  track: true,
+  warn: true,
+  danger: true,
+  updatedAt: true,
+  updatedByName: true,
+} as const;
+
+export async function listThresholds(db: DbClient = prisma) {
+  return db.meritThreshold.findMany({
+    select: THRESHOLD_SELECT,
+  });
+}
+
+export async function findThreshold(track: MeritTrack, db: DbClient = prisma) {
+  return db.meritThreshold.findUnique({
+    where: { track },
+    select: THRESHOLD_SELECT,
   });
 }
 
 export type ThresholdWrite = {
-  track: string;
+  track: MeritTrack;
   warn: number;
   danger: number;
   updatedByUserId: string;
   updatedByName: string;
 };
 
-/** 기준 저장. 트랙마다 행이 하나라 upsert다. */
-export async function upsertThreshold(data: ThresholdWrite): Promise<void> {
+function isThresholdCreateConflict(error: unknown): boolean {
+  return (
+    isUniqueViolation(error, "track") ||
+    (typeof error === "object" &&
+      error !== null &&
+      (error as { code?: unknown }).code === "P2002")
+  );
+}
+
+export async function createThreshold(
+  data: ThresholdWrite,
+  db: DbClient = prisma,
+): Promise<boolean> {
+  try {
+    await db.meritThreshold.create({ data });
+    return true;
+  } catch (error) {
+    if (isThresholdCreateConflict(error)) return false;
+    throw error;
+  }
+}
+
+export async function updateThreshold(
+  data: ThresholdWrite,
+  expectedUpdatedAt: Date,
+  db: DbClient = prisma,
+): Promise<boolean> {
   const { track, ...rest } = data;
-  await prisma.meritThreshold.upsert({
+  const { count } = await db.meritThreshold.updateMany({
+    where: { track, updatedAt: expectedUpdatedAt },
+    data: rest,
+  });
+  return count === 1;
+}
+
+/** @deprecated Use createThreshold/updateThreshold so callers keep revision checks. */
+export async function upsertThreshold(
+  data: ThresholdWrite,
+  db: DbClient = prisma,
+): Promise<void> {
+  const { track, ...rest } = data;
+  await db.meritThreshold.upsert({
     where: { track },
     create: { track, ...rest },
     update: rest,
@@ -183,8 +290,11 @@ export type NewAward = {
   awardedByName: string;
 };
 
-export async function createAward(data: NewAward): Promise<{ id: string }> {
-  return prisma.meritAward.create({ data, select: { id: true } });
+export async function createAward(
+  data: NewAward,
+  db: DbClient = prisma,
+): Promise<{ id: string }> {
+  return db.meritAward.create({ data, select: { id: true } });
 }
 
 export async function findAward(id: string) {
@@ -211,8 +321,9 @@ export async function findAward(id: string) {
 export async function cancelAward(
   id: string,
   by: { userId: string; name: string; reason: string },
+  db: DbClient = prisma,
 ): Promise<number> {
-  const result = await prisma.meritAward.updateMany({
+  const result = await db.meritAward.updateMany({
     where: { id, status: "ACTIVE" },
     data: {
       status: "CANCELLED",
@@ -307,17 +418,24 @@ export async function findAwardableStudent(id: string) {
  * 여러 건을 한 트랜잭션으로 넣는다. createMany가 아닌 이유는 감사로그를 건별로
  * 남기려면 각 행의 id가 필요해서다.
  */
-export async function createAwards(items: NewAward[]): Promise<{ id: string }[]> {
-  return prisma.$transaction(
-    async (tx) => {
-      const created: { id: string }[] = [];
-      for (const item of items) {
-        created.push(
-          await tx.meritAward.create({ data: item, select: { id: true } }),
-        );
-      }
-      return created;
-    },
+export async function createAwards(
+  items: NewAward[],
+  db?: DbClient,
+): Promise<{ id: string }[]> {
+  const run = async (client: DbClient) => {
+    const created: { id: string }[] = [];
+    for (const item of items) {
+      created.push(
+        await client.meritAward.create({ data: item, select: { id: true } }),
+      );
+    }
+    return created;
+  };
+
+  if (db) return run(db);
+
+  return withTransaction(
+    run,
     // 100명 × 1문장. 기본 5초로도 충분하지만 느린 디스크에서 여유를 둔다.
     { timeout: 30_000, maxWait: 5_000 },
   );

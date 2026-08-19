@@ -26,7 +26,7 @@ type Props = {
   format?: (raw: string) => string;
 };
 
-/** 값 입력 + 인증번호 확인 한 묶음. 폼 중첩이 안 되므로 액션을 직접 호출한다. */
+/** 값 입력 + 확인 한 묶음. 폼 중첩이 안 되므로 액션을 직접 호출한다. */
 export function VerifiedField({
   channel,
   inviteCode,
@@ -69,9 +69,16 @@ export function VerifiedField({
         setError(result.error);
         return;
       }
+      if (result.verified) {
+        setVerifiedValue(value);
+        setSent(false);
+        setCode("");
+        setPrefill(null);
+        return;
+      }
       setSent(true);
 
-      // 목업이면 받은 코드를 입력칸에 바로 채운다.
+      // 예전 목업이면 받은 코드를 입력칸에 바로 채운다.
       if (result.mockCode) {
         setCode(result.mockCode);
         setPrefill((prev) => ({
@@ -140,7 +147,7 @@ export function VerifiedField({
             disabled={pending || value.length === 0}
             className="shrink-0"
           >
-            {sent ? "재발송" : "인증"}
+            {sent ? "재확인" : "확인"}
           </Button>
         )}
       </div>

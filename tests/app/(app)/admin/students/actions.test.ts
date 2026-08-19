@@ -56,6 +56,7 @@ function form(fields: Record<string, string>): FormData {
 /** student-table.tsx가 만드는 한 줄 그대로 — 빈 칸은 null로 접힌다. */
 const CHANGE = {
   studentProfileId: "sp-1",
+  expectedUpdatedAt: null,
   grade: 1,
   classNo: 2,
   number: 13,
@@ -94,6 +95,7 @@ describe("saveEnrollmentsAction — 경계 검증", () => {
   it("빈 칸은 null로 온다 — 재학이 아닌 줄이 그대로 통과한다", async () => {
     const left = {
       studentProfileId: "sp-2",
+      expectedUpdatedAt: null,
       grade: null,
       classNo: null,
       number: null,
@@ -107,6 +109,23 @@ describe("saveEnrollmentsAction — 경계 검증", () => {
 
     expect(saveEnrollments).toHaveBeenCalledWith(expect.anything(), [left], 2026);
     expect(state.error).toBeNull();
+  });
+
+  it("재적 revision을 Date로 바꿔 서비스에 전달한다", async () => {
+    const revision = "2026-08-19T01:02:03.000Z";
+
+    await saveEnrollmentsAction(
+      SAVE_INITIAL,
+      saveForm({
+        changes: JSON.stringify([{ ...CHANGE, expectedUpdatedAt: revision }]),
+      }),
+    );
+
+    expect(saveEnrollments).toHaveBeenCalledWith(
+      expect.anything(),
+      [expect.objectContaining({ expectedUpdatedAt: new Date(revision) })],
+      2026,
+    );
   });
 
   it("바뀐 줄이 없으면 서비스를 부르지 않는다", async () => {

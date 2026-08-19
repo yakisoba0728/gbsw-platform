@@ -75,7 +75,7 @@
 - **초대 기반 가입.** 공개 가입 경로가 없다
 - 학생이 직접 학부모 초대코드를 발급한다
 - 최초 관리자는 **서버 콘솔에만 찍히는 1회성 토큰**으로 만든다 (사용자 0명일 때만)
-- 휴대폰/이메일 인증코드 (알리고 SMS 연동, 미설정 시 콘솔 출력)
+- 휴대폰/이메일 확인은 임시로 초대코드 확인 직후 서버 proof를 만든다. 가입 때 proof를 한 번 소진한다
 
 ### 감사로그
 - 생성·수정·삭제와 **권한 거부(`authz:denied`)까지** 기록
@@ -144,7 +144,7 @@ tests/                  구조를 src/와 맞춘다
 
 ## 시작하기
 
-필요한 것: **Node 20.12+** (개발은 24에서 확인), **Docker**.
+필요한 것: **Node 24** (최소 20.12+), **Docker**.
 
 ```bash
 cp .env.example .env
@@ -193,13 +193,14 @@ npm run dev                    # http://localhost:3000
 | 명령 | 설명 |
 |---|---|
 | `npm run dev` | 개발 서버 |
-| `npm run verify` | **타입체크 + 린트 + 테스트** (작업 종료 전 필수) |
-| `npm test` | Vitest 단위 테스트 — 실 DB 없이 돈다. CI가 도는 대상 |
+| `npm run verify:unit` | 빠른 검증 — `next typegen` 기반 타입체크 + 린트 + 단위 테스트 |
+| `npm run verify` | 완전 검증 — 빠른 검증 + 테스트 DB 준비 + 통합 테스트 + 프로덕션 빌드 |
+| `npm test` | Vitest 단위 테스트 — 실 DB 없이 돈다. CI의 단위 검증 job이 도는 대상 |
 | `npm run test:integration` | repo 계층 통합 테스트 (실 Postgres) |
 | `npm run db:up` / `db:migrate` / `db:studio` | Postgres 컨테이너 · 마이그레이션 · Prisma Studio |
 | `npm run db:test:setup` | 통합 테스트 전용 DB(`gbsw_test`) 생성 + 마이그레이션 |
 | `npm run seed:merit` | 상벌점 규정 초기 투입 (멱등) |
-| `npm run seed:demo` | 시연용 데이터 (`-- --clean`으로 제거) |
+| `npm run seed:demo -- --yes-local-demo-db` | 시연용 데이터 (`-- --clean --yes-local-demo-db`로 제거) |
 
 ---
 
@@ -212,12 +213,15 @@ npm run dev                    # http://localhost:3000
 실제로 도는지, 초대코드 동시 사용에서 하나만 통과하는지, 유일 제약이 실제로 걸리는지.
 
 ```bash
+npm run verify:unit         # 빠른 로컬 확인: DB 컨테이너 없이 돈다
 npm run db:test:setup       # gbsw_test 생성 (개발 DB와 완전히 분리)
 npm run test:integration
+npm run verify              # 완전 검증: Docker로 gbsw-db가 떠 있어야 한다
 ```
 
 개발 DB(`gbsw`)와 **데이터베이스 이름 자체가 다르다.** 통합 테스트가 실 계정·감사로그를
-건드릴 수 없게 하는 안전장치다. `npm run verify`에는 포함되지 않는다 — CI는 DB 없이 돈다.
+건드릴 수 없게 하는 안전장치다. `npm run verify:unit`은 빠르게 돌리는 기본 확인이고,
+`npm run verify`는 Docker의 `gbsw-db` 컨테이너를 전제로 통합 테스트와 `next build`까지 돈다.
 
 ---
 
@@ -265,8 +269,9 @@ nginx·Caddy 설정, 최초 관리자 만들기, 배포 후 확인 다섯 가지
   화면을 마스킹 대상에 넣는다.
 - **감사로그가 접속 IP를 보여주는데 보존 기간 정책이 없다.** IP도 개인정보다. 얼마나 오래
   남길지, 언제 IP만 지울지를 업무 모듈이 늘기 전에 정해야 한다.
-- **인증코드 발송 남용이 감사로그에 안 보인다.** 대상별 5회/시간·IP별 20회/시간 제한이
-  막기는 하지만, "누가 얼마나 시도했나"를 나중에 되짚을 자료는 없다.
+- **인증 확인 요청 남용이 감사로그에 안 보인다.** 실제 코드 발송과 임시 즉시 확인 proof
+  발급 모두 대상별 5회/시간·IP별 20회/시간 제한이 막기는 하지만, "누가 얼마나
+  시도했나"를 나중에 되짚을 자료는 없다.
 - **`AcademicYear_single_current` 부분 유니크 인덱스가 마이그레이션 SQL에만 있다.** Prisma가
   표현하지 못해 다음 `migrate dev`가 `DROP INDEX`를 만들 수 있다. 마이그레이션을 새로 만들면
   생성된 SQL을 눈으로 확인한다.

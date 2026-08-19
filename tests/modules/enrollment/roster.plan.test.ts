@@ -27,6 +27,7 @@ const 재학생 = {
   classNo: 3,
   number: 3,
   status: "ENROLLED",
+  hasGraduatedEnrollment: false,
   accountActive: true,
 };
 
@@ -209,15 +210,22 @@ describe("planRoster()", () => {
     expect(plan.hasBlockingError).toBe(false);
   });
 
-  it("명단에 없으면 학적과 무관하게 missingFromFile에 들어간다", () => {
-    const 졸업생 = { ...재학생, studentProfileId: "sp-2", userId: "u-2", studentCode: "BCDF2345", status: "GRADUATED" };
+  it("명단에 없는 졸업생은 물리 삭제 대상에서 제외한다", () => {
+    const 졸업생 = {
+      ...재학생,
+      studentProfileId: "sp-2",
+      userId: "u-2",
+      studentCode: "BCDF2345",
+      status: "GRADUATED",
+      hasGraduatedEnrollment: true,
+    };
 
     const plan = planRoster([], [재학생, 졸업생]);
 
-    expect(plan.missingFromFile).toHaveLength(2);
+    expect(plan.missingFromFile).toHaveLength(1);
     const ids = plan.missingFromFile.map((s) => s.studentProfileId);
     expect(ids).toContain("sp-1");
-    expect(ids).toContain("sp-2");
+    expect(ids).not.toContain("sp-2");
     expect(plan.hasBlockingError).toBe(false);
   });
 
@@ -230,39 +238,33 @@ describe("planRoster()", () => {
     expect(plan.missingFromFile[0]!.studentProfileId).toBe("sp-1");
   });
 
+  it("이전 학년도 졸업 기록이 있으면 올해 배정이 없어도 물리 삭제 대상에서 제외한다", () => {
+    const 과거졸업생 = {
+      ...재학생,
+      status: null,
+      grade: null,
+      classNo: null,
+      number: null,
+      hasGraduatedEnrollment: true,
+    };
+
+    const plan = planRoster([], [과거졸업생]);
+
+    expect(plan.missingFromFile).toHaveLength(0);
+  });
+
   it("문제가 없으면 확정을 막지 않는다", () => {
     const plan = planRoster([row({ classNo: 5 })], [재학생]);
     expect(plan.hasBlockingError).toBe(false);
   });
 
-  /*
-   * 예전엔 여기에 totalStudents(대량 삭제 임계의 분모) 테스트가 넷 있었다 —
-   * 졸업생·미배정·소프트 삭제된 학생을 분모에서 빼서 임계가 부풀지 않게 하는 것이
-   * 그 테스트들이 지키던 보증이다. 임계 자체가 없어졌으므로(삭제가 1명이라도 있으면
-   * 인원 수를 늘 요구한다) 분모도 함께 사라졌고, 그 보증은
-   * roster.service.test.ts의 "삭제 인원 대조 — 삭제 대상이 하나라도 있으면 늘
-   * 요구한다 (I-3)"가 더 강하게 이어받았다. 분모를 어떻게 세든 확인을 건너뛸 수
-   * 없으므로, 분모를 지키던 테스트는 지킬 대상이 없다.
-   *
-   * 소프트 삭제된 학생을 missingFromFile에서 빼는 규칙은 임계와 무관하게 남아 있어
-   * 아래 describe가 계속 지킨다.
-   */
+  describe("예전 deletedAt 표시가 남아 있는 입력", () => {
+    it("명단에 없으면 deleted 표시와 무관하게 missingFromFile에 들어간다", () => {
+      const 예전삭제표시 = { ...재학생, deleted: true };
+      const plan = planRoster([], [예전삭제표시]);
 
-  describe("소프트 삭제된 학생 — 명단에 다시 나타나면 되살아난다", () => {
-    it("이미 삭제된 학생은 missingFromFile에 다시 들어가지 않는다", () => {
-      const 이미삭제됨 = { ...재학생, deleted: true };
-      const plan = planRoster([], [이미삭제됨]);
-
-      expect(plan.missingFromFile).toHaveLength(0);
-    });
-
-    it("삭제된 학생도 원래 학생코드로 다시 이어붙는다", () => {
-      const 삭제된학생 = { ...재학생, status: null, grade: null, classNo: null, number: null, deleted: true };
-      const plan = planRoster([row()], [삭제된학생]);
-
-      expect(plan.needsAttention).toHaveLength(0);
-      expect(plan.newAssignment).toHaveLength(1);
-      expect(plan.newAssignment[0]!.studentProfileId).toBe("sp-1");
+      expect(plan.missingFromFile).toHaveLength(1);
+      expect(plan.missingFromFile[0]!.studentProfileId).toBe("sp-1");
     });
   });
 });
@@ -329,6 +331,7 @@ describe("planRoster() + normalizeRows() — 회귀: 명단 업로드의 학년�
           classNo: null,
           number: null,
           status: null,
+          hasGraduatedEnrollment: false,
           accountActive: true,
         };
         const rows = normalizeRows([

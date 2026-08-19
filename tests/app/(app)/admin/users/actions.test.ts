@@ -59,6 +59,7 @@ function form(fields: Record<string, string>): FormData {
 function studentForm(over: Record<string, string> = {}): FormData {
   return form({
     userId: "u-1",
+    updatedAt: "2026-08-19T00:00:00.000Z",
     name: "홍길동",
     email: "hong@gbsw.hs.kr",
     phone: "010-1234-5678",
@@ -74,6 +75,7 @@ function studentForm(over: Record<string, string> = {}): FormData {
 function adminForm(over: Record<string, string> = {}): FormData {
   return form({
     userId: "u-2",
+    updatedAt: "2026-08-19T00:00:00.000Z",
     name: "김교사",
     email: "kim@gbsw.hs.kr",
     phone: "010-2222-3333",
@@ -99,6 +101,7 @@ describe("updateUserAction — 경계 검증", () => {
       name: "홍길동",
       email: "hong@gbsw.hs.kr",
       phone: "010-1234-5678",
+      updatedAt: new Date("2026-08-19T00:00:00.000Z"),
       birthDate: "2010-03-02",
       grade: 1,
       classNo: 2,
@@ -197,6 +200,14 @@ describe("updateUserAction — 경계 검증", () => {
     expect(state.error).toBe("같은 반에 같은 번호가 있습니다.");
   });
 
+  it("다른 곳에서 먼저 저장된 폼이면 충돌을 알린다", async () => {
+    updateUser.mockRejectedValueOnce(new AdminUserError("USER_CHANGED"));
+
+    const state = await updateUserAction(UPDATE_INITIAL, studentForm());
+
+    expect(state.error).toBe("계정 정보가 다른 곳에서 바뀌었습니다. 새로고침 후 다시 저장해 주세요.");
+  });
+
   it("사전에 없는 오류는 영문을 화면에 흘리지 않는다", async () => {
     updateUser.mockRejectedValueOnce(new Error("connect ECONNREFUSED"));
 
@@ -227,6 +238,16 @@ describe("updateUserAction — 경계 검증", () => {
 
     expect(updateUser).not.toHaveBeenCalled();
     expect(state.error).toBe("계정을 찾을 수 없습니다.");
+  });
+
+  it("updatedAt이 없으면 서비스를 부르지 않는다", async () => {
+    const fd = studentForm();
+    fd.delete("updatedAt");
+
+    const state = await updateUserAction(UPDATE_INITIAL, fd);
+
+    expect(updateUser).not.toHaveBeenCalled();
+    expect(state.error).toBe("계정 정보가 다른 곳에서 바뀌었습니다. 새로고침 후 다시 저장해 주세요.");
   });
 
   it("검증에 걸리면 화면을 다시 그리지 않는다", async () => {
@@ -414,9 +435,9 @@ describe("deleteUserPermanentlyAction — 경계 검증", () => {
     expect(redirect).not.toHaveBeenCalled();
   });
 
-  it("소프트 삭제되지 않은 계정은 그 이유를 알린다", async () => {
+  it("학생 계정이 아니면 삭제하지 못한다고 알린다", async () => {
     deleteUserPermanently.mockRejectedValueOnce(
-      new AdminUserError("NOT_SOFT_DELETED"),
+      new AdminUserError("DELETE_STUDENT_ONLY"),
     );
 
     const state = await deleteUserPermanentlyAction(
@@ -424,7 +445,7 @@ describe("deleteUserPermanentlyAction — 경계 검증", () => {
       form({ userId: "u-1", confirmName: "홍길동" }),
     );
 
-    expect(state.error).toContain("완전 삭제할 수 있습니다");
+    expect(state.error).toBe("학생 계정만 삭제할 수 있습니다.");
   });
 
   it("권한 거부를 '완전히 삭제하지 못했습니다'로 덮지 않는다", async () => {

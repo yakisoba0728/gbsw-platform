@@ -48,6 +48,7 @@ function createForm(over: Record<string, string> = {}): FormData {
 function updateForm(over: Record<string, string> = {}): FormData {
   return form({
     ruleId: "rule-1",
+    updatedAt: "2026-08-19T00:00:00.000Z",
     label: "점호 지각",
     points: "3",
     category: "생활",
@@ -167,6 +168,14 @@ describe("updateRuleAction — 경계 검증", () => {
     expect(state.error).toBe("규정을 찾을 수 없습니다.");
   });
 
+  it("다른 관리자의 선행 수정을 명확히 알린다", async () => {
+    updateRule.mockRejectedValueOnce(new MeritError("RULE_CONFLICT"));
+
+    const state = await updateRuleAction(INITIAL, updateForm());
+
+    expect(state.error).toContain("다른 관리자");
+  });
+
   it("사전에 없는 코드는 영문 코드를 화면에 흘리지 않는다", async () => {
     updateRule.mockRejectedValueOnce(new MeritError("SOME_NEW_CODE"));
 
@@ -177,28 +186,34 @@ describe("updateRuleAction — 경계 검증", () => {
 });
 
 describe("deleteRuleAction — 경계 검증", () => {
+  const updatedAt = "2026-08-19T00:00:00.000Z";
+
   it("ruleId와 사유가 함께 서비스까지 도달한다", async () => {
     const state = await deleteRuleAction(
       INITIAL,
-      form({ ruleId: "rule-1", reason: "규정 개정" }),
+      form({ ruleId: "rule-1", updatedAt, reason: "규정 개정" }),
     );
 
     expect(deleteRule).toHaveBeenCalledWith(expect.anything(), {
       ruleId: "rule-1",
+      updatedAt: new Date(updatedAt),
       reason: "규정 개정",
     });
     expect(state).toEqual({ error: null, ok: true });
   });
 
   it("ruleId가 없으면 서비스를 부르지 않는다", async () => {
-    const state = await deleteRuleAction(INITIAL, form({ reason: "x" }));
+    const state = await deleteRuleAction(INITIAL, form({ updatedAt, reason: "x" }));
 
     expect(deleteRule).not.toHaveBeenCalled();
     expect(state.error).not.toBeNull();
   });
 
   it("사유가 없으면 서비스를 부르지 않는다 — 감사로그에 남길 것이 없다", async () => {
-    const state = await deleteRuleAction(INITIAL, form({ ruleId: "rule-1" }));
+    const state = await deleteRuleAction(
+      INITIAL,
+      form({ ruleId: "rule-1", updatedAt }),
+    );
 
     expect(deleteRule).not.toHaveBeenCalled();
     expect(state.error).toBe("삭제 사유를 입력해 주세요.");
@@ -207,7 +222,7 @@ describe("deleteRuleAction — 경계 검증", () => {
   it("공백만 있는 사유는 사유가 아니다", async () => {
     const state = await deleteRuleAction(
       INITIAL,
-      form({ ruleId: "rule-1", reason: "   " }),
+      form({ ruleId: "rule-1", updatedAt, reason: "   " }),
     );
 
     expect(deleteRule).not.toHaveBeenCalled();

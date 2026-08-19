@@ -102,7 +102,12 @@ export default async function RulesPage({
       {filtering && rules.length === 0 ? (
         <EmptyState>조건에 맞는 규정이 없습니다.</EmptyState>
       ) : (
-        <RuleTable rules={rules} />
+        <RuleTable
+          rules={rules.map((rule) => ({
+            ...rule,
+            updatedAt: rule.updatedAt.toISOString(),
+          }))}
+        />
       )}
     </div>
   );

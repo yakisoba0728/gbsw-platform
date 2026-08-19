@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
 import { recordAudit } from "@/core/audit/audit";
+import { withTransaction } from "@/core/db/client";
 import * as repo from "./bootstrap.repo";
 import type { BootstrapInput } from "./bootstrap.schema";
 import {
@@ -58,25 +59,28 @@ export async function createInitialAdmin(
   const userId = randomUUID();
 
   try {
-    await repo.createAdminUser({
-      userId,
-      accountId: randomUUID(),
-      name: input.name,
-      email: input.email,
-      phone: input.phone,
-      // Better Auth가 로그인 때 쓰는 것과 같은 해시 함수.
-      passwordHash: await hashPassword(input.password),
+    const passwordHash = await hashPassword(input.password);
+
+    await withTransaction(async (tx) => {
+      await repo.createAdminUser({
+        userId,
+        accountId: randomUUID(),
+        name: input.name,
+        email: input.email,
+        phone: input.phone,
+        passwordHash,
+      }, tx);
+
+      await recordAudit({
+        actorUserId: userId,
+        action: "account:bootstrap",
+        targetType: "User",
+        targetId: userId,
+      }, tx);
     });
   } catch (error) {
-    // 생성이 실패했으면 부트스트랩은 여전히 필요하다. 토큰을 되돌린다.
+    // 생성이나 감사가 실패했으면 부트스트랩은 여전히 필요하다. 토큰을 되돌린다.
     restoreToken(token);
     throw error;
   }
-
-  await recordAudit({
-    actorUserId: userId,
-    action: "account:bootstrap",
-    targetType: "User",
-    targetId: userId,
-  });
 }

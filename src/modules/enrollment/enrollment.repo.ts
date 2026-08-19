@@ -1,4 +1,4 @@
-import { prisma } from "@/core/db/client";
+import { prisma, type DbClient, withTransaction } from "@/core/db/client";
 import { isUniqueViolation, NumberTakenError } from "@/core/db/unique-violation";
 import type { EnrollmentChange } from "./enrollment.schema";
 
@@ -7,12 +7,21 @@ import type { EnrollmentChange } from "./enrollment.schema";
 /** 기존 import 경로를 깨지 않기 위해 re-export한다. 실물은 core/db에 하나뿐이다. */
 export { NumberTakenError };
 
+/** 저장 트랜잭션 안에서 현재 학년도를 다시 대조하기 위한 가벼운 조회. */
+export async function findCurrentYear(db: DbClient = prisma): Promise<number | null> {
+  const current = await db.academicYear.findFirst({
+    where: { isCurrent: true },
+    select: { year: true },
+  });
+  return current?.year ?? null;
+}
+
 /**
  * 그 학년도의 학생 전원. 배정이 없는 학생도 포함한다 — 학년도가 막 넘어가면
  * 전원이 그 상태다. 관리자로 승격된 계정은 프로필이 남아 있어도 뺀다.
  */
-export async function listByYear(year: number) {
-  const profiles = await prisma.studentProfile.findMany({
+export async function listByYear(year: number, db: DbClient = prisma) {
+  const profiles = await db.studentProfile.findMany({
     // 표 편집은 지금 다니는 학생을 다루는 화면이라 명단에서 빠진 학생은 뺀다.
     where: { user: { role: "STUDENT", deletedAt: null } },
     select: {
@@ -23,6 +32,7 @@ export async function listByYear(year: number) {
         where: { year },
         take: 1,
         select: {
+          updatedAt: true,
           number: true,
           status: true,
           schoolClass: { select: { grade: true, classNo: true } },
@@ -40,6 +50,7 @@ export async function listByYear(year: number) {
       email: p.user.email,
       birthDate: p.birthDate,
       accountActive: p.user.status === "ACTIVE",
+      enrollmentUpdatedAt: e?.updatedAt ?? null,
       grade: e?.schoolClass?.grade ?? null,
       classNo: e?.schoolClass?.classNo ?? null,
       number: e?.number ?? null,
@@ -50,7 +61,7 @@ export async function listByYear(year: number) {
 }
 
 /** applyAll에 넘기는 한 학생분의 반영 내용. 검증·정리는 서비스가 이미 끝낸 상태다. */
-export type PlannedEnrollment = EnrollmentChange & {
+export type PlannedEnrollment = Omit<EnrollmentChange, "expectedUpdatedAt"> & {
   userId: string;
   /** 계정이 최종적으로 활성이어야 하는지. statusChanged가 false면 안 쓴다. */
   accountActive: boolean;
@@ -65,58 +76,73 @@ export type PlannedEnrollment = EnrollmentChange & {
 export async function applyAll(
   year: number,
   items: PlannedEnrollment[],
+  db?: DbClient,
 ): Promise<void> {
-  try {
-    await prisma.$transaction(
-      async (tx) => {
-        for (const item of items) {
-          let classId: string | null = null;
+  const run = async (tx: DbClient) => {
+    for (const item of items) {
+      let classId: string | null = null;
 
-          if (item.grade !== null && item.classNo !== null) {
-            const schoolClass = await tx.schoolClass.upsert({
-              where: {
-                year_grade_classNo: {
-                  year,
-                  grade: item.grade,
-                  classNo: item.classNo,
-                },
-              },
-              create: { year, grade: item.grade, classNo: item.classNo },
-              update: {},
-            });
-            classId = schoolClass.id;
-          }
-
-          await tx.enrollment.upsert({
-            where: {
-              studentProfileId_year: {
-                studentProfileId: item.studentProfileId,
-                year,
-              },
-            },
-            create: {
-              studentProfileId: item.studentProfileId,
+      if (item.grade !== null && item.classNo !== null) {
+        const schoolClass = await tx.schoolClass.upsert({
+          where: {
+            year_grade_classNo: {
               year,
-              classId,
-              number: item.number,
-              status: item.status,
+              grade: item.grade,
+              classNo: item.classNo,
             },
-            update: { classId, number: item.number, status: item.status },
-          });
+          },
+          create: { year, grade: item.grade, classNo: item.classNo },
+          update: {},
+        });
+        classId = schoolClass.id;
+      }
 
-          if (item.statusChanged) {
-            await tx.user.update({
-              where: { id: item.userId },
-              data: { status: item.accountActive ? "ACTIVE" : "INACTIVE" },
-            });
+      await tx.enrollment.upsert({
+        where: {
+          studentProfileId_year: {
+            studentProfileId: item.studentProfileId,
+            year,
+          },
+        },
+        create: {
+          studentProfileId: item.studentProfileId,
+          year,
+          classId,
+          number: item.number,
+          status: item.status,
+        },
+        update: { classId, number: item.number, status: item.status },
+      });
 
-            // 비활성으로 넘어가면 남아 있는 세션도 끊는다.
-            if (!item.accountActive) {
-              await tx.session.deleteMany({ where: { userId: item.userId } });
-            }
-          }
+      if (item.statusChanged) {
+        await tx.user.update({
+          where: { id: item.userId },
+          data: { status: item.accountActive ? "ACTIVE" : "INACTIVE" },
+        });
+
+        // 비활성으로 넘어가면 남아 있는 세션도 끊는다.
+        if (!item.accountActive) {
+          await tx.session.deleteMany({ where: { userId: item.userId } });
         }
-      },
+      } else {
+        // User.updatedAt은 사용자 상세 편집의 aggregate revision이다. 재적만 바뀌어도
+        // 이를 올려 오래된 상세 폼이 최신 명단 변경을 되돌리지 못하게 한다.
+        await tx.user.update({
+          where: { id: item.userId },
+          data: { updatedAt: new Date() },
+        });
+      }
+    }
+  };
+
+  try {
+    if (db) {
+      await run(db);
+      return;
+    }
+
+    await withTransaction(
+      run,
       // 500행 상한 × 학생당 최대 4개 문장 — 기본 5초 타임아웃으로는 부족할 수 있다.
       { timeout: 30_000, maxWait: 5_000 },
     );

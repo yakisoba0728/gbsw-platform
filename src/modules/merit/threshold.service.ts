@@ -2,6 +2,7 @@ import { cache } from "react";
 import { recordAudit } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
 import { assertCan } from "@/core/authz/errors";
+import { withTransaction } from "@/core/db/client";
 import {
   DEFAULT_DEMERIT_THRESHOLDS,
   isMeritTrack,
@@ -108,36 +109,61 @@ export async function setDemeritThresholds(
   // 사라지는데 화면에는 아무 이상이 없어 보인다. 폼을 안 거치는 호출부도 막는다.
   if (input.danger <= input.warn) throw new MeritError("INVALID_THRESHOLD_ORDER");
 
-  const rows = await repo.listThresholds();
-  const current = rows.find((row) => row.track === input.track);
-
-  if (current && current.warn === input.warn && current.danger === input.danger) {
-    return;
-  }
-
-  await repo.upsertThreshold({
-    track: input.track,
-    warn: input.warn,
-    danger: input.danger,
-    updatedByUserId: actor.id,
-    updatedByName: actor.name,
-  });
-
-  // "이전"은 실제로 쓰이던 값이다 — 행이 없었으면 화면이 보여주던 코드 기본값이다.
-  const before = current ?? DEFAULT_DEMERIT_THRESHOLDS[input.track];
-
-  await recordAudit({
-    actorUserId: actor.id,
-    actorName: actor.name,
-    action: "merit:threshold:update",
-    targetType: "MeritThreshold",
-    targetId: input.track,
-    metadata: {
+  await withTransaction(async (tx) => {
+    const current = await repo.findThreshold(input.track, tx);
+    const write = {
       track: input.track,
-      warnFrom: before.warn,
-      warnTo: input.warn,
-      dangerFrom: before.danger,
-      dangerTo: input.danger,
-    },
+      warn: input.warn,
+      danger: input.danger,
+      updatedByUserId: actor.id,
+      updatedByName: actor.name,
+    };
+
+    if (input.updatedAt === null) {
+      if (current) throw new MeritError("THRESHOLD_CONFLICT");
+
+      const created = await repo.createThreshold(write, tx);
+      if (!created) throw new MeritError("THRESHOLD_CONFLICT");
+
+      await recordAudit({
+        actorUserId: actor.id,
+        actorName: actor.name,
+        action: "merit:threshold:update",
+        targetType: "MeritThreshold",
+        targetId: input.track,
+        metadata: {
+          track: input.track,
+          warnFrom: DEFAULT_DEMERIT_THRESHOLDS[input.track].warn,
+          warnTo: input.warn,
+          dangerFrom: DEFAULT_DEMERIT_THRESHOLDS[input.track].danger,
+          dangerTo: input.danger,
+        },
+      }, tx);
+      return;
+    }
+
+    if (!current || current.updatedAt.getTime() !== input.updatedAt.getTime()) {
+      throw new MeritError("THRESHOLD_CONFLICT");
+    }
+
+    if (current.warn === input.warn && current.danger === input.danger) return;
+
+    const updated = await repo.updateThreshold(write, input.updatedAt, tx);
+    if (!updated) throw new MeritError("THRESHOLD_CONFLICT");
+
+    await recordAudit({
+      actorUserId: actor.id,
+      actorName: actor.name,
+      action: "merit:threshold:update",
+      targetType: "MeritThreshold",
+      targetId: input.track,
+      metadata: {
+        track: input.track,
+        warnFrom: current.warn,
+        warnTo: input.warn,
+        dangerFrom: current.danger,
+        dangerTo: input.danger,
+      },
+    }, tx);
   });
 }

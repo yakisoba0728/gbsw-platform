@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { canonicalDateInputSchema } from "@/lib/date-input";
 import { emailField, phoneField } from "@/lib/user-fields";
 import {
   CLASS_NO_RANGE_MESSAGE,
@@ -12,20 +13,25 @@ import {
   NUMBER_RANGE_MESSAGE,
 } from "@/modules/enrollment/enrollment.schema";
 
+const USER_CHANGED_MESSAGE =
+  "계정 정보가 다른 곳에서 바뀌었습니다. 새로고침 후 다시 저장해 주세요.";
+
 /**
  * 관리자가 고칠 수 있는 항목. 이메일은 로그인 아이디라 바꾸면 다음 로그인부터
  * 새 주소를 쓴다. 역할은 여기서 못 바꾼다.
  */
 export const updateUserSchema = z.object({
+  updatedAt: z.iso.datetime(USER_CHANGED_MESSAGE).transform((value) => new Date(value)),
   name: z.string().trim().min(1, "이름을 입력해 주세요.").max(50, "이름이 너무 깁니다."),
   email: emailField,
   phone: phoneField,
 
   // 아래는 학생일 때만 쓴다. 범위와 문구 모두 enrollment.schema.ts에서 가져온다 —
   // 문구를 비우면 zod의 영문 기본 문구가 화면에 그대로 나간다.
-  birthDate: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "생년월일 형식이 올바르지 않습니다.")
+  birthDate: canonicalDateInputSchema(
+    "생년월일 형식이 올바르지 않습니다.",
+    "존재하지 않는 생년월일입니다.",
+  )
     .optional()
     .or(z.literal("")),
   grade: z.coerce

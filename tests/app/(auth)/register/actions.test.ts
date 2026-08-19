@@ -19,6 +19,7 @@ const checkInvite = vi.fn();
 const completeRegistration = vi.fn();
 const requestVerification = vi.fn();
 const confirmCode = vi.fn();
+const requireVerified = vi.fn();
 
 vi.mock("@/modules/registration/registration.service", () => ({
   RegistrationError: class RegistrationError extends Error {},
@@ -29,6 +30,7 @@ vi.mock("@/modules/registration/registration.service", () => ({
 vi.mock("@/modules/verification/verification.service", () => ({
   VerificationError: class VerificationError extends Error {},
   confirmCode,
+  requireVerified,
 }));
 
 const { RegistrationError } = await import(
@@ -64,7 +66,8 @@ function bootstrapForm(over: Record<string, string> = {}): FormData {
 beforeEach(() => {
   vi.clearAllMocks();
   checkInvite.mockResolvedValue({ role: "STUDENT" });
-  requestVerification.mockResolvedValue({ mockCode: undefined });
+  requestVerification.mockResolvedValue({ verified: true });
+  requireVerified.mockResolvedValue({ id: "proof-1" });
 });
 
 describe("createInitialAdminAction — 경계 검증", () => {
@@ -269,6 +272,16 @@ describe("completeRegistrationAction — 경계 검증", () => {
     expect(state.error).toBe("생년월일은 YYYY-MM-DD 형식으로 입력해 주세요.");
   });
 
+  it("존재하지 않는 생년월일이면 서비스를 부르지 않는다", async () => {
+    const state = await completeRegistrationAction(
+      { error: null },
+      registerForm({ birthDate: "2010-02-30" }),
+    );
+
+    expect(completeRegistration).not.toHaveBeenCalled();
+    expect(state.error).toBe("존재하지 않는 생년월일입니다.");
+  });
+
   // 로그인 이전 화면이라 정제해 둔 오류만 그대로 보여준다 (CLAUDE.md 오류 규약).
   it("우리가 던진 오류는 문구를 그대로 보여준다", async () => {
     completeRegistration.mockRejectedValueOnce(
@@ -348,12 +361,12 @@ describe("requestVerificationAction — 경계 검증", () => {
     expect(result.ok).toBe(false);
   });
 
-  it("목업 모드의 코드는 그대로 화면까지 전달한다", async () => {
-    requestVerification.mockResolvedValueOnce({ mockCode: "123456" });
+  it("임시 우회 확인 결과는 그대로 화면까지 전달한다", async () => {
+    requestVerification.mockResolvedValueOnce({ verified: true });
 
     const result = await requestVerificationAction("EMAIL", "a@b.kr", CODE);
 
-    expect(result.mockCode).toBe("123456");
+    expect(result.verified).toBe(true);
   });
 
   it("정제된 문구는 그대로, 그 밖의 오류는 감춘다", async () => {
@@ -372,6 +385,14 @@ describe("requestVerificationAction — 경계 검증", () => {
 });
 
 describe("confirmVerificationAction — 경계 검증", () => {
+  it("임시 우회 proof가 이미 있으면 인증번호 없이 확인된다", async () => {
+    const result = await confirmVerificationAction("PHONE", "010-1234-5678", "");
+
+    expect(requireVerified).toHaveBeenCalledWith("PHONE", "010-1234-5678");
+    expect(confirmCode).not.toHaveBeenCalled();
+    expect(result).toEqual({ ok: true, error: null, verified: true });
+  });
+
   it("여섯 자리면 서비스까지 도달한다", async () => {
     const result = await confirmVerificationAction("PHONE", "010-1234-5678", "123456");
 

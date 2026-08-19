@@ -3,6 +3,7 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
 import { admin } from "better-auth/plugins/admin";
 import { prisma } from "@/core/db/client";
+import { assertCredentialSignInSessionStillCurrent } from "./credential-session-boundary";
 import { isLoginBlocked } from "./login-eligibility";
 import { ac, adminRoles } from "./permissions";
 
@@ -73,6 +74,9 @@ export const auth = betterAuth({
               code: "ACCOUNT_INACTIVE",
             });
           }
+        },
+        after: async (session, context) => {
+          await assertCredentialSignInSessionStillCurrent(session, context);
         },
       },
     },

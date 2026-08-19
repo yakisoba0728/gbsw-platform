@@ -51,10 +51,11 @@ DATABASE_URL=postgresql://gbsw:<POSTGRES_PASSWORD와 같은 값>@db:5432/gbsw
 > 호스트 이름이 `localhost`가 아니라 **`db`** 다. 컨테이너끼리는 서비스 이름으로 찾는다.
 > 로컬 개발용 `.env`를 그대로 가져오면 `localhost:5433`이라 앱이 DB를 못 찾는다.
 
-### 문자 발송 (선택)
+### 문자 발송 (보류)
 
-비우면 인증코드가 **서버 콘솔로 나간다.** 가입 흐름은 그대로 동작하므로 SMS 없이
-먼저 열어도 된다.
+현재 가입 흐름은 임시로 인증번호 발송을 쓰지 않는다. 유효한 초대코드로 이메일·휴대폰
+확인을 누르면 서버가 즉시 확인 proof를 만들고, 가입 완료 때 그 proof를 한 번 소진한다.
+아래 값은 실제 SMS 확인을 다시 켤 때만 채운다.
 
 | 변수 | 설명 |
 |---|---|
@@ -234,8 +235,37 @@ docker compose up -d --build     # 마이그레이션이 자동으로 먼저 돈
 # 받기
 docker exec gbsw-db pg_dump -U gbsw -d gbsw -Fc > backup-$(date +%F).dump
 
-# 되돌리기 (기존 데이터를 덮어쓴다 — 반드시 먼저 확인한다)
-docker exec -i gbsw-db pg_restore -U gbsw -d gbsw --clean --if-exists < backup-2026-08-18.dump
+# 되돌리기
+# 1) 먼저 쓰기를 멈춘다. 앱을 내리고, 복구 중 프록시도 점검 화면으로 돌린다.
+docker compose stop app migrate
+
+# 2) 기존 운영 DB에 바로 덮어쓰지 말고 깨끗한 임시 DB로 복구한다.
+docker exec gbsw-db createdb -U gbsw gbsw_restore
+docker exec -i gbsw-db pg_restore \
+  -U gbsw \
+  -d gbsw_restore \
+  --exit-on-error \
+  --single-transaction \
+  < backup-2026-08-18.dump
+
+# 3) 검증한다. 최소한 마이그레이션 상태, 관리자 로그인에 필요한 계정, 최근 감사로그 수를 본다.
+docker exec gbsw-db psql -U gbsw -d gbsw_restore -v ON_ERROR_STOP=1 -c 'select count(*) from "User";'
+docker exec gbsw-db psql -U gbsw -d gbsw_restore -v ON_ERROR_STOP=1 -c 'select count(*) from "AuditLog";'
+
+# 4) 검증이 끝난 뒤 짧은 점검 시간에 이름을 바꿔 전환한다.
+# 두 ALTER 중 두 번째가 실패하면 앱을 올리지 말고
+# `ALTER DATABASE gbsw_before_restore RENAME TO gbsw;`로 원래 이름부터 복구한다.
+docker exec -i gbsw-db psql -U gbsw -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+SELECT pg_terminate_backend(pid)
+FROM pg_stat_activity
+WHERE datname IN ('gbsw', 'gbsw_restore') AND pid <> pg_backend_pid();
+ALTER DATABASE gbsw RENAME TO gbsw_before_restore;
+ALTER DATABASE gbsw_restore RENAME TO gbsw;
+SQL
+
+# 5) 앱을 올리고 확인한다. 문제가 없으면 이전 DB는 일정 기간 보관 후 직접 지운다.
+docker compose up -d app
+docker exec gbsw-db psql -U gbsw -d gbsw_before_restore -c '\dt'
 ```
 
 cron으로 매일 돌리고 **다른 장비에도 복사해 둔다.** 서버가 통째로 죽으면 같은
@@ -248,8 +278,8 @@ docker compose logs -f app        # 실시간
 docker compose logs --tail 100 app
 ```
 
-인증코드 발송 기록은 여기에만 남는다(감사로그에는 남기지 않는다 — 근거는
-`CLAUDE.md`의 「verification 모듈은 감사로그 예외다」). 대상은 가려져 있고
+실제 인증코드 발송을 다시 켜면 발송 기록은 여기에만 남는다(감사로그에는 남기지 않는다 —
+근거는 `CLAUDE.md`의 「verification 모듈은 감사로그 예외다」). 대상은 가려져 있고
 코드 자체는 절대 찍히지 않는다.
 
 ### 재시작

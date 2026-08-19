@@ -9,6 +9,7 @@ const insertInvite = vi.fn();
 const codeExists = vi.fn();
 const getStudentProfileByUserId = vi.fn();
 const countActiveByStudent = vi.fn();
+const lockStudentForParentInvite = vi.fn();
 const listAll = vi.fn();
 const listByStudent = vi.fn();
 const findById = vi.fn();
@@ -16,12 +17,17 @@ const revokePending = vi.fn();
 const findStudentById = vi.fn();
 const listStudents = vi.fn();
 const recordAudit = vi.fn();
+const txClient = { tx: "invite-service-test" };
+const withTransaction = vi.fn(async (fn: (tx: typeof txClient) => Promise<unknown>) =>
+  fn(txClient),
+);
 
 vi.mock("@/modules/invites/invite.repo", () => ({
   insertInvite,
   codeExists,
   getStudentProfileByUserId,
   countActiveByStudent,
+  lockStudentForParentInvite,
   listAll,
   listByStudent,
   findById,
@@ -30,6 +36,7 @@ vi.mock("@/modules/invites/invite.repo", () => ({
   listStudents,
 }));
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
+vi.mock("@/core/db/client", () => ({ withTransaction }));
 vi.mock("@/modules/academic-year/academic-year.service", () => ({
   getCurrentYear: vi.fn().mockResolvedValue(2026),
 }));
@@ -73,6 +80,7 @@ beforeEach(() => {
   codeExists.mockReset().mockResolvedValue(false);
   getStudentProfileByUserId.mockReset();
   countActiveByStudent.mockReset().mockResolvedValue(0);
+  lockStudentForParentInvite.mockReset().mockResolvedValue(true);
   listAll.mockReset().mockResolvedValue([]);
   listByStudent.mockReset().mockResolvedValue([]);
   findById.mockReset();
@@ -80,6 +88,11 @@ beforeEach(() => {
   listStudents.mockReset().mockResolvedValue([]);
   revokePending.mockReset().mockResolvedValue(1);
   recordAudit.mockReset();
+  withTransaction
+    .mockReset()
+    .mockImplementation(async (fn: (tx: typeof txClient) => Promise<unknown>) =>
+      fn(txClient),
+    );
 });
 
 describe("관리자 코드 발급", () => {
@@ -119,6 +132,14 @@ describe("관리자 코드 발급", () => {
     expect(JSON.stringify(audit)).not.toContain("ABCD234XYZ");
   });
 
+  it("학생 코드 발급은 insert와 감사를 한 트랜잭션에 묶는다", async () => {
+    await createStudentInvite(admin, studentInput);
+
+    expect(withTransaction).toHaveBeenCalledTimes(1);
+    expect(insertInvite.mock.calls[0]![1]).toBe(txClient);
+    expect(recordAudit.mock.calls[0]![1]).toBe(txClient);
+  });
+
   it("코드가 겹치면 다시 뽑는다", async () => {
     codeExists.mockResolvedValueOnce(true).mockResolvedValue(false);
 
@@ -126,6 +147,14 @@ describe("관리자 코드 발급", () => {
 
     expect(codeExists).toHaveBeenCalledTimes(2);
     expect(insertInvite).toHaveBeenCalledTimes(1);
+  });
+
+  it("관리자 코드 발급은 insert와 감사를 한 트랜잭션에 묶는다", async () => {
+    await createAdminInvite(admin, { name: "김교사" });
+
+    expect(withTransaction).toHaveBeenCalledTimes(1);
+    expect(insertInvite.mock.calls[0]![1]).toBe(txClient);
+    expect(recordAudit.mock.calls[0]![1]).toBe(txClient);
   });
 });
 
@@ -151,6 +180,10 @@ describe("학부모 코드 발급", () => {
     await createParentInvite(student, { name: "김보호" });
 
     expect(getStudentProfileByUserId).toHaveBeenCalledWith("s-user");
+    expect(lockStudentForParentInvite).toHaveBeenCalledWith(
+      "student-1",
+      txClient,
+    );
     const arg = insertInvite.mock.calls[0]![0];
     expect(arg.role).toBe("PARENT");
     expect(arg.studentId).toBe("student-1");
@@ -164,6 +197,22 @@ describe("학부모 코드 발급", () => {
       "TOO_MANY_ACTIVE_INVITES",
     );
     expect(insertInvite).not.toHaveBeenCalled();
+    expect(withTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("학생 학부모 코드 발급은 한도 확인 뒤 insert와 감사를 한 트랜잭션에 묶는다", async () => {
+    getStudentProfileByUserId.mockResolvedValue({ id: "student-1" });
+
+    await createParentInvite(student, { name: "김보호" });
+
+    expect(countActiveByStudent).toHaveBeenCalledWith(
+      "student-1",
+      expect.any(Date),
+      txClient,
+    );
+    expect(withTransaction).toHaveBeenCalledTimes(1);
+    expect(insertInvite.mock.calls[0]![1]).toBe(txClient);
+    expect(recordAudit.mock.calls[0]![1]).toBe(txClient);
   });
 });
 
@@ -202,6 +251,38 @@ describe("관리자가 학생을 지정해 발급하는 학부모 코드", () =>
       createParentInviteFor(admin, { studentId: "student-9", name: "김보호" }),
     ).rejects.toThrow("TOO_MANY_ACTIVE_INVITES");
   });
+
+  it("관리자 학부모 코드 발급은 대상 확인 뒤 insert와 감사를 한 트랜잭션에 묶는다", async () => {
+    findStudentById.mockResolvedValue({ id: "student-9" });
+
+    await createParentInviteFor(admin, { studentId: "student-9", name: "김보호" });
+
+    expect(findStudentById).toHaveBeenCalledWith("student-9");
+    expect(lockStudentForParentInvite).toHaveBeenCalledWith(
+      "student-9",
+      txClient,
+    );
+    expect(countActiveByStudent).toHaveBeenCalledWith(
+      "student-9",
+      expect.any(Date),
+      txClient,
+    );
+    expect(withTransaction).toHaveBeenCalledTimes(1);
+    expect(insertInvite.mock.calls[0]![1]).toBe(txClient);
+    expect(recordAudit.mock.calls[0]![1]).toBe(txClient);
+  });
+
+  it("대상 학생이 잠금 전에 삭제되면 발급하지 않는다", async () => {
+    findStudentById.mockResolvedValue({ id: "student-9" });
+    lockStudentForParentInvite.mockResolvedValue(false);
+
+    await expect(
+      createParentInviteFor(admin, { studentId: "student-9", name: "김보호" }),
+    ).rejects.toThrow("STUDENT_NOT_FOUND");
+
+    expect(countActiveByStudent).not.toHaveBeenCalled();
+    expect(insertInvite).not.toHaveBeenCalled();
+  });
 });
 
 describe("목록", () => {
@@ -218,9 +299,11 @@ describe("폐기", () => {
 
     await revokeInvite(admin, "inv1");
 
-    expect(revokePending).toHaveBeenCalledWith("inv1");
+    expect(withTransaction).toHaveBeenCalledTimes(1);
+    expect(revokePending).toHaveBeenCalledWith("inv1", txClient);
     expect(recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({ action: "invite:revoke" }),
+      txClient,
     );
   });
 
@@ -230,7 +313,7 @@ describe("폐기", () => {
 
     await revokeInvite(student, "inv1");
 
-    expect(revokePending).toHaveBeenCalledWith("inv1");
+    expect(revokePending).toHaveBeenCalledWith("inv1", txClient);
   });
 
   it("남의 코드는 폐기하지 못한다", async () => {
@@ -263,6 +346,17 @@ describe("폐기", () => {
     revokePending.mockResolvedValue(0);
 
     await expect(revokeInvite(admin, "inv1")).rejects.toThrow("NOT_PENDING");
+    expect(recordAudit).not.toHaveBeenCalled();
+  });
+
+  it("이미 사용된 코드 폐기 실패는 트랜잭션 안에서 감사 없이 되돌린다", async () => {
+    findById.mockResolvedValue({ id: "inv1", studentId: null });
+    revokePending.mockResolvedValue(0);
+
+    await expect(revokeInvite(admin, "inv1")).rejects.toThrow("NOT_PENDING");
+
+    expect(withTransaction).toHaveBeenCalledTimes(1);
+    expect(revokePending).toHaveBeenCalledWith("inv1", txClient);
     expect(recordAudit).not.toHaveBeenCalled();
   });
 });

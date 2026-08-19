@@ -1,8 +1,12 @@
 "use server";
 
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { requireAuth } from "@/core/auth/session";
-import { changeOwnPassword } from "@/modules/account/account.service";
+import {
+  changeOwnPassword,
+  InvalidCurrentPasswordError,
+} from "@/modules/account/account.service";
 import { changePasswordSchema } from "@/modules/account/account.schema";
 
 export type ChangePasswordState = { error: string | null; ok: boolean };
@@ -29,10 +33,16 @@ export async function changePasswordAction(
 
   try {
     await changeOwnPassword(actor, parsed.data, await headers());
-  } catch {
-    // Better Auth가 현재 비밀번호 불일치 등으로 던지는 경우.
+  } catch (error) {
+    if (!(error instanceof InvalidCurrentPasswordError)) {
+      console.error("[account] password change failed", error);
+      return {
+        ok: false,
+        error: "비밀번호를 변경하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+      };
+    }
     return { ok: false, error: "현재 비밀번호가 맞지 않습니다." };
   }
 
-  return { ok: true, error: null };
+  redirect("/login?passwordChanged=1");
 }

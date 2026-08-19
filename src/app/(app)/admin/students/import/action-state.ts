@@ -12,6 +12,8 @@ export type PreviewState = {
   plan: RosterPlan | null;
   /** 줄 단위가 아니라 파일 전체에 해당하는 안내 (예: 학생코드 열 없음). */
   notices: string[];
+  rosterFingerprint: string | null;
+  previewToken: string | null;
 };
 
 export const PREVIEW_INITIAL: PreviewState = {
@@ -20,6 +22,8 @@ export const PREVIEW_INITIAL: PreviewState = {
   rows: [],
   plan: null,
   notices: [],
+  rosterFingerprint: null,
+  previewToken: null,
 };
 
 export type ApplyState = {

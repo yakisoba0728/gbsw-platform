@@ -2,43 +2,57 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { vi } from "vitest";
 
 const userUpdate = vi.fn();
+const userUpdateMany = vi.fn();
+const userFindUnique = vi.fn();
 const userFindMany = vi.fn();
 const userDelete = vi.fn();
+const userDeleteMany = vi.fn();
 const studentProfileUpdate = vi.fn();
 const schoolClassUpsert = vi.fn();
 const enrollmentUpsert = vi.fn();
 const sessionDeleteMany = vi.fn();
 const accountUpdateMany = vi.fn();
 const inviteDeleteMany = vi.fn();
-const transactionArray = vi.fn();
+const withTransaction = vi.fn();
+const queryRaw = vi.fn();
 
 const tx = {
-  user: { update: userUpdate },
+  $queryRaw: queryRaw,
+  user: {
+    update: userUpdate,
+    updateMany: userUpdateMany,
+    findUnique: userFindUnique,
+    delete: userDelete,
+    deleteMany: userDeleteMany,
+  },
   studentProfile: { update: studentProfileUpdate },
   schoolClass: { upsert: schoolClassUpsert },
   enrollment: { upsert: enrollmentUpsert },
   session: { deleteMany: sessionDeleteMany },
   account: { updateMany: accountUpdateMany },
+  invite: { deleteMany: inviteDeleteMany },
 };
 
 vi.mock("@/core/db/client", () => ({
+  withTransaction,
   prisma: {
-    user: { update: userUpdate, findMany: userFindMany, delete: userDelete },
+    user: {
+      update: userUpdate,
+      updateMany: userUpdateMany,
+      findUnique: userFindUnique,
+      findMany: userFindMany,
+      delete: userDelete,
+      deleteMany: userDeleteMany,
+    },
     session: { deleteMany: sessionDeleteMany },
     invite: { deleteMany: inviteDeleteMany },
-    // updateUserAndEnrollment/resetCredential은 콜백형 트랜잭션 — 콜백에 tx를 넘겨 흉내 낸다.
-    // setActive(비활성화)·deletePermanently는 배열형 트랜잭션 — 배열을 그대로 기록해 둔다.
-    $transaction: (arg: unknown) => {
-      if (typeof arg === "function") return (arg as (tx: unknown) => unknown)(tx);
-      transactionArray(arg);
-      return Promise.resolve(arg);
-    },
   },
 }));
 
 const {
   EmailTakenError,
   NumberTakenError,
+  UserRevisionConflictError,
   listUsers,
   updateUserAndEnrollment,
   setActive,
@@ -111,22 +125,37 @@ const enrollmentData = {
   classNo: 2,
   number: 15,
 };
+const expectedUpdatedAt = new Date("2026-08-19T00:00:00.000Z");
+
+function updateInput(overrides: Partial<Parameters<typeof updateUserAndEnrollment>[1]> = {}) {
+  return {
+    expectedUpdatedAt,
+    profile: null,
+    studentProfile: null,
+    enrollment: null,
+    ...overrides,
+  };
+}
 
 beforeEach(() => {
+  queryRaw.mockReset().mockResolvedValue([{ id: "credential-account" }]);
   userUpdate.mockReset().mockResolvedValue(undefined);
+  userUpdateMany.mockReset().mockResolvedValue({ count: 1 });
+  userFindUnique.mockReset().mockResolvedValue(null);
   userFindMany.mockReset().mockResolvedValue([]);
   userDelete.mockReset().mockResolvedValue(undefined);
+  userDeleteMany.mockReset().mockResolvedValue({ count: 1 });
   studentProfileUpdate.mockReset().mockResolvedValue(undefined);
   schoolClassUpsert.mockReset().mockResolvedValue({ id: "class-1" });
   enrollmentUpsert.mockReset().mockResolvedValue(undefined);
   sessionDeleteMany.mockReset().mockResolvedValue(undefined);
   accountUpdateMany.mockReset().mockResolvedValue({ count: 1 });
   inviteDeleteMany.mockReset().mockResolvedValue({ count: 0 });
-  transactionArray.mockReset();
+  withTransaction.mockReset().mockImplementation(async (fn) => fn(tx));
 });
 
 describe("listUsers()", () => {
-  it("명단에서 빠져 소프트 삭제된 계정은 뺀다 — 상세(findDetail)는 여전히 조회할 수 있다", async () => {
+  it("legacy 삭제 표시가 남은 계정은 목록에서 뺀다 — 상세(findDetail)는 여전히 조회할 수 있다", async () => {
     await listUsers(2026);
 
     expect(userFindMany).toHaveBeenCalledWith(
@@ -137,14 +166,14 @@ describe("listUsers()", () => {
 
 describe("updateUserAndEnrollment() — profile", () => {
   it("이메일 중복이면 EmailTakenError로 옮긴다", async () => {
-    userUpdate.mockRejectedValue(realWorldP2002());
+    userUpdateMany.mockRejectedValue(realWorldP2002());
 
     await expect(
-      updateUserAndEnrollment("u-9", {
+      updateUserAndEnrollment("u-9", updateInput({
         profile: profileData,
         studentProfile: null,
         enrollment: null,
-      }),
+      })),
     ).rejects.toBeInstanceOf(EmailTakenError);
   });
 
@@ -153,14 +182,14 @@ describe("updateUserAndEnrollment() — profile", () => {
     error.meta.driverAdapterError.cause.constraint = {
       index: "user_email_key",
     } as never;
-    userUpdate.mockRejectedValue(error);
+    userUpdateMany.mockRejectedValue(error);
 
     await expect(
-      updateUserAndEnrollment("u-9", {
+      updateUserAndEnrollment("u-9", updateInput({
         profile: profileData,
         studentProfile: null,
         enrollment: null,
-      }),
+      })),
     ).rejects.toBeInstanceOf(EmailTakenError);
   });
 
@@ -169,34 +198,66 @@ describe("updateUserAndEnrollment() — profile", () => {
       code: "P2002",
       meta: { target: ["phone"] },
     });
-    userUpdate.mockRejectedValue(other);
+    userUpdateMany.mockRejectedValue(other);
 
     await expect(
-      updateUserAndEnrollment("u-9", {
+      updateUserAndEnrollment("u-9", updateInput({
         profile: profileData,
         studentProfile: null,
         enrollment: null,
-      }),
+      })),
     ).rejects.toBe(other);
   });
 
-  it("profile이 null이면 user.update를 부르지 않는다", async () => {
-    await updateUserAndEnrollment("u-9", {
+  it("profile이 null이어도 revision 확인을 위해 user.updateMany를 부른다", async () => {
+    await updateUserAndEnrollment("u-9", updateInput({
       profile: null,
       studentProfile: null,
       enrollment: null,
-    });
+    }));
     expect(userUpdate).not.toHaveBeenCalled();
+    expect(userUpdateMany).toHaveBeenCalledWith({
+      where: { id: "u-9", updatedAt: expectedUpdatedAt },
+      data: { updatedAt: expect.any(Date) },
+    });
+  });
+
+  it("db가 전달되면 자체 트랜잭션을 열지 않는다", async () => {
+    await updateUserAndEnrollment("u-9", updateInput({
+      profile: profileData,
+      studentProfile: null,
+      enrollment: null,
+    }), tx as never);
+
+    expect(withTransaction).not.toHaveBeenCalled();
+    expect(userUpdateMany).toHaveBeenCalledWith({
+      where: { id: "u-9", updatedAt: expectedUpdatedAt },
+      data: { ...profileData, updatedAt: expect.any(Date) },
+    });
+  });
+
+  it("updatedAt이 달라졌으면 UserRevisionConflictError로 옮긴다", async () => {
+    userUpdateMany.mockResolvedValue({ count: 0 });
+
+    await expect(
+      updateUserAndEnrollment("u-9", updateInput({
+        profile: profileData,
+        studentProfile: null,
+        enrollment: null,
+      })),
+    ).rejects.toBeInstanceOf(UserRevisionConflictError);
+    expect(studentProfileUpdate).not.toHaveBeenCalled();
+    expect(enrollmentUpsert).not.toHaveBeenCalled();
   });
 });
 
 describe("updateUserAndEnrollment() — studentProfile(생년월일)", () => {
   it("학년·반·번호를 건드리지 않고 생년월일만 고칠 수 있다 (I2) — 졸업생 편집 경로", async () => {
-    await updateUserAndEnrollment("u-9", {
+    await updateUserAndEnrollment("u-9", updateInput({
       profile: null,
       studentProfile: studentProfileData,
       enrollment: null,
-    });
+    }));
 
     expect(studentProfileUpdate).toHaveBeenCalledWith({
       where: { id: "sp-1" },
@@ -207,11 +268,11 @@ describe("updateUserAndEnrollment() — studentProfile(생년월일)", () => {
   });
 
   it("studentProfile이 null이면 studentProfile.update를 부르지 않는다", async () => {
-    await updateUserAndEnrollment("u-9", {
+    await updateUserAndEnrollment("u-9", updateInput({
       profile: null,
       studentProfile: null,
       enrollment: enrollmentData,
-    });
+    }));
     expect(studentProfileUpdate).not.toHaveBeenCalled();
   });
 });
@@ -222,6 +283,7 @@ describe("updateUserAndEnrollment() — enrollment(학년·반·번호)", () => 
 
     await expect(
       updateUserAndEnrollment("u-9", {
+        expectedUpdatedAt,
         profile: null,
         studentProfile: null,
         enrollment: enrollmentData,
@@ -230,11 +292,11 @@ describe("updateUserAndEnrollment() — enrollment(학년·반·번호)", () => 
   });
 
   it("성공하면 학급을 찾아 소속을 갱신한다", async () => {
-    await updateUserAndEnrollment("u-9", {
+    await updateUserAndEnrollment("u-9", updateInput({
       profile: null,
       studentProfile: null,
       enrollment: enrollmentData,
-    });
+    }));
 
     expect(enrollmentUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -244,11 +306,11 @@ describe("updateUserAndEnrollment() — enrollment(학년·반·번호)", () => 
   });
 
   it("update에는 status를 넣지 않는다 (I2) — 기존 학적을 덮어쓰지 않는다", async () => {
-    await updateUserAndEnrollment("u-9", {
+    await updateUserAndEnrollment("u-9", updateInput({
       profile: null,
       studentProfile: null,
       enrollment: enrollmentData,
-    });
+    }));
 
     const call = enrollmentUpsert.mock.calls[0]![0];
     expect(call.update).not.toHaveProperty("status");
@@ -257,24 +319,27 @@ describe("updateUserAndEnrollment() — enrollment(학년·반·번호)", () => 
   });
 
   it("enrollment가 null이면 소속 관련 문장을 하나도 안 부른다", async () => {
-    await updateUserAndEnrollment("u-9", {
+    await updateUserAndEnrollment("u-9", updateInput({
       profile: profileData,
       studentProfile: null,
       enrollment: null,
-    });
+    }));
 
     expect(schoolClassUpsert).not.toHaveBeenCalled();
     expect(enrollmentUpsert).not.toHaveBeenCalled();
   });
 
   it("profile·studentProfile·enrollment를 한 트랜잭션에서 함께 저장한다 (I1)", async () => {
-    await updateUserAndEnrollment("u-9", {
+    await updateUserAndEnrollment("u-9", updateInput({
       profile: profileData,
       studentProfile: studentProfileData,
       enrollment: enrollmentData,
-    });
+    }));
 
-    expect(userUpdate).toHaveBeenCalledWith({ where: { id: "u-9" }, data: profileData });
+    expect(userUpdateMany).toHaveBeenCalledWith({
+      where: { id: "u-9", updatedAt: expectedUpdatedAt },
+      data: { ...profileData, updatedAt: expect.any(Date) },
+    });
     expect(studentProfileUpdate).toHaveBeenCalled();
     expect(enrollmentUpsert).toHaveBeenCalled();
   });
@@ -289,15 +354,24 @@ describe("setActive()", () => {
       data: { status: "ACTIVE" },
     });
     expect(sessionDeleteMany).not.toHaveBeenCalled();
-    expect(transactionArray).not.toHaveBeenCalled();
+    expect(withTransaction).not.toHaveBeenCalled();
   });
 
-  it("비활성화는 상태 변경과 세션 삭제를 한 트랜잭션(배열)으로 묶는다 (M11)", async () => {
+  it("비활성화는 상태 변경과 세션 삭제를 한 트랜잭션으로 묶는다 (M11)", async () => {
     await setActive("u-9", false);
 
-    expect(transactionArray).toHaveBeenCalledTimes(1);
-    const batch = transactionArray.mock.calls[0]![0] as unknown[];
-    expect(batch).toHaveLength(2);
+    expect(withTransaction).toHaveBeenCalledTimes(1);
+    expect(userUpdate).toHaveBeenCalledWith({
+      where: { id: "u-9" },
+      data: { status: "INACTIVE" },
+    });
+    expect(sessionDeleteMany).toHaveBeenCalledWith({ where: { userId: "u-9" } });
+  });
+
+  it("db가 전달된 비활성화는 세션 삭제까지 그 db를 쓰고 중첩 트랜잭션을 열지 않는다", async () => {
+    await setActive("u-9", false, tx as never);
+
+    expect(withTransaction).not.toHaveBeenCalled();
     expect(userUpdate).toHaveBeenCalledWith({
       where: { id: "u-9" },
       data: { status: "INACTIVE" },
@@ -313,6 +387,7 @@ describe("resetCredential()", () => {
     const updated = await resetCredential("u-9", "hash");
 
     expect(updated).toBe(0);
+    expect(queryRaw).toHaveBeenCalledOnce();
     expect(userUpdate).not.toHaveBeenCalled();
     expect(sessionDeleteMany).not.toHaveBeenCalled();
   });
@@ -320,36 +395,61 @@ describe("resetCredential()", () => {
   it("성공하면 강제 변경 표시와 세션 삭제까지 같은 트랜잭션에서 한다 (M11)", async () => {
     const updated = await resetCredential("u-9", "hash");
 
+    expect(withTransaction).toHaveBeenCalledTimes(1);
     expect(updated).toBe(1);
+    expect(queryRaw).toHaveBeenCalledOnce();
     expect(userUpdate).toHaveBeenCalledWith({
       where: { id: "u-9" },
       data: { mustChangePassword: true },
     });
     expect(sessionDeleteMany).toHaveBeenCalledWith({ where: { userId: "u-9" } });
   });
+
+  it("db가 전달되면 자체 트랜잭션을 열지 않는다", async () => {
+    const updated = await resetCredential("u-9", "hash", tx as never);
+
+    expect(updated).toBe(1);
+    expect(withTransaction).not.toHaveBeenCalled();
+    expect(queryRaw).toHaveBeenCalledOnce();
+    expect(sessionDeleteMany).toHaveBeenCalledWith({ where: { userId: "u-9" } });
+  });
 });
 
 describe("deletePermanently()", () => {
   it("발급한 코드(createdById)를 먼저 지워야 계정 삭제가 Restrict에 안 걸린다", async () => {
-    await deletePermanently("u-9");
+    await deletePermanently("u-9", "김학생");
 
-    expect(transactionArray).toHaveBeenCalledTimes(1);
-    const batch = transactionArray.mock.calls[0]![0] as unknown[];
-    expect(batch).toHaveLength(3);
+    expect(withTransaction).toHaveBeenCalledTimes(1);
     expect(inviteDeleteMany).toHaveBeenCalledWith({ where: { createdById: "u-9" } });
-    expect(userDelete).toHaveBeenCalledWith({ where: { id: "u-9" } });
+    expect(userDeleteMany).toHaveBeenCalledWith({ where: { id: "u-9", name: "김학생" } });
   });
 
   it("가입에 쓴 코드(usedById)도 지운다 — metadata에 이름·생년월일이 남는다", async () => {
-    await deletePermanently("u-9");
+    await deletePermanently("u-9", "김학생");
 
     expect(inviteDeleteMany).toHaveBeenCalledWith({ where: { usedById: "u-9" } });
   });
 
   it("studentId로 달린 코드는 Cascade가 지우므로 손대지 않는다", async () => {
-    await deletePermanently("u-9");
+    await deletePermanently("u-9", "김학생");
 
     const calls = inviteDeleteMany.mock.calls.map((c) => c[0]);
     expect(calls.some((c) => "studentId" in (c as { where: object }).where)).toBe(false);
+  });
+
+  it("이름 조건이 맞지 않아 삭제되지 않으면 false를 돌려준다", async () => {
+    userDeleteMany.mockResolvedValue({ count: 0 });
+
+    const deleted = await deletePermanently("u-9", "김학생");
+
+    expect(deleted).toBe(false);
+  });
+
+  it("db가 전달되면 자체 트랜잭션을 열지 않는다", async () => {
+    await deletePermanently("u-9", "김학생", tx as never);
+
+    expect(withTransaction).not.toHaveBeenCalled();
+    expect(inviteDeleteMany).toHaveBeenCalledWith({ where: { createdById: "u-9" } });
+    expect(userDeleteMany).toHaveBeenCalledWith({ where: { id: "u-9", name: "김학생" } });
   });
 });

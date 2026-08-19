@@ -1,3 +1,5 @@
+import { isCanonicalDateInput } from "@/lib/date-input";
+
 /** 화면에 보이는 시각은 전부 KST다. 포맷터는 여기 한 곳에서만 만든다. */
 export const KST = "Asia/Seoul";
 
@@ -55,6 +57,9 @@ export function formatDateInput(value: Date): string {
  * 순간값이 9시간 어긋나, 이름+생년월일 대조에서만 조용히 갈린다.
  */
 export function parseDateInputKst(value: string): Date {
+  if (!isCanonicalDateInput(value)) {
+    throw new RangeError(`Invalid canonical date input: ${value}`);
+  }
   return new Date(`${value}T00:00:00+09:00`);
 }
 

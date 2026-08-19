@@ -1,7 +1,7 @@
 /**
  * 시연용 데이터 만들기.
  *
- *   npm run seed:demo
+ *   npm run seed:demo -- --yes-local-demo-db
  *
  * **화면을 눌러보기 위한 가짜 데이터다.** 초대코드 발급 → 가입 → 학부모 연동 →
  * 상벌점 부여까지 **실제 서비스를 그대로 호출한다** — 권한 검사도 감사로그도
@@ -10,12 +10,15 @@
  * 만드는 계정은 전부 `@demo.invalid`(예약 도메인이라 실제로 메일이 안 간다)이며
  * 이름 앞에 표시가 없다 — 대신 이메일로 한 번에 골라낼 수 있다. 지우려면:
  *
- *   npm run seed:demo -- --clean
+ *   npm run seed:demo -- --clean --yes-local-demo-db
  *
  * 실계정(admin@gbsw.hs.kr, yakihyuk0728@gmail.com)은 건드리지 않는다.
  */
+import { pathToFileURL } from "node:url";
+
 const DEMO_DOMAIN = "demo.invalid";
 const DEMO_PASSWORD = "demo-password-1234";
+const REQUIRED_OPT_IN = "--yes-local-demo-db";
 
 type StudentSpec = {
   name: string;
@@ -45,12 +48,53 @@ const PARENTS = [
   { childName: "정하윤", parentName: "정미경" },
 ];
 
+function databaseHost(databaseUrl: string): string {
+  try {
+    return new URL(databaseUrl).hostname;
+  } catch {
+    return "";
+  }
+}
+
+function isLocalDatabaseUrl(databaseUrl: string): boolean {
+  const host = databaseHost(databaseUrl);
+  return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
+}
+
+export function assertDemoSeedAllowed({
+  argv,
+  env,
+}: {
+  argv: readonly string[];
+  env: {
+    DATABASE_URL?: string;
+    NODE_ENV?: string;
+    VERCEL?: string;
+    RAILWAY_ENVIRONMENT?: string;
+  };
+}): void {
+  if (!argv.includes(REQUIRED_OPT_IN)) {
+    throw new Error(
+      `시연 데이터 seed는 명시적 확인이 필요합니다: npm run seed:demo -- ${REQUIRED_OPT_IN}`,
+    );
+  }
+
+  if (env.NODE_ENV === "production" || env.VERCEL || env.RAILWAY_ENVIRONMENT) {
+    throw new Error("운영 환경에서는 시연 데이터 seed를 실행할 수 없습니다.");
+  }
+
+  if (!env.DATABASE_URL || !isLocalDatabaseUrl(env.DATABASE_URL)) {
+    throw new Error("시연 데이터 seed는 localhost/127.0.0.1 DB에서만 실행할 수 있습니다.");
+  }
+}
+
 function slug(name: string, index: number): string {
   return `demo${index + 1}-${Buffer.from(name).toString("hex").slice(0, 6)}`;
 }
 
 async function main() {
   process.loadEnvFile(".env");
+  assertDemoSeedAllowed({ argv: process.argv, env: process.env });
 
   const { prisma } = await import("../src/core/db/client");
   const clean = process.argv.includes("--clean");
@@ -120,7 +164,7 @@ async function build(prisma: Awaited<typeof import("../src/core/db/client")>["pr
   if (existing > 0) {
     console.log(
       `이미 시연 계정 ${existing}개가 있습니다. 다시 만들려면 먼저 지우세요:\n` +
-        `  npm run seed:demo -- --clean`,
+        `  npm run seed:demo -- --clean ${REQUIRED_OPT_IN}`,
     );
     return;
   }
@@ -350,7 +394,7 @@ async function build(prisma: Awaited<typeof import("../src/core/db/client")>["pr
   console.log(`관리자: ${DEMO_ADMIN.email}`);
   console.log("학생 예: " + `${slug(STUDENTS[0].name, 0)}@${DEMO_DOMAIN}`);
   console.log("학부모 예: " + `parent1@${DEMO_DOMAIN}`);
-  console.log("지우기: npm run seed:demo -- --clean");
+  console.log(`지우기: npm run seed:demo -- --clean ${REQUIRED_OPT_IN}`);
 }
 
 /** 이메일·휴대폰 인증을 목업 코드로 통과시킨다. */
@@ -370,7 +414,9 @@ async function verify(
   }
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}

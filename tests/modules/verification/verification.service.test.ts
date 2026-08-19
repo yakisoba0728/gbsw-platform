@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const countRecentSends = vi.fn();
 const countRecentSendsByIp = vi.fn();
+const lockSendRateLimitBuckets = vi.fn();
 const expirePending = vi.fn();
 const insertCode = vi.fn();
 const findLiveCode = vi.fn();
@@ -13,10 +14,13 @@ const consume = vi.fn();
 const deleteById = vi.fn();
 const sendVerification = vi.fn();
 const readRequestContext = vi.fn();
+const withTransaction = vi.fn();
+const txClient = { tx: true };
 
 vi.mock("@/modules/verification/verification.repo", () => ({
   countRecentSends,
   countRecentSendsByIp,
+  lockSendRateLimitBuckets,
   expirePending,
   insertCode,
   findLiveCode,
@@ -30,13 +34,18 @@ vi.mock("@/modules/verification/verification.repo", () => ({
 vi.mock("@/modules/verification/verification.sender", () => ({
   sendVerification,
 }));
+vi.mock("@/core/db/client", () => ({ withTransaction }));
 // requestCode()가 IP별 한도(I4)를 보려고 접속 정보를 읽는다. next/headers는
 // 요청 컨텍스트 밖(테스트)에서 못 쓰므로 읽기 함수만 갈아끼운다.
 vi.mock("@/core/audit/request-context", () => ({ readRequestContext }));
 
-const { confirmCode, requestCode, requireVerified } = await import(
-  "@/modules/verification/verification.service"
-);
+const {
+  confirmCode,
+  consumeVerifications,
+  createTemporaryVerifiedProof,
+  requestCode,
+  requireVerified,
+} = await import("@/modules/verification/verification.service");
 
 const { createHash } = await import("node:crypto");
 const hash = (code: string) => createHash("sha256").update(code).digest("hex");
@@ -44,6 +53,7 @@ const hash = (code: string) => createHash("sha256").update(code).digest("hex");
 beforeEach(() => {
   countRecentSends.mockReset().mockResolvedValue(0);
   countRecentSendsByIp.mockReset().mockResolvedValue(0);
+  lockSendRateLimitBuckets.mockReset();
   expirePending.mockReset();
   insertCode.mockReset().mockResolvedValue({ id: "v1" });
   findLiveCode.mockReset();
@@ -51,10 +61,15 @@ beforeEach(() => {
   expireById.mockReset();
   markVerified.mockReset();
   findVerified.mockReset();
-  consume.mockReset();
+  consume.mockReset().mockResolvedValue(2);
   deleteById.mockReset();
   sendVerification.mockReset().mockResolvedValue(undefined);
   readRequestContext.mockReset().mockResolvedValue({ ip: null, userAgent: null });
+  withTransaction
+    .mockReset()
+    .mockImplementation(async (fn: (tx: typeof txClient) => Promise<unknown>) =>
+      fn(txClient),
+    );
 });
 
 describe("requestCode()", () => {
@@ -78,7 +93,12 @@ describe("requestCode()", () => {
 
   it("이전 코드를 먼저 만료시킨다 — 마지막 것만 살아 있어야 한다", async () => {
     await requestCode("EMAIL", "a@b.kr");
-    expect(expirePending).toHaveBeenCalled();
+    expect(expirePending).toHaveBeenCalledWith(
+      "EMAIL",
+      "a@b.kr",
+      expect.any(Date),
+      txClient,
+    );
   });
 
   it("형식이 틀리면 보내지 않는다", async () => {
@@ -148,6 +168,89 @@ describe("requestCode()", () => {
   });
 });
 
+describe("createTemporaryVerifiedProof()", () => {
+  it("발송 없이 바로 확인된 일회성 proof를 만든다", async () => {
+    await createTemporaryVerifiedProof("EMAIL", "  Hong@GBSW.hs.kr ");
+
+    expect(expirePending).toHaveBeenCalledWith(
+      "EMAIL",
+      "hong@gbsw.hs.kr",
+      expect.any(Date),
+      txClient,
+    );
+    expect(insertCode).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channel: "EMAIL",
+        target: "hong@gbsw.hs.kr",
+        requestIp: null,
+        verifiedAt: expect.any(Date),
+      }),
+      txClient,
+    );
+    expect(sendVerification).not.toHaveBeenCalled();
+  });
+
+  it("전화번호도 가입 입력과 같은 정규화 값으로 proof를 만든다", async () => {
+    await createTemporaryVerifiedProof("PHONE", "01012345678");
+
+    expect(insertCode.mock.calls[0]![0].target).toBe("010-1234-5678");
+  });
+
+  it("같은 대상에 너무 자주 proof를 만들면 막는다", async () => {
+    countRecentSends.mockResolvedValue(5);
+
+    await expect(createTemporaryVerifiedProof("EMAIL", "a@b.kr")).rejects.toThrow(
+      "너무 많이",
+    );
+
+    expect(insertCode).not.toHaveBeenCalled();
+  });
+
+  it("같은 접속 IP에서 너무 자주 proof를 만들면 막는다", async () => {
+    readRequestContext.mockResolvedValue({ ip: "203.0.113.9", userAgent: null });
+    countRecentSendsByIp.mockResolvedValue(20);
+
+    await expect(createTemporaryVerifiedProof("EMAIL", "a@b.kr")).rejects.toThrow(
+      "너무 많이",
+    );
+
+    expect(insertCode).not.toHaveBeenCalled();
+  });
+
+  it("proof에도 요청 IP를 남겨 IP별 한도가 이어서 작동하게 한다", async () => {
+    readRequestContext.mockResolvedValue({ ip: "203.0.113.9", userAgent: null });
+
+    await createTemporaryVerifiedProof("PHONE", "01012345678");
+
+    expect(insertCode.mock.calls[0]![0].requestIp).toBe("203.0.113.9");
+  });
+
+  it("한도 검사와 proof 발급을 같은 트랜잭션 안에서 잠그고 처리한다", async () => {
+    readRequestContext.mockResolvedValue({ ip: "203.0.113.9", userAgent: null });
+
+    await createTemporaryVerifiedProof("EMAIL", "a@b.kr");
+
+    expect(withTransaction).toHaveBeenCalledWith(expect.any(Function));
+    expect(lockSendRateLimitBuckets).toHaveBeenCalledWith(
+      "EMAIL",
+      "a@b.kr",
+      "203.0.113.9",
+      txClient,
+    );
+    expect(countRecentSends).toHaveBeenCalledWith(
+      "EMAIL",
+      "a@b.kr",
+      expect.any(Date),
+      txClient,
+    );
+    expect(countRecentSendsByIp).toHaveBeenCalledWith(
+      "203.0.113.9",
+      expect.any(Date),
+      txClient,
+    );
+  });
+});
+
 describe("confirmCode()", () => {
   it("맞으면 확인 처리한다", async () => {
     findLiveCode.mockResolvedValue({ id: "v1", codeHash: hash("123456") });
@@ -209,5 +312,31 @@ describe("requireVerified()", () => {
     await expect(requireVerified("EMAIL", "a@b.kr")).resolves.toEqual({
       id: "v1",
     });
+  });
+});
+
+describe("consumeVerifications()", () => {
+  it("가입 트랜잭션의 DB 클라이언트로 인증코드를 소진한다", async () => {
+    const tx = { tx: true };
+
+    await consumeVerifications(["v1", "v2"], tx as never);
+
+    expect(consume).toHaveBeenCalledWith(["v1", "v2"], expect.any(Date), tx);
+  });
+
+  it("이미 소진된 proof가 섞이면 가입 트랜잭션을 실패시킨다", async () => {
+    consume.mockResolvedValueOnce(1);
+
+    await expect(consumeVerifications(["v1", "v2"], {} as never)).rejects.toThrow(
+      "인증 확인이 만료되었습니다",
+    );
+  });
+
+  it("같은 proof id가 중복으로 들어와도 한 번만 소진한다", async () => {
+    consume.mockResolvedValueOnce(1);
+
+    await consumeVerifications(["v1", "v1"], {} as never);
+
+    expect(consume).toHaveBeenCalledWith(["v1"], expect.any(Date), expect.anything());
   });
 });

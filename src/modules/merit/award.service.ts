@@ -1,6 +1,7 @@
 import { recordAudit } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
 import { assertCan, ForbiddenError } from "@/core/authz/errors";
+import { withTransaction } from "@/core/db/client";
 import {
   addKindPoints,
   emptyKindTotals,
@@ -11,7 +12,10 @@ import {
   type NetTotals,
 } from "@/core/authz/merit-track";
 import { schoolYearRange } from "./merit.chart";
-import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
+import {
+  AcademicYearError,
+  getCurrentYear,
+} from "@/modules/academic-year/academic-year.service";
 import { MeritError } from "./merit.error";
 import { toHistorySheet, toRosterSheet } from "./merit.export";
 import { kstDayStart } from "@/lib/datetime";
@@ -97,50 +101,54 @@ export async function awardMerit(
 ): Promise<void> {
   await assertCan(actor, "merit:award");
 
-  const rule = await repo.findRule(input.ruleId);
-  if (!rule) throw new MeritError("RULE_NOT_FOUND");
-  if (!rule.active) throw new MeritError("RULE_INACTIVE");
-
   // 부여는 명단에 있는 학생에게만 한다 — 조회는 빠진 학생도 열려 있지만 부여는 아니다.
   const student = await repo.findAwardableStudent(input.studentProfileId);
   if (!student) throw new MeritError("STUDENT_NOT_FOUND");
 
-  const year = await getCurrentYear();
   // 발생일은 입력이 아니라 오늘이다. 소급 입력 경로는 없앴다.
   const occurredOn = kstDayStart(now);
-  assertOccurredOn(occurredOn, year, now);
 
-  const { id } = await repo.createAward({
-    studentProfileId: student.id,
-    year,
-    ruleId: rule.id,
-    track: rule.track,
-    kind: rule.kind,
-    label: rule.label,
-    points: rule.points,
-    occurredOn,
-    note: input.note,
-    awardedByUserId: actor.id,
-    awardedByName: actor.name,
-  });
+  await withTransaction(async (tx) => {
+    const year = await repo.findCurrentYearForUpdate(tx);
+    if (year === null) throw new AcademicYearError("NO_CURRENT_YEAR");
+    assertOccurredOn(occurredOn, year, now);
 
-  await recordAudit({
-    actorUserId: actor.id,
-    actorName: actor.name,
-    action: "merit:award",
-    targetType: "MeritAward",
-    targetId: id,
-    metadata: {
+    const rule = await repo.findRuleForUpdate(input.ruleId, tx);
+    if (!rule) throw new MeritError("RULE_NOT_FOUND");
+    if (!rule.active) throw new MeritError("RULE_INACTIVE");
+
+    const { id } = await repo.createAward({
       studentProfileId: student.id,
-      studentName: student.user.name,
       year,
+      ruleId: rule.id,
       track: rule.track,
       kind: rule.kind,
       label: rule.label,
       points: rule.points,
-      // 로그의 createdAt은 입력 시각이다 — 사람이 고른 발생일은 따로 남긴다.
-      occurredOn: occurredOn.toISOString(),
-    },
+      occurredOn,
+      note: input.note,
+      awardedByUserId: actor.id,
+      awardedByName: actor.name,
+    }, tx);
+
+    await recordAudit({
+      actorUserId: actor.id,
+      actorName: actor.name,
+      action: "merit:award",
+      targetType: "MeritAward",
+      targetId: id,
+      metadata: {
+        studentProfileId: student.id,
+        studentName: student.user.name,
+        year,
+        track: rule.track,
+        kind: rule.kind,
+        label: rule.label,
+        points: rule.points,
+        // 로그의 createdAt은 입력 시각이다 — 사람이 고른 발생일은 따로 남긴다.
+        occurredOn: occurredOn.toISOString(),
+      },
+    }, tx);
   });
 }
 
@@ -160,29 +168,31 @@ export async function cancelAward(
 
   // 사전 검사와 갱신 사이에 남이 먼저 취소했으면 0이 온다. 그때 감사로그까지
   // 남기면 "두 사람이 취소했다"는 거짓 기록이 생긴다.
-  const cancelled = await repo.cancelAward(award.id, {
-    userId: actor.id,
-    name: actor.name,
-    reason: input.reason,
-  });
-  if (cancelled === 0) throw new MeritError("ALREADY_CANCELLED");
-
-  await recordAudit({
-    actorUserId: actor.id,
-    actorName: actor.name,
-    action: "merit:cancel",
-    targetType: "MeritAward",
-    targetId: award.id,
-    metadata: {
-      studentProfileId: award.studentProfileId,
-      // 로그가 "누구의 무엇을 취소했나"에 답하려면 이름이 있어야 한다.
-      studentName: award.studentProfile.user.name,
-      track: award.track,
-      kind: award.kind,
-      label: award.label,
-      points: award.points,
+  await withTransaction(async (tx) => {
+    const cancelled = await repo.cancelAward(award.id, {
+      userId: actor.id,
+      name: actor.name,
       reason: input.reason,
-    },
+    }, tx);
+    if (cancelled === 0) throw new MeritError("ALREADY_CANCELLED");
+
+    await recordAudit({
+      actorUserId: actor.id,
+      actorName: actor.name,
+      action: "merit:cancel",
+      targetType: "MeritAward",
+      targetId: award.id,
+      metadata: {
+        studentProfileId: award.studentProfileId,
+        // 로그가 "누구의 무엇을 취소했나"에 답하려면 이름이 있어야 한다.
+        studentName: award.studentProfile.user.name,
+        track: award.track,
+        kind: award.kind,
+        label: award.label,
+        points: award.points,
+        reason: input.reason,
+      },
+    }, tx);
   });
 }
 
@@ -254,10 +264,6 @@ export async function bulkAwardMerit(
 ): Promise<{ count: number }> {
   await assertCan(actor, "merit:award");
 
-  const rule = await repo.findRule(input.ruleId);
-  if (!rule) throw new MeritError("RULE_NOT_FOUND");
-  if (!rule.active) throw new MeritError("RULE_INACTIVE");
-
   // 화면에서 같은 학생이 두 번 넘어와도 한 번만 준다.
   const ids = [...new Set(input.studentProfileIds)];
   if (ids.length === 0) throw new MeritError("NO_STUDENTS");
@@ -272,49 +278,56 @@ export async function bulkAwardMerit(
   const byId = new Map(found.map((s) => [s.id, s]));
   const students = ids.map((id) => byId.get(id)!);
 
-  const year = await getCurrentYear();
   const occurredOn = kstDayStart(now);
-  assertOccurredOn(occurredOn, year, now);
 
+  const created = await withTransaction(
+    async (tx) => {
+      const year = await repo.findCurrentYearForUpdate(tx);
+      if (year === null) throw new AcademicYearError("NO_CURRENT_YEAR");
+      assertOccurredOn(occurredOn, year, now);
 
-  const created = await repo.createAwards(
-    students.map((student) => ({
-      studentProfileId: student.id,
-      year,
-      ruleId: rule.id,
-      track: rule.track,
-      kind: rule.kind,
-      label: rule.label,
-      points: rule.points,
-      occurredOn,
-      note: input.note,
-      awardedByUserId: actor.id,
-      awardedByName: actor.name,
-    })),
-  );
+      const rule = await repo.findRuleForUpdate(input.ruleId, tx);
+      if (!rule) throw new MeritError("RULE_NOT_FOUND");
+      if (!rule.active) throw new MeritError("RULE_INACTIVE");
 
-  // 커밋된 뒤에 기록한다. 감사 실패가 부여를 되돌리지는 않는다 (core/audit 규약).
-  await Promise.all(
-    created.map((row, index) => {
-      const student = students[index];
-      return recordAudit({
-        actorUserId: actor.id,
-        actorName: actor.name,
-        action: "merit:award",
-        targetType: "MeritAward",
-        targetId: row.id,
-        metadata: {
-          studentProfileId: student.id,
-          studentName: student.user.name,
-          year,
-          track: rule.track,
-          kind: rule.kind,
-          label: rule.label,
-          points: rule.points,
-          occurredOn: occurredOn.toISOString(),
-        },
-      });
-    }),
+      const items = students.map((student) => ({
+        studentProfileId: student.id,
+        year,
+        ruleId: rule.id,
+        track: rule.track,
+        kind: rule.kind,
+        label: rule.label,
+        points: rule.points,
+        occurredOn,
+        note: input.note,
+        awardedByUserId: actor.id,
+        awardedByName: actor.name,
+      }));
+
+      const rows = await repo.createAwards(items, tx);
+      for (const [index, row] of rows.entries()) {
+        const student = students[index];
+        await recordAudit({
+          actorUserId: actor.id,
+          actorName: actor.name,
+          action: "merit:award",
+          targetType: "MeritAward",
+          targetId: row.id,
+          metadata: {
+            studentProfileId: student.id,
+            studentName: student.user.name,
+            year,
+            track: rule.track,
+            kind: rule.kind,
+            label: rule.label,
+            points: rule.points,
+            occurredOn: occurredOn.toISOString(),
+          },
+        }, tx);
+      }
+      return rows;
+    },
+    { timeout: 30_000, maxWait: 5_000 },
   );
 
   return { count: created.length };

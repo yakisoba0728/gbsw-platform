@@ -26,6 +26,7 @@ import {
  */
 
 const base = {
+  updatedAt: "2026-08-19T00:00:00.000Z",
   name: "김학생",
   email: "student@gbsw.hs.kr",
   phone: "010-1234-5678",

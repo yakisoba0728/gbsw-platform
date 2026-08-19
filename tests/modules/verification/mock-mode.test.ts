@@ -1,13 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const countRecentSends = vi.fn();
+const countRecentSendsByIp = vi.fn();
+const lockSendRateLimitBuckets = vi.fn();
 const expirePending = vi.fn();
 const insertCode = vi.fn();
 const deleteById = vi.fn();
 const sendVerification = vi.fn();
+const readRequestContext = vi.fn();
+const withTransaction = vi.fn();
+const txClient = { tx: true };
 
 vi.mock("@/modules/verification/verification.repo", () => ({
   countRecentSends,
+  countRecentSendsByIp,
+  lockSendRateLimitBuckets,
   expirePending,
   insertCode,
   deleteById,
@@ -21,6 +28,8 @@ vi.mock("@/modules/verification/verification.repo", () => ({
 vi.mock("@/modules/verification/verification.sender", () => ({
   sendVerification,
 }));
+vi.mock("@/core/audit/request-context", () => ({ readRequestContext }));
+vi.mock("@/core/db/client", () => ({ withTransaction }));
 
 const { isMockVerification, requestCode } = await import(
   "@/modules/verification/verification.service"
@@ -33,10 +42,18 @@ function setEnv(nodeEnv: string, mock: string | undefined) {
 
 beforeEach(() => {
   countRecentSends.mockReset().mockResolvedValue(0);
+  countRecentSendsByIp.mockReset().mockResolvedValue(0);
+  lockSendRateLimitBuckets.mockReset();
   expirePending.mockReset();
   insertCode.mockReset().mockResolvedValue({ id: "v1" });
   deleteById.mockReset();
   sendVerification.mockReset().mockResolvedValue(undefined);
+  readRequestContext.mockReset().mockResolvedValue({ ip: null, userAgent: null });
+  withTransaction
+    .mockReset()
+    .mockImplementation(async (fn: (tx: typeof txClient) => Promise<unknown>) =>
+      fn(txClient),
+    );
 });
 
 afterEach(() => {

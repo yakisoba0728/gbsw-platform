@@ -5,26 +5,32 @@ const enrollmentCreate = vi.fn();
 const schoolClassUpsert = vi.fn();
 const studentProfileFindMany = vi.fn();
 const userUpdateMany = vi.fn();
+const userDeleteMany = vi.fn();
 const sessionDeleteMany = vi.fn();
 const inviteCreate = vi.fn();
 const inviteUpdateMany = vi.fn();
+const inviteDeleteMany = vi.fn();
 const inviteFindMany = vi.fn();
-const transaction = vi.fn();
+const withTransaction = vi.fn();
 
 const tx = {
   enrollment: { deleteMany: enrollmentDeleteMany, create: enrollmentCreate },
   schoolClass: { upsert: schoolClassUpsert },
   studentProfile: { findMany: studentProfileFindMany },
-  user: { updateMany: userUpdateMany },
+  user: { updateMany: userUpdateMany, deleteMany: userDeleteMany },
   session: { deleteMany: sessionDeleteMany },
-  invite: { create: inviteCreate, updateMany: inviteUpdateMany, findMany: inviteFindMany },
+  invite: {
+    create: inviteCreate,
+    updateMany: inviteUpdateMany,
+    deleteMany: inviteDeleteMany,
+    findMany: inviteFindMany,
+  },
 };
 
 vi.mock("@/core/db/client", () => ({
-  prisma: {
-    // applyRoster는 단일 트랜잭션 안에서 돈다 — 콜백에 tx를 그대로 넘겨 흉내 낸다.
-    $transaction: transaction,
-  },
+  prisma: {},
+  // applyRoster는 단일 트랜잭션 안에서 돈다 — 콜백에 tx를 그대로 넘겨 흉내 낸다.
+  withTransaction,
 }));
 
 const { InviteCodeCollisionError, applyRoster } = await import(
@@ -56,7 +62,7 @@ type RosterAssignment = ApplyInput["assignments"][number];
 
 function assignment(overrides: Partial<RosterAssignment> = {}): RosterAssignment {
   return {
-    line: 2,
+    line: 0,
     studentCode: "AAAA2345",
     name: "김동혁",
     birthDate: "2010-07-28",
@@ -90,52 +96,67 @@ beforeEach(() => {
   schoolClassUpsert.mockReset().mockResolvedValue({ id: "class-1" });
   studentProfileFindMany.mockReset().mockResolvedValue([]);
   userUpdateMany.mockReset().mockResolvedValue({ count: 0 });
+  userDeleteMany.mockReset().mockResolvedValue({ count: 0 });
   sessionDeleteMany.mockReset().mockResolvedValue({ count: 0 });
   inviteCreate.mockReset().mockResolvedValue(undefined);
   inviteUpdateMany.mockReset().mockResolvedValue({ count: 0 });
+  inviteDeleteMany.mockReset().mockResolvedValue({ count: 0 });
   inviteFindMany.mockReset().mockResolvedValue([]);
-  transaction.mockReset().mockImplementation(async (fn: (tx: unknown) => unknown) => fn(tx));
+  withTransaction.mockReset().mockImplementation(async (fn: (tx: unknown) => unknown) => fn(tx));
 });
 
 describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
-  it("deleteStudentProfileIds가 비어 있으면 소프트 삭제 쿼리를 부르지 않는다", async () => {
+  it("deleteStudentProfileIds가 비어 있으면 삭제 쿼리를 부르지 않는다", async () => {
     await applyRoster(2026, input({ deleteStudentProfileIds: [] }));
 
     expect(inviteUpdateMany).not.toHaveBeenCalled();
+    expect(inviteDeleteMany).not.toHaveBeenCalled();
+    expect(userDeleteMany).not.toHaveBeenCalled();
     expect(userUpdateMany).not.toHaveBeenCalled();
   });
 
-  it("안 쓴 초대코드를 폐기하고 계정은 지우지 않고 deletedAt만 찍는다", async () => {
-    studentProfileFindMany.mockResolvedValue([{ userId: "u-del-1" }, { userId: "u-del-2" }]);
+  it("초대코드를 먼저 지우고 계정을 완전히 삭제한다", async () => {
+    studentProfileFindMany.mockResolvedValue([
+      { id: "sp-del-1", userId: "u-del-1" },
+      { id: "sp-del-2", userId: "u-del-2" },
+    ]);
     inviteFindMany.mockResolvedValue([{ id: "inv-1", role: "PARENT" }]);
 
     await applyRoster(2026, input({ deleteStudentProfileIds: ["sp-del-1", "sp-del-2"] }));
 
     expect(studentProfileFindMany).toHaveBeenCalledWith({
-      where: { id: { in: ["sp-del-1", "sp-del-2"] }, user: { role: "STUDENT" } },
-      select: { userId: true },
+      where: {
+        id: { in: ["sp-del-1", "sp-del-2"] },
+        user: { role: "STUDENT" },
+        enrollments: { none: { status: "GRADUATED" } },
+      },
+      select: { id: true, userId: true },
     });
     expect(inviteFindMany).toHaveBeenCalledWith({
       where: {
         status: "PENDING",
         OR: [
           { createdById: { in: ["u-del-1", "u-del-2"] } },
+          { usedById: { in: ["u-del-1", "u-del-2"] } },
           { studentId: { in: ["sp-del-1", "sp-del-2"] } },
         ],
       },
       select: { id: true, role: true },
     });
-    expect(inviteUpdateMany).toHaveBeenCalledWith({
-      where: { id: { in: ["inv-1"] }, status: "PENDING" },
-      data: { status: "REVOKED" },
+    expect(inviteUpdateMany).not.toHaveBeenCalled();
+    expect(inviteDeleteMany).toHaveBeenCalledWith({
+      where: {
+        OR: [
+          { createdById: { in: ["u-del-1", "u-del-2"] } },
+          { usedById: { in: ["u-del-1", "u-del-2"] } },
+          { studentId: { in: ["sp-del-1", "sp-del-2"] } },
+        ],
+      },
     });
-    expect(userUpdateMany).toHaveBeenCalledWith({
+    expect(userDeleteMany).toHaveBeenCalledWith({
       where: { id: { in: ["u-del-1", "u-del-2"] } },
-      data: { deletedAt: expect.any(Date), status: "INACTIVE" },
     });
-    expect(sessionDeleteMany).toHaveBeenCalledWith({
-      where: { userId: { in: ["u-del-1", "u-del-2"] } },
-    });
+    expect(sessionDeleteMany).not.toHaveBeenCalled();
   });
 
   it("삭제 대상 조회를 role: STUDENT로 다시 좁혀 승격된 계정을 뺀다", async () => {
@@ -144,31 +165,48 @@ describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
     await applyRoster(2026, input({ deleteStudentProfileIds: ["sp-del-1"] }));
 
     expect(studentProfileFindMany).toHaveBeenCalledWith({
-      where: { id: { in: ["sp-del-1"] }, user: { role: "STUDENT" } },
-      select: { userId: true },
+      where: {
+        id: { in: ["sp-del-1"] },
+        user: { role: "STUDENT" },
+        enrollments: { none: { status: "GRADUATED" } },
+      },
+      select: { id: true, userId: true },
     });
-    // findMany가 role 필터에 걸려 빈 배열을 돌려주면 대상이 없다 — 승격된 계정은
-    // 뒤이은 소프트 삭제 쿼리의 in절에 아예 등장하지 않는다.
-    expect(userUpdateMany).toHaveBeenCalledWith({
-      where: { id: { in: [] } },
-      data: { deletedAt: expect.any(Date), status: "INACTIVE" },
+    expect(inviteDeleteMany).not.toHaveBeenCalled();
+    expect(userDeleteMany).not.toHaveBeenCalled();
+  });
+
+  it("삭제 대상 조회에서 졸업생을 트랜잭션 안에서 다시 제외한다", async () => {
+    studentProfileFindMany.mockResolvedValue([{ id: "sp-del-1", userId: "u-del-1" }]);
+
+    await applyRoster(2026, input({ deleteStudentProfileIds: ["sp-del-1", "sp-grad"] }));
+
+    expect(studentProfileFindMany).toHaveBeenCalledWith({
+      where: {
+        id: { in: ["sp-del-1", "sp-grad"] },
+        user: { role: "STUDENT" },
+        enrollments: { none: { status: "GRADUATED" } },
+      },
+      select: { id: true, userId: true },
+    });
+    expect(userDeleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ["u-del-1"] } },
     });
   });
 
-  it("소프트 삭제는 재배정(enrollment 재생성)보다 먼저 끝낸다", async () => {
-    studentProfileFindMany.mockResolvedValue([{ userId: "u-del-1" }]);
+  it("계정 삭제는 재배정(enrollment 재생성)보다 먼저 끝낸다", async () => {
+    studentProfileFindMany.mockResolvedValue([{ id: "sp-del-1", userId: "u-del-1" }]);
 
     await applyRoster(2026, input({ deleteStudentProfileIds: ["sp-del-1"] }));
 
-    // 소프트 삭제 블록의 userUpdateMany 호출(첫 번째)이 enrollment.create보다 먼저다.
-    const deleteOrder = userUpdateMany.mock.invocationCallOrder[0]!;
+    const deleteOrder = userDeleteMany.mock.invocationCallOrder[0]!;
     for (const call of enrollmentCreate.mock.invocationCallOrder) {
       expect(call).toBeGreaterThan(deleteOrder);
     }
   });
 
-  it("안 쓴 코드는 지우지 않고 REVOKED로 바꾼다 — 학부모 코드도 함께", async () => {
-    studentProfileFindMany.mockResolvedValue([{ userId: "u-del-1" }]);
+  it("학생에게 달린 학부모 코드도 삭제 대상으로 잡는다", async () => {
+    studentProfileFindMany.mockResolvedValue([{ id: "sp-del-1", userId: "u-del-1" }]);
 
     await applyRoster(2026, input({ deleteStudentProfileIds: ["sp-del-1"] }));
 
@@ -178,8 +216,8 @@ describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
     expect(call.where.OR.some((c) => c.studentId?.in.includes("sp-del-1"))).toBe(true);
   });
 
-  it("폐기한 코드를 돌려줘야 서비스가 감사로그를 남길 수 있다", async () => {
-    studentProfileFindMany.mockResolvedValue([{ userId: "u-del-1" }]);
+  it("삭제한 대기 코드를 돌려줘야 서비스가 감사로그를 남길 수 있다", async () => {
+    studentProfileFindMany.mockResolvedValue([{ id: "sp-del-1", userId: "u-del-1" }]);
     inviteFindMany.mockResolvedValue([
       { id: "inv-1", role: "PARENT" },
       { id: "inv-2", role: "PARENT" },
@@ -193,13 +231,14 @@ describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
     ]);
   });
 
-  it("폐기할 코드가 없으면 updateMany를 아예 부르지 않고 빈 배열을 돌려준다", async () => {
-    studentProfileFindMany.mockResolvedValue([{ userId: "u-del-1" }]);
+  it("폐기할 코드가 없으면 빈 배열을 돌려준다", async () => {
+    studentProfileFindMany.mockResolvedValue([{ id: "sp-del-1", userId: "u-del-1" }]);
     inviteFindMany.mockResolvedValue([]);
 
     const result = await applyRoster(2026, input({ deleteStudentProfileIds: ["sp-del-1"] }));
 
     expect(inviteUpdateMany).not.toHaveBeenCalled();
+    expect(inviteDeleteMany).toHaveBeenCalled();
     expect(result.revokedInvites).toEqual([]);
   });
 
@@ -212,6 +251,24 @@ describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
 });
 
 describe("applyRoster()", () => {
+  it("단일 withTransaction 안에서 처리하고 timeout/maxWait을 고정한다", async () => {
+    await applyRoster(2026, input());
+
+    expect(withTransaction).toHaveBeenCalledTimes(1);
+    expect(withTransaction.mock.calls[0]![1]).toEqual({ timeout: 120_000, maxWait: 10_000 });
+  });
+
+  it("tx가 전달되면 중첩 트랜잭션을 열지 않고 그 tx로 처리한다", async () => {
+    await applyRoster(
+      2026,
+      input(),
+      tx as unknown as NonNullable<Parameters<typeof applyRoster>[2]>,
+    );
+
+    expect(withTransaction).not.toHaveBeenCalled();
+    expect(enrollmentDeleteMany).toHaveBeenCalledTimes(1);
+  });
+
   it("managedStudentProfileIds 범위 밖 배정은 지우지 않는다", async () => {
     await applyRoster(2026, input({ managedStudentProfileIds: ["sp-1", "sp-2"] }));
 
@@ -247,6 +304,24 @@ describe("applyRoster()", () => {
     expect(sessionDeleteMany).not.toHaveBeenCalled();
   });
 
+  it("재배정처럼 학적은 그대로지만 소속이 바뀐 학생은 User.updatedAt을 bump한다", async () => {
+    studentProfileFindMany.mockResolvedValue([{ userId: "u-1" }]);
+
+    await applyRoster(
+      2026,
+      input({ assignments: [assignment({ line: 2, statusChanged: false, classNo: 4 })] }),
+    );
+
+    expect(studentProfileFindMany).toHaveBeenCalledWith({
+      where: { id: { in: ["sp-1"] } },
+      select: { userId: true },
+    });
+    expect(userUpdateMany).toHaveBeenCalledWith({
+      where: { id: { in: ["u-1"] } },
+      data: { updatedAt: expect.any(Date) },
+    });
+  });
+
   it("비재학으로 바뀌면 계정을 잠그고 세션과 deletedAt을 지운다", async () => {
     studentProfileFindMany.mockResolvedValue([{ userId: "u-1" }]);
 
@@ -261,7 +336,7 @@ describe("applyRoster()", () => {
 
     expect(userUpdateMany).toHaveBeenCalledWith({
       where: { id: { in: ["u-1"] } },
-      data: { status: "INACTIVE", deletedAt: null },
+      data: { status: "INACTIVE", deletedAt: null, updatedAt: expect.any(Date) },
     });
     expect(sessionDeleteMany).toHaveBeenCalledWith({ where: { userId: { in: ["u-1"] } } });
   });
@@ -273,7 +348,7 @@ describe("applyRoster()", () => {
 
     expect(userUpdateMany).toHaveBeenCalledWith({
       where: { id: { in: ["u-1"] } },
-      data: { status: "ACTIVE", deletedAt: null },
+      data: { status: "ACTIVE", deletedAt: null, updatedAt: expect.any(Date) },
     });
     expect(sessionDeleteMany).not.toHaveBeenCalled();
   });

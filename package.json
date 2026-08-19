@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run --project unit",
     "test:watch": "vitest --project unit",
     "test:integration": "vitest run --project integration",
@@ -20,7 +20,8 @@
     "seed:demo": "tsx --conditions=react-server scripts/seed-demo.ts",
     "auth:generate": "npx @better-auth/cli generate --config src/core/auth/auth.ts",
     "postinstall": "prisma generate",
-    "verify": "npm run typecheck && npm run lint && npm test"
+    "verify:unit": "npm run typecheck && npm run lint && npm test",
+    "verify": "npm run verify:unit && npm run db:test:setup && npm run test:integration && npm run build"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",

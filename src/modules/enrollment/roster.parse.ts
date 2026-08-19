@@ -1,8 +1,10 @@
 import { readSheet } from "read-excel-file/node";
+import { inflateRawSync } from "node:zlib";
 import {
   ENROLLMENT_STATUS_LABELS,
   type EnrollmentStatus,
 } from "@/core/authz/enrollment-status";
+import { isCanonicalDateInput } from "@/lib/date-input";
 import { isStudentCode } from "@/lib/student-code";
 import {
   CLASS_NO_RANGE_MESSAGE,
@@ -38,6 +40,333 @@ export type RosterRow = {
   status: EnrollmentStatus | null;
   errors: string[];
 };
+
+export class RosterParseError extends Error {}
+
+const MAX_ROSTER_ROWS = 2000;
+
+const XLSX_SIGNATURES = {
+  endOfCentralDirectory: 0x06054b50,
+  centralDirectoryFileHeader: 0x02014b50,
+  localFileHeader: 0x04034b50,
+} as const;
+
+const ZIP64_SENTINEL = 0xffffffff;
+const ZIP_DATA_DESCRIPTOR_SIGNATURE = 0x08074b50;
+
+export const XLSX_PREFLIGHT_LIMITS = {
+  maxCompressedBytes: 5 * 1024 * 1024,
+  maxUncompressedBytes: 25 * 1024 * 1024,
+  maxEntryUncompressedBytes: 10 * 1024 * 1024,
+  maxEntries: 500,
+  maxSheetRows: MAX_ROSTER_ROWS + 1,
+} as const;
+
+type ZipEntry = {
+  filename: string;
+  filenameBytes: Buffer;
+  flags: number;
+  compressionMethod: number;
+  crc32: number;
+  compressedSize: number;
+  uncompressedSize: number;
+  localHeaderOffset: number;
+};
+
+const ZIP_FLAG_DATA_DESCRIPTOR = 0x0008;
+const ZIP_FLAG_UTF8_FILENAME = 0x0800;
+const SUPPORTED_ZIP_FLAGS = ZIP_FLAG_DATA_DESCRIPTOR | ZIP_FLAG_UTF8_FILENAME;
+
+function findEndOfCentralDirectory(buffer: Buffer): number {
+  if (buffer.length < 22) throw new RosterParseError("XLSX_ZIP_INVALID");
+
+  const minOffset = Math.max(0, buffer.length - (65_535 + 22));
+  for (let offset = buffer.length - 22; offset >= minOffset; offset--) {
+    if (buffer.readUInt32LE(offset) === XLSX_SIGNATURES.endOfCentralDirectory) {
+      return offset;
+    }
+  }
+  throw new RosterParseError("XLSX_ZIP_INVALID");
+}
+
+function readCentralDirectory(buffer: Buffer): ZipEntry[] {
+  if (buffer.length > XLSX_PREFLIGHT_LIMITS.maxCompressedBytes) {
+    throw new RosterParseError("XLSX_TOO_LARGE");
+  }
+
+  const eocd = findEndOfCentralDirectory(buffer);
+  const diskNumber = buffer.readUInt16LE(eocd + 4);
+  const centralDirectoryDisk = buffer.readUInt16LE(eocd + 6);
+  if (diskNumber !== 0 || centralDirectoryDisk !== 0) {
+    throw new RosterParseError("XLSX_ZIP_INVALID");
+  }
+
+  const diskEntryCount = buffer.readUInt16LE(eocd + 8);
+  const entryCount = buffer.readUInt16LE(eocd + 10);
+  const centralDirectorySize = buffer.readUInt32LE(eocd + 12);
+  const centralDirectoryOffset = buffer.readUInt32LE(eocd + 16);
+  const commentLength = buffer.readUInt16LE(eocd + 20);
+  if (
+    entryCount === 0xffff ||
+    centralDirectorySize === ZIP64_SENTINEL ||
+    centralDirectoryOffset === ZIP64_SENTINEL ||
+    diskEntryCount !== entryCount ||
+    entryCount > XLSX_PREFLIGHT_LIMITS.maxEntries ||
+    centralDirectoryOffset + centralDirectorySize !== eocd ||
+    eocd + 22 + commentLength !== buffer.length
+  ) {
+    throw new RosterParseError("XLSX_ZIP_INVALID");
+  }
+
+  const entries: ZipEntry[] = [];
+  const seenNames = new Set<string>();
+  const seenOffsets = new Set<number>();
+  let totalCompressed = 0;
+  let totalUncompressed = 0;
+  let offset = centralDirectoryOffset;
+
+  for (let i = 0; i < entryCount; i++) {
+    if (
+      offset + 46 > buffer.length ||
+      buffer.readUInt32LE(offset) !== XLSX_SIGNATURES.centralDirectoryFileHeader
+    ) {
+      throw new RosterParseError("XLSX_ZIP_INVALID");
+    }
+
+    const flags = buffer.readUInt16LE(offset + 8);
+    const compressionMethod = buffer.readUInt16LE(offset + 10);
+    const crc32 = buffer.readUInt32LE(offset + 16);
+    const compressedSize = buffer.readUInt32LE(offset + 20);
+    const uncompressedSize = buffer.readUInt32LE(offset + 24);
+    const filenameLength = buffer.readUInt16LE(offset + 28);
+    const extraLength = buffer.readUInt16LE(offset + 30);
+    const commentLength = buffer.readUInt16LE(offset + 32);
+    const localHeaderOffset = buffer.readUInt32LE(offset + 42);
+    const filenameStart = offset + 46;
+    const filenameEnd = filenameStart + filenameLength;
+    const nextOffset = filenameEnd + extraLength + commentLength;
+
+    if (
+      nextOffset > buffer.length ||
+      filenameLength === 0 ||
+      (flags & ~SUPPORTED_ZIP_FLAGS) !== 0 ||
+      !isSupportedZipCompression(compressionMethod) ||
+      compressedSize === ZIP64_SENTINEL ||
+      uncompressedSize === ZIP64_SENTINEL ||
+      localHeaderOffset === ZIP64_SENTINEL
+    ) {
+      throw new RosterParseError("XLSX_ZIP_INVALID");
+    }
+
+    totalCompressed += compressedSize;
+    totalUncompressed += uncompressedSize;
+    if (
+      totalCompressed > XLSX_PREFLIGHT_LIMITS.maxCompressedBytes ||
+      totalUncompressed > XLSX_PREFLIGHT_LIMITS.maxUncompressedBytes ||
+      uncompressedSize > XLSX_PREFLIGHT_LIMITS.maxEntryUncompressedBytes
+    ) {
+      throw new RosterParseError("XLSX_ZIP_BOMB");
+    }
+
+    const filenameBytes = Buffer.from(buffer.subarray(filenameStart, filenameEnd));
+    const filename = filenameBytes.toString("utf8");
+    if (
+      filename.includes("\0") ||
+      filename.includes("\\") ||
+      filename.startsWith("/") ||
+      filename.split("/").includes("..") ||
+      seenNames.has(filename) ||
+      seenOffsets.has(localHeaderOffset)
+    ) {
+      throw new RosterParseError("XLSX_ZIP_INVALID");
+    }
+    seenNames.add(filename);
+    seenOffsets.add(localHeaderOffset);
+
+    entries.push({
+      filename,
+      filenameBytes,
+      flags,
+      compressionMethod,
+      crc32,
+      compressedSize,
+      uncompressedSize,
+      localHeaderOffset,
+    });
+    offset = nextOffset;
+  }
+
+  if (offset !== eocd) throw new RosterParseError("XLSX_ZIP_INVALID");
+  verifyLocalEntrySequence(buffer, entries, centralDirectoryOffset);
+
+  return entries;
+}
+
+function isSupportedZipCompression(method: number): boolean {
+  return method === 0 || method === 8;
+}
+
+function verifyLocalEntrySequence(
+  buffer: Buffer,
+  entries: ZipEntry[],
+  centralDirectoryOffset: number,
+): void {
+  let expectedOffset = 0;
+  const entriesByOffset = [...entries].sort((a, b) => a.localHeaderOffset - b.localHeaderOffset);
+
+  for (const entry of entriesByOffset) {
+    if (entry.localHeaderOffset !== expectedOffset) {
+      throw new RosterParseError("XLSX_ZIP_INVALID");
+    }
+    expectedOffset = readAndVerifyLocalEntry(buffer, entry);
+  }
+
+  if (expectedOffset !== centralDirectoryOffset) {
+    throw new RosterParseError("XLSX_ZIP_INVALID");
+  }
+}
+
+function readAndVerifyLocalEntry(buffer: Buffer, entry: ZipEntry): number {
+  const offset = entry.localHeaderOffset;
+  if (
+    offset + 30 > buffer.length ||
+    buffer.readUInt32LE(offset) !== XLSX_SIGNATURES.localFileHeader
+  ) {
+    throw new RosterParseError("XLSX_ZIP_INVALID");
+  }
+
+  const flags = buffer.readUInt16LE(offset + 6);
+  const compressionMethod = buffer.readUInt16LE(offset + 8);
+  const crc32 = buffer.readUInt32LE(offset + 14);
+  const compressedSize = buffer.readUInt32LE(offset + 18);
+  const uncompressedSize = buffer.readUInt32LE(offset + 22);
+  const filenameLength = buffer.readUInt16LE(offset + 26);
+  const extraLength = buffer.readUInt16LE(offset + 28);
+  const filenameStart = offset + 30;
+  const filenameEnd = filenameStart + filenameLength;
+  const dataStart = filenameEnd + extraLength;
+  const dataEnd = dataStart + entry.compressedSize;
+
+  if (
+    filenameEnd > buffer.length ||
+    dataEnd > buffer.length ||
+    filenameLength !== entry.filenameBytes.length ||
+    !buffer.subarray(filenameStart, filenameEnd).equals(entry.filenameBytes) ||
+    flags !== entry.flags ||
+    compressionMethod !== entry.compressionMethod
+  ) {
+    throw new RosterParseError("XLSX_ZIP_INVALID");
+  }
+
+  if ((flags & ZIP_FLAG_DATA_DESCRIPTOR) !== 0) {
+    const descriptorEnd = dataEnd + 16;
+    if (
+      descriptorEnd > buffer.length ||
+      crc32 !== 0 ||
+      compressedSize !== 0 ||
+      uncompressedSize !== 0 ||
+      buffer.readUInt32LE(dataEnd) !== ZIP_DATA_DESCRIPTOR_SIGNATURE ||
+      buffer.readUInt32LE(dataEnd + 4) !== entry.crc32 ||
+      buffer.readUInt32LE(dataEnd + 8) !== entry.compressedSize ||
+      buffer.readUInt32LE(dataEnd + 12) !== entry.uncompressedSize
+    ) {
+      throw new RosterParseError("XLSX_ZIP_INVALID");
+    }
+    return descriptorEnd;
+  }
+
+  if (
+    crc32 !== entry.crc32 ||
+    compressedSize !== entry.compressedSize ||
+    uncompressedSize !== entry.uncompressedSize
+  ) {
+    throw new RosterParseError("XLSX_ZIP_INVALID");
+  }
+
+  return dataEnd;
+}
+
+function inflateEntry(buffer: Buffer, entry: ZipEntry, maxOutputLength: number): Buffer {
+  const offset = entry.localHeaderOffset;
+  if (
+    offset + 30 > buffer.length ||
+    buffer.readUInt32LE(offset) !== XLSX_SIGNATURES.localFileHeader
+  ) {
+    throw new RosterParseError("XLSX_ZIP_INVALID");
+  }
+
+  const filenameLength = buffer.readUInt16LE(offset + 26);
+  const extraLength = buffer.readUInt16LE(offset + 28);
+  const dataStart = offset + 30 + filenameLength + extraLength;
+  const dataEnd = dataStart + entry.compressedSize;
+  if (dataEnd > buffer.length) throw new RosterParseError("XLSX_ZIP_INVALID");
+
+  const compressed = buffer.subarray(dataStart, dataEnd);
+  if (entry.compressionMethod === 0) {
+    if (compressed.length > maxOutputLength) throw new RosterParseError("XLSX_ZIP_BOMB");
+    return compressed;
+  }
+  if (entry.compressionMethod === 8) {
+    try {
+      return inflateRawSync(compressed, { maxOutputLength });
+    } catch (error) {
+      if (error instanceof RangeError) throw new RosterParseError("XLSX_ZIP_BOMB");
+      throw new RosterParseError("XLSX_ZIP_INVALID");
+    }
+  }
+  throw new RosterParseError("XLSX_ZIP_INVALID");
+}
+
+function countWorksheetRows(xml: string): number {
+  let count = 0;
+  const rowTag = /<row\b/g;
+  while (rowTag.exec(xml)) {
+    count++;
+    if (count > XLSX_PREFLIGHT_LIMITS.maxSheetRows) return count;
+  }
+  return count;
+}
+
+export function preflightXlsx(buffer: Buffer): void {
+  const entries = readCentralDirectory(buffer);
+  const worksheets = entries.filter((entry) =>
+    /^xl\/worksheets\/sheet\d+\.xml$/u.test(entry.filename),
+  );
+  if (worksheets.length === 0) throw new RosterParseError("XLSX_ZIP_INVALID");
+
+  const worksheetNames = new Set(worksheets.map((entry) => entry.filename));
+  let actualUncompressedBytes = 0;
+
+  for (const entry of entries) {
+    if (!/\.xml(?:\.rels)?$/u.test(entry.filename) && !/\.rels$/u.test(entry.filename)) {
+      continue;
+    }
+
+    const remainingAggregate =
+      XLSX_PREFLIGHT_LIMITS.maxUncompressedBytes - actualUncompressedBytes;
+    if (remainingAggregate <= 0) throw new RosterParseError("XLSX_ZIP_BOMB");
+
+    const inflated = inflateEntry(
+      buffer,
+      entry,
+      Math.min(XLSX_PREFLIGHT_LIMITS.maxEntryUncompressedBytes, remainingAggregate + 1),
+    );
+    if (
+      inflated.length > XLSX_PREFLIGHT_LIMITS.maxEntryUncompressedBytes ||
+      actualUncompressedBytes + inflated.length > XLSX_PREFLIGHT_LIMITS.maxUncompressedBytes
+    ) {
+      throw new RosterParseError("XLSX_ZIP_BOMB");
+    }
+    actualUncompressedBytes += inflated.length;
+
+    if (worksheetNames.has(entry.filename)) {
+      const rowCount = countWorksheetRows(inflated.toString("utf8"));
+      if (rowCount > XLSX_PREFLIGHT_LIMITS.maxSheetRows) {
+        throw new RosterParseError("TOO_MANY_ROWS");
+      }
+    }
+  }
+}
 
 /** 한글 라벨 → 저장 상수. 파서만 이 방향을 안다. */
 const STATUS_BY_LABEL = new Map(
@@ -96,14 +425,18 @@ function toDateString(raw: string): string | null {
   const m = v.match(/^(\d{4})[-./](\d{1,2})[-./](\d{1,2})$/);
   if (m) {
     const [, y, mo, d] = m;
-    return `${y}-${mo!.padStart(2, "0")}-${d!.padStart(2, "0")}`;
+    const date = `${y}-${mo!.padStart(2, "0")}-${d!.padStart(2, "0")}`;
+    return isCanonicalDateInput(date) ? date : null;
   }
 
   // 엑셀 날짜 일련번호 (1900-01-01 = 1, 1900 윤년 버그 보정 포함)
   if (/^\d{5}$/.test(v)) {
     const ms = (Number(v) - 25569) * 86_400_000;
     const d = new Date(ms);
-    if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+    if (!Number.isNaN(d.getTime())) {
+      const date = d.toISOString().slice(0, 10);
+      return isCanonicalDateInput(date) ? date : null;
+    }
   }
 
   return null;
@@ -118,6 +451,9 @@ function toInt(raw: string): number | null {
 
 export function normalizeRows(table: string[][]): RosterRow[] {
   if (table.length === 0) return [];
+  if (table.length > XLSX_PREFLIGHT_LIMITS.maxSheetRows) {
+    throw new RosterParseError("TOO_MANY_ROWS");
+  }
 
   const header = table[0]!.map((h) => h.trim());
   const at = (name: string) => header.indexOf(name);
@@ -242,6 +578,7 @@ export async function parseRoster(input: {
     return { rows: normalizeRows(table), notices: fileNotices(table) };
   }
 
+  preflightXlsx(input.buffer);
   // 첫 시트만 필요하다.
   const rows = await readSheet(input.buffer);
   const table = rows.map((row) =>

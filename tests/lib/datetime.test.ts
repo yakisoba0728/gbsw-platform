@@ -227,33 +227,22 @@ describe("formatDate() / formatDateTime()", () => {
 });
 
 describe("잘못된 입력에서의 현재 동작", () => {
-  /**
-   * 아래는 "이래야 한다"가 아니라 **지금 이렇다**를 못 박은 것이다.
-   * 호출부의 zod가 이 값들을 어디까지 걸러 주는지는 스키마마다 다르다 —
-   * merit.schema.ts의 dateInputKst만 변환 뒤 Invalid Date를 다시 걸러낸다.
-   */
-  it("형식이 아예 아니면 Invalid Date가 된다", () => {
-    expect(Number.isNaN(parseDateInputKst("").getTime())).toBe(true);
-    expect(Number.isNaN(parseDateInputKst("2026-13-45").getTime())).toBe(true);
-    expect(Number.isNaN(parseDateInputKst("없는날").getTime())).toBe(true);
-    expect(Number.isNaN(parseDateInputKst("2026-8-1").getTime())).toBe(true); // 0 채움이 없으면 못 읽는다
-    expect(Number.isNaN(parseDateInputKst(" 2026-08-17").getTime())).toBe(true); // 앞뒤 공백도 못 읽는다
-  });
-
-  it("잘린 날짜는 Invalid Date가 아니라 1일이 된다 — 호출부의 정규식이 막는다", () => {
-    expect(formatDateInput(parseDateInputKst("2026-08"))).toBe("2026-08-01");
-    expect(formatDateInput(parseDateInputKst("2026"))).toBe("2026-01-01");
-  });
-
-  it("2월 30일은 Invalid Date가 아니라 다음 달로 굴러간다", () => {
-    // merit.schema.ts의 주석이 이미 경고하는 자리다. 정규식도 Invalid Date 검사도
-    // 통과하므로, 없는 날짜가 조용히 다른 날짜로 저장된다.
-    expect(formatDateInput(parseDateInputKst("2026-02-30"))).toBe("2026-03-02");
-    expect(formatDateInput(parseDateInputKst("2026-04-31"))).toBe("2026-05-01");
+  it.each([
+    "",
+    "2026-13-45",
+    "없는날",
+    "2026-8-1",
+    " 2026-08-17",
+    "2026-08",
+    "2026",
+    "2026-02-30",
+    "2026-04-31",
+  ])("정규형이 아니거나 실제 달력에 없는 날짜 %s를 거부한다", (value) => {
+    expect(() => parseDateInputKst(value)).toThrow(RangeError);
   });
 
   it("Invalid Date를 포맷하면 던진다", () => {
-    expect(() => formatDateInput(parseDateInputKst("2026-13-45"))).toThrow(RangeError);
+    expect(() => parseDateInputKst("2026-13-45")).toThrow(RangeError);
     expect(() => formatDate(new Date(Number.NaN))).toThrow(RangeError);
     expect(() => isSameKstDate(new Date(Number.NaN), new Date())).toThrow(RangeError);
   });

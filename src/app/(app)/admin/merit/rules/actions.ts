@@ -13,6 +13,7 @@ import type { RuleFormState } from "./action-state";
 
 const MESSAGES: Record<string, string> = {
   RULE_NOT_FOUND: "규정을 찾을 수 없습니다.",
+  RULE_CONFLICT: "다른 관리자가 규정을 바꿨습니다. 새로고침 후 다시 저장해 주세요.",
 };
 
 function fail(error: string): RuleFormState {
@@ -62,6 +63,7 @@ export async function updateRuleAction(
 
   const parsed = updateRuleSchema.safeParse({
     ruleId: formData.get("ruleId"),
+    updatedAt: formData.get("updatedAt"),
     label: formData.get("label"),
     points: formData.get("points"),
     category: formData.get("category"),
@@ -89,6 +91,7 @@ export async function deleteRuleAction(
 
   const parsed = deleteRuleSchema.safeParse({
     ruleId: formData.get("ruleId"),
+    updatedAt: formData.get("updatedAt"),
     reason: formData.get("reason"),
   });
   if (!parsed.success) {
