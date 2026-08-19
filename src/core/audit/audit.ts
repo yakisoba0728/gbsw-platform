@@ -1,4 +1,4 @@
-import { prisma } from "@/core/db/client";
+import { prisma, type DbClient } from "@/core/db/client";
 import type { Prisma } from "@/generated/prisma/client";
 import { readRequestContext } from "./request-context";
 
@@ -25,16 +25,20 @@ export type RecordAuditInput = {
 };
 
 /**
- * 감사로그 기록. 모든 생성/수정/삭제는 서비스 계층에서 이걸 호출한다.
- * 기록 실패가 본 작업을 되돌리지는 않는다 — 필요하면 호출부가 감싼다.
+ * 감사로그 기록. 성공한 생성/수정/삭제는 서비스 계층에서 업무 쓰기와 같은
+ * 트랜잭션 클라이언트를 넘겨 함께 커밋하거나 함께 롤백해야 한다.
+ * AuditLog.create 실패는 호출자에게 전파되어 그 트랜잭션을 중단시킨다.
  */
-export async function recordAudit(input: RecordAuditInput): Promise<void> {
+export async function recordAudit(
+  input: RecordAuditInput,
+  db: DbClient = prisma,
+): Promise<void> {
   const { ip, userAgent } = await readRequestContext();
   const actorName =
     input.actorName ??
-    (input.actorUserId ? await lookupActorName(input.actorUserId) : UNKNOWN_ACTOR_NAME);
+    (input.actorUserId ? await lookupActorName(input.actorUserId, db) : UNKNOWN_ACTOR_NAME);
 
-  await prisma.auditLog.create({
+  await db.auditLog.create({
     data: {
       actorUserId: input.actorUserId,
       actorName,
@@ -52,9 +56,12 @@ export async function recordAudit(input: RecordAuditInput): Promise<void> {
  * 기록 시점의 행위자 이름. 계정이 지워져도 남는 스냅샷이다.
  * 조회가 실패해도 던지지 않는다 — 감사 기록 자체가 실패하면 안 된다.
  */
-async function lookupActorName(actorUserId: string): Promise<string> {
+async function lookupActorName(
+  actorUserId: string,
+  db: DbClient,
+): Promise<string> {
   try {
-    const user = await prisma.user.findUnique({
+    const user = await db.user.findUnique({
       where: { id: actorUserId },
       select: { name: true },
     });

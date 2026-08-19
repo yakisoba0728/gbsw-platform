@@ -36,6 +36,7 @@ export default async function SettingsPage() {
             warn={row.warn}
             danger={row.danger}
             configured={row.configured}
+            updatedAt={row.updatedAt?.toISOString() ?? null}
             // 날짜 문자열은 서버에서 만든다 — 클라이언트에서 만들면 SSR이 그린
             // 값과 어긋나 하이드레이션이 깨진다.
             updatedLabel={

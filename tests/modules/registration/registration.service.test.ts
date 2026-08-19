@@ -3,13 +3,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const findInviteByCode = vi.fn();
 const emailExists = vi.fn();
 const registerFailedAttempt = vi.fn();
+const findCurrentYearForUpdate = vi.fn();
 const completeStudentRegistration = vi.fn();
 const completeAdminRegistration = vi.fn();
 const completeParentRegistration = vi.fn();
 const recordAudit = vi.fn();
 const requireVerified = vi.fn();
 const consumeVerifications = vi.fn();
-const requestCode = vi.fn();
+const createTemporaryVerifiedProof = vi.fn();
+const withTransaction = vi.fn();
+const txClient = { tx: true };
+const isStudentCodeCollision = vi.fn();
 
 class InviteRaceError extends Error {}
 class NumberTakenError extends Error {}
@@ -18,20 +22,23 @@ vi.mock("@/modules/registration/registration.repo", () => ({
   findInviteByCode,
   emailExists,
   registerFailedAttempt,
+  findCurrentYearForUpdate,
   completeStudentRegistration,
   completeAdminRegistration,
   completeParentRegistration,
   InviteRaceError,
+  isStudentCodeCollision,
   NumberTakenError,
 }));
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
+vi.mock("@/core/db/client", () => ({ withTransaction }));
 vi.mock("@/modules/verification/verification.service", () => ({
+  createTemporaryVerifiedProof,
   requireVerified,
   consumeVerifications,
-  requestCode,
 }));
 vi.mock("@/modules/academic-year/academic-year.service", () => ({
-  getCurrentYear: vi.fn().mockResolvedValue(2026),
+  AcademicYearError: class extends Error {},
 }));
 
 const { checkInvite, completeRegistration, requestVerification } = await import(
@@ -71,13 +78,20 @@ beforeEach(() => {
   findInviteByCode.mockReset();
   emailExists.mockReset().mockResolvedValue(false);
   registerFailedAttempt.mockReset().mockResolvedValue({ revoked: false });
+  findCurrentYearForUpdate.mockReset().mockResolvedValue(2026);
   completeStudentRegistration.mockReset().mockResolvedValue(undefined);
   completeAdminRegistration.mockReset().mockResolvedValue(undefined);
   completeParentRegistration.mockReset().mockResolvedValue(undefined);
   recordAudit.mockReset();
   requireVerified.mockReset().mockResolvedValue({ id: "v1" });
   consumeVerifications.mockReset();
-  requestCode.mockReset().mockResolvedValue({});
+  createTemporaryVerifiedProof.mockReset().mockResolvedValue({ id: "proof-1" });
+  withTransaction
+    .mockReset()
+    .mockImplementation(async (fn: (tx: typeof txClient) => Promise<unknown>) =>
+      fn(txClient),
+    );
+  isStudentCodeCollision.mockReset().mockReturnValue(false);
 });
 
 describe("checkInvite()", () => {
@@ -111,12 +125,13 @@ describe("checkInvite()", () => {
 });
 
 describe("requestVerification() (I4)", () => {
-  it("유효한 가입코드면 인증코드 발송으로 넘어간다", async () => {
+  it("유효한 가입코드면 발송 없이 확인 proof를 만든다", async () => {
     findInviteByCode.mockResolvedValue(invite());
 
-    await requestVerification("GBSWA3K92M7P", "EMAIL", "a@b.kr");
+    const result = await requestVerification("GBSWA3K92M7P", "EMAIL", "a@b.kr");
 
-    expect(requestCode).toHaveBeenCalledWith("EMAIL", "a@b.kr");
+    expect(result).toEqual({ verified: true });
+    expect(createTemporaryVerifiedProof).toHaveBeenCalledWith("EMAIL", "a@b.kr");
   });
 
   it("가입코드가 없거나 이미 쓰였거나 폐기됐으면 발송하지 않는다 — 대상만 " +
@@ -130,7 +145,7 @@ describe("requestVerification() (I4)", () => {
       ).rejects.toThrow("가입코드 또는 입력한 정보가 맞지 않습니다.");
     }
 
-    expect(requestCode).not.toHaveBeenCalled();
+    expect(createTemporaryVerifiedProof).not.toHaveBeenCalled();
   });
 });
 
@@ -159,6 +174,26 @@ describe("completeRegistration() — 학생", () => {
     expect((student as { birthDate: Date }).birthDate.toISOString()).toBe(
       "2010-03-03T15:00:00.000Z",
     );
+    expect(findCurrentYearForUpdate).toHaveBeenCalledWith(txClient);
+    expect(completeStudentRegistration.mock.calls[0]![3]).toBe(2026);
+    expect(completeStudentRegistration.mock.calls[0]![4]).toBe(txClient);
+  });
+
+  it("학생 가입은 성공 트랜잭션 안에서 잠근 현재 학년도를 쓴다", async () => {
+    findInviteByCode.mockResolvedValue(invite());
+    findCurrentYearForUpdate.mockResolvedValue(2027);
+
+    await completeRegistration({
+      ...base,
+      name: "김학생",
+      birthDate: "2010-03-04",
+    });
+
+    expect(withTransaction).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: "Serializable",
+    });
+    expect(findCurrentYearForUpdate).toHaveBeenCalledWith(txClient);
+    expect(completeStudentRegistration.mock.calls[0]![3]).toBe(2027);
   });
 
   it("생년월일이 틀리면 실패 횟수를 올리고 계정을 만들지 않는다", async () => {
@@ -168,7 +203,7 @@ describe("completeRegistration() — 학생", () => {
       completeRegistration({ ...base, name: "김학생", birthDate: "2010-03-05" }),
     ).rejects.toThrow();
 
-    expect(registerFailedAttempt).toHaveBeenCalledWith("inv1", 5);
+    expect(registerFailedAttempt).toHaveBeenCalledWith("inv1", 5, txClient);
     expect(completeStudentRegistration).not.toHaveBeenCalled();
   });
 
@@ -198,7 +233,27 @@ describe("completeRegistration() — 학생", () => {
         targetType: "Invite",
         targetId: "inv1",
       }),
+      txClient,
     );
+  });
+
+  it("자동 폐기 실패 처리를 커밋한 뒤 공통 가입 실패를 던진다", async () => {
+    const events: string[] = [];
+    findInviteByCode.mockResolvedValue(invite());
+    registerFailedAttempt.mockResolvedValue({ revoked: true });
+    withTransaction.mockImplementationOnce(
+      async (fn: (tx: typeof txClient) => Promise<unknown>) => {
+        await fn(txClient);
+        events.push("transaction resolved");
+      },
+    );
+
+    await expect(
+      completeRegistration({ ...base, name: "김학샹", birthDate: "2010-03-04" }),
+    ).rejects.toThrow("가입코드 또는 입력한 정보가 맞지 않습니다.");
+    events.push("error observed");
+
+    expect(events).toEqual(["transaction resolved", "error observed"]);
   });
 
   it("실패가 쌓여도 폐기되지 않았으면 감사로그를 남기지 않는다", async () => {
@@ -246,6 +301,7 @@ describe("completeRegistration() — 관리자 / 학부모", () => {
 
     expect(result).toEqual({ role: "ADMIN" });
     expect(completeAdminRegistration).toHaveBeenCalledTimes(1);
+    expect(findCurrentYearForUpdate).not.toHaveBeenCalled();
   });
 
   it("학부모는 코드에 귀속된 학생과 연결된다", async () => {
@@ -261,6 +317,7 @@ describe("completeRegistration() — 관리자 / 학부모", () => {
 
     const [, , studentId] = completeParentRegistration.mock.calls[0]!;
     expect(studentId).toBe("student-1");
+    expect(findCurrentYearForUpdate).not.toHaveBeenCalled();
   });
 
   it("학부모 코드에 학생이 없으면 만들지 않는다", async () => {
@@ -353,6 +410,76 @@ describe("completeRegistration() — 공통 방어", () => {
         targetType: "User",
         metadata: { role: "STUDENT", inviteId: "inv1" },
       }),
+      txClient,
     );
+    expect(consumeVerifications).toHaveBeenCalledWith(["v1", "v1"], txClient);
+  });
+
+  it("학생코드가 겹치면 성공 가입 트랜잭션 전체를 새로 연다", async () => {
+    findInviteByCode.mockResolvedValue(invite());
+    const collision = new Error("studentCode collision");
+    completeStudentRegistration
+      .mockRejectedValueOnce(collision)
+      .mockResolvedValue(undefined);
+    isStudentCodeCollision.mockImplementation((error) => error === collision);
+
+    await completeRegistration({
+      ...base,
+      name: "김학생",
+      birthDate: "2010-03-04",
+    });
+
+    expect(withTransaction).toHaveBeenCalledTimes(2);
+    expect(completeStudentRegistration).toHaveBeenCalledTimes(2);
+    expect(consumeVerifications).toHaveBeenCalledTimes(1);
+    expect(recordAudit).toHaveBeenCalledTimes(1);
+  });
+
+  it("Serializable 충돌도 학생 가입 트랜잭션 전체를 다시 연다", async () => {
+    findInviteByCode.mockResolvedValue(invite());
+    withTransaction
+      .mockRejectedValueOnce(Object.assign(new Error("write conflict"), { code: "P2034" }))
+      .mockImplementation(async (fn: (tx: typeof txClient) => Promise<unknown>) =>
+        fn(txClient),
+      );
+
+    await completeRegistration({
+      ...base,
+      name: "김학생",
+      birthDate: "2010-03-04",
+    });
+
+    expect(withTransaction).toHaveBeenCalledTimes(2);
+    expect(completeStudentRegistration).toHaveBeenCalledTimes(1);
+  });
+
+  it("어댑터가 40001을 P2010으로 감싸도 학생 가입 트랜잭션을 다시 연다", async () => {
+    findInviteByCode.mockResolvedValue(invite());
+    withTransaction
+      .mockRejectedValueOnce(
+        Object.assign(new Error("could not serialize access"), {
+          code: "P2010",
+          meta: {
+            driverAdapterError: {
+              cause: {
+                originalCode: "40001",
+                kind: "TransactionWriteConflict",
+              },
+            },
+          },
+        }),
+      )
+      .mockImplementation(async (fn: (tx: typeof txClient) => Promise<unknown>) =>
+        fn(txClient),
+      );
+
+    await completeRegistration({
+      ...base,
+      name: "김학생",
+      birthDate: "2010-03-04",
+    });
+
+    expect(withTransaction).toHaveBeenCalledTimes(2);
+    expect(completeStudentRegistration).toHaveBeenCalledTimes(1);
   });
 });

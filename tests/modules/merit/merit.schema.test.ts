@@ -7,6 +7,7 @@ import {
   cancelSchema,
   classRosterSchema,
   createRuleSchema,
+  deleteRuleSchema,
   MAX_THRESHOLD,
   studentHistoryExportSchema,
   thresholdSchema,
@@ -57,6 +58,7 @@ describe("updateRuleSchema", () => {
   it("track·kind는 아예 받지 않는다", () => {
     const parsed = updateRuleSchema.parse({
       ruleId: "r-1",
+      updatedAt: "2026-08-19T00:00:00.000Z",
       label: "고친 이름",
       points: "7",
       category: "",
@@ -74,6 +76,15 @@ describe("updateRuleSchema", () => {
     expect(
       updateRuleSchema.safeParse({ label: "x", points: "1" }).success,
     ).toBe(false);
+  });
+});
+
+describe("deleteRuleSchema", () => {
+  it("삭제도 화면이 읽은 revision을 Date로 바꿔 전달한다", () => {
+    const updatedAt = "2026-08-19T00:00:00.000Z";
+    expect(
+      deleteRuleSchema.parse({ ruleId: "r-1", updatedAt, reason: "규정 개정" }),
+    ).toEqual({ ruleId: "r-1", updatedAt: new Date(updatedAt), reason: "규정 개정" });
   });
 });
 
@@ -157,11 +168,25 @@ describe("조회 학년도", () => {
  * 벌점 0점인 전교생이 명단에 오른다. 순서와 범위를 여기서 못 박는다.
  */
 describe("thresholdSchema", () => {
-  const valid = { track: "SCHOOL", warn: "20", danger: "30" };
+  const valid = {
+    track: "SCHOOL",
+    updatedAt: "2026-08-19T00:00:00.000Z",
+    warn: "20",
+    danger: "30",
+  };
 
-  it("정상 입력을 통과시키고 숫자로 바꾼다", () => {
+  it("정상 입력을 통과시키고 숫자와 revision Date로 바꾼다", () => {
     const parsed = thresholdSchema.parse(valid);
-    expect(parsed).toEqual({ track: "SCHOOL", warn: 20, danger: 30 });
+    expect(parsed).toEqual({
+      track: "SCHOOL",
+      updatedAt: new Date("2026-08-19T00:00:00.000Z"),
+      warn: 20,
+      danger: 30,
+    });
+  });
+
+  it("아직 저장된 행이 없으면 updatedAt 빈 값이 null이 된다", () => {
+    expect(thresholdSchema.parse({ ...valid, updatedAt: "" }).updatedAt).toBeNull();
   });
 
   it("위험이 경고보다 작으면 거부한다", () => {

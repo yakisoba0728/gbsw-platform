@@ -2,17 +2,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionUser } from "@/core/auth/session";
 
 const listByYear = vi.fn();
+const findCurrentYear = vi.fn();
 const applyAll = vi.fn();
 const recordAudit = vi.fn();
+const withTransaction = vi.fn();
+const txClient = { tx: true };
 
 class NumberTakenError extends Error {}
 
 vi.mock("@/modules/enrollment/enrollment.repo", () => ({
   NumberTakenError,
+  findCurrentYear,
   listByYear,
   applyAll,
 }));
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
+vi.mock("@/core/db/client", () => ({ withTransaction }));
 vi.mock("@/modules/academic-year/academic-year.service", () => ({
   getCurrentYear: vi.fn().mockResolvedValue(2026),
 }));
@@ -55,6 +60,7 @@ function current(overrides: Record<string, unknown> = {}) {
 
 const unchanged = {
   studentProfileId: "sp-1",
+  expectedUpdatedAt: null,
   grade: 1,
   classNo: 3,
   number: 3,
@@ -67,9 +73,13 @@ function save(actor: SessionUser, changes: Parameters<typeof saveEnrollments>[1]
 }
 
 beforeEach(() => {
+  findCurrentYear.mockReset().mockResolvedValue(YEAR);
   listByYear.mockReset().mockResolvedValue([current()]);
   applyAll.mockReset().mockResolvedValue(undefined);
   recordAudit.mockReset();
+  withTransaction.mockReset().mockImplementation(async (fn: (tx: typeof txClient) => unknown) =>
+    fn(txClient),
+  );
 });
 
 describe("권한", () => {
@@ -91,6 +101,28 @@ describe("학년도 대조 (C2)", () => {
 });
 
 describe("saveEnrollments()", () => {
+  it("화면이 읽은 재적 revision이 바뀌었으면 최신 값을 덮지 않는다", async () => {
+    const latest = new Date("2026-08-19T01:00:00.000Z");
+    listByYear.mockResolvedValue([current({ enrollmentUpdatedAt: latest })]);
+
+    await expect(
+      save(admin, [{ ...unchanged, expectedUpdatedAt: null, number: 9 }]),
+    ).rejects.toThrow("ENROLLMENT_CHANGED");
+
+    expect(applyAll).not.toHaveBeenCalled();
+    expect(recordAudit).not.toHaveBeenCalled();
+  });
+
+  it("Serializable 충돌은 새로고침 가능한 업무 충돌로 옮긴다", async () => {
+    withTransaction.mockRejectedValue(Object.assign(new Error("write conflict"), {
+      code: "P2034",
+    }));
+
+    await expect(save(admin, [{ ...unchanged, number: 9 }])).rejects.toThrow(
+      "ENROLLMENT_CHANGED",
+    );
+  });
+
   it("바뀐 게 없으면 저장도 기록도 하지 않는다", async () => {
     const { saved } = await save(admin, [unchanged]);
 
@@ -116,6 +148,7 @@ describe("saveEnrollments()", () => {
     expect(items).toHaveLength(1);
     expect(items[0].studentProfileId).toBe("sp-2");
     expect(applyAll.mock.calls[0]![0]).toBe(YEAR);
+    expect(applyAll.mock.calls[0]![2]).toBe(txClient);
   });
 
   it("여러 명이 한꺼번에 바뀌어도 applyAll은 배열 하나로 한 번만 호출한다", async () => {
@@ -138,6 +171,12 @@ describe("saveEnrollments()", () => {
   it("학생 1명당 감사로그 1줄이고, 값이 아니라 항목 이름만 남긴다", async () => {
     await save(admin, [{ ...unchanged, classNo: 5 }]);
 
+    expect(withTransaction).toHaveBeenCalledWith(expect.any(Function), {
+      timeout: 30_000,
+      maxWait: 5_000,
+      isolationLevel: "Serializable",
+    });
+    expect(recordAudit.mock.calls[0]![1]).toBe(txClient);
     expect(recordAudit).toHaveBeenCalledTimes(1);
     const audit = recordAudit.mock.calls[0]![0];
     expect(audit.action).toBe("enrollment:update");
@@ -319,6 +358,7 @@ describe("계정 상태 (I1 · I2)", () => {
     expect(recordAudit).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({ action: "enrollment:update", targetId: "sp-1" }),
+      txClient,
     );
     expect(recordAudit).toHaveBeenNthCalledWith(
       2,
@@ -327,6 +367,7 @@ describe("계정 상태 (I1 · I2)", () => {
         targetType: "User",
         targetId: "u-1",
       }),
+      txClient,
     );
   });
 

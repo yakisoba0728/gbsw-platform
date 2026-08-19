@@ -143,6 +143,16 @@ describe("createStudentInviteAction — 경계 검증", () => {
     expect(state.error).toBe("생년월일은 YYYY-MM-DD 형식으로 입력해 주세요.");
   });
 
+  it("달력에 없는 생년월일은 서비스를 부르지 않는다", async () => {
+    const state = await createStudentInviteAction(
+      INITIAL,
+      studentForm({ birthDate: "2010-02-30" }),
+    );
+
+    expect(createStudentInvite).not.toHaveBeenCalled();
+    expect(state.error).toBe("존재하지 않는 날짜입니다.");
+  });
+
   /*
    * 한때 이 셋만 스키마에 문구가 없어 zod의 영문 기본 메시지
    * ("Too big: expected number to be <=3")가 그대로 화면에 나갔다. 액션의

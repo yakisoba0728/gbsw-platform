@@ -25,6 +25,7 @@ import {
 } from "@/modules/verification/verification.schema";
 import {
   confirmCode,
+  requireVerified,
   VerificationError,
 } from "@/modules/verification/verification.service";
 
@@ -131,6 +132,8 @@ export async function completeRegistrationAction(
 export type VerifyResult = {
   ok: boolean;
   error: string | null;
+  /** 임시 우회 기간에는 요청 즉시 확인 처리된다. */
+  verified?: boolean;
   /** 목업 모드에서만 채워진다. 운영에서는 언제나 undefined. */
   mockCode?: string;
 };
@@ -148,12 +151,12 @@ export async function requestVerificationAction(
   }
 
   try {
-    const { mockCode } = await requestVerification(
+    const { verified } = await requestVerification(
       parsedCode.data,
       parsed.data.channel,
       parsed.data.target,
     );
-    return { ok: true, error: null, mockCode };
+    return { ok: true, error: null, verified };
   } catch (error) {
     // 서비스가 정제한 문구만 내보낸다. 그 밖의 오류는 원문을 감춘다.
     return {
@@ -171,6 +174,26 @@ export async function confirmVerificationAction(
   target: string,
   code: string,
 ): Promise<VerifyResult> {
+  if (code === "") {
+    const parsed = requestCodeSchema.safeParse({ channel, target });
+    if (!parsed.success) {
+      return { ok: false, error: "형식을 확인해 주세요." };
+    }
+
+    try {
+      await requireVerified(parsed.data.channel, parsed.data.target);
+      return { ok: true, error: null, verified: true };
+    } catch (error) {
+      return {
+        ok: false,
+        error:
+          error instanceof VerificationError
+            ? error.message
+            : "인증하지 못했습니다.",
+      };
+    }
+  }
+
   const parsed = confirmCodeSchema.safeParse({ channel, target, code });
   if (!parsed.success) {
     return {

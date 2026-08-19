@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { fileNotices, normalizeRows, parseCsv } from "@/modules/enrollment/roster.parse";
+import { deflateRawSync } from "node:zlib";
+import {
+  fileNotices,
+  normalizeRows,
+  parseCsv,
+  parseRoster,
+  preflightXlsx,
+  XLSX_PREFLIGHT_LIMITS,
+} from "@/modules/enrollment/roster.parse";
 
 const HEADER = ["이름", "생년월일", "학년", "반", "번호", "학적"];
 
@@ -52,6 +60,19 @@ describe("normalizeRows()", () => {
     ]);
     expect(rows[0]!.birthDate).toBe("2010-07-28");
     expect(rows[0]!.errors).toEqual([]);
+  });
+
+  it("형식은 날짜처럼 보여도 실제 달력에 없는 생년월일은 오류다", () => {
+    const rows = normalizeRows([
+      HEADER,
+      ["김동혁", "2026-02-29", "1", "3", "3", "재학"],
+      ["이순신", "2010/4/31", "1", "3", "4", "재학"],
+    ]);
+
+    expect(rows[0]!.birthDate).toBe("");
+    expect(rows[0]!.errors.join()).toContain("생년월일을 읽을 수 없습니다");
+    expect(rows[1]!.birthDate).toBe("");
+    expect(rows[1]!.errors.join()).toContain("생년월일을 읽을 수 없습니다");
   });
 
   it("없는 학적 값은 오류로 잡는다", () => {
@@ -252,5 +273,176 @@ describe("parseCsv() + normalizeRows() — 회귀: 빈 줄 뒤 줄 번호", () =
 
     expect(rows.map((r) => r.name)).toEqual(["김동혁", "이순신"]);
     expect(rows.map((r) => r.line)).toEqual([2, 4]);
+  });
+});
+
+function zip(entries: {
+  filename: string;
+  data: string;
+  localFilename?: string;
+  centralFilename?: string;
+  includeInCentral?: boolean;
+  localCompressedSizeOverride?: number;
+  centralCompressedSizeOverride?: number;
+  localUncompressedSizeOverride?: number;
+  uncompressedSizeOverride?: number;
+}[]): Buffer {
+  const localParts: Buffer[] = [];
+  const centralParts: Buffer[] = [];
+  let offset = 0;
+
+  for (const entry of entries) {
+    const localFilename = Buffer.from(entry.localFilename ?? entry.filename);
+    const centralFilename = Buffer.from(entry.centralFilename ?? entry.filename);
+    const raw = Buffer.from(entry.data);
+    const compressed = deflateRawSync(raw);
+    const localHeaderOffset = offset;
+    const localHeader = Buffer.alloc(30);
+    localHeader.writeUInt32LE(0x04034b50, 0);
+    localHeader.writeUInt16LE(20, 4);
+    localHeader.writeUInt16LE(8, 8);
+    localHeader.writeUInt32LE(
+      entry.localCompressedSizeOverride ?? compressed.length,
+      18,
+    );
+    localHeader.writeUInt32LE(entry.localUncompressedSizeOverride ?? raw.length, 22);
+    localHeader.writeUInt16LE(localFilename.length, 26);
+    localParts.push(localHeader, localFilename, compressed);
+    offset += localHeader.length + localFilename.length + compressed.length;
+
+    if (entry.includeInCentral === false) continue;
+
+    const centralHeader = Buffer.alloc(46);
+    centralHeader.writeUInt32LE(0x02014b50, 0);
+    centralHeader.writeUInt16LE(20, 4);
+    centralHeader.writeUInt16LE(20, 6);
+    centralHeader.writeUInt16LE(8, 10);
+    centralHeader.writeUInt32LE(
+      entry.centralCompressedSizeOverride ?? compressed.length,
+      20,
+    );
+    centralHeader.writeUInt32LE(
+      entry.uncompressedSizeOverride ?? raw.length,
+      24,
+    );
+    centralHeader.writeUInt16LE(centralFilename.length, 28);
+    centralHeader.writeUInt32LE(localHeaderOffset, 42);
+    centralParts.push(centralHeader, centralFilename);
+  }
+
+  const centralDirectory = Buffer.concat(centralParts);
+  const centralDirectoryOffset = offset;
+  const centralEntryCount = centralParts.length / 2;
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(centralEntryCount, 8);
+  eocd.writeUInt16LE(centralEntryCount, 10);
+  eocd.writeUInt32LE(centralDirectory.length, 12);
+  eocd.writeUInt32LE(centralDirectoryOffset, 16);
+
+  return Buffer.concat([...localParts, centralDirectory, eocd]);
+}
+
+describe("preflightXlsx()", () => {
+  it("중앙 디렉터리가 없으면 xlsx를 거부한다", () => {
+    expect(() => preflightXlsx(Buffer.from("not a zip"))).toThrow("XLSX_ZIP_INVALID");
+  });
+
+  it("압축 해제 크기가 상한을 넘으면 zip bomb으로 거부한다", () => {
+    const buffer = zip([
+      {
+        filename: "xl/worksheets/sheet1.xml",
+        data: "<worksheet><sheetData /></worksheet>",
+        uncompressedSizeOverride: XLSX_PREFLIGHT_LIMITS.maxEntryUncompressedBytes + 1,
+      },
+    ]);
+
+    expect(() => preflightXlsx(buffer)).toThrow("XLSX_ZIP_BOMB");
+  });
+
+  it("sharedStrings.xml의 실제 압축 해제 크기도 bounded inflate로 검사한다", () => {
+    const buffer = zip([
+      {
+        filename: "xl/worksheets/sheet1.xml",
+        data: "<worksheet><sheetData><row r=\"1\"/></sheetData></worksheet>",
+      },
+      {
+        filename: "xl/sharedStrings.xml",
+        data: "x".repeat(XLSX_PREFLIGHT_LIMITS.maxEntryUncompressedBytes + 1),
+        localUncompressedSizeOverride: 1,
+        uncompressedSizeOverride: 1,
+      },
+    ]);
+
+    expect(() => preflightXlsx(buffer)).toThrow("XLSX_ZIP_BOMB");
+  });
+
+  it("central 디렉터리와 local header의 파일명이 다르면 거부한다", () => {
+    const buffer = zip([
+      {
+        filename: "xl/worksheets/sheet1.xml",
+        localFilename: "xl/sharedStrings.xml",
+        data: "<worksheet><sheetData><row r=\"1\"/></sheetData></worksheet>",
+      },
+    ]);
+
+    expect(() => preflightXlsx(buffer)).toThrow("XLSX_ZIP_INVALID");
+  });
+
+  it("central 디렉터리에 없는 local entry가 앞에 숨어 있으면 거부한다", () => {
+    const buffer = zip([
+      {
+        filename: "xl/sharedStrings.xml",
+        data: "x".repeat(XLSX_PREFLIGHT_LIMITS.maxEntryUncompressedBytes + 1),
+        includeInCentral: false,
+      },
+      {
+        filename: "xl/worksheets/sheet1.xml",
+        data: "<worksheet><sheetData><row r=\"1\"/></sheetData></worksheet>",
+      },
+    ]);
+
+    expect(() => preflightXlsx(buffer)).toThrow("XLSX_ZIP_INVALID");
+  });
+
+  it("central 디렉터리와 local header의 크기가 다르면 거부한다", () => {
+    const buffer = zip([
+      {
+        filename: "xl/worksheets/sheet1.xml",
+        data: "<worksheet><sheetData><row r=\"1\"/></sheetData></worksheet>",
+        localUncompressedSizeOverride: 1,
+      },
+    ]);
+
+    expect(() => preflightXlsx(buffer)).toThrow("XLSX_ZIP_INVALID");
+  });
+
+  it("같은 경로가 두 번 나오면 ambiguous xlsx로 보고 거부한다", () => {
+    const buffer = zip([
+      {
+        filename: "xl/worksheets/sheet1.xml",
+        data: "<worksheet><sheetData><row r=\"1\"/></sheetData></worksheet>",
+      },
+      {
+        filename: "xl/worksheets/sheet1.xml",
+        data: "<worksheet><sheetData><row r=\"2\"/></sheetData></worksheet>",
+      },
+    ]);
+
+    expect(() => preflightXlsx(buffer)).toThrow("XLSX_ZIP_INVALID");
+  });
+
+  it("워크시트 행이 2000개를 넘으면 비싼 xlsx 파서 전에 거부한다", async () => {
+    const rows = Array.from(
+      { length: XLSX_PREFLIGHT_LIMITS.maxSheetRows + 1 },
+      (_, i) => `<row r="${i + 1}"/>`,
+    ).join("");
+    const buffer = zip([
+      { filename: "xl/worksheets/sheet1.xml", data: `<worksheet><sheetData>${rows}</sheetData></worksheet>` },
+    ]);
+
+    await expect(parseRoster({ filename: "too-many.xlsx", buffer })).rejects.toThrow(
+      "TOO_MANY_ROWS",
+    );
   });
 });

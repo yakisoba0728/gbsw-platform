@@ -23,6 +23,7 @@ import type { RosterRow } from "@/modules/enrollment/roster.parse";
 import type { RosterPlan } from "@/modules/enrollment/roster.plan";
 import { APPLY_INITIAL, PREVIEW_INITIAL } from "./action-state";
 import { applyRosterAction, exportRosterAction, previewRosterAction } from "./actions";
+import { previewFingerprintFor } from "./preview-fingerprint";
 
 /** 빈 서식 예시 두 줄. 학생코드를 비워 둬 그 자체로 "신규"를 보여준다. */
 const TEMPLATE_ROWS: (string | number | null)[][] = [
@@ -96,14 +97,19 @@ export function ImportForm() {
     PREVIEW_INITIAL,
   );
 
-  // 파일마다 지문을 만들어 내용이 바뀌면 PreviewCard를 새로 마운트한다.
-  // 빠지는 학생 목록을 반드시 지문에 넣는다 — 안 넣으면 대상이 다른 두 업로드가
-  // 같은 지문으로 잡혀, 앞서 적어 둔 인원 수 확인이 그대로 남는다.
+  // 미리보기 전체에 지문을 만들어 내용이 바뀌면 PreviewCard를 새로 마운트한다.
+  // 줄 수·첫/끝 이름만 보면 중간 줄이 바뀌어도 확정 폼 상태가 남을 수 있다.
   const previewFingerprint =
-    previewState.plan &&
-    `${previewState.year}:${previewState.rows.length}:` +
-      `${previewState.rows[0]?.name ?? ""}:${previewState.rows.at(-1)?.name ?? ""}:` +
-      previewState.plan.missingFromFile.map((s) => s.studentProfileId).join(",");
+    previewState.plan && previewState.year !== null
+      ? previewFingerprintFor({
+          year: previewState.year,
+          rows: previewState.rows,
+          plan: previewState.plan,
+          notices: previewState.notices,
+          rosterFingerprint: previewState.rosterFingerprint,
+          previewToken: previewState.previewToken,
+        })
+      : undefined;
 
   return (
     <>
@@ -115,6 +121,8 @@ export function ImportForm() {
           rows={previewState.rows}
           plan={previewState.plan}
           notices={previewState.notices}
+          rosterFingerprint={previewState.rosterFingerprint}
+          previewToken={previewState.previewToken}
         />
       )}
     </>
@@ -224,11 +232,15 @@ function PreviewCard({
   rows,
   plan,
   notices,
+  rosterFingerprint,
+  previewToken,
 }: {
   year: number;
   rows: RosterRow[];
   plan: RosterPlan;
   notices: string[];
+  rosterFingerprint: string | null;
+  previewToken: string | null;
 }) {
   const [applyState, applyAction, applying] = useActionState(
     applyRosterAction,
@@ -269,12 +281,11 @@ function PreviewCard({
               {deleteCount}명
             </Badge>
           </div>
-          {/* 이번 학년도 소속은 실제로 지워진다. 자퇴·전출을 남기는 길이 따로
-              있다는 것을 문구가 직접 가리킨다. */}
+          {/* 이 경로는 되돌릴 수 없는 물리 삭제다. 임시 제외처럼 읽히면 안 된다. */}
           <p className="mt-1.5 text-caption font-medium text-amber-ink">
-            확정하면 계정이 비활성화되고 이번 학년도 소속이 사라집니다. 학생 정보와
-            지난 학년도 소속, 상벌점 기록은 남고, 다음 명단에 다시 넣으면 되살아납니다.
-            자퇴·전출은 줄을 지우지 말고 학적 칸을 바꿔 기록해 주세요.
+            확정하면 계정과 학생 기록이 DB에서 영구히 물리 삭제됩니다. 연결된
+            초대코드·학부모 연결·상벌점 이력도 cascade로 함께 사라지며 복원 기능은
+            없습니다. 자퇴·전출은 줄을 지우지 말고 학적 칸을 바꿔 기록해 주세요.
           </p>
           <ul className="mt-3 divide-y divide-line2">
             {plan.missingFromFile.map((s) => (
@@ -411,6 +422,8 @@ function PreviewCard({
           <form action={applyAction} className="flex flex-col gap-3">
             <input type="hidden" name="rows" value={JSON.stringify(rows)} />
             <input type="hidden" name="year" value={year} />
+            <input type="hidden" name="rosterFingerprint" value={rosterFingerprint ?? ""} />
+            <input type="hidden" name="previewToken" value={previewToken ?? ""} />
             {/* 화면이 본 삭제 대상을 늘 실어 보낸다. 동의 표시가 아니라 서버가
                 다시 세운 집합과 대조할 근거다. */}
             <input
@@ -423,8 +436,9 @@ function PreviewCard({
             {deleteCount > 0 && (
               <label className="flex flex-col gap-1.5 text-caption font-medium text-amber-ink">
                 <span>
-                  확정하면 위 {deleteCount}명이 명단에서 빠집니다. 확인을 위해 인원
-                  수를 직접 입력해 주세요.
+                  확정하면 위 {deleteCount}명의 계정과 학생 기록이 DB에서 영구히
+                  물리 삭제됩니다. 연결된 초대코드·학부모 연결·상벌점 이력은 cascade로
+                  함께 사라지고 복원 기능은 없습니다. 확인을 위해 인원 수를 직접 입력해 주세요.
                 </span>
                 {/* 폭은 바깥에서 준다 — cn()이 w-full을 못 덮는다. */}
                 <div className="w-40">

@@ -25,6 +25,7 @@ export type EditableUser = {
   name: string;
   email: string;
   phone: string;
+  updatedAt: string;
   isStudent: boolean;
   /** 재학 중일 때만 true — 이때만 학년·반·번호를 이 화면에서 고칠 수 있다. */
   canEditAssignment: boolean;
@@ -55,6 +56,7 @@ export function EditUserForm({ user }: { user: EditableUser }) {
   return (
     <form action={formAction}>
       <input type="hidden" name="userId" value={user.id} />
+      <input type="hidden" name="updatedAt" value={user.updatedAt} />
 
       <Label htmlFor="name">이름</Label>
       <Input
@@ -234,8 +236,7 @@ export function ToggleActiveForm({ user }: { user: EditableUser }) {
 }
 
 /**
- * 완전 삭제 (오등록 정리 전용). 명단에서 빠진 계정에만 보이고 서비스가 같은
- * 조건을 다시 검사한다. 이름 직접 입력을 요구하는 것도 서버가 다시 대조한다.
+ * 완전 삭제 (오등록 정리 전용). 이름 직접 입력을 요구하는 것도 서버가 다시 대조한다.
  */
 export function HardDeleteForm({ user }: { user: EditableUser }) {
   const [state, formAction, pending] = useActionState(

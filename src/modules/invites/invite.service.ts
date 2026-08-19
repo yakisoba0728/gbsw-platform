@@ -2,6 +2,7 @@ import { recordAudit } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
 import { can } from "@/core/authz/can";
 import { assertCan, ForbiddenError } from "@/core/authz/errors";
+import { withTransaction } from "@/core/db/client";
 import { generateInviteCode } from "@/lib/generate-invite-code";
 import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
 import * as repo from "./invite.repo";
@@ -43,7 +44,7 @@ export async function createStudentInvite(
 ) {
   await assertCan(actor, "invite:create");
 
-  const invite = await repo.insertInvite({
+  const insert = {
     code: await generateUniqueCode(),
     role: "STUDENT",
     metadata: {
@@ -55,18 +56,22 @@ export async function createStudentInvite(
     },
     expiresAt: toExpiresAt(input.expiresInDays),
     createdById: actor.id,
-  });
+  };
 
-  await recordAudit({
-    actorUserId: actor.id,
-    action: "invite:create",
-    targetType: "Invite",
-    targetId: invite.id,
-    // 코드 값 자체는 감사로그에 남기지 않는다.
-    metadata: { role: "STUDENT", grade: input.grade, classNo: input.classNo },
-  });
+  return withTransaction(async (tx) => {
+    const invite = await repo.insertInvite(insert, tx);
 
-  return invite;
+    await recordAudit({
+      actorUserId: actor.id,
+      action: "invite:create",
+      targetType: "Invite",
+      targetId: invite.id,
+      // 코드 값 자체는 감사로그에 남기지 않는다.
+      metadata: { role: "STUDENT", grade: input.grade, classNo: input.classNo },
+    }, tx);
+
+    return invite;
+  });
 }
 
 export async function createAdminInvite(
@@ -75,23 +80,27 @@ export async function createAdminInvite(
 ) {
   await assertCan(actor, "invite:create");
 
-  const invite = await repo.insertInvite({
+  const insert = {
     code: await generateUniqueCode(),
     role: "ADMIN",
     metadata: { name: input.name },
     expiresAt: toExpiresAt(input.expiresInDays),
     createdById: actor.id,
-  });
+  };
 
-  await recordAudit({
-    actorUserId: actor.id,
-    action: "invite:create",
-    targetType: "Invite",
-    targetId: invite.id,
-    metadata: { role: "ADMIN" },
-  });
+  return withTransaction(async (tx) => {
+    const invite = await repo.insertInvite(insert, tx);
 
-  return invite;
+    await recordAudit({
+      actorUserId: actor.id,
+      action: "invite:create",
+      targetType: "Invite",
+      targetId: invite.id,
+      metadata: { role: "ADMIN" },
+    }, tx);
+
+    return invite;
+  });
 }
 
 // ── 학생이 만드는 학부모 코드 ──────────────────────────────────
@@ -109,29 +118,36 @@ export async function createParentInvite(
   const profile = await repo.getStudentProfileByUserId(actor.id);
   if (!profile) throw new InviteError("NOT_A_STUDENT");
 
-  const active = await repo.countActiveByStudent(profile.id);
-  if (active >= MAX_ACTIVE_PARENT_INVITES) {
-    throw new InviteError("TOO_MANY_ACTIVE_INVITES");
-  }
-
-  const invite = await repo.insertInvite({
+  const insert = {
     code: await generateUniqueCode(),
     role: "PARENT",
     metadata: { name: input.name },
     studentId: profile.id,
     expiresAt: toExpiresAt(input.expiresInDays),
     createdById: actor.id,
-  });
+  };
 
-  await recordAudit({
-    actorUserId: actor.id,
-    action: "invite:create",
-    targetType: "Invite",
-    targetId: invite.id,
-    metadata: { role: "PARENT", studentId: profile.id },
-  });
+  return withTransaction(async (tx) => {
+    const exists = await repo.lockStudentForParentInvite(profile.id, tx);
+    if (!exists) throw new InviteError("NOT_A_STUDENT");
 
-  return invite;
+    const active = await repo.countActiveByStudent(profile.id, new Date(), tx);
+    if (active >= MAX_ACTIVE_PARENT_INVITES) {
+      throw new InviteError("TOO_MANY_ACTIVE_INVITES");
+    }
+
+    const invite = await repo.insertInvite(insert, tx);
+
+    await recordAudit({
+      actorUserId: actor.id,
+      action: "invite:create",
+      targetType: "Invite",
+      targetId: invite.id,
+      metadata: { role: "PARENT", studentId: profile.id },
+    }, tx);
+
+    return invite;
+  });
 }
 
 /**
@@ -147,29 +163,36 @@ export async function createParentInviteFor(
   const student = await repo.findStudentById(input.studentId);
   if (!student) throw new InviteError("STUDENT_NOT_FOUND");
 
-  const active = await repo.countActiveByStudent(student.id);
-  if (active >= MAX_ACTIVE_PARENT_INVITES) {
-    throw new InviteError("TOO_MANY_ACTIVE_INVITES");
-  }
-
-  const invite = await repo.insertInvite({
+  const insert = {
     code: await generateUniqueCode(),
     role: "PARENT",
     metadata: { name: input.name },
     studentId: student.id,
     expiresAt: toExpiresAt(input.expiresInDays),
     createdById: actor.id,
-  });
+  };
 
-  await recordAudit({
-    actorUserId: actor.id,
-    action: "invite:create",
-    targetType: "Invite",
-    targetId: invite.id,
-    metadata: { role: "PARENT", studentId: student.id, issuedByAdmin: true },
-  });
+  return withTransaction(async (tx) => {
+    const exists = await repo.lockStudentForParentInvite(student.id, tx);
+    if (!exists) throw new InviteError("STUDENT_NOT_FOUND");
 
-  return invite;
+    const active = await repo.countActiveByStudent(student.id, new Date(), tx);
+    if (active >= MAX_ACTIVE_PARENT_INVITES) {
+      throw new InviteError("TOO_MANY_ACTIVE_INVITES");
+    }
+
+    const invite = await repo.insertInvite(insert, tx);
+
+    await recordAudit({
+      actorUserId: actor.id,
+      action: "invite:create",
+      targetType: "Invite",
+      targetId: invite.id,
+      metadata: { role: "PARENT", studentId: student.id, issuedByAdmin: true },
+    }, tx);
+
+    return invite;
+  });
 }
 
 // ── 조회 ──────────────────────────────────────────────────────
@@ -225,13 +248,15 @@ export async function revokeInvite(actor: SessionUser, inviteId: string) {
     }
   }
 
-  const count = await repo.revokePending(inviteId);
-  if (count === 0) throw new InviteError("NOT_PENDING");
+  await withTransaction(async (tx) => {
+    const count = await repo.revokePending(inviteId, tx);
+    if (count === 0) throw new InviteError("NOT_PENDING");
 
-  await recordAudit({
-    actorUserId: actor.id,
-    action: "invite:revoke",
-    targetType: "Invite",
-    targetId: inviteId,
+    await recordAudit({
+      actorUserId: actor.id,
+      action: "invite:revoke",
+      targetType: "Invite",
+      targetId: inviteId,
+    }, tx);
   });
 }

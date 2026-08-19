@@ -22,11 +22,14 @@ type DeleteActionState = {
  */
 export function DeleteRuleButton({
   ruleId,
+  updatedAt,
   label,
   deleteAction,
   initialState,
 }: {
   ruleId: string;
+  /** 목록을 그릴 때 읽은 규정 revision. 삭제 감사의 스냅샷도 여기에 묶는다. */
+  updatedAt: string;
   /** 무엇을 지우는지 모달에 적는다 — 표에서 줄을 잘못 짚는 사고를 막는다. */
   label: string;
   /** `app/(app)/admin/merit/rules/actions.ts`의 deleteRuleAction. */
@@ -62,6 +65,7 @@ export function DeleteRuleButton({
       state={state}
     >
       <input type="hidden" name="ruleId" value={ruleId} />
+      <input type="hidden" name="updatedAt" value={updatedAt} />
     </ConfirmDialog>
   );
 }

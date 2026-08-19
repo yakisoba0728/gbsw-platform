@@ -11,13 +11,19 @@ import { TableFrame, tableCellPadding } from "@/components/ui/table";
 import {
   ENROLLMENT_STATUSES,
   ENROLLMENT_STATUS_LABELS,
-  type EnrollmentStatus,
 } from "@/core/authz/enrollment-status";
 import { SAVE_INITIAL } from "./action-state";
 import { saveEnrollmentsAction } from "./actions";
+import {
+  clearUnchangedSubmittedDrafts,
+  draftFor,
+  sameAsRow,
+  type Draft,
+} from "./student-table-drafts";
 
 export type StudentRow = {
   studentProfileId: string;
+  enrollmentUpdatedAt: string | null;
   name: string;
   email: string;
   grade: number | null;
@@ -31,44 +37,6 @@ const HEADERS = ["이름", "학년", "반", "번호", "학적", "계정"] as con
 
 /** 본문 셀의 여백. 머리글과 같은 규칙을 써야 세로줄이 맞는다. */
 const cell = (index: number) => `${tableCellPadding(index, HEADERS.length)} py-2.5`;
-
-/** 편집 중인 값. 표시용 문자열로 들고 있다가 보낼 때 숫자로 바꾼다. */
-type Draft = {
-  grade: string;
-  classNo: string;
-  number: string;
-  status: EnrollmentStatus;
-};
-
-function toDraft(row: StudentRow): Draft {
-  return {
-    grade: row.grade == null ? "" : String(row.grade),
-    classNo: row.classNo == null ? "" : String(row.classNo),
-    number: row.number == null ? "" : String(row.number),
-    // 배정이 없는 학생은 재학으로 시작한다 — 이 화면에서 채우는 게 보통이다.
-    status: (row.status as EnrollmentStatus) ?? "ENROLLED",
-  };
-}
-
-function sameAsRow(row: StudentRow, d: Draft): boolean {
-  return (
-    d.grade === (row.grade == null ? "" : String(row.grade)) &&
-    d.classNo === (row.classNo == null ? "" : String(row.classNo)) &&
-    d.number === (row.number == null ? "" : String(row.number)) &&
-    d.status === ((row.status as EnrollmentStatus) ?? "ENROLLED")
-  );
-}
-
-/**
- * 관리자가 실제로 건드린 필드만 override로 들고 있다. 나머지는 늘 최신 rows에서
- * 읽으므로 저장 뒤 새로 내려온 값이 그대로 보인다.
- */
-function draftFor(
-  row: StudentRow,
-  overrides: Record<string, Partial<Draft>>,
-): Draft {
-  return { ...toDraft(row), ...overrides[row.studentProfileId] };
-}
 
 export function StudentTable({
   rows,
@@ -94,18 +62,17 @@ export function StudentTable({
     [dirtyRows],
   );
 
-  // 제출 시점의 id를 붙잡아 둔다 — 저장 중에 고친 줄까지 저장됐다고 착각하면 안 된다.
-  const submittedIdsRef = useRef<string[]>([]);
+  // 제출 시점의 값을 붙잡아 둔다 — 저장 중에 고친 줄까지 저장됐다고 착각하면 안 된다.
+  const submittedDraftsRef = useRef<Record<string, Draft>>({});
 
-  // 성공하면 보낸 줄의 override를 지워 서버 값을 다시 읽는다. 실패하면 그대로 둔다.
+  // 성공하면 보낸 값과 여전히 같은 override만 지워 서버 값을 다시 읽는다. 실패하거나
+  // 저장 중에 더 고친 줄은 그대로 둔다.
   useEffect(() => {
     if (state.saved === null || state.error) return;
-    setDrafts((prev) => {
-      const next = { ...prev };
-      for (const id of submittedIdsRef.current) delete next[id];
-      return next;
-    });
-  }, [state]);
+    setDrafts((prev) =>
+      clearUnchangedSubmittedDrafts(rows, prev, submittedDraftsRef.current),
+    );
+  }, [rows, state]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -127,6 +94,7 @@ export function StudentTable({
       const num = (v: string) => (v === "" ? null : Number(v));
       return {
         studentProfileId: row.studentProfileId,
+        expectedUpdatedAt: row.enrollmentUpdatedAt,
         grade: num(d.grade),
         classNo: num(d.classNo),
         number: num(d.number),
@@ -139,7 +107,9 @@ export function StudentTable({
     <form
       action={formAction}
       onSubmit={() => {
-        submittedIdsRef.current = dirtyIds;
+        submittedDraftsRef.current = Object.fromEntries(
+          dirtyRows.map((row) => [row.studentProfileId, draftFor(row, drafts)]),
+        );
       }}
     >
       <input type="hidden" name="changes" value={payload} />
@@ -259,7 +229,7 @@ export function StudentTable({
                           value={d.status}
                           onChange={(e) =>
                             set(row.studentProfileId, {
-                              status: e.currentTarget.value as EnrollmentStatus,
+                              status: e.currentTarget.value as Draft["status"],
                             })
                           }
                         >

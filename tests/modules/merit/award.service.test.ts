@@ -3,7 +3,8 @@ import type { SessionUser } from "@/core/auth/session";
 import { parseDateInputKst } from "@/lib/datetime";
 import { schoolYearMonths, schoolYearRange } from "@/modules/merit/merit.chart";
 
-const findRule = vi.fn();
+const findRuleForUpdate = vi.fn();
+const findCurrentYearForUpdate = vi.fn();
 const createAward = vi.fn();
 const findAward = vi.fn();
 const cancelAward = vi.fn();
@@ -15,6 +16,16 @@ const findAwardableStudents = vi.fn();
 const recordAudit = vi.fn();
 const getCurrentYear = vi.fn();
 const createAwards = vi.fn();
+const txClient = { tx: "merit-award-service-test" };
+const withTransaction = vi.fn(
+  async <T>(
+    fn: (tx: typeof txClient) => Promise<T>,
+    _options?: unknown,
+  ) => {
+    void _options;
+    return fn(txClient);
+  },
+);
 const listClassRoster = vi.fn();
 const searchStudents = vi.fn();
 const listChildren = vi.fn();
@@ -24,7 +35,8 @@ const listRecentAwards = vi.fn();
 const findStudentHeader = vi.fn();
 
 vi.mock("@/modules/merit/merit.repo", () => ({
-  findRule,
+  findRuleForUpdate,
+  findCurrentYearForUpdate,
   createAward,
   findAward,
   cancelAward,
@@ -43,6 +55,7 @@ vi.mock("@/modules/merit/merit.repo", () => ({
   findStudentHeader,
 }));
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
+vi.mock("@/core/db/client", () => ({ withTransaction }));
 vi.mock("@/modules/academic-year/academic-year.service", () => ({
   getCurrentYear,
   AcademicYearError: class extends Error {},
@@ -80,7 +93,8 @@ const SCHOOL_RULE = {
 
 beforeEach(() => {
   getCurrentYear.mockReset().mockResolvedValue(2026);
-  findRule.mockReset().mockResolvedValue(SCHOOL_RULE);
+  findRuleForUpdate.mockReset().mockResolvedValue(SCHOOL_RULE);
+  findCurrentYearForUpdate.mockReset().mockResolvedValue(2026);
   createAward.mockReset().mockResolvedValue({ id: "a-1" });
   findAward.mockReset().mockResolvedValue({
     id: "a-1",
@@ -112,6 +126,17 @@ beforeEach(() => {
       ids.map((id) => ({ id, studentCode: "CODE", user: { id: `u-${id}`, name: `학생${id}` } })),
     );
   recordAudit.mockReset().mockResolvedValue(undefined);
+  withTransaction
+    .mockReset()
+    .mockImplementation(
+      async <T>(
+        fn: (tx: typeof txClient) => Promise<T>,
+        _options?: unknown,
+      ) => {
+        void _options;
+        return fn(txClient);
+      },
+    );
   createAwards.mockReset().mockResolvedValue([{ id: "a-1" }, { id: "a-2" }]);
   listClassRoster.mockReset().mockResolvedValue([]);
   searchStudents.mockReset().mockResolvedValue([]);
@@ -165,11 +190,12 @@ describe("awardMerit", () => {
         awardedByUserId: admin.id,
         awardedByName: admin.name,
       }),
+      txClient,
     );
   });
 
   it("학년도는 항상 현재 학년도다", async () => {
-    getCurrentYear.mockResolvedValue(2027);
+    findCurrentYearForUpdate.mockResolvedValue(2027);
     // 발생일 검사는 그 학년도 창을 보므로 기준 시각도 함께 옮긴다.
     await service.awardMerit(
       admin,
@@ -179,6 +205,7 @@ describe("awardMerit", () => {
 
     expect(createAward).toHaveBeenCalledWith(
       expect.objectContaining({ year: 2027 }),
+      txClient,
     );
   });
 
@@ -198,11 +225,34 @@ describe("awardMerit", () => {
           points: 5,
         }),
       }),
+      txClient,
     );
   });
 
+  it("부여와 감사로그를 한 트랜잭션에 묶는다", async () => {
+    await service.awardMerit(admin, awardInput, NOW);
+
+    expect(withTransaction).toHaveBeenCalledTimes(1);
+    expect(findCurrentYearForUpdate).toHaveBeenCalledWith(txClient);
+    expect(findRuleForUpdate).toHaveBeenCalledWith("r-1", txClient);
+    expect(createAward.mock.calls[0]![1]).toBe(txClient);
+    expect(recordAudit.mock.calls[0]![1]).toBe(txClient);
+  });
+
+  it("트랜잭션 안에서 이미 삭제된 규정이면 부여도 감사로그도 남기지 않는다", async () => {
+    findRuleForUpdate.mockResolvedValue({ ...SCHOOL_RULE, active: false });
+
+    await expect(service.awardMerit(admin, awardInput, NOW)).rejects.toThrow(
+      "RULE_INACTIVE",
+    );
+
+    expect(findRuleForUpdate).toHaveBeenCalledWith("r-1", txClient);
+    expect(createAward).not.toHaveBeenCalled();
+    expect(recordAudit).not.toHaveBeenCalled();
+  });
+
   it("비활성 규정으로는 못 준다", async () => {
-    findRule.mockResolvedValue({ ...SCHOOL_RULE, active: false });
+    findRuleForUpdate.mockResolvedValue({ ...SCHOOL_RULE, active: false });
 
     await expect(service.awardMerit(admin, awardInput, NOW)).rejects.toThrow(
       "RULE_INACTIVE",
@@ -211,7 +261,7 @@ describe("awardMerit", () => {
   });
 
   it("없는 규정은 RULE_NOT_FOUND", async () => {
-    findRule.mockResolvedValue(null);
+    findRuleForUpdate.mockResolvedValue(null);
     await expect(service.awardMerit(admin, awardInput, NOW)).rejects.toThrow(
       "RULE_NOT_FOUND",
     );
@@ -237,6 +287,7 @@ describe("awardMerit", () => {
 
     expect(createAward).toHaveBeenCalledWith(
       expect.objectContaining({ occurredOn: OCCURRED_ON }),
+      txClient,
     );
   });
 
@@ -249,6 +300,7 @@ describe("awardMerit", () => {
           occurredOn: OCCURRED_ON.toISOString(),
         }),
       }),
+      txClient,
     );
   });
 });
@@ -346,7 +398,7 @@ describe("cancelAward", () => {
       userId: admin.id,
       name: admin.name,
       reason: "잘못 입력함",
-    });
+    }, txClient);
   });
 
   it("남이 준 것도 관리자면 취소할 수 있다", async () => {
@@ -389,7 +441,16 @@ describe("cancelAward", () => {
         targetId: "a-1",
         metadata: expect.objectContaining({ reason: "잘못 입력함" }),
       }),
+      txClient,
     );
+  });
+
+  it("취소와 감사로그를 한 트랜잭션에 묶는다", async () => {
+    await service.cancelAward(admin, cancelInput);
+
+    expect(withTransaction).toHaveBeenCalledTimes(1);
+    expect(cancelAward.mock.calls[0]![2]).toBe(txClient);
+    expect(recordAudit.mock.calls[0]![1]).toBe(txClient);
   });
 
   it("학생은 취소할 수 없다", async () => {
@@ -552,6 +613,7 @@ describe("bulkAwardMerit", () => {
     expect(createAwards).toHaveBeenCalledTimes(1);
     const items = createAwards.mock.calls[0][0];
     expect(items).toHaveLength(2);
+    expect(createAwards.mock.calls[0][1]).toBe(txClient);
     // 서로를 잇는 값이 없다. 되돌리는 것도 한 건씩이다.
     expect(items[0]).not.toHaveProperty("batchId");
     expect(items[1]).not.toHaveProperty("batchId");
@@ -566,6 +628,34 @@ describe("bulkAwardMerit", () => {
     expect(meritLogs).toHaveLength(2);
     // 줄마다 그 학생의 것이다 — 묶음 식별자를 남기지 않는다.
     expect(meritLogs[0][0].metadata).not.toHaveProperty("batchId");
+  });
+
+  it("일괄 부여와 모든 감사로그를 한 트랜잭션에 묶고 timeout을 보존한다", async () => {
+    await service.bulkAwardMerit(admin, bulk, NOW);
+
+    expect(withTransaction).toHaveBeenCalledTimes(1);
+    expect(withTransaction.mock.calls[0]![1]).toEqual({
+      timeout: 30_000,
+      maxWait: 5_000,
+    });
+    expect(findCurrentYearForUpdate).toHaveBeenCalledWith(txClient);
+    expect(findRuleForUpdate).toHaveBeenCalledWith("r-1", txClient);
+    expect(createAwards.mock.calls[0]![1]).toBe(txClient);
+    for (const call of recordAudit.mock.calls) {
+      if (call[0].action === "merit:award") expect(call[1]).toBe(txClient);
+    }
+  });
+
+  it("일괄도 트랜잭션 안에서 삭제된 규정이면 아무 학생에게도 주지 않는다", async () => {
+    findRuleForUpdate.mockResolvedValue({ ...SCHOOL_RULE, active: false });
+
+    await expect(service.bulkAwardMerit(admin, bulk, NOW)).rejects.toThrow(
+      "RULE_INACTIVE",
+    );
+
+    expect(findRuleForUpdate).toHaveBeenCalledWith("r-1", txClient);
+    expect(createAwards).not.toHaveBeenCalled();
+    expect(recordAudit).not.toHaveBeenCalled();
   });
 
   it("한 명이라도 없는 학생이면 아무것도 넣지 않는다", async () => {
@@ -599,7 +689,7 @@ describe("bulkAwardMerit", () => {
   });
 
   it("비활성 규정으로는 일괄도 못 준다", async () => {
-    findRule.mockResolvedValue({ ...SCHOOL_RULE, active: false });
+    findRuleForUpdate.mockResolvedValue({ ...SCHOOL_RULE, active: false });
 
     await expect(service.bulkAwardMerit(admin, bulk, NOW)).rejects.toThrow(
       "RULE_INACTIVE",

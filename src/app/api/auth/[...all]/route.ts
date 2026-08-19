@@ -4,35 +4,45 @@ import { auth } from "@/core/auth/auth";
 
 const handlers = toNextJsHandler(auth);
 
-type RouteContext = { params: Promise<{ all: string[] }> };
+type AuthRouteContext = { params: Promise<{ all: string[] }> };
+
+const SAFE_ENDPOINTS: Record<string, ReadonlySet<string>> = {
+  GET: new Set(["get-session"]),
+  POST: new Set(["get-session", "sign-in/email", "sign-out"]),
+};
 
 /**
- * `/api/auth/admin/*`를 통째로 막는다 — 앱이 쓰지 않는데다 recordAudit을 지나지
- * 않아 set-role·remove-user가 흔적 없이 열려 있다. 플러그인 자체는 그대로 둔다.
+ * Better Auth의 raw mutation endpoint를 앱 밖으로 열지 않는다.
  *
- * raw pathname이 아니라 params를 쓴다 — Next가 퍼센트 인코딩을 이미 풀어서 준다
- * (`/api/auth/%61dmin/...` 우회를 막는다).
+ * 이 앱은 로그인·세션조회·로그아웃만 Better Auth 라우트로 쓴다. 사용자 수정,
+ * 비밀번호 변경, admin mutation은 반드시 앱 서비스 계층을 지나야 감사로그와
+ * 업무 규칙이 함께 적용된다.
  */
-async function isBlockedAdminPath(context: RouteContext): Promise<boolean> {
+export async function isAllowedAuthEndpoint(
+  method: "GET" | "POST",
+  context: AuthRouteContext,
+): Promise<boolean> {
   const { all } = await context.params;
-  return all?.[0] === "admin";
+  const endpoint = all.join("/");
+  return SAFE_ENDPOINTS[method]?.has(endpoint) ?? false;
 }
 
 async function guarded(
+  method: "GET" | "POST",
   handler: (request: Request) => Promise<Response>,
   request: NextRequest,
-  context: RouteContext,
+  context: AuthRouteContext,
 ): Promise<Response> {
-  if (await isBlockedAdminPath(context)) {
+  if (!(await isAllowedAuthEndpoint(method, context))) {
     return new NextResponse(null, { status: 404 });
   }
   return handler(request);
 }
 
-export async function GET(request: NextRequest, context: RouteContext) {
-  return guarded(handlers.GET, request, context);
+export async function GET(request: NextRequest, context: AuthRouteContext) {
+  return guarded("GET", handlers.GET, request, context);
 }
 
-export async function POST(request: NextRequest, context: RouteContext) {
-  return guarded(handlers.POST, request, context);
+export async function POST(request: NextRequest, context: AuthRouteContext) {
+  return guarded("POST", handlers.POST, request, context);
 }

@@ -27,6 +27,7 @@ export type RuleRow = {
   category: string | null;
   description: string | null;
   active: boolean;
+  updatedAt: string;
 };
 
 /**
@@ -141,6 +142,12 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
                   {editing ? (
                     <div className="flex gap-2">
                       <input type="hidden" name="ruleId" value={rule.id} form="rule-edit-form" />
+                      <input
+                        type="hidden"
+                        name="updatedAt"
+                        value={rule.updatedAt}
+                        form="rule-edit-form"
+                      />
                       {/* 표에 없는 필드는 그대로 넘긴다 — 안 넘기면 수정할 때마다 설명이 사라진다. */}
                       <input
                         type="hidden"
@@ -179,6 +186,7 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
                       </Button>
                       <DeleteRuleButton
                         ruleId={rule.id}
+                        updatedAt={rule.updatedAt}
                         label={rule.label}
                         deleteAction={deleteRuleAction}
                         initialState={EMPTY_RULE_FORM_STATE}

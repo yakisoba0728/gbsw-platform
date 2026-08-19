@@ -1,6 +1,7 @@
 import { recordAudit } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
 import { assertCan } from "@/core/authz/errors";
+import { withTransaction } from "@/core/db/client";
 import type { MeritTrack } from "@/core/authz/merit-track";
 import { MeritError } from "./merit.error";
 import * as repo from "./merit.repo";
@@ -16,20 +17,22 @@ export async function createRule(
 ): Promise<void> {
   await assertCan(actor, "merit:rule:manage");
 
-  const { id } = await repo.createRule(input);
+  await withTransaction(async (tx) => {
+    const { id } = await repo.createRule(input, tx);
 
-  await recordAudit({
-    actorUserId: actor.id,
-    actorName: actor.name,
-    action: "merit:rule:create",
-    targetType: "MeritRule",
-    targetId: id,
-    metadata: {
-      track: input.track,
-      kind: input.kind,
-      label: input.label,
-      points: input.points,
-    },
+    await recordAudit({
+      actorUserId: actor.id,
+      actorName: actor.name,
+      action: "merit:rule:create",
+      targetType: "MeritRule",
+      targetId: id,
+      metadata: {
+        track: input.track,
+        kind: input.kind,
+        label: input.label,
+        points: input.points,
+      },
+    }, tx);
   });
 }
 
@@ -59,22 +62,30 @@ export async function updateRule(
   const changed = EDITABLE.filter((field) => current[field] !== next[field]);
   if (changed.length === 0) return;
 
-  await repo.updateRule(input.ruleId, next);
+  await withTransaction(async (tx) => {
+    const updated = await repo.updateRule(
+      input.ruleId,
+      next,
+      input.updatedAt,
+      tx,
+    );
+    if (!updated) throw new MeritError("RULE_CONFLICT");
 
-  await recordAudit({
-    actorUserId: actor.id,
-    actorName: actor.name,
-    action: "merit:rule:update",
-    targetType: "MeritRule",
-    targetId: input.ruleId,
-    metadata: {
-      changed,
-      label: next.label,
-      // 이미 나간 기록은 스냅샷이라 안 바뀐다 — 그래도 전/후를 남겨야
-      // "왜 이 학생만 3점이지"를 나중에 설명할 수 있다.
-      pointsFrom: current.points,
-      pointsTo: next.points,
-    },
+    await recordAudit({
+      actorUserId: actor.id,
+      actorName: actor.name,
+      action: "merit:rule:update",
+      targetType: "MeritRule",
+      targetId: input.ruleId,
+      metadata: {
+        changed,
+        label: next.label,
+        // 이미 나간 기록은 스냅샷이라 안 바뀐다 — 그래도 전/후를 남겨야
+        // "왜 이 학생만 3점이지"를 나중에 설명할 수 있다.
+        pointsFrom: current.points,
+        pointsTo: next.points,
+      },
+    }, tx);
   });
 }
 
@@ -88,26 +99,38 @@ export async function deleteRule(
 ): Promise<void> {
   await assertCan(actor, "merit:rule:manage");
 
-  const current = await repo.findRule(input.ruleId);
-  if (!current) throw new MeritError("RULE_NOT_FOUND");
-  // 이미 지운 규정에 사유만 새로 남기지 않는다 — 삭제는 한 번만 일어난 일이다.
-  if (!current.active) return;
+  await withTransaction(async (tx) => {
+    const current = await repo.findRule(input.ruleId, tx);
+    if (!current) throw new MeritError("RULE_NOT_FOUND");
+    // 이미 지운 규정에 사유만 새로 남기지 않는다 — 삭제는 한 번만 일어난 일이다.
+    if (!current.active) return;
+    if (current.updatedAt.getTime() !== input.updatedAt.getTime()) {
+      throw new MeritError("RULE_CONFLICT");
+    }
 
-  await repo.markRuleDeleted(input.ruleId);
+    const deleted = await repo.markRuleDeleted(input.ruleId, input.updatedAt, tx);
+    if (deleted === 0) {
+      // 동시 삭제는 먼저 성공한 요청 한 건만 감사한다. 반면 동시 수정이면
+      // 최신 규정을 지우지 말고 화면을 새로 읽게 한다.
+      const latest = await repo.findRule(input.ruleId, tx);
+      if (latest?.active) throw new MeritError("RULE_CONFLICT");
+      return;
+    }
 
-  await recordAudit({
-    actorUserId: actor.id,
-    actorName: actor.name,
-    action: "merit:rule:delete",
-    targetType: "MeritRule",
-    targetId: input.ruleId,
-    metadata: {
-      track: current.track,
-      kind: current.kind,
-      label: current.label,
-      points: current.points,
-      reason: input.reason,
-    },
+    await recordAudit({
+      actorUserId: actor.id,
+      actorName: actor.name,
+      action: "merit:rule:delete",
+      targetType: "MeritRule",
+      targetId: input.ruleId,
+      metadata: {
+        track: current.track,
+        kind: current.kind,
+        label: current.label,
+        points: current.points,
+        reason: input.reason,
+      },
+    }, tx);
   });
 }
 

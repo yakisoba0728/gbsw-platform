@@ -6,6 +6,8 @@ const listYearsRepo = vi.fn();
 const createYearRepo = vi.fn();
 const setCurrentRepo = vi.fn();
 const recordAudit = vi.fn();
+const withTransaction = vi.fn();
+const tx = { tx: true };
 
 class YearTakenError extends Error {}
 
@@ -17,6 +19,7 @@ vi.mock("@/modules/academic-year/academic-year.repo", () => ({
   setCurrent: setCurrentRepo,
 }));
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
+vi.mock("@/core/db/client", () => ({ withTransaction }));
 
 const { AcademicYearError, createYear, getCurrentYear, listYears, setCurrentYear } =
   await import("@/modules/academic-year/academic-year.service");
@@ -40,8 +43,12 @@ beforeEach(() => {
   findCurrent.mockReset().mockResolvedValue({ year: 2026 });
   listYearsRepo.mockReset().mockResolvedValue([]);
   createYearRepo.mockReset();
-  setCurrentRepo.mockReset();
+  setCurrentRepo.mockReset().mockResolvedValue({
+    changed: true,
+    previousYear: 2026,
+  });
   recordAudit.mockReset();
+  withTransaction.mockReset().mockImplementation(async (fn) => fn(tx));
 });
 
 describe("getCurrentYear()", () => {
@@ -70,9 +77,11 @@ describe("createYear()", () => {
   it("만들고 감사로그를 남긴다", async () => {
     await createYear(admin, 2027);
 
-    expect(createYearRepo).toHaveBeenCalledWith(2027);
+    expect(withTransaction).toHaveBeenCalledTimes(1);
+    expect(createYearRepo).toHaveBeenCalledWith(2027, tx);
     expect(recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({ action: "academic-year:create", targetId: "2027" }),
+      tx,
     );
   });
 
@@ -80,6 +89,7 @@ describe("createYear()", () => {
     await expect(createYear(admin, 1999)).rejects.toThrow("INVALID_YEAR");
     await expect(createYear(admin, 2200)).rejects.toThrow("INVALID_YEAR");
     expect(createYearRepo).not.toHaveBeenCalled();
+    expect(withTransaction).not.toHaveBeenCalled();
   });
 
   it("이미 있는 학년도는 우리 오류로 옮긴다 — DB 장애와 구분해야 한다 (M3)", async () => {
@@ -101,16 +111,36 @@ describe("setCurrentYear()", () => {
   it("현재 학년도를 바꾸고 감사로그를 남긴다", async () => {
     await setCurrentYear(admin, 2027);
 
-    expect(setCurrentRepo).toHaveBeenCalledWith(2027);
+    expect(withTransaction).toHaveBeenCalledTimes(1);
+    expect(setCurrentRepo).toHaveBeenCalledWith(2027, tx);
     expect(recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({ action: "academic-year:set-current", targetId: "2027" }),
+      expect.objectContaining({
+        action: "academic-year:set-current",
+        targetId: "2027",
+        metadata: { from: 2026 },
+      }),
+      tx,
     );
   });
 
   it("이미 현재 학년도면 아무것도 하지 않는다", async () => {
+    setCurrentRepo.mockResolvedValue({ changed: false, previousYear: 2026 });
+
     await setCurrentYear(admin, 2026);
 
-    expect(setCurrentRepo).not.toHaveBeenCalled();
+    expect(setCurrentRepo).toHaveBeenCalledWith(2026, tx);
     expect(recordAudit).not.toHaveBeenCalled();
+    expect(withTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("병렬 전환 뒤 repo가 반환한 실제 직전 학년도를 감사한다", async () => {
+    setCurrentRepo.mockResolvedValue({ changed: true, previousYear: 2027 });
+
+    await setCurrentYear(admin, 2028);
+
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ metadata: { from: 2027 } }),
+      tx,
+    );
   });
 });

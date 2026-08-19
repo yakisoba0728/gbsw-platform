@@ -15,11 +15,14 @@ export default async function LoginPage({
   const user = await getSessionUser();
   if (user?.status === "ACTIVE") redirect("/");
 
-  const { disabled } = await searchParams;
+  const { disabled, passwordChanged } = await searchParams;
 
   return (
     <AuthPanel>
-      <LoginForm disabled={disabled === "1"} />
+      <LoginForm
+        disabled={disabled === "1"}
+        passwordChanged={passwordChanged === "1"}
+      />
     </AuthPanel>
   );
 }

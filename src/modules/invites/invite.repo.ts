@@ -1,4 +1,4 @@
-import { prisma } from "@/core/db/client";
+import { prisma, type DbClient } from "@/core/db/client";
 import type { Prisma } from "@/generated/prisma/client";
 
 /** Prisma 호출만 둔다. 권한 검사도, 업무 규칙도 여기 두지 않는다. */
@@ -12,8 +12,11 @@ export type InsertInviteInput = {
   createdById: string;
 };
 
-export async function insertInvite(input: InsertInviteInput) {
-  return prisma.invite.create({
+export async function insertInvite(
+  input: InsertInviteInput,
+  db: DbClient = prisma,
+) {
+  return db.invite.create({
     data: {
       code: input.code,
       role: input.role,
@@ -69,8 +72,12 @@ export async function listByStudent(studentId: string) {
  *
  * now를 인자로 받는다 — 테스트가 "지금"을 고정할 수 있어야 경계를 검증할 수 있다.
  */
-export async function countActiveByStudent(studentId: string, now: Date = new Date()) {
-  return prisma.invite.count({
+export async function countActiveByStudent(
+  studentId: string,
+  now: Date = new Date(),
+  db: DbClient = prisma,
+) {
+  return db.invite.count({
     where: {
       studentId,
       status: "PENDING",
@@ -80,9 +87,30 @@ export async function countActiveByStudent(studentId: string, now: Date = new Da
   });
 }
 
+/**
+ * 학부모 초대 한도 판정의 직렬화 지점. 학생 행을 트랜잭션 끝까지 잠근 뒤에만
+ * count+insert를 수행하면 활성 2개에서 들어온 병렬 요청 두 개가 모두 3 미만을
+ * 보는 check-then-insert 경쟁이 성립하지 않는다.
+ */
+export async function lockStudentForParentInvite(
+  studentId: string,
+  db: DbClient,
+): Promise<boolean> {
+  const rows = await db.$queryRaw<Array<{ id: string }>>`
+    SELECT "id"
+    FROM "StudentProfile"
+    WHERE "id" = ${studentId}
+    FOR UPDATE
+  `;
+  return rows.length === 1;
+}
+
 /** PENDING인 것만 폐기한다. 이미 쓰였거나 폐기된 코드는 건드리지 않는다. */
-export async function revokePending(id: string): Promise<number> {
-  const { count } = await prisma.invite.updateMany({
+export async function revokePending(
+  id: string,
+  db: DbClient = prisma,
+): Promise<number> {
+  const { count } = await db.invite.updateMany({
     where: { id, status: "PENDING" },
     data: { status: "REVOKED" },
   });

@@ -24,6 +24,7 @@ export default async function StudentsPage() {
     const students = await listStudents(actor);
     rows = students.map((s) => ({
       studentProfileId: s.studentProfileId,
+      enrollmentUpdatedAt: s.enrollmentUpdatedAt?.toISOString() ?? null,
       name: s.name,
       email: s.email,
       grade: s.grade,

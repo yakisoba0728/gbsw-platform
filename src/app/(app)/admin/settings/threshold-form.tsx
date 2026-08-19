@@ -18,6 +18,7 @@ export function ThresholdForm({
   warn,
   danger,
   configured,
+  updatedAt,
   updatedLabel,
 }: {
   track: MeritTrack;
@@ -25,6 +26,8 @@ export function ThresholdForm({
   danger: number;
   /** 학교가 한 번이라도 저장했는가. false면 지금 보이는 값은 기본값이다. */
   configured: boolean;
+  /** 화면이 읽은 MeritThreshold.updatedAt. 저장된 적 없으면 null. */
+  updatedAt: string | null;
   /** "이정민 · 2026-08-17 09:12" — 저장된 적 없으면 null. */
   updatedLabel: string | null;
 }) {
@@ -38,6 +41,7 @@ export function ThresholdForm({
     <div className="border-b border-line2 px-5 py-4 last:border-0">
       <form action={formAction} className="flex flex-wrap items-end gap-2.5">
         <input type="hidden" name="track" value={track} />
+        <input type="hidden" name="updatedAt" value={updatedAt ?? ""} />
 
         <div className="w-26">
           <span className="mb-1.5 block text-caption font-medium text-mut">트랙</span>

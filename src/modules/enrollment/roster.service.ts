@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
 import { recordAudit } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
 import { assertCan } from "@/core/authz/errors";
+import { withTransaction } from "@/core/db/client";
 import { generateUniqueCode, toExpiresAt } from "@/modules/invites/invite.service";
 import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
 import { buildExportRows } from "./roster.export";
@@ -13,6 +15,56 @@ export class RosterError extends Error {}
 /** 종이로 나눠주는 코드다. 무기한이면 잃어버린 종이가 영원히 유효하다. */
 const INVITE_EXPIRES_DAYS = 90;
 
+function isSerializationConflict(error: unknown): boolean {
+  if (typeof error !== "object" || error === null || !("code" in error)) {
+    return false;
+  }
+  if (error.code === "P2034") return true;
+  if (error.code !== "P2010" || !("meta" in error)) return false;
+
+  const meta = error.meta as {
+    driverAdapterError?: {
+      cause?: { originalCode?: unknown; kind?: unknown };
+    };
+  };
+  const cause = meta.driverAdapterError?.cause;
+  return cause?.originalCode === "40001" || cause?.kind === "TransactionWriteConflict";
+}
+
+type RosterFingerprintStudent = {
+  studentProfileId: string;
+  userId: string;
+  studentCode: string;
+  name: string;
+  birthDate: string;
+  grade: number | null;
+  classNo: number | null;
+  number: number | null;
+  status: string | null;
+  hasGraduatedEnrollment: boolean;
+  accountActive: boolean;
+};
+
+export function createRosterFingerprint(existing: RosterFingerprintStudent[]): string {
+  const rows = existing
+    .map((s) => [
+      s.studentProfileId,
+      s.userId,
+      s.studentCode,
+      s.name,
+      s.birthDate,
+      s.grade,
+      s.classNo,
+      s.number,
+      s.status,
+      s.hasGraduatedEnrollment,
+      s.accountActive,
+    ])
+    .sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+
+  return createHash("sha256").update(JSON.stringify(rows)).digest("base64url");
+}
+
 async function assertMayImport(actor: SessionUser): Promise<void> {
   // 소속을 바꾸고 초대코드도 만든다. 둘 다 확인한다.
   await assertCan(actor, "student:manage");
@@ -23,15 +75,22 @@ async function assertMayImport(actor: SessionUser): Promise<void> {
 export async function previewRoster(
   actor: SessionUser,
   file: { filename: string; buffer: Buffer },
-): Promise<{ year: number; rows: RosterRow[]; plan: RosterPlan; notices: string[] }> {
+): Promise<{
+  year: number;
+  rows: RosterRow[];
+  plan: RosterPlan;
+  notices: string[];
+  rosterFingerprint: string;
+}> {
   await assertMayImport(actor);
 
   const year = await getCurrentYear();
   const { rows, notices } = await parseRoster(file);
   if (rows.length === 0) throw new RosterError("EMPTY");
 
-  const plan = planRoster(rows, await repo.listExisting(year));
-  return { year, rows, plan, notices };
+  const existing = await repo.listExisting(year);
+  const plan = planRoster(rows, existing);
+  return { year, rows, plan, notices, rosterFingerprint: createRosterFingerprint(existing) };
 }
 
 /** 전체 명단 내보내기. 읽기만 하므로 감사로그를 남기지 않는다. */
@@ -42,7 +101,7 @@ export async function exportRoster(
 
   const year = await getCurrentYear();
   const existing = await repo.listExisting(year);
-  // listExisting()은 매칭을 위해 소프트 삭제된 학생도 들고 온다. 파일에는 넣지 않는다.
+  // legacy deletedAt 표시가 남은 계정은 listExisting()에서 이미 빠진다.
   const rows = buildExportRows(existing.filter((s) => !s.deleted));
   return { year, rows };
 }
@@ -57,6 +116,7 @@ export async function applyRosterPlan(
   actor: SessionUser,
   expectedYear: number,
   rows: RosterRow[],
+  expectedRosterFingerprint: string,
   confirmedDeletionIds: string[],
   deletionCountConfirmation: number | null,
 ): Promise<{
@@ -75,6 +135,9 @@ export async function applyRosterPlan(
   if (year !== expectedYear) throw new RosterError("YEAR_CHANGED");
 
   const existing = await repo.listExisting(year);
+  if (createRosterFingerprint(existing) !== expectedRosterFingerprint) {
+    throw new RosterError("ROSTER_CHANGED");
+  }
   const plan = planRoster(rows, existing);
   if (plan.hasBlockingError) throw new RosterError("BLOCKED");
 
@@ -86,10 +149,11 @@ export async function applyRosterPlan(
   // 미리보기가 보여준 삭제 대상과 지금 다시 세운 대상이 같은 집합이어야 한다.
   // 하나라도 다르면 관리자가 본 화면과 지금이 다르다는 뜻이다.
   const currentDeletionIds = new Set(plan.missingFromFile.map((m) => m.studentProfileId));
-  const confirmedSet = new Set(confirmedDeletionIds);
+  const currentDeletionIdList = [...currentDeletionIds].sort();
+  const confirmedDeletionIdList = [...confirmedDeletionIds].sort();
   const deletionSetMatches =
-    currentDeletionIds.size === confirmedSet.size &&
-    [...currentDeletionIds].every((id) => confirmedSet.has(id));
+    currentDeletionIdList.length === confirmedDeletionIdList.length &&
+    currentDeletionIdList.every((id, index) => id === confirmedDeletionIdList[index]);
   if (!deletionSetMatches) throw new RosterError("DELETION_SET_CHANGED");
 
   // 삭제 대상이 하나라도 있으면 관리자가 적은 건수가 서버가 센 건수와 같아야 한다.
@@ -170,89 +234,118 @@ export async function applyRosterPlan(
 
   let applied: Awaited<ReturnType<typeof repo.applyRoster>>;
   try {
-    applied = await repo.applyRoster(year, {
-      assignments,
-      newStudents,
-      inviteExpiresAt: toExpiresAt(INVITE_EXPIRES_DAYS),
-      managedStudentProfileIds: existing.map((s) => s.studentProfileId),
-      deleteStudentProfileIds: plan.missingFromFile.map((m) => m.studentProfileId),
-      createdById: actor.id,
-    });
+    applied = await withTransaction(
+      async (tx) => {
+        const currentYear = await repo.findCurrentYearForUpdate(tx);
+        if (currentYear !== expectedYear) {
+          throw new RosterError("YEAR_CHANGED");
+        }
+
+        const currentInTransaction = await repo.listExisting(year, tx);
+        if (createRosterFingerprint(currentInTransaction) !== expectedRosterFingerprint) {
+          throw new RosterError("ROSTER_CHANGED");
+        }
+
+        const result = await repo.applyRoster(
+          year,
+          {
+            assignments,
+            newStudents,
+            inviteExpiresAt: toExpiresAt(INVITE_EXPIRES_DAYS),
+            managedStudentProfileIds: existing.map((s) => s.studentProfileId),
+            deleteStudentProfileIds: currentDeletionIdList,
+            createdById: actor.id,
+          },
+          tx,
+        );
+        const { invites, revokedInvites } = result;
+
+        await recordAudit(
+          {
+            actorUserId: actor.id,
+            action: "enrollment:import",
+            targetType: "AcademicYear",
+            targetId: String(year),
+            // 건수만 남긴다. 학생 이름·소속이 들어가면 감사로그가 명단 사본이 된다.
+            metadata: {
+              year,
+              reassign: plan.reassign.length,
+              statusChange: plan.statusChange.length,
+              newAssignment: plan.newAssignment.length,
+              newStudents: plan.newStudents.length,
+              invitesIssued: invites.length,
+              excludedNew: excludedNewStudents.length,
+              deleted: plan.missingFromFile.length,
+            },
+          },
+          tx,
+        );
+
+        // 명단에서 빠진 학생마다 한 줄씩. userId만 담는다 — 이름을 넣으면 감사로그가
+        // 개인정보 사본이 된다. actorName을 넘겨 학생 수만큼의 이름 재조회를 없앤다.
+        for (const m of plan.missingFromFile) {
+          await recordAudit(
+            {
+              actorUserId: actor.id,
+              actorName: actor.name,
+              action: "user:delete",
+              targetType: "User",
+              targetId: m.userId,
+            },
+            tx,
+          );
+        }
+
+        // 함께 폐기된 미사용 초대코드마다 한 줄씩. 코드 값 자체는 남기지 않는다.
+        for (const invite of revokedInvites) {
+          await recordAudit(
+            {
+              actorUserId: actor.id,
+              actorName: actor.name,
+              action: "invite:revoke:roster",
+              targetType: "Invite",
+              targetId: invite.id,
+              metadata: { role: invite.role },
+            },
+            tx,
+          );
+        }
+
+        // 계정 상태가 실제로 뒤집힐 때만 한 줄 더 남긴다. targetId는 userId여야
+        // 계정 상세의 활동 기록(findRelatedAudit)이 이 줄을 찾는다.
+        for (const a of assignments) {
+          if (!a.statusChanged) continue;
+          const before = accountActiveByProfile.get(a.studentProfileId!);
+          const active = a.status === "ENROLLED";
+          if (before === undefined || before === active) continue;
+
+          await recordAudit(
+            {
+              actorUserId: actor.id,
+              actorName: actor.name,
+              action: active ? "user:activate" : "user:deactivate",
+              targetType: "User",
+              targetId: userIdByProfile.get(a.studentProfileId!)!,
+            },
+            tx,
+          );
+        }
+
+        return result;
+      },
+      { timeout: 120_000, maxWait: 10_000, isolationLevel: "Serializable" },
+    );
   } catch (error) {
     if (error instanceof repo.InviteCodeCollisionError) {
       throw new RosterError("CODE_COLLISION");
     }
+    if (isSerializationConflict(error)) {
+      const currentYear = await repo.findCurrentYear();
+      throw new RosterError(currentYear === expectedYear ? "ROSTER_CHANGED" : "YEAR_CHANGED");
+    }
     throw error;
   }
-  const { invites, revokedInvites } = applied;
-
-  // 이번 반영으로 되살아난 학생 수. 비활성이 유지되는 복구는 이 요약에만 남는다.
-  const revivedProfileIds = new Set(
-    existing.filter((s) => s.deleted).map((s) => s.studentProfileId),
-  );
-  const restored = assignments.filter(
-    (a) => a.statusChanged && revivedProfileIds.has(a.studentProfileId!),
-  ).length;
-
-  await recordAudit({
-    actorUserId: actor.id,
-    action: "enrollment:import",
-    targetType: "AcademicYear",
-    targetId: String(year),
-    // 건수만 남긴다. 학생 이름·소속이 들어가면 감사로그가 명단 사본이 된다.
-    metadata: {
-      year,
-      reassign: plan.reassign.length,
-      statusChange: plan.statusChange.length,
-      newAssignment: plan.newAssignment.length,
-      newStudents: plan.newStudents.length,
-      invitesIssued: invites.length,
-      excludedNew: excludedNewStudents.length,
-      softDeleted: plan.missingFromFile.length,
-      restored,
-    },
-  });
-
-  // 명단에서 빠진 학생마다 한 줄씩. userId만 담는다 — 이름을 넣으면 감사로그가
-  // 개인정보 사본이 된다. actorName을 넘겨 학생 수만큼의 이름 재조회를 없앤다.
-  for (const m of plan.missingFromFile) {
-    await recordAudit({
-      actorUserId: actor.id,
-      actorName: actor.name,
-      action: "user:soft-delete",
-      targetType: "User",
-      targetId: m.userId,
-    });
-  }
-
-  // 함께 폐기된 미사용 초대코드마다 한 줄씩. 코드 값 자체는 남기지 않는다.
-  for (const invite of revokedInvites) {
-    await recordAudit({
-      actorUserId: actor.id,
-      actorName: actor.name,
-      action: "invite:revoke:roster",
-      targetType: "Invite",
-      targetId: invite.id,
-      metadata: { role: invite.role },
-    });
-  }
-
-  // 계정 상태가 실제로 뒤집힐 때만 한 줄 더 남긴다. targetId는 userId여야
-  // 계정 상세의 활동 기록(findRelatedAudit)이 이 줄을 찾는다.
-  for (const a of assignments) {
-    if (!a.statusChanged) continue;
-    const before = accountActiveByProfile.get(a.studentProfileId!);
-    const active = a.status === "ENROLLED";
-    if (before === undefined || before === active) continue;
-
-    await recordAudit({
-      actorUserId: actor.id,
-      actorName: actor.name,
-      action: active ? "user:activate" : "user:deactivate",
-      targetType: "User",
-      targetId: userIdByProfile.get(a.studentProfileId!)!,
-    });
-  }
+  const { invites } = applied;
 
   // deleted는 화면이 "N명 제외"를 따로 알리는 데 쓴다 — 반영 건수 하나만 주면
   // 몇 명이 명단에서 빠졌는지가 묻힌다.

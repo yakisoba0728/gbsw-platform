@@ -14,12 +14,11 @@ export type ExistingStudent = {
   classNo: number | null;
   number: number | null;
   status: string | null;
+  /** 어느 학년도든 졸업 기록이 있는가. true면 명단 누락만으로 물리 삭제하지 않는다. */
+  hasGraduatedEnrollment: boolean;
   /** 이번 반영 전, 계정이 로그인 가능한 상태였는가. */
   accountActive: boolean;
-  /**
-   * 이미 명단에서 빠진(소프트 삭제된) 계정인가. 코드 매칭에는 그대로 쓰여
-   * 되살아날 수 있게 하되, missingFromFile에서는 뺀다. 값이 없으면 삭제 안 됨이다.
-   */
+  /** 예전 deletedAt 표시. 새 명단 삭제 경로는 이 값을 만들지 않는다. */
   deleted?: boolean;
 };
 
@@ -175,10 +174,10 @@ export function planRoster(
     // 셋 다 같으면 아무 분류에도 넣지 않는다 — 바뀔 게 없다.
   }
 
-  // 명단에 없는 학생은 학적과 무관하게 전부 삭제 대상이다. 이미 삭제된 학생은
-  // 매번 다시 확인시키지 않으려고 뺀다.
+  // 명단에 없는 학생은 삭제 대상이다. 단, 졸업생은 이미 떠난 학생의 보존 기록이라
+  // 완성본 파일에서 빠졌다는 이유만으로 계정·상벌점까지 물리 삭제하면 안 된다.
   plan.missingFromFile = existing.filter(
-    (s) => !matchedIds.has(s.studentProfileId) && !s.deleted,
+    (s) => !matchedIds.has(s.studentProfileId) && !s.hasGraduatedEnrollment,
   );
 
   // 신규 줄의 이름·생년월일이 삭제 대상과 겹치면 학생코드 칸만 지워진 것으로 본다.

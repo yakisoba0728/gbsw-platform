@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: Unit Verification
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://gbsw:gbsw@localhost:5432/gbsw_unit
+
+    steps:
+      # actions/checkout v4 tag resolved 2026-08-19:
+      # git ls-remote https://github.com/actions/checkout.git refs/tags/v4
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      # actions/setup-node v4 tag resolved 2026-08-19:
+      # git ls-remote https://github.com/actions/setup-node.git refs/tags/v4
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit verification
+        run: npm run verify:unit
+
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        # postgres:18 OCI index digest resolved 2026-08-19:
+        # docker buildx imagetools inspect postgres:18
+        image: postgres:18@sha256:06cad38a5d9f5d24b4d83d86def30795d5e4b757fedbf5281172b576dedcd941
+        env:
+          POSTGRES_USER: gbsw
+          POSTGRES_PASSWORD: gbsw
+          POSTGRES_DB: gbsw_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gbsw -d gbsw_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://gbsw:gbsw@localhost:5432/gbsw_test
+      TEST_DATABASE_URL: postgresql://gbsw:gbsw@localhost:5432/gbsw_test
+
+    steps:
+      # actions/checkout v4 tag resolved 2026-08-19:
+      # git ls-remote https://github.com/actions/checkout.git refs/tags/v4
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      # actions/setup-node v4 tag resolved 2026-08-19:
+      # git ls-remote https://github.com/actions/setup-node.git refs/tags/v4
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prepare integration database
+        run: npx prisma migrate deploy
+
+      - name: Run integration tests
+        run: npm run test:integration
+
+  build:
+    name: Production Build
+    runs-on: ubuntu-latest
+
+    env:
+      DATABASE_URL: postgresql://gbsw:gbsw@localhost:5432/gbsw
+      BETTER_AUTH_SECRET: ci-only-secret-ci-only-secret-ci-only
+      BETTER_AUTH_URL: http://localhost:3000
+
+    steps:
+      # actions/checkout v4 tag resolved 2026-08-19:
+      # git ls-remote https://github.com/actions/checkout.git refs/tags/v4
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      # actions/setup-node v4 tag resolved 2026-08-19:
+      # git ls-remote https://github.com/actions/setup-node.git refs/tags/v4
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build

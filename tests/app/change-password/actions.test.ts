@@ -7,10 +7,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireAuth = vi.fn(async () => ({ id: "u-1", role: "STUDENT" }));
 const changeOwnPassword = vi.fn();
+class InvalidCurrentPasswordError extends Error {}
+const redirect = vi.fn(() => {
+  throw new Error("NEXT_REDIRECT");
+});
 
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
+vi.mock("next/navigation", () => ({ redirect }));
 vi.mock("@/core/auth/session", () => ({ requireAuth }));
-vi.mock("@/modules/account/account.service", () => ({ changeOwnPassword }));
+vi.mock("@/modules/account/account.service", () => ({
+  changeOwnPassword,
+  InvalidCurrentPasswordError,
+}));
 
 const { changePasswordAction } = await import("@/app/change-password/actions");
 
@@ -34,14 +42,18 @@ beforeEach(() => {
 
 describe("changePasswordAction — 경계 검증", () => {
   it("폼이 보내는 값 그대로면 서비스까지 도달한다", async () => {
-    const state = await changePasswordAction(INITIAL, form());
+    await expect(changePasswordAction(INITIAL, form())).rejects.toThrow(
+      "NEXT_REDIRECT",
+    );
 
     expect(changeOwnPassword).toHaveBeenCalledOnce();
-    expect(state).toEqual({ ok: true, error: null });
+    expect(redirect).toHaveBeenCalledWith("/login?passwordChanged=1");
   });
 
   it("폼의 세 필드를 모두 읽는다 — 하나라도 빠지면 스키마가 막는다", async () => {
-    await changePasswordAction(INITIAL, form());
+    await expect(changePasswordAction(INITIAL, form())).rejects.toThrow(
+      "NEXT_REDIRECT",
+    );
 
     expect(changeOwnPassword).toHaveBeenCalledWith(
       expect.anything(),
@@ -55,7 +67,9 @@ describe("changePasswordAction — 경계 검증", () => {
   });
 
   it("강제 변경 대기 상태에서도 통과시킨다", async () => {
-    await changePasswordAction(INITIAL, form());
+    await expect(changePasswordAction(INITIAL, form())).rejects.toThrow(
+      "NEXT_REDIRECT",
+    );
 
     expect(requireAuth).toHaveBeenCalledWith({ allowMustChangePassword: true });
   });
@@ -108,12 +122,29 @@ describe("changePasswordAction — 경계 검증", () => {
     expect(state.error).toBe("Invalid input: expected string, received null");
   });
 
-  it("서비스가 던지면 현재 비밀번호 불일치로 안내한다", async () => {
-    changeOwnPassword.mockRejectedValueOnce(new Error("INVALID_PASSWORD"));
+  it("현재 비밀번호 불일치만 해당 문구로 안내한다", async () => {
+    changeOwnPassword.mockRejectedValueOnce(new InvalidCurrentPasswordError());
 
     const state = await changePasswordAction(INITIAL, form());
 
     expect(state).toEqual({ ok: false, error: "현재 비밀번호가 맞지 않습니다." });
+  });
+
+  it("예기치 못한 실패는 안전하게 로그를 남기고 일반 실패로 안내한다", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    changeOwnPassword.mockRejectedValueOnce(new Error("audit failed"));
+
+    const state = await changePasswordAction(INITIAL, form());
+
+    expect(state).toEqual({
+      ok: false,
+      error: "비밀번호를 변경하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+    });
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[account] password change failed",
+      expect.any(Error),
+    );
+    errorSpy.mockRestore();
   });
 
   it("검증 실패로 끝나는 경로에서도 세션을 먼저 확인한다", async () => {

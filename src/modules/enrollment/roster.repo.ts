@@ -1,4 +1,4 @@
-import { prisma } from "@/core/db/client";
+import { prisma, type DbClient, withTransaction } from "@/core/db/client";
 import { isUniqueViolation } from "@/core/db/unique-violation";
 import type { PlannedRow } from "./roster.plan";
 
@@ -7,21 +7,42 @@ import type { PlannedRow } from "./roster.plan";
 /** 초대코드가 겹쳤을 때. 동시에 올라온 다른 반영과 경합하면 여기까지 뚫린다. */
 export class InviteCodeCollisionError extends Error {}
 
-export async function listExisting(year: number) {
+export async function findCurrentYearForUpdate(db: DbClient): Promise<number | null> {
+  await db.$queryRaw<Array<{ year: number }>>`
+    SELECT "year"
+    FROM "AcademicYear"
+    ORDER BY "year"
+    FOR UPDATE
+  `;
+
+  const current = await db.academicYear.findFirst({
+    where: { isCurrent: true },
+    select: { year: true },
+  });
+  return current?.year ?? null;
+}
+
+export async function findCurrentYear(db: DbClient = prisma): Promise<number | null> {
+  const current = await db.academicYear.findFirst({
+    where: { isCurrent: true },
+    select: { year: true },
+  });
+  return current?.year ?? null;
+}
+
+export async function listExisting(year: number, db: DbClient = prisma) {
   const [profiles, entryByProfile] = await Promise.all([
-    prisma.studentProfile.findMany({
-      // 소프트 삭제된 학생도 함께 읽는다 — 명단에 다시 나타나면 원래 학생코드로
-      // 이어붙어야 되살아난다. 아래 deleted 플래그로 표시해 호출부가 거른다.
-      where: { user: { role: "STUDENT" } },
+    db.studentProfile.findMany({
+      where: { user: { role: "STUDENT", deletedAt: null } },
       select: {
         id: true,
         studentCode: true,
         birthDate: true,
         user: { select: { id: true, name: true, status: true, deletedAt: true } },
         enrollments: {
-          where: { year },
-          take: 1,
+          where: { OR: [{ year }, { status: "GRADUATED" }] },
           select: {
+            year: true,
             number: true,
             status: true,
             schoolClass: { select: { grade: true, classNo: true } },
@@ -29,11 +50,11 @@ export async function listExisting(year: number) {
         },
       },
     }),
-    entrySeats(),
+    entrySeats(db),
   ]);
 
   return profiles.map((p) => {
-    const e = p.enrollments[0];
+    const e = p.enrollments.find((enrollment) => enrollment.year === year);
     const entry = entryByProfile.get(p.id);
     return {
       studentProfileId: p.id,
@@ -50,6 +71,9 @@ export async function listExisting(year: number) {
       classNo: e?.schoolClass?.classNo ?? null,
       number: e?.number ?? null,
       status: e?.status ?? null,
+      hasGraduatedEnrollment: p.enrollments.some(
+        (enrollment) => enrollment.status === "GRADUATED",
+      ),
       accountActive: p.user.status === "ACTIVE",
       deleted: p.user.deletedAt !== null,
       // 참고 열(입학반·입학번호)용. 내보내기만 쓴다.
@@ -60,8 +84,10 @@ export async function listExisting(year: number) {
 }
 
 /** 참고 열용. 학생마다 가장 이른 1학년 배정을 한 번의 조회로 모은다. */
-async function entrySeats(): Promise<Map<string, { classNo: number; number: number }>> {
-  const rows = await prisma.enrollment.findMany({
+async function entrySeats(
+  db: DbClient,
+): Promise<Map<string, { classNo: number; number: number }>> {
+  const rows = await db.enrollment.findMany({
     where: { schoolClass: { grade: 1 } },
     orderBy: { year: "asc" },
     select: {
@@ -100,11 +126,7 @@ export type ApplyInput = {
    * 좁혀야 관리자로 승격돼 명단 밖으로 빠진 계정의 배정이 함께 지워지지 않는다.
    */
   managedStudentProfileIds: string[];
-  /**
-   * 명단에서 빠진 학생 — 계정을 지우지 않고 deletedAt만 찍는다. 계정·학생 정보·
-   * 지난 학년도 배정·상벌점은 남지만 이번 학년도 배정은 사라진다(아래 deleteMany가
-   * 지우고, 파일에 없어 다시 만들어지지 않는다). 다음 명단에 다시 넣으면 되살아난다.
-   */
+  /** 명단에서 빠진 학생 — 계정과 학생 기록을 DB에서 완전히 지운다. */
   deleteStudentProfileIds: string[];
   createdById: string;
 };
@@ -119,170 +141,189 @@ export type ApplyInput = {
  * 그래서 Enrollment.id는 반영할 때마다 새로 생긴다 — 오래 남아야 하는 기록은
  * Enrollment가 아니라 StudentProfile.id를 참조해야 한다.
  */
-export async function applyRoster(year: number, input: ApplyInput) {
-  try {
-    return await prisma.$transaction(
-      async (tx) => {
-        /** 이번 반영이 폐기한 미사용 초대코드. 서비스가 커밋 뒤 감사로그로 옮긴다. */
-        let revokedInvites: { id: string; role: string }[] = [];
+export async function applyRoster(year: number, input: ApplyInput, db?: DbClient) {
+  const run = async (tx: DbClient) => {
+    /** 이번 반영이 폐기한 미사용 초대코드. 서비스가 같은 트랜잭션에서 감사로그로 옮긴다. */
+    let revokedInvites: { id: string; role: string }[] = [];
+    const revisionStamp = new Date();
 
-        // 재배정을 다시 넣기 전에 소프트 삭제부터 끝낸다.
-        if (input.deleteStudentProfileIds.length > 0) {
-          // 조회와 이 트랜잭션 사이에 관리자로 승격됐을 수 있다. role을 다시 좁힌다.
-          const targets = await tx.studentProfile.findMany({
-            where: { id: { in: input.deleteStudentProfileIds }, user: { role: "STUDENT" } },
-            select: { userId: true },
-          });
-          const deleteUserIds = targets.map((t) => t.userId);
+    // 재배정을 다시 넣기 전에 실제 삭제부터 끝낸다.
+    if (input.deleteStudentProfileIds.length > 0) {
+      // 조회와 이 트랜잭션 사이에 관리자로 승격됐을 수 있다. role을 다시 좁힌다.
+      const targets = await tx.studentProfile.findMany({
+        where: {
+          id: { in: input.deleteStudentProfileIds },
+          user: { role: "STUDENT" },
+          enrollments: { none: { status: "GRADUATED" } },
+        },
+        select: { id: true, userId: true },
+      });
+      const deleteUserIds = targets.map((t) => t.userId);
+      const deleteProfileIds = targets.map((t) => t.id);
 
-          // 아직 안 쓴 코드는 폐기한다 — 안 그러면 학부모가 몇 달 뒤에도 그 코드로
-          // 가입해 명단에서 빠진 학생에게 연결된다. 학생이 만든 것(createdById)과
-          // 관리자가 대신 만든 것(studentId)을 둘 다 본다.
-          //
-          // 바꾸기 전에 대상을 읽어 서비스에 돌려준다 — 감사로그는 repo가 못 남긴다.
-          revokedInvites = await tx.invite.findMany({
-            where: {
-              status: "PENDING",
-              OR: [
-                { createdById: { in: deleteUserIds } },
-                { studentId: { in: input.deleteStudentProfileIds } },
-              ],
-            },
-            select: { id: true, role: true },
-          });
+      revokedInvites = await tx.invite.findMany({
+        where: {
+          status: "PENDING",
+          OR: [
+            { createdById: { in: deleteUserIds } },
+            { usedById: { in: deleteUserIds } },
+            { studentId: { in: deleteProfileIds } },
+          ],
+        },
+        select: { id: true, role: true },
+      });
 
-          if (revokedInvites.length > 0) {
-            // 방금 읽은 id로만 좁힌다 — 돌려준 목록과 바뀐 행이 같아야 감사로그가 맞다.
-            await tx.invite.updateMany({
-              where: { id: { in: revokedInvites.map((i) => i.id) }, status: "PENDING" },
-              data: { status: "REVOKED" },
-            });
-          }
-
-          // 명단에서 빠진 학생은 지우지 않고 표시만 한다. 상벌점 기록은 학교생활
-          // 기록부의 기재 근거라 스프레드시트 행 하나로 사라지면 안 된다.
-          await tx.user.updateMany({
-            where: { id: { in: deleteUserIds } },
-            data: { deletedAt: new Date(), status: "INACTIVE" },
-          });
-          // 이미 발급된 쿠키는 재로그인 차단과 별개라 세션은 지운다.
-          await tx.session.deleteMany({ where: { userId: { in: deleteUserIds } } });
-        }
-
-        await tx.enrollment.deleteMany({
-          where: { year, studentProfileId: { in: input.managedStudentProfileIds } },
+      if (deleteUserIds.length > 0) {
+        // Invite.createdBy는 Restrict라 사용자 삭제 전에 끊어야 한다. usedBy와
+        // studentId 쪽도 함께 지워 초대 metadata에 삭제 대상 정보가 남지 않게 한다.
+        await tx.invite.deleteMany({
+          where: {
+            OR: [
+              { createdById: { in: deleteUserIds } },
+              { usedById: { in: deleteUserIds } },
+              { studentId: { in: deleteProfileIds } },
+            ],
+          },
         });
 
-        // 학생마다 upsert하면 300번 왕복한다. 필요한 반을 모아 한 번씩만 부른다.
-        const neededClasses = new Map<string, { grade: number; classNo: number }>();
-        for (const row of input.assignments) {
-          if (row.grade !== null && row.classNo !== null) {
-            neededClasses.set(`${row.grade}-${row.classNo}`, {
-              grade: row.grade,
-              classNo: row.classNo,
-            });
-          }
-        }
+        await tx.user.deleteMany({ where: { id: { in: deleteUserIds } } });
+      }
+    }
 
-        const classIdByKey = new Map<string, string>();
-        for (const { grade, classNo } of neededClasses.values()) {
-          const cls = await tx.schoolClass.upsert({
-            where: { year_grade_classNo: { year, grade, classNo } },
-            create: { year, grade, classNo },
-            update: {},
-          });
-          classIdByKey.set(`${grade}-${classNo}`, cls.id);
-        }
+    await tx.enrollment.deleteMany({
+      where: { year, studentProfileId: { in: input.managedStudentProfileIds } },
+    });
 
-        for (const row of input.assignments) {
-          const classId =
-            row.grade !== null && row.classNo !== null
-              ? (classIdByKey.get(`${row.grade}-${row.classNo}`) ?? null)
-              : null;
+    // 학생마다 upsert하면 300번 왕복한다. 필요한 반을 모아 한 번씩만 부른다.
+    const neededClasses = new Map<string, { grade: number; classNo: number }>();
+    for (const row of input.assignments) {
+      if (row.grade !== null && row.classNo !== null) {
+        neededClasses.set(`${row.grade}-${row.classNo}`, {
+          grade: row.grade,
+          classNo: row.classNo,
+        });
+      }
+    }
 
-          await tx.enrollment.create({
-            data: {
-              studentProfileId: row.studentProfileId!,
-              year,
-              classId,
-              number: row.number,
-              status: row.status!,
-            },
-          });
-        }
+    const classIdByKey = new Map<string, string>();
+    for (const { grade, classNo } of neededClasses.values()) {
+      const cls = await tx.schoolClass.upsert({
+        where: { year_grade_classNo: { year, grade, classNo } },
+        create: { year, grade, classNo },
+        update: {},
+      });
+      classIdByKey.set(`${grade}-${classNo}`, cls.id);
+    }
 
-        // 계정 상태를 학적에 맞춘다. statusChanged가 true인 학생만 건드린다.
-        // 두 분기 모두 deletedAt을 지운다 — 명단에 줄이 있다는 것 자체가 더는
-        // 제외 대상이 아니라는 뜻이다. 비재학이면 되살리되 비활성은 유지한다.
-        const changed = input.assignments.filter((r) => r.statusChanged);
-        const inactive = changed
-          .filter((r) => r.status !== "ENROLLED")
-          .map((r) => r.studentProfileId!);
-        const active = changed
-          .filter((r) => r.status === "ENROLLED")
-          .map((r) => r.studentProfileId!);
+    for (const row of input.assignments) {
+      const classId =
+        row.grade !== null && row.classNo !== null
+          ? (classIdByKey.get(`${row.grade}-${row.classNo}`) ?? null)
+          : null;
 
-        if (inactive.length > 0) {
-          const users = await tx.studentProfile.findMany({
-            where: { id: { in: inactive } },
-            select: { userId: true },
-          });
-          const ids = users.map((u) => u.userId);
-          await tx.user.updateMany({
-            where: { id: { in: ids } },
-            data: { status: "INACTIVE", deletedAt: null },
-          });
-          // 비활성으로 넘어가는 계정은 세션도 끊는다.
-          await tx.session.deleteMany({ where: { userId: { in: ids } } });
-        }
-        if (active.length > 0) {
-          const users = await tx.studentProfile.findMany({
-            where: { id: { in: active } },
-            select: { userId: true },
-          });
-          await tx.user.updateMany({
-            where: { id: { in: users.map((u) => u.userId) } },
-            data: { status: "ACTIVE", deletedAt: null },
-          });
-        }
+      await tx.enrollment.create({
+        data: {
+          studentProfileId: row.studentProfileId!,
+          year,
+          classId,
+          number: row.number,
+          status: row.status!,
+        },
+      });
+    }
 
-        const invites: {
-          name: string;
-          code: string;
-          grade: number | null;
-          classNo: number | null;
-          number: number | null;
-        }[] = [];
+    // 계정 상태를 학적에 맞춘다. statusChanged가 true인 학생만 건드린다.
+    // 두 분기 모두 legacy deletedAt 표시를 지운다 — 명단에 줄이 있다는 것 자체가
+    // 삭제 대상이 아니라는 뜻이다. 비재학이면 비활성은 유지한다.
+    const changed = input.assignments.filter((r) => r.statusChanged);
+    const inactive = changed
+      .filter((r) => r.status !== "ENROLLED")
+      .map((r) => r.studentProfileId!);
+    const active = changed
+      .filter((r) => r.status === "ENROLLED")
+      .map((r) => r.studentProfileId!);
 
-        for (const { row, code } of input.newStudents) {
-          await tx.invite.create({
-            data: {
-              code,
-              role: "STUDENT",
-              status: "PENDING",
-              createdById: input.createdById,
-              expiresAt: input.inviteExpiresAt,
-              // 가입 때 2차 요소로 대조하는 값. 발급 화면과 같은 모양이어야 한다.
-              metadata: {
-                name: row.name,
-                birthDate: row.birthDate,
-                grade: row.grade,
-                classNo: row.classNo,
-                number: row.number,
-              },
-            },
-          });
-          invites.push({
+    if (inactive.length > 0) {
+      const users = await tx.studentProfile.findMany({
+        where: { id: { in: inactive } },
+        select: { userId: true },
+      });
+      const ids = users.map((u) => u.userId);
+      await tx.user.updateMany({
+        where: { id: { in: ids } },
+        data: { status: "INACTIVE", deletedAt: null, updatedAt: revisionStamp },
+      });
+      // 비활성으로 넘어가는 계정은 세션도 끊는다.
+      await tx.session.deleteMany({ where: { userId: { in: ids } } });
+    }
+    if (active.length > 0) {
+      const users = await tx.studentProfile.findMany({
+        where: { id: { in: active } },
+        select: { userId: true },
+      });
+      await tx.user.updateMany({
+        where: { id: { in: users.map((u) => u.userId) } },
+        data: { status: "ACTIVE", deletedAt: null, updatedAt: revisionStamp },
+      });
+    }
+
+    const revisionOnlyProfileIds = input.assignments
+      .filter((r) => !r.statusChanged && r.line !== 0)
+      .map((r) => r.studentProfileId!);
+    if (revisionOnlyProfileIds.length > 0) {
+      const users = await tx.studentProfile.findMany({
+        where: { id: { in: revisionOnlyProfileIds } },
+        select: { userId: true },
+      });
+      await tx.user.updateMany({
+        where: { id: { in: users.map((u) => u.userId) } },
+        data: { updatedAt: revisionStamp },
+      });
+    }
+
+    const invites: {
+      name: string;
+      code: string;
+      grade: number | null;
+      classNo: number | null;
+      number: number | null;
+    }[] = [];
+
+    for (const { row, code } of input.newStudents) {
+      await tx.invite.create({
+        data: {
+          code,
+          role: "STUDENT",
+          status: "PENDING",
+          createdById: input.createdById,
+          expiresAt: input.inviteExpiresAt,
+          // 가입 때 2차 요소로 대조하는 값. 발급 화면과 같은 모양이어야 한다.
+          metadata: {
             name: row.name,
-            code,
+            birthDate: row.birthDate,
             grade: row.grade,
             classNo: row.classNo,
             number: row.number,
-          });
-        }
+          },
+        },
+      });
+      invites.push({
+        name: row.name,
+        code,
+        grade: row.grade,
+        classNo: row.classNo,
+        number: row.number,
+      });
+    }
 
-        return { invites, revokedInvites };
-      },
+    return { invites, revokedInvites };
+  };
+
+  try {
+    if (db) return await run(db);
+
+    return await withTransaction(
+      run,
       // 전교생 규모 × 학생당 두어 문장. 기본 5초로는 부족하다.
       { timeout: 120_000, maxWait: 10_000 },
     );

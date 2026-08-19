@@ -27,8 +27,8 @@ export default defineConfig({
     environment: "node",
     projects: [
       {
-        // 기본(단위) 스위트. `npm test`/`npm run verify`가 도는 대상이고,
-        // CI도 이것만 돈다 — 실제 DB가 없어도 통과해야 한다 (I7). .env를
+        // 기본(단위) 스위트. `npm test`/`npm run verify:unit`이 도는 대상이다.
+        // 실제 DB가 없어도 통과해야 한다 (I7). .env를
         // 전혀 읽지 않는다 — 개발용 .env 값(VERIFICATION_MOCK 등)이 새어
         // 들어가면 목 기반 단위 테스트가 조용히 다른 경로를 타게 된다.
         extends: true,
@@ -47,7 +47,7 @@ export default defineConfig({
       {
         // repo 계층 통합 스위트 (I7). 실 Postgres(gbsw_test, 개발 DB와 분리)에
         // 붙는다 — `npm run db:test:setup`으로 준비하고 `npm run test:integration`
-        // 으로 돌린다. `npm test`/`npm run verify`에는 포함하지 않는다.
+        // 으로 돌린다. `npm run verify`는 이 프로젝트까지 포함하는 완전 검증이다.
         extends: true,
         test: {
           name: "integration",

@@ -2,21 +2,46 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const studentProfileFindMany = vi.fn();
 const inviteCount = vi.fn();
+const queryRaw = vi.fn();
 
 vi.mock("@/core/db/client", () => ({
   prisma: {
     studentProfile: { findMany: studentProfileFindMany },
     invite: { count: inviteCount },
+    $queryRaw: queryRaw,
   },
 }));
 
-const { countActiveByStudent, listStudents } = await import(
+const { countActiveByStudent, listStudents, lockStudentForParentInvite } = await import(
   "@/modules/invites/invite.repo"
 );
 
 beforeEach(() => {
   studentProfileFindMany.mockReset().mockResolvedValue([]);
   inviteCount.mockReset().mockResolvedValue(0);
+  queryRaw.mockReset().mockResolvedValue([{ id: "sp-1" }]);
+});
+
+describe("lockStudentForParentInvite()", () => {
+  it("학생 프로필 행을 트랜잭션 잠금하고 존재 여부를 반환한다", async () => {
+    const tx = {
+      $queryRaw: queryRaw,
+    };
+
+    await expect(
+      lockStudentForParentInvite("sp-1", tx as never),
+    ).resolves.toBe(true);
+
+    expect(queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it("잠글 학생이 없으면 false다", async () => {
+    queryRaw.mockResolvedValue([]);
+
+    await expect(
+      lockStudentForParentInvite("missing", { $queryRaw: queryRaw } as never),
+    ).resolves.toBe(false);
+  });
 });
 
 describe("listStudents()", () => {

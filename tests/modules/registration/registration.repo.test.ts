@@ -6,29 +6,39 @@ const accountCreate = vi.fn();
 const schoolClassUpsert = vi.fn();
 const studentProfileCreate = vi.fn();
 const enrollmentCreate = vi.fn();
+const inviteUpdate = vi.fn();
 const inviteUpdateMany = vi.fn();
+const academicYearFindFirst = vi.fn();
+const queryRaw = vi.fn();
+const withTransaction = vi.fn();
 
 /**
- * `prisma.$transaction(callback)`을 그대로 흉내 낸다 — 콜백에 tx를 넘겨 실행할 뿐,
+ * `withTransaction(callback)`을 그대로 흉내 낸다 — 콜백에 tx를 넘겨 실행할 뿐,
  * 실제 트랜잭션·롤백은 흉내 내지 않는다. 여기서 확인하려는 건 P2002를 잡아
  * NumberTakenError로 옮기는 로직이지, 트랜잭션 자체의 원자성이 아니다.
  */
-const tx = {
+const txClient = {
   user: { create: userCreate },
   account: { create: accountCreate },
   schoolClass: { upsert: schoolClassUpsert },
   studentProfile: { create: studentProfileCreate },
   enrollment: { create: enrollmentCreate },
-  invite: { updateMany: inviteUpdateMany },
+  invite: { update: inviteUpdate, updateMany: inviteUpdateMany },
+  academicYear: { findFirst: academicYearFindFirst },
+  $queryRaw: queryRaw,
 };
 
 vi.mock("@/core/db/client", () => ({
-  prisma: { $transaction: (fn: (tx: unknown) => unknown) => fn(tx) },
+  prisma: txClient,
+  withTransaction,
 }));
 
-const { completeStudentRegistration, NumberTakenError } = await import(
-  "@/modules/registration/registration.repo"
-);
+const {
+  completeStudentRegistration,
+  findCurrentYearForUpdate,
+  NumberTakenError,
+  registerFailedAttempt,
+} = await import("@/modules/registration/registration.repo");
 
 /**
  * `tests/modules/admin-users/admin-user.repo.test.ts`가 관측해 둔 실물 P2002 모양을
@@ -97,7 +107,58 @@ beforeEach(() => {
   schoolClassUpsert.mockReset().mockResolvedValue({ id: "class-1" });
   studentProfileCreate.mockReset().mockResolvedValue({ id: "profile-1" });
   enrollmentCreate.mockReset().mockResolvedValue(undefined);
+  inviteUpdate.mockReset().mockResolvedValue({ failedAttempts: 1 });
   inviteUpdateMany.mockReset().mockResolvedValue({ count: 1 });
+  academicYearFindFirst.mockReset().mockResolvedValue({ year: 2026 });
+  queryRaw.mockReset().mockResolvedValue([{ year: 2026 }]);
+  withTransaction
+    .mockReset()
+    .mockImplementation(async (fn: (tx: typeof txClient) => Promise<unknown>) =>
+      fn(txClient),
+    );
+});
+
+describe("registerFailedAttempt()", () => {
+  it("실패 횟수가 한계에 닿으면 PENDING 코드만 폐기한다", async () => {
+    inviteUpdate.mockResolvedValue({ failedAttempts: 5 });
+    inviteUpdateMany.mockResolvedValue({ count: 1 });
+
+    await expect(registerFailedAttempt("inv-1", 5)).resolves.toEqual({
+      revoked: true,
+    });
+
+    expect(inviteUpdateMany).toHaveBeenCalledWith({
+      where: { id: "inv-1", status: "PENDING" },
+      data: { status: "REVOKED" },
+    });
+  });
+
+  it("동시에 이미 폐기된 경우에는 감사로그 대상이 아니라고 돌려준다", async () => {
+    inviteUpdate.mockResolvedValue({ failedAttempts: 5 });
+    inviteUpdateMany.mockResolvedValue({ count: 0 });
+
+    await expect(registerFailedAttempt("inv-1", 5)).resolves.toEqual({
+      revoked: false,
+    });
+  });
+});
+
+describe("findCurrentYearForUpdate()", () => {
+  it("학년도 전환과 같은 순서로 잠근 뒤 현재 학년도를 읽는다", async () => {
+    await expect(findCurrentYearForUpdate(txClient as never)).resolves.toBe(2026);
+
+    expect(queryRaw).toHaveBeenCalledTimes(1);
+    expect(academicYearFindFirst).toHaveBeenCalledWith({
+      where: { isCurrent: true },
+      select: { year: true },
+    });
+  });
+
+  it("현재 학년도가 없으면 null이다", async () => {
+    academicYearFindFirst.mockResolvedValue(null);
+
+    await expect(findCurrentYearForUpdate(txClient as never)).resolves.toBeNull();
+  });
 });
 
 describe("completeStudentRegistration()", () => {
@@ -169,6 +230,7 @@ describe("completeStudentRegistration()", () => {
     await completeStudentRegistration("inv-1", account, student, 2026);
 
     // 롤백된 시도도 트랜잭션 전체를 다시 돈다 — 계정 생성부터 두 번째로 돈다.
+    expect(withTransaction).toHaveBeenCalledTimes(2);
     expect(studentProfileCreate).toHaveBeenCalledTimes(2);
     expect(userCreate).toHaveBeenCalledTimes(2);
     // 최종적으로는 성공한 시도에서만 코드가 한 번 소진된다.
@@ -184,6 +246,7 @@ describe("completeStudentRegistration()", () => {
     ).rejects.toBe(error);
 
     expect(studentProfileCreate).toHaveBeenCalledTimes(5);
+    expect(withTransaction).toHaveBeenCalledTimes(5);
     // 코드가 끝내 없었으니 어떤 시도도 초대코드를 소진하지 못한다.
     expect(inviteUpdateMany).not.toHaveBeenCalled();
   });

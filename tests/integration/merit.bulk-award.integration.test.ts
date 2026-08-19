@@ -1,4 +1,6 @@
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { Client } from "pg";
 import { prisma } from "@/core/db/client";
 
 /**
@@ -26,7 +28,12 @@ const PAST = YEAR - 1;
 const OCCURRED_ON = new Date("2026-06-12T00:00:00+09:00");
 const NOW = new Date("2026-08-16T10:00:00+09:00");
 
-const made = { users: [] as string[], profiles: [] as string[], rules: [] as string[] };
+const made = {
+  users: [] as string[],
+  profiles: [] as string[],
+  rules: [] as string[],
+  years: [] as number[],
+};
 
 const admin = {
   id: "merit-test-admin",
@@ -71,6 +78,90 @@ async function makeRule(overrides: {
   return rule.id;
 }
 
+async function makeYearRaceYears() {
+  const fromYear = 8114;
+  const toYear = 8115;
+  await prisma.academicYear.createMany({
+    data: [
+      { year: fromYear, isCurrent: false },
+      { year: toYear, isCurrent: false },
+    ],
+    skipDuplicates: true,
+  });
+  made.years.push(fromYear, toYear);
+  await prisma.academicYear.updateMany({ data: { isCurrent: false } });
+  await prisma.academicYear.update({
+    where: { year: fromYear },
+    data: { isCurrent: true },
+  });
+  return { fromYear, toYear };
+}
+
+async function afterConcurrentRuleSoftDelete<T>(
+  ruleId: string,
+  run: () => Promise<T>,
+): Promise<PromiseSettledResult<T>> {
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  await client.connect();
+  let committed = false;
+
+  try {
+    await client.query("BEGIN");
+    await client.query('UPDATE "MeritRule" SET "active" = false WHERE "id" = $1', [
+      ruleId,
+    ]);
+
+    const result = run().then(
+      (value) => ({ status: "fulfilled", value }) as const,
+      (reason) => ({ status: "rejected", reason }) as const,
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await client.query("COMMIT");
+    committed = true;
+    return result;
+  } finally {
+    if (!committed) await client.query("ROLLBACK").catch(() => undefined);
+    await client.end();
+  }
+}
+
+async function afterConcurrentYearSwitch<T>(
+  toYear: number,
+  run: () => Promise<T>,
+): Promise<PromiseSettledResult<T>> {
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  await client.connect();
+  let committed = false;
+
+  try {
+    await client.query("BEGIN");
+    await client.query('SELECT "year" FROM "AcademicYear" ORDER BY "year" FOR UPDATE');
+    await client.query('UPDATE "AcademicYear" SET "isCurrent" = false WHERE "isCurrent"');
+    await client.query('UPDATE "AcademicYear" SET "isCurrent" = true WHERE "year" = $1', [
+      toYear,
+    ]);
+
+    const result = run().then(
+      (value) => ({ status: "fulfilled", value }) as const,
+      (reason) => ({ status: "rejected", reason }) as const,
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await client.query("COMMIT");
+    committed = true;
+    return result;
+  } finally {
+    if (!committed) await client.query("ROLLBACK").catch(() => undefined);
+    await client.end();
+    await prisma.academicYear.updateMany({ data: { isCurrent: false } });
+    await prisma.academicYear.update({
+      where: { year: YEAR },
+      data: { isCurrent: true },
+    });
+  }
+}
+
 beforeAll(async () => {
   // 부여자·취소자는 실제 User 행을 가리켜야 한다 (외래키). 목으로 대체할 수 없는
   // 부분이라 통합 테스트에서만 만들고 afterAll에서 지운다.
@@ -113,6 +204,7 @@ afterAll(async () => {
   await prisma.studentProfile.deleteMany({ where: { id: { in: made.profiles } } });
   await prisma.user.deleteMany({ where: { id: { in: made.users } } });
   await prisma.meritRule.deleteMany({ where: { id: { in: made.rules } } });
+  await prisma.academicYear.deleteMany({ where: { year: { in: made.years } } });
 });
 
 describe("repo.createAwards — 일괄 부여 트랜잭션", () => {
@@ -156,6 +248,88 @@ describe("repo.createAwards — 일괄 부여 트랜잭션", () => {
 });
 
 describe("service.bulkAwardMerit — 실제 경로", () => {
+  it("단건 부여는 동시에 삭제 완료된 규정으로 커밋하지 않는다", async () => {
+    const ruleId = await makeRule({
+      track: "DORM",
+      kind: "DEMERIT",
+      label: "삭제 경합 단건",
+      points: 3,
+    });
+    const student = await makeStudent(`race-single-${randomUUID().slice(0, 6)}`);
+
+    const result = await afterConcurrentRuleSoftDelete(ruleId, () =>
+      service.awardMerit(admin, { studentProfileId: student, ruleId, note: null }, NOW),
+    );
+
+    expect(result.status).toBe("rejected");
+    if (result.status === "rejected") expect(result.reason).toMatchObject({ message: "RULE_INACTIVE" });
+    expect(await prisma.meritAward.count({ where: { ruleId } })).toBe(0);
+  });
+
+  it("일괄 부여도 동시에 삭제 완료된 규정으로 커밋하지 않는다", async () => {
+    const ruleId = await makeRule({
+      track: "DORM",
+      kind: "DEMERIT",
+      label: "삭제 경합 일괄",
+      points: 3,
+    });
+    const a = await makeStudent(`race-bulk-a-${randomUUID().slice(0, 6)}`);
+    const b = await makeStudent(`race-bulk-b-${randomUUID().slice(0, 6)}`);
+
+    const result = await afterConcurrentRuleSoftDelete(ruleId, () =>
+      service.bulkAwardMerit(admin, { studentProfileIds: [a, b], ruleId, note: null }, NOW),
+    );
+
+    expect(result.status).toBe("rejected");
+    if (result.status === "rejected") expect(result.reason).toMatchObject({ message: "RULE_INACTIVE" });
+    expect(await prisma.meritAward.count({ where: { ruleId } })).toBe(0);
+  });
+
+  it("단건 부여는 동시에 전환 완료된 이전 학년도로 커밋하지 않는다", async () => {
+    const { fromYear, toYear } = await makeYearRaceYears();
+    const ruleId = await makeRule({
+      track: "SCHOOL",
+      kind: "MERIT",
+      label: "학년도 경합 단건",
+      points: 3,
+    });
+    const student = await makeStudent(`year-single-${randomUUID().slice(0, 6)}`);
+    const now = new Date(`${fromYear}-08-16T10:00:00+09:00`);
+
+    const result = await afterConcurrentYearSwitch(toYear, () =>
+      service.awardMerit(admin, { studentProfileId: student, ruleId, note: null }, now),
+    );
+
+    expect(result.status).toBe("rejected");
+    if (result.status === "rejected") {
+      expect(result.reason).toMatchObject({ message: "OCCURRED_OUT_OF_YEAR" });
+    }
+    expect(await prisma.meritAward.count({ where: { ruleId, year: fromYear } })).toBe(0);
+  });
+
+  it("일괄 부여도 동시에 전환 완료된 이전 학년도로 커밋하지 않는다", async () => {
+    const { fromYear, toYear } = await makeYearRaceYears();
+    const ruleId = await makeRule({
+      track: "SCHOOL",
+      kind: "MERIT",
+      label: "학년도 경합 일괄",
+      points: 3,
+    });
+    const a = await makeStudent(`year-bulk-a-${randomUUID().slice(0, 6)}`);
+    const b = await makeStudent(`year-bulk-b-${randomUUID().slice(0, 6)}`);
+    const now = new Date(`${fromYear}-08-16T10:00:00+09:00`);
+
+    const result = await afterConcurrentYearSwitch(toYear, () =>
+      service.bulkAwardMerit(admin, { studentProfileIds: [a, b], ruleId, note: null }, now),
+    );
+
+    expect(result.status).toBe("rejected");
+    if (result.status === "rejected") {
+      expect(result.reason).toMatchObject({ message: "OCCURRED_OUT_OF_YEAR" });
+    }
+    expect(await prisma.meritAward.count({ where: { ruleId, year: fromYear } })).toBe(0);
+  });
+
   it("전원에게 들어가되 기록끼리 묶이지 않는다", async () => {
     const ruleId = await makeRule({
       track: "DORM",

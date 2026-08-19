@@ -1,5 +1,6 @@
 import { createHash, randomInt, timingSafeEqual } from "node:crypto";
 import { readRequestContext } from "@/core/audit/request-context";
+import { type DbClient, withTransaction } from "@/core/db/client";
 import { VerificationError } from "./verification.error";
 import * as repo from "./verification.repo";
 import {
@@ -29,6 +30,10 @@ const MAX_SENDS_PER_HOUR = 5;
 const MAX_SENDS_PER_HOUR_PER_IP = 20;
 /** 확인 후 이 시간 안에 가입을 마쳐야 한다 */
 const VERIFIED_TTL_MINUTES = 30;
+/** 임시 가입 우회 proof에는 실제 코드가 없음을 표시하는 해시 자리값. */
+const TEMPORARY_BYPASS_HASH = "temporary-verification-bypass";
+const RATE_LIMIT_MESSAGE =
+  "인증번호를 너무 많이 요청했습니다. 잠시 후 다시 시도해 주세요.";
 
 /**
  * 목업 모드 — 발송한 코드를 화면에 채워 준다. 코드를 클라이언트로 돌려주면
@@ -55,6 +60,38 @@ function minutesFromNow(minutes: number, now: Date): Date {
   return new Date(now.getTime() + minutes * 60_000);
 }
 
+async function insertRateLimitedCode(input: {
+  channel: VerificationChannel;
+  target: string;
+  codeHash: string;
+  expiresAt: Date;
+  verifiedAt?: Date | null;
+}, now: Date) {
+  const { ip } = await readRequestContext();
+  const since = new Date(now.getTime() - 60 * 60_000);
+
+  return withTransaction(async (tx) => {
+    await repo.lockSendRateLimitBuckets(input.channel, input.target, ip, tx);
+
+    const recent = await repo.countRecentSends(input.channel, input.target, since, tx);
+    if (recent >= MAX_SENDS_PER_HOUR) {
+      throw new VerificationError(RATE_LIMIT_MESSAGE);
+    }
+
+    // ip를 못 읽으면 이 검사를 건너뛴다 — null을 한 버킷으로 묶으면 서로 다른
+    // 요청들이 남의 한도를 갉아먹는다.
+    if (ip) {
+      const recentByIp = await repo.countRecentSendsByIp(ip, since, tx);
+      if (recentByIp >= MAX_SENDS_PER_HOUR_PER_IP) {
+        throw new VerificationError(RATE_LIMIT_MESSAGE);
+      }
+    }
+
+    await repo.expirePending(input.channel, input.target, now, tx);
+    return repo.insertCode({ ...input, requestIp: ip }, tx);
+  });
+}
+
 /**
  * 인증코드 발송. 같은 대상의 이전 코드는 무효가 된다.
  * 초대코드 검사는 registration.service.ts가 먼저 태운다 (I4) — 여기는 횟수만 본다.
@@ -65,39 +102,16 @@ export async function requestCode(
 ): Promise<{ mockCode?: string }> {
   const target = normalizeTarget(channel, rawTarget);
   const now = new Date();
-  const since = new Date(now.getTime() - 60 * 60_000);
-
-  const recent = await repo.countRecentSends(channel, target, since);
-  if (recent >= MAX_SENDS_PER_HOUR) {
-    throw new VerificationError(
-      "인증번호를 너무 많이 요청했습니다. 잠시 후 다시 시도해 주세요.",
-    );
-  }
-
-  const { ip } = await readRequestContext();
-  // ip를 못 읽으면 이 검사를 건너뛴다 — null을 한 버킷으로 묶으면 서로 다른
-  // 요청들이 남의 한도를 갉아먹는다.
-  if (ip) {
-    const recentByIp = await repo.countRecentSendsByIp(ip, since);
-    if (recentByIp >= MAX_SENDS_PER_HOUR_PER_IP) {
-      throw new VerificationError(
-        "인증번호를 너무 많이 요청했습니다. 잠시 후 다시 시도해 주세요.",
-      );
-    }
-  }
-
-  await repo.expirePending(channel, target, now);
 
   // 0으로 시작하는 코드도 나오므로 6자리로 채운다.
   const code = randomInt(1_000_000).toString().padStart(6, "0");
 
-  const row = await repo.insertCode({
+  const row = await insertRateLimitedCode({
     channel,
     target,
     codeHash: hash(code),
     expiresAt: minutesFromNow(TTL_MINUTES, now),
-    requestIp: ip,
-  });
+  }, now);
 
   if (isMockVerification()) {
     // 목업에서는 발송을 건너뛴다.
@@ -119,6 +133,31 @@ export async function requestCode(
   }
 
   return {};
+}
+
+/**
+ * 임시 인증 우회. 유효한 초대코드를 통과한 가입 흐름에서만 부른다.
+ *
+ * 실제 SMTP/SMS/OTP 의존성을 제거하되, 가입은 기존과 똑같이 DB의 verified row를
+ * 한 번 소진해야 끝난다. 그래서 클라이언트가 "확인됨"이라고 주장하는 것만으로는
+ * 가입할 수 없고, 동시 가입은 consumeVerifications()의 조건부 update가 한쪽만 이긴다.
+ */
+export async function createTemporaryVerifiedProof(
+  channel: VerificationChannel,
+  rawTarget: string,
+): Promise<{ id: string }> {
+  const target = normalizeTarget(channel, rawTarget);
+  const now = new Date();
+
+  const row = await insertRateLimitedCode({
+    channel,
+    target,
+    codeHash: TEMPORARY_BYPASS_HASH,
+    expiresAt: minutesFromNow(VERIFIED_TTL_MINUTES, now),
+    verifiedAt: now,
+  }, now);
+
+  return { id: row.id };
 }
 
 /** 사용자가 입력한 코드를 대조한다. */
@@ -169,6 +208,13 @@ export async function requireVerified(
 }
 
 /** 가입이 끝나면 쓴 코드를 소진 처리한다. */
-export async function consumeVerifications(ids: string[]): Promise<void> {
-  await repo.consume(ids, new Date());
+export async function consumeVerifications(
+  ids: string[],
+  db?: DbClient,
+): Promise<void> {
+  const uniqueIds = [...new Set(ids)];
+  const count = await repo.consume(uniqueIds, new Date(), db);
+  if (count !== uniqueIds.length) {
+    throw new VerificationError("인증 확인이 만료되었습니다. 다시 확인해 주세요.");
+  }
 }

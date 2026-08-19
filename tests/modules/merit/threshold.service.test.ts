@@ -8,12 +8,25 @@ import { DEFAULT_DEMERIT_THRESHOLDS } from "@/core/authz/merit-track";
  */
 
 const listThresholds = vi.fn();
-const upsertThreshold = vi.fn();
+const findThreshold = vi.fn();
+const createThreshold = vi.fn();
+const updateThreshold = vi.fn();
 const recordAudit = vi.fn();
+const txClient = { tx: "merit-threshold-service-test" };
+const withTransaction = vi.fn(
+  async <T>(fn: (tx: typeof txClient) => Promise<T>) => fn(txClient),
+);
 
-vi.mock("@/modules/merit/merit.repo", () => ({ listThresholds, upsertThreshold }));
+vi.mock("@/modules/merit/merit.repo", () => ({
+  listThresholds,
+  findThreshold,
+  createThreshold,
+  updateThreshold,
+}));
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
+vi.mock("@/core/db/client", () => ({ withTransaction }));
 
+const { MeritError } = await import("@/modules/merit/merit.error");
 const service = await import("@/modules/merit/threshold.service");
 
 function user(role: SessionUser["role"], id = "admin-1"): SessionUser {
@@ -31,6 +44,8 @@ function user(role: SessionUser["role"], id = "admin-1"): SessionUser {
 const admin = user("ADMIN");
 const student = user("STUDENT", "s-1");
 const parent = user("PARENT", "p-1");
+const THRESHOLD_UPDATED_AT = new Date("2026-08-17T00:00:00.000Z");
+const NEXT_UPDATED_AT = new Date("2026-08-18T00:00:00.000Z");
 
 /** repo.listThresholds가 내는 모양 (updatedAt·이름 스냅샷 포함). */
 function row(track: string, warn: number, danger: number) {
@@ -38,7 +53,7 @@ function row(track: string, warn: number, danger: number) {
     track,
     warn,
     danger,
-    updatedAt: new Date("2026-08-17T00:00:00+09:00"),
+    updatedAt: THRESHOLD_UPDATED_AT,
     updatedByName: "이정민",
   };
 }
@@ -46,8 +61,15 @@ function row(track: string, warn: number, danger: number) {
 beforeEach(() => {
   vi.clearAllMocks();
   listThresholds.mockResolvedValue([]);
-  upsertThreshold.mockResolvedValue(undefined);
+  findThreshold.mockResolvedValue(null);
+  createThreshold.mockResolvedValue(true);
+  updateThreshold.mockResolvedValue(true);
   recordAudit.mockResolvedValue(undefined);
+  withTransaction
+    .mockReset()
+    .mockImplementation(
+      async <T>(fn: (tx: typeof txClient) => Promise<T>) => fn(txClient),
+    );
 });
 
 describe("readDemeritThresholds — 읽기와 폴백", () => {
@@ -116,20 +138,25 @@ describe("listThresholdSettings — 설정 화면이 보는 값", () => {
 });
 
 describe("setDemeritThresholds — 저장", () => {
-  const input = { track: "SCHOOL" as const, warn: 15, danger: 25 };
+  const input = {
+    track: "SCHOOL" as const,
+    updatedAt: THRESHOLD_UPDATED_AT,
+    warn: 15,
+    danger: 25,
+  };
 
   it("관리자는 기준을 바꾸고 감사로그가 남는다", async () => {
-    listThresholds.mockResolvedValue([row("SCHOOL", 20, 30)]);
+    findThreshold.mockResolvedValue(row("SCHOOL", 20, 30));
 
     await service.setDemeritThresholds(admin, input);
 
-    expect(upsertThreshold).toHaveBeenCalledWith({
+    expect(updateThreshold).toHaveBeenCalledWith({
       track: "SCHOOL",
       warn: 15,
       danger: 25,
       updatedByUserId: admin.id,
       updatedByName: admin.name,
-    });
+    }, THRESHOLD_UPDATED_AT, txClient);
     expect(recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         actorUserId: admin.id,
@@ -145,14 +172,20 @@ describe("setDemeritThresholds — 저장", () => {
           dangerTo: 25,
         },
       }),
+      txClient,
     );
+    expect(withTransaction).toHaveBeenCalledTimes(1);
   });
 
   it("첫 저장의 '이전'은 실제로 쓰이던 기본값이다", async () => {
-    listThresholds.mockResolvedValue([]);
+    findThreshold.mockResolvedValue(null);
 
-    await service.setDemeritThresholds(admin, input);
+    await service.setDemeritThresholds(admin, { ...input, updatedAt: null });
 
+    expect(createThreshold).toHaveBeenCalledWith(
+      expect.objectContaining({ track: "SCHOOL", warn: 15, danger: 25 }),
+      txClient,
+    );
     expect(recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         metadata: {
@@ -163,28 +196,84 @@ describe("setDemeritThresholds — 저장", () => {
           dangerTo: 25,
         },
       }),
+      txClient,
     );
   });
 
   it("값이 그대로면 쓰지도 기록하지도 않는다", async () => {
-    listThresholds.mockResolvedValue([row("SCHOOL", 20, 30)]);
+    findThreshold.mockResolvedValue(row("SCHOOL", 20, 30));
 
-    await service.setDemeritThresholds(admin, { track: "SCHOOL", warn: 20, danger: 30 });
+    await service.setDemeritThresholds(admin, {
+      track: "SCHOOL",
+      updatedAt: THRESHOLD_UPDATED_AT,
+      warn: 20,
+      danger: 30,
+    });
 
-    expect(upsertThreshold).not.toHaveBeenCalled();
+    expect(createThreshold).not.toHaveBeenCalled();
+    expect(updateThreshold).not.toHaveBeenCalled();
     expect(recordAudit).not.toHaveBeenCalled();
   });
 
   it("행이 없을 때 기본값과 똑같은 값을 넣으면 저장한다", async () => {
-    listThresholds.mockResolvedValue([]);
+    findThreshold.mockResolvedValue(null);
 
     await service.setDemeritThresholds(admin, {
       track: "SCHOOL",
+      updatedAt: null,
       ...DEFAULT_DEMERIT_THRESHOLDS.SCHOOL,
     });
 
-    expect(upsertThreshold).toHaveBeenCalled();
+    expect(createThreshold).toHaveBeenCalled();
     expect(recordAudit).toHaveBeenCalled();
+  });
+
+  it("화면이 읽은 뒤 다른 관리자가 설정을 바꾸면 충돌로 거부한다", async () => {
+    findThreshold.mockResolvedValue({
+      ...row("SCHOOL", 18, 28),
+      updatedAt: NEXT_UPDATED_AT,
+    });
+
+    await expect(service.setDemeritThresholds(admin, input)).rejects.toThrow(MeritError);
+    await expect(service.setDemeritThresholds(admin, input)).rejects.toThrow(
+      "THRESHOLD_CONFLICT",
+    );
+
+    expect(updateThreshold).not.toHaveBeenCalled();
+    expect(recordAudit).not.toHaveBeenCalled();
+  });
+
+  it("조건부 갱신 수가 0이면 감사 없이 충돌로 거부한다", async () => {
+    findThreshold.mockResolvedValue(row("SCHOOL", 20, 30));
+    updateThreshold.mockResolvedValue(false);
+
+    await expect(service.setDemeritThresholds(admin, input)).rejects.toThrow(
+      "THRESHOLD_CONFLICT",
+    );
+
+    expect(recordAudit).not.toHaveBeenCalled();
+  });
+
+  it("미설정 화면을 연 뒤 누군가 먼저 만들었으면 충돌로 거부한다", async () => {
+    findThreshold.mockResolvedValue(row("SCHOOL", 20, 30));
+
+    await expect(
+      service.setDemeritThresholds(admin, { ...input, updatedAt: null }),
+    ).rejects.toThrow("THRESHOLD_CONFLICT");
+
+    expect(createThreshold).not.toHaveBeenCalled();
+    expect(recordAudit).not.toHaveBeenCalled();
+  });
+
+  it("미설정 행 생성 경합에서 뒤늦게 지면 감사 없이 충돌로 거부한다", async () => {
+    findThreshold.mockResolvedValue(null);
+    createThreshold.mockResolvedValue(false);
+
+    await expect(
+      service.setDemeritThresholds(admin, { ...input, updatedAt: null }),
+    ).rejects.toThrow("THRESHOLD_CONFLICT");
+
+    expect(recordAudit).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -192,13 +281,20 @@ describe("setDemeritThresholds — 저장", () => {
     ["학부모", parent],
   ])("%s는 기준을 바꿀 수 없다", async (_label, actor) => {
     await expect(service.setDemeritThresholds(actor, input)).rejects.toThrow("FORBIDDEN");
-    expect(upsertThreshold).not.toHaveBeenCalled();
+    expect(createThreshold).not.toHaveBeenCalled();
+    expect(updateThreshold).not.toHaveBeenCalled();
   });
 
   it("위험이 경고 이하면 서비스도 거부한다", async () => {
     await expect(
-      service.setDemeritThresholds(admin, { track: "SCHOOL", warn: 30, danger: 20 }),
+      service.setDemeritThresholds(admin, {
+        track: "SCHOOL",
+        updatedAt: THRESHOLD_UPDATED_AT,
+        warn: 30,
+        danger: 20,
+      }),
     ).rejects.toThrow("INVALID_THRESHOLD_ORDER");
-    expect(upsertThreshold).not.toHaveBeenCalled();
+    expect(createThreshold).not.toHaveBeenCalled();
+    expect(updateThreshold).not.toHaveBeenCalled();
   });
 });

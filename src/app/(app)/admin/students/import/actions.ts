@@ -13,9 +13,11 @@ import {
 import {
   confirmedDeletionIdsSchema,
   deletionCountConfirmationSchema,
+  rosterFingerprintSchema,
   rosterRowsSchema,
 } from "@/modules/enrollment/roster.schema";
 import type { ApplyState, PreviewState } from "./action-state";
+import { issuePreviewToken, verifyPreviewToken } from "./preview-token";
 
 const MESSAGES: Record<string, string> = {
   EMPTY: "읽을 수 있는 줄이 없습니다. 서식 파일을 받아 확인해 주세요.",
@@ -23,7 +25,13 @@ const MESSAGES: Record<string, string> = {
   YEAR_CHANGED: "학년도가 바뀌었습니다. 새로고침 후 다시 올려 주세요.",
   BLOCKED: "오류가 있는 줄이 남아 있습니다.",
   CODE_COLLISION: "초대코드가 겹쳤습니다. 다시 시도해 주세요.",
+  TOO_MANY_ROWS: "한 번에 2000줄까지 올릴 수 있습니다.",
+  XLSX_TOO_LARGE: "파일이 너무 큽니다.",
+  XLSX_ZIP_BOMB: "압축을 풀었을 때 너무 큰 엑셀 파일입니다.",
+  XLSX_ZIP_INVALID: "엑셀 파일을 읽지 못했습니다. 새 서식으로 다시 저장해 주세요.",
   CANNOT_DEACTIVATE_SELF: "자기 계정은 비활성화할 수 없습니다.",
+  ROSTER_CHANGED: "미리보기 이후 명단이 바뀌었습니다. 파일을 다시 읽어 주세요.",
+  PREVIEW_TOKEN_INVALID: "미리보기 정보가 바뀌었습니다. 파일을 다시 읽어 주세요.",
   // 미리보기 이후 명단에서 빠질 학생이 달라졌다. 미리보기부터 다시 해야 한다.
   DELETION_SET_CHANGED: "빠지는 학생이 달라졌습니다. 새로고침 후 다시 확인해 주세요.",
   DELETION_COUNT_MISMATCH: "빠지는 인원 수를 정확히 입력해 주세요.",
@@ -37,6 +45,26 @@ const NO_CURRENT_YEAR_MESSAGE =
 /** 파일 크기 상한. 전교생 300명이면 수십 KB면 충분하다. */
 const MAX_BYTES = 5 * 1024 * 1024;
 
+function emptyPreview(error: string): PreviewState {
+  return {
+    error,
+    year: null,
+    rows: [],
+    plan: null,
+    notices: [],
+    rosterFingerprint: null,
+    previewToken: null,
+  };
+}
+
+function applyError(error: string): ApplyState {
+  return { error, saved: null, deleted: null, excludedNew: [], invites: [] };
+}
+
+function sortedDeletionIds(ids: string[]): string[] {
+  return [...ids].sort();
+}
+
 export async function previewRosterAction(
   _prev: PreviewState,
   formData: FormData,
@@ -45,33 +73,36 @@ export async function previewRosterAction(
   const file = formData.get("file");
 
   if (!(file instanceof File) || file.size === 0) {
-    return { error: "파일을 선택해 주세요.", year: null, rows: [], plan: null, notices: [] };
+    return emptyPreview("파일을 선택해 주세요.");
   }
   if (file.size > MAX_BYTES) {
-    return { error: "파일이 너무 큽니다.", year: null, rows: [], plan: null, notices: [] };
+    return emptyPreview("파일이 너무 큽니다.");
   }
 
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
-    const { year, rows, plan, notices } = await previewRoster(actor, {
+    const { year, rows, plan, notices, rosterFingerprint } = await previewRoster(actor, {
       filename: file.name,
       buffer,
     });
-    return { error: null, year, rows, plan, notices };
+    const previewToken = issuePreviewToken({
+      year,
+      rows,
+      deletionIds: sortedDeletionIds(plan.missingFromFile.map((s) => s.studentProfileId)),
+      rosterFingerprint,
+    });
+    return { error: null, year, rows, plan, notices, rosterFingerprint, previewToken };
   } catch (error) {
     if (error instanceof AcademicYearError) {
-      return { error: NO_CURRENT_YEAR_MESSAGE, year: null, rows: [], plan: null, notices: [] };
+      return emptyPreview(NO_CURRENT_YEAR_MESSAGE);
     }
     if (error instanceof RosterError) {
-      return {
-        error: MESSAGES[error.message] ?? "파일을 읽지 못했습니다.",
-        year: null,
-        rows: [],
-        plan: null,
-        notices: [],
-      };
+      return emptyPreview(MESSAGES[error.message] ?? "파일을 읽지 못했습니다.");
     }
-    return { error: "파일을 읽지 못했습니다.", year: null, rows: [], plan: null, notices: [] };
+    if (error instanceof Error && MESSAGES[error.message]) {
+      return emptyPreview(MESSAGES[error.message]);
+    }
+    return emptyPreview("파일을 읽지 못했습니다.");
   }
 }
 
@@ -106,7 +137,7 @@ export async function applyRosterAction(
   try {
     parsedJson = JSON.parse(String(formData.get("rows") ?? "[]"));
   } catch {
-    return { error: "반영할 내용을 읽지 못했습니다.", saved: null, deleted: null, excludedNew: [], invites: [] };
+    return applyError("반영할 내용을 읽지 못했습니다.");
   }
 
   // 미리보기가 돌려준 값을 그대로 믿지 않는다 — 손댄 값도 여기서 막힌다.
@@ -123,7 +154,16 @@ export async function applyRosterAction(
 
   const yearParsed = yearFormSchema.safeParse({ year: formData.get("year") });
   if (!yearParsed.success) {
-    return { error: "학년도가 올바르지 않습니다.", saved: null, deleted: null, excludedNew: [], invites: [] };
+    return applyError("학년도가 올바르지 않습니다.");
+  }
+
+  const rosterFingerprintParsed = rosterFingerprintSchema.safeParse(
+    formData.get("rosterFingerprint"),
+  );
+  if (!rosterFingerprintParsed.success) {
+    return applyError(
+      rosterFingerprintParsed.error.issues[0]?.message ?? MESSAGES.ROSTER_CHANGED,
+    );
   }
 
   // 화면이 본 삭제 대상 목록. 동의 표시가 아니라 대조용이며, 진짜 강제는
@@ -132,13 +172,13 @@ export async function applyRosterAction(
   try {
     confirmedDeletionIdsJson = JSON.parse(String(formData.get("confirmedDeletionIds") ?? "[]"));
   } catch {
-    return { error: "확인 정보를 읽지 못했습니다.", saved: null, deleted: null, excludedNew: [], invites: [] };
+    return applyError("확인 정보를 읽지 못했습니다.");
   }
   const confirmedDeletionIdsParsed = confirmedDeletionIdsSchema.safeParse(
     confirmedDeletionIdsJson,
   );
   if (!confirmedDeletionIdsParsed.success) {
-    return { error: "확인 정보를 읽지 못했습니다.", saved: null, deleted: null, excludedNew: [], invites: [] };
+    return applyError("확인 정보를 읽지 못했습니다.");
   }
 
   // 빠지는 학생이 없으면 입력칸 자체가 없어 빈 문자열이 오고 스키마가 null로 접는다.
@@ -147,13 +187,20 @@ export async function applyRosterAction(
     formData.get("deletionCount"),
   );
   if (!deletionCountParsed.success) {
-    return {
-      error: MESSAGES.DELETION_COUNT_MISMATCH,
-      saved: null,
-      deleted: null,
-      excludedNew: [],
-      invites: [],
-    };
+    return applyError(MESSAGES.DELETION_COUNT_MISMATCH);
+  }
+
+  const confirmedDeletionIds = sortedDeletionIds(confirmedDeletionIdsParsed.data);
+  const previewToken = String(formData.get("previewToken") ?? "");
+  if (
+    !verifyPreviewToken(previewToken, {
+      year: yearParsed.data.year,
+      rows: rowsParsed.data,
+      deletionIds: confirmedDeletionIds,
+      rosterFingerprint: rosterFingerprintParsed.data,
+    })
+  ) {
+    return applyError(MESSAGES.PREVIEW_TOKEN_INVALID);
   }
 
   try {
@@ -161,7 +208,8 @@ export async function applyRosterAction(
       actor,
       yearParsed.data.year,
       rowsParsed.data,
-      confirmedDeletionIdsParsed.data,
+      rosterFingerprintParsed.data,
+      confirmedDeletionIds,
       deletionCountParsed.data,
     );
     revalidatePath("/admin/students");
@@ -174,17 +222,11 @@ export async function applyRosterAction(
     };
   } catch (error) {
     if (error instanceof AcademicYearError) {
-      return { error: NO_CURRENT_YEAR_MESSAGE, saved: null, deleted: null, excludedNew: [], invites: [] };
+      return applyError(NO_CURRENT_YEAR_MESSAGE);
     }
     if (error instanceof RosterError) {
-      return {
-        error: MESSAGES[error.message] ?? "반영하지 못했습니다.",
-        saved: null,
-        deleted: null,
-        excludedNew: [],
-        invites: [],
-      };
+      return applyError(MESSAGES[error.message] ?? "반영하지 못했습니다.");
     }
-    return { error: "반영하지 못했습니다.", saved: null, deleted: null, excludedNew: [], invites: [] };
+    return applyError("반영하지 못했습니다.");
   }
 }

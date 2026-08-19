@@ -4,9 +4,13 @@ import { ROSTER_COLUMNS, ROSTER_INFO_COLUMNS } from "@/modules/enrollment/roster
 
 const listExisting = vi.fn();
 const applyRoster = vi.fn();
+const findCurrentYearForUpdate = vi.fn();
+const findCurrentYear = vi.fn();
 const recordAudit = vi.fn();
 const generateUniqueCode = vi.fn();
 const toExpiresAt = vi.fn();
+const withTransaction = vi.fn();
+const txClient = { tx: true };
 
 /** roster.repo.ts의 실물과 이름·상속만 같은 자리표시자. instanceof로 구분한다. */
 class InviteCodeCollisionError extends Error {}
@@ -14,16 +18,21 @@ class InviteCodeCollisionError extends Error {}
 vi.mock("@/modules/enrollment/roster.repo", () => ({
   listExisting,
   applyRoster,
+  findCurrentYearForUpdate,
+  findCurrentYear,
   InviteCodeCollisionError,
 }));
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
+vi.mock("@/core/db/client", () => ({ withTransaction }));
 vi.mock("@/modules/academic-year/academic-year.service", () => ({
   getCurrentYear: vi.fn().mockResolvedValue(2026),
 }));
 vi.mock("@/modules/invites/invite.service", () => ({ generateUniqueCode, toExpiresAt }));
 
 // RosterError는 이 테스트에서 쓰지 않는다 — 던지는 메시지는 toThrow()로 문자열째 확인한다.
-const { applyRosterPlan, exportRoster } = await import("@/modules/enrollment/roster.service");
+const { applyRosterPlan, createRosterFingerprint, exportRoster } = await import(
+  "@/modules/enrollment/roster.service"
+);
 
 function user(role: SessionUser["role"], id = "admin-1"): SessionUser {
   return {
@@ -49,8 +58,15 @@ const 재학생 = {
   classNo: 3,
   number: 3,
   status: "ENROLLED",
+  hasGraduatedEnrollment: false,
   accountActive: true,
 };
+
+function fingerprint(
+  existing: Parameters<typeof createRosterFingerprint>[0] = [재학생],
+): string {
+  return createRosterFingerprint(existing);
+}
 
 // 기본값은 재학생과 같은 학생코드다 — listExisting이 기본으로 돌려주는 [재학생]과
 // 이어붙는다. existing을 []로 두는 테스트는 studentCode를 ""로 덮어써 신규로 만든다.
@@ -87,7 +103,12 @@ let codeCounter = 0;
 beforeEach(() => {
   listExisting.mockReset().mockResolvedValue([재학생]);
   applyRoster.mockReset().mockResolvedValue({ invites: [], revokedInvites: [] });
+  findCurrentYearForUpdate.mockReset().mockResolvedValue(2026);
+  findCurrentYear.mockReset().mockResolvedValue(2026);
   recordAudit.mockReset();
+  withTransaction.mockReset().mockImplementation(async (fn: (tx: typeof txClient) => unknown) =>
+    fn(txClient),
+  );
   codeCounter = 0;
   generateUniqueCode.mockReset().mockImplementation(async () => `GBSWCODE${++codeCounter}`);
   toExpiresAt.mockReset().mockReturnValue(new Date("2099-01-01"));
@@ -95,17 +116,17 @@ beforeEach(() => {
 
 describe("applyRosterPlan()", () => {
   it("관리자가 아니면 반영하지 못한다", async () => {
-    await expect(applyRosterPlan(student, 2026, [row], [], null)).rejects.toThrow("FORBIDDEN");
+    await expect(applyRosterPlan(student, 2026, [row], fingerprint(), [], null)).rejects.toThrow("FORBIDDEN");
     expect(applyRoster).not.toHaveBeenCalled();
   });
 
   it("학년도가 그 사이 바뀌었으면 거부한다", async () => {
-    await expect(applyRosterPlan(admin, 2025, [row], [], null)).rejects.toThrow("YEAR_CHANGED");
+    await expect(applyRosterPlan(admin, 2025, [row], fingerprint(), [], null)).rejects.toThrow("YEAR_CHANGED");
     expect(applyRoster).not.toHaveBeenCalled();
   });
 
   it("빈 행이면 서비스가 거부한다", async () => {
-    await expect(applyRosterPlan(admin, 2026, [], [], null)).rejects.toThrow("EMPTY_ROWS");
+    await expect(applyRosterPlan(admin, 2026, [], fingerprint(), [], null)).rejects.toThrow("EMPTY_ROWS");
     expect(applyRoster).not.toHaveBeenCalled();
     expect(recordAudit).not.toHaveBeenCalled();
   });
@@ -113,27 +134,60 @@ describe("applyRosterPlan()", () => {
   it("확정을 막아야 하는 명단이면 아무것도 쓰지 않는다", async () => {
     const bad = { ...row, errors: ["생년월일을 읽을 수 없습니다."] };
 
-    await expect(applyRosterPlan(admin, 2026, [bad], [], null)).rejects.toThrow("BLOCKED");
+    await expect(applyRosterPlan(admin, 2026, [bad], fingerprint(), [], null)).rejects.toThrow("BLOCKED");
     expect(applyRoster).not.toHaveBeenCalled();
     expect(recordAudit).not.toHaveBeenCalled();
   });
 
   it("클라이언트가 보낸 행을 다시 분류한다 — 미리보기 결과를 믿지 않는다", async () => {
-    await applyRosterPlan(admin, 2026, [row], [], null);
+    await applyRosterPlan(admin, 2026, [row], fingerprint(), [], null);
 
     // 미리보기 때와 같은 현재 상태를 서버가 다시 읽어야 한다.
     expect(listExisting).toHaveBeenCalledWith(2026);
   });
 
   it("반영하고 요약을 감사로그에 남긴다 — 값이 아니라 건수만", async () => {
-    await applyRosterPlan(admin, 2026, [row], [], null);
+    await applyRosterPlan(admin, 2026, [row], fingerprint(), [], null);
 
     expect(applyRoster).toHaveBeenCalledTimes(1);
+    expect(withTransaction).toHaveBeenCalledWith(expect.any(Function), {
+      timeout: 120_000,
+      maxWait: 10_000,
+      isolationLevel: "Serializable",
+    });
+    expect(applyRoster.mock.calls[0]![2]).toBe(txClient);
+    expect(findCurrentYearForUpdate).toHaveBeenCalledWith(txClient);
+    expect(recordAudit.mock.calls[0]![1]).toBe(txClient);
     const audit = recordAudit.mock.calls[0]![0];
     expect(audit.action).toBe("enrollment:import");
     expect(audit.metadata).toMatchObject({ year: 2026, reassign: 1 });
     // 학생 이름이 로그에 남으면 감사로그가 개인정보 사본이 된다.
     expect(JSON.stringify(audit)).not.toContain("김동혁");
+  });
+
+  it("트랜잭션 락을 잡은 뒤 현재 학년도가 바뀐 것을 다시 확인한다", async () => {
+    findCurrentYearForUpdate.mockResolvedValue(2027);
+
+    await expect(applyRosterPlan(admin, 2026, [row], fingerprint(), [], null)).rejects.toThrow("YEAR_CHANGED");
+
+    expect(applyRoster).not.toHaveBeenCalled();
+    expect(recordAudit).not.toHaveBeenCalled();
+  });
+
+  it("Serializable 학년도 전환 충돌은 YEAR_CHANGED로 돌려준다", async () => {
+    withTransaction.mockRejectedValue(Object.assign(new Error("write conflict"), { code: "P2034" }));
+    findCurrentYear.mockResolvedValue(2027);
+
+    await expect(applyRosterPlan(admin, 2026, [row], fingerprint(), [], null)).rejects.toThrow("YEAR_CHANGED");
+
+    expect(findCurrentYear).toHaveBeenCalled();
+  });
+
+  it("Serializable 명단 충돌은 ROSTER_CHANGED로 돌려준다", async () => {
+    withTransaction.mockRejectedValue(Object.assign(new Error("write conflict"), { code: "P2034" }));
+    findCurrentYear.mockResolvedValue(2026);
+
+    await expect(applyRosterPlan(admin, 2026, [row], fingerprint(), [], null)).rejects.toThrow("ROSTER_CHANGED");
   });
 
   it("신규 학생 수만큼 초대코드를 만들어 돌려준다", async () => {
@@ -144,7 +198,7 @@ describe("applyRosterPlan()", () => {
     });
 
     const newRow = { ...row, studentCode: "" };
-    const result = await applyRosterPlan(admin, 2026, [newRow], [], null);
+    const result = await applyRosterPlan(admin, 2026, [newRow], fingerprint([]), [], null);
 
     expect(result.invites).toHaveLength(1);
     expect(applyRoster.mock.calls[0]![1].newStudents).toHaveLength(1);
@@ -156,7 +210,7 @@ describe("applyRosterPlan()", () => {
     toExpiresAt.mockReturnValue(expires);
 
     const newRow = { ...row, studentCode: "" };
-    await applyRosterPlan(admin, 2026, [newRow], [], null);
+    await applyRosterPlan(admin, 2026, [newRow], fingerprint([]), [], null);
 
     expect(applyRoster.mock.calls[0]![1].inviteExpiresAt).toBe(expires);
     expect(toExpiresAt).toHaveBeenCalledWith(expect.any(Number));
@@ -177,7 +231,7 @@ describe("applyRosterPlan()", () => {
       number: null,
     };
 
-    await applyRosterPlan(admin, 2026, [재학신규, 비재학신규], [], null);
+    await applyRosterPlan(admin, 2026, [재학신규, 비재학신규], fingerprint([]), [], null);
 
     const newStudents = applyRoster.mock.calls[0]![1].newStudents;
     expect(newStudents).toHaveLength(1);
@@ -203,7 +257,7 @@ describe("applyRosterPlan()", () => {
     }
 
     it("반영 결과에 제외된 줄을 어느 줄인지까지 실어 돌려준다", async () => {
-      const result = await applyRosterPlan(admin, 2026, 신규줄들(), [], null);
+      const result = await applyRosterPlan(admin, 2026, 신규줄들(), fingerprint([]), [], null);
 
       expect(result.excludedNewStudents).toEqual([
         { line: 2, name: "유예생", status: "DEFERRED" },
@@ -214,14 +268,14 @@ describe("applyRosterPlan()", () => {
       listExisting.mockResolvedValue([]);
       const 재학신규 = { ...row, studentCode: "", name: "재학이", birthDate: "2011-01-01" };
 
-      const result = await applyRosterPlan(admin, 2026, [재학신규], [], null);
+      const result = await applyRosterPlan(admin, 2026, [재학신규], fingerprint([]), [], null);
 
       expect(result.excludedNewStudents).toEqual([]);
     });
 
     it("감사로그 metadata에도 제외 건수가 남는다 — 화면은 한 번 보고 사라지지만 " +
       "로그는 남는다", async () => {
-      await applyRosterPlan(admin, 2026, 신규줄들(), [], null);
+      await applyRosterPlan(admin, 2026, 신규줄들(), fingerprint([]), [], null);
 
       const summary = recordAudit.mock.calls
         .map((c) => c[0])
@@ -236,7 +290,7 @@ describe("applyRosterPlan()", () => {
     // row가 재학생과 같은 학생코드·자리면 untouched로 분류된다.
     const 그대로 = { ...row, grade: 1, classNo: 3, number: 3 };
 
-    await applyRosterPlan(admin, 2026, [그대로], [], null);
+    await applyRosterPlan(admin, 2026, [그대로], fingerprint(), [], null);
 
     const assignments = applyRoster.mock.calls[0]![1].assignments;
     const mine = assignments.find((a: { studentProfileId: string }) => a.studentProfileId === "sp-1");
@@ -263,7 +317,7 @@ describe("applyRosterPlan()", () => {
     }));
 
     // 학생코드로 잇는 특성상 각 row는 대응하는 existing과 studentCode가 같아야 한다.
-    listExisting.mockResolvedValue([
+    const existing = [
       {
         ...재학생,
         studentProfileId: "sp-untouched",
@@ -299,9 +353,10 @@ describe("applyRosterPlan()", () => {
         classNo: null,
         number: null,
       },
-    ]);
+    ];
+    listExisting.mockResolvedValue(existing);
 
-    await applyRosterPlan(admin, 2026, rows, [], null);
+    await applyRosterPlan(admin, 2026, rows, fingerprint(existing), [], null);
 
     const assignments: { studentProfileId: string; statusChanged: boolean }[] =
       applyRoster.mock.calls[0]![1].assignments;
@@ -314,20 +369,22 @@ describe("applyRosterPlan()", () => {
   });
 
   it("자기 자신을 비재학으로 돌리는 반영은 거부한다 (자기 잠금 방어)", async () => {
-    listExisting.mockResolvedValue([{ ...재학생, userId: admin.id }]);
+    const existing = [{ ...재학생, userId: admin.id }];
+    listExisting.mockResolvedValue(existing);
     const 자퇴 = { ...row, status: "WITHDRAWN" as const, grade: null, classNo: null, number: null };
 
-    await expect(applyRosterPlan(admin, 2026, [자퇴], [], null)).rejects.toThrow(
+    await expect(applyRosterPlan(admin, 2026, [자퇴], fingerprint(existing), [], null)).rejects.toThrow(
       "CANNOT_DEACTIVATE_SELF",
     );
     expect(applyRoster).not.toHaveBeenCalled();
   });
 
   it("계정 상태가 실제로 뒤집힐 때만 user:activate/deactivate를 남긴다 (I4)", async () => {
-    listExisting.mockResolvedValue([{ ...재학생, accountActive: false, status: "WITHDRAWN" }]);
+    const existing = [{ ...재학생, accountActive: false, status: "WITHDRAWN" }];
+    listExisting.mockResolvedValue(existing);
     const 재입학 = { ...row, status: "ENROLLED" as const };
 
-    await applyRosterPlan(admin, 2026, [재입학], [], null);
+    await applyRosterPlan(admin, 2026, [재입학], fingerprint(existing), [], null);
 
     const calls = recordAudit.mock.calls.map((c) => c[0]);
     const flip = calls.find((c) => c.action === "user:activate");
@@ -337,10 +394,11 @@ describe("applyRosterPlan()", () => {
   });
 
   it("계정 상태가 실제로는 안 바뀌면(비재학→비재학) 활성/비활성 감사로그를 남기지 않는다", async () => {
-    listExisting.mockResolvedValue([{ ...재학생, accountActive: false, status: "WITHDRAWN" }]);
+    const existing = [{ ...재학생, accountActive: false, status: "WITHDRAWN" }];
+    listExisting.mockResolvedValue(existing);
     const 자퇴그대로 = { ...row, status: "EXPELLED" as const, grade: null, classNo: null, number: null };
 
-    await applyRosterPlan(admin, 2026, [자퇴그대로], [], null);
+    await applyRosterPlan(admin, 2026, [자퇴그대로], fingerprint(existing), [], null);
 
     const calls = recordAudit.mock.calls.map((c) => c[0]);
     expect(calls.some((c) => c.action === "user:activate" || c.action === "user:deactivate")).toBe(
@@ -353,16 +411,29 @@ describe("applyRosterPlan()", () => {
     applyRoster.mockRejectedValue(new InviteCodeCollisionError());
 
     const newRow = { ...row, studentCode: "" };
-    await expect(applyRosterPlan(admin, 2026, [newRow], [], null)).rejects.toThrow("CODE_COLLISION");
+    await expect(applyRosterPlan(admin, 2026, [newRow], fingerprint([]), [], null)).rejects.toThrow("CODE_COLLISION");
   });
 
   it("발급 코드는 generateUniqueCode()로 만든다", async () => {
     listExisting.mockResolvedValue([]);
 
     const newRow = { ...row, studentCode: "" };
-    await applyRosterPlan(admin, 2026, [newRow], [], null);
+    await applyRosterPlan(admin, 2026, [newRow], fingerprint([]), [], null);
 
     expect(generateUniqueCode).toHaveBeenCalled();
+  });
+
+  it("트랜잭션 안에서 다시 읽은 명단이 달라졌으면 반영하지 않는다", async () => {
+    const newer = [{ ...재학생, classNo: 9 }];
+    listExisting
+      .mockResolvedValueOnce([재학생])
+      .mockResolvedValueOnce(newer);
+
+    await expect(
+      applyRosterPlan(admin, 2026, [row], fingerprint(), [], null),
+    ).rejects.toThrow("ROSTER_CHANGED");
+    expect(applyRoster).not.toHaveBeenCalled();
+    expect(recordAudit).not.toHaveBeenCalled();
   });
 });
 
@@ -379,6 +450,7 @@ function 대량학생(n: number) {
     classNo: 1,
     number: i + 1,
     status: "ENROLLED",
+    hasGraduatedEnrollment: false,
     accountActive: true,
   }));
 }
@@ -387,7 +459,7 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
   it("삭제 대상이 있는데 confirmedDeletionIds가 비면 거부한다", async () => {
     // 기본 listExisting은 [재학생]인데 rows에 대응하는 줄이 없으므로 재학생이
     // missingFromFile에 들어간다.
-    await expect(applyRosterPlan(admin, 2026, [무관한신규줄], [], null)).rejects.toThrow(
+    await expect(applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(), [], null)).rejects.toThrow(
       "DELETION_SET_CHANGED",
     );
     expect(applyRoster).not.toHaveBeenCalled();
@@ -395,87 +467,116 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
   });
 
   it("확인한 id 집합이 서비스가 다시 세운 삭제 대상과 정확히 같으면 repo에 넘긴다", async () => {
-    await applyRosterPlan(admin, 2026, [무관한신규줄], ["sp-1"], 1);
+    await applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(), ["sp-1"], 1);
 
     expect(applyRoster.mock.calls[0]![1].deleteStudentProfileIds).toEqual(["sp-1"]);
   });
 
+  it("확인한 id가 중복되면 집합이 같아 보여도 거부한다", async () => {
+    await expect(
+      applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(), ["sp-1", "sp-1"], 1),
+    ).rejects.toThrow("DELETION_SET_CHANGED");
+    expect(applyRoster).not.toHaveBeenCalled();
+  });
+
+  it("명단에서 빠진 졸업생은 삭제하지 않고 보존 배정으로 다시 쓴다", async () => {
+    const 졸업생 = {
+      ...재학생,
+      studentProfileId: "sp-grad",
+      userId: "u-grad",
+      studentCode: "GRAD2345",
+      name: "졸업생",
+      birthDate: "2007-01-01",
+      grade: null,
+      classNo: null,
+      number: null,
+      status: "GRADUATED",
+      hasGraduatedEnrollment: true,
+      accountActive: false,
+    };
+    const existing = [재학생, 졸업생];
+    listExisting.mockResolvedValue(existing);
+
+    await applyRosterPlan(
+      admin,
+      2026,
+      [무관한신규줄],
+      fingerprint(existing),
+      ["sp-1"],
+      1,
+    );
+
+    const input = applyRoster.mock.calls[0]![1];
+    expect(input.deleteStudentProfileIds).toEqual(["sp-1"]);
+    expect(input.assignments).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          studentProfileId: "sp-grad",
+          status: "GRADUATED",
+          statusChanged: false,
+          line: 0,
+        }),
+      ]),
+    );
+  });
+
   it("삭제 대상이 없으면 빈 배열로도 막지 않는다", async () => {
     // row가 재학생과 같은 학생코드라 이어붙어 missingFromFile이 비게 된다.
-    await applyRosterPlan(admin, 2026, [row], [], null);
+    await applyRosterPlan(admin, 2026, [row], fingerprint(), [], null);
 
     expect(applyRoster).toHaveBeenCalledTimes(1);
     expect(applyRoster.mock.calls[0]![1].deleteStudentProfileIds).toEqual([]);
   });
 
-  it("소프트 삭제 로그마다 actorName을 미리 넘겨 이름 재조회를 없앤다", async () => {
-    await applyRosterPlan(admin, 2026, [무관한신규줄], ["sp-1"], 1);
+  it("삭제 로그마다 actorName을 미리 넘겨 이름 재조회를 없앤다", async () => {
+    await applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(), ["sp-1"], 1);
 
     const deleteLog = recordAudit.mock.calls
       .map((c) => c[0])
-      .find((c) => c.action === "user:soft-delete");
+      .find((c) => c.action === "user:delete");
     expect(deleteLog?.actorName).toBe(admin.name);
   });
 
-  it("명단에서 빠진 학생마다 user:soft-delete를 남기고 이름은 넣지 않는다", async () => {
-    await applyRosterPlan(admin, 2026, [무관한신규줄], ["sp-1"], 1);
+  it("명단에서 빠진 학생마다 user:delete를 남기고 이름은 넣지 않는다", async () => {
+    await applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(), ["sp-1"], 1);
 
     const deleteLogs = recordAudit.mock.calls
       .map((c) => c[0])
-      .filter((c) => c.action === "user:soft-delete");
+      .filter((c) => c.action === "user:delete");
     expect(deleteLogs).toHaveLength(1);
     expect(deleteLogs[0]).toMatchObject({ targetType: "User", targetId: "u-1" });
     expect(JSON.stringify(deleteLogs[0])).not.toContain("김동혁");
-
-    expect(
-      recordAudit.mock.calls.map((c) => c[0]).some((c) => c.action === "user:delete"),
-    ).toBe(false);
   });
 
-  it("배치 요약의 metadata에 softDeleted 건수를 남긴다", async () => {
-    await applyRosterPlan(admin, 2026, [무관한신규줄], ["sp-1"], 1);
+  it("배치 요약의 metadata에 deleted 건수를 남긴다", async () => {
+    await applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(), ["sp-1"], 1);
 
     const summary = recordAudit.mock.calls
       .map((c) => c[0])
       .find((c) => c.action === "enrollment:import");
-    expect(summary.metadata).toMatchObject({ softDeleted: 1 });
+    expect(summary.metadata).toMatchObject({ deleted: 1 });
   });
 
-  it("이미 삭제됐던 학생이 다시 배정을 받으면 restored로 센다", async () => {
-    // 이전에 삭제됐던 학생: 그 학년도 배정이 없고(status:null) deleted:true.
-    // row(재학생과 같은 studentCode·이름·생년월일)가 이 학생을 다시 채운다 —
-    // before.status===null이므로 newAssignment로 분류된다.
-    listExisting.mockResolvedValue([
-      { ...재학생, deleted: true, status: null, grade: null, classNo: null, number: null },
-    ]);
-
-    await applyRosterPlan(admin, 2026, [row], [], null);
+  it("정상 반영 요약에 restored 건수를 남기지 않는다", async () => {
+    await applyRosterPlan(admin, 2026, [row], fingerprint(), [], null);
 
     const summary = recordAudit.mock.calls
       .map((c) => c[0])
       .find((c) => c.action === "enrollment:import");
-    expect(summary.metadata).toMatchObject({ restored: 1 });
-  });
-
-  it("삭제된 적 없는 학생의 정상 배정은 restored로 세지 않는다", async () => {
-    await applyRosterPlan(admin, 2026, [row], [], null);
-
-    const summary = recordAudit.mock.calls
-      .map((c) => c[0])
-      .find((c) => c.action === "enrollment:import");
-    expect(summary.metadata).toMatchObject({ restored: 0 });
+    expect(summary.metadata).not.toHaveProperty("restored");
   });
 
   it("결과에 삭제 건수를 함께 돌려준다", async () => {
-    const result = await applyRosterPlan(admin, 2026, [무관한신규줄], ["sp-1"], 1);
+    const result = await applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(), ["sp-1"], 1);
 
     expect(result.deleted).toBe(1);
   });
 
   it("자기 자신이 삭제 대상이면 확인 여부와 무관하게 거부한다", async () => {
-    listExisting.mockResolvedValue([{ ...재학생, userId: admin.id }]);
+    const existing = [{ ...재학생, userId: admin.id }];
+    listExisting.mockResolvedValue(existing);
 
-    await expect(applyRosterPlan(admin, 2026, [무관한신규줄], ["sp-1"], null)).rejects.toThrow(
+    await expect(applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(existing), ["sp-1"], null)).rejects.toThrow(
       "CANNOT_DELETE_SELF",
     );
     expect(applyRoster).not.toHaveBeenCalled();
@@ -484,7 +585,7 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
   describe("삭제 대상 집합 대조 — 미리보기 이후 DB가 바뀌면 확정을 거부한다 (I-2)", () => {
     it("확인한 집합이 다시 세운 집합과 다르면(다른 id) 거부하고 아무것도 쓰지 않는다", async () => {
       await expect(
-        applyRosterPlan(admin, 2026, [무관한신규줄], ["sp-다른학생"], null),
+        applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(), ["sp-다른학생"], null),
       ).rejects.toThrow("DELETION_SET_CHANGED");
       expect(applyRoster).not.toHaveBeenCalled();
       expect(recordAudit).not.toHaveBeenCalled();
@@ -492,7 +593,7 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
 
     it("확인한 집합에 삭제 대상이 아닌 id가 섞여 있어도 거부한다", async () => {
       await expect(
-        applyRosterPlan(admin, 2026, [무관한신규줄], ["sp-1", "sp-그사이가입"], null),
+        applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(), ["sp-1", "sp-그사이가입"], null),
       ).rejects.toThrow("DELETION_SET_CHANGED");
       expect(applyRoster).not.toHaveBeenCalled();
     });
@@ -505,7 +606,7 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
       const ids = bulk.map((s) => s.studentProfileId);
 
       await expect(
-        applyRosterPlan(admin, 2026, [무관한신규줄], ids, null),
+        applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(bulk), ids, null),
       ).rejects.toThrow("DELETION_COUNT_MISMATCH");
       expect(applyRoster).not.toHaveBeenCalled();
       expect(recordAudit).not.toHaveBeenCalled();
@@ -517,7 +618,7 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
       const ids = bulk.map((s) => s.studentProfileId);
 
       await expect(
-        applyRosterPlan(admin, 2026, [무관한신규줄], ids, 5),
+        applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(bulk), ids, 5),
       ).rejects.toThrow("DELETION_COUNT_MISMATCH");
       expect(applyRoster).not.toHaveBeenCalled();
     });
@@ -527,14 +628,14 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
       listExisting.mockResolvedValue(bulk);
       const ids = bulk.map((s) => s.studentProfileId);
 
-      await applyRosterPlan(admin, 2026, [무관한신규줄], ids, 11);
+      await applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(bulk), ids, 11);
 
       expect(applyRoster.mock.calls[0]![1].deleteStudentProfileIds).toHaveLength(11);
     });
 
     it("1명만 빠져도 건수를 넣지 않으면 거부한다", async () => {
       await expect(
-        applyRosterPlan(admin, 2026, [무관한신규줄], ["sp-1"], null),
+        applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(), ["sp-1"], null),
       ).rejects.toThrow("DELETION_COUNT_MISMATCH");
       expect(applyRoster).not.toHaveBeenCalled();
       expect(recordAudit).not.toHaveBeenCalled();
@@ -542,20 +643,20 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
 
     it("1명만 빠질 때 건수를 틀리게 넣어도 거부한다", async () => {
       await expect(
-        applyRosterPlan(admin, 2026, [무관한신규줄], ["sp-1"], 2),
+        applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(), ["sp-1"], 2),
       ).rejects.toThrow("DELETION_COUNT_MISMATCH");
       expect(applyRoster).not.toHaveBeenCalled();
     });
 
     it("1명이 빠질 때 건수를 정확히 넣으면 통과한다", async () => {
-      await applyRosterPlan(admin, 2026, [무관한신규줄], ["sp-1"], 1);
+      await applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(), ["sp-1"], 1);
 
       expect(applyRoster.mock.calls[0]![1].deleteStudentProfileIds).toEqual(["sp-1"]);
     });
 
     it("삭제 대상이 없으면 건수를 안 넣어도 통과한다", async () => {
       // row가 재학생과 같은 학생코드라 이어붙어 missingFromFile이 빈다.
-      await applyRosterPlan(admin, 2026, [row], [], null);
+      await applyRosterPlan(admin, 2026, [row], fingerprint(), [], null);
 
       expect(applyRoster.mock.calls[0]![1].deleteStudentProfileIds).toEqual([]);
     });
@@ -571,7 +672,7 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
         ],
       });
 
-      await applyRosterPlan(admin, 2026, [무관한신규줄], ["sp-1"], 1);
+      await applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(), ["sp-1"], 1);
 
       const revokeLogs = recordAudit.mock.calls
         .map((c) => c[0])
@@ -585,10 +686,11 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
         metadata: { role: "PARENT" },
       });
       expect(revokeLogs[1]!.targetId).toBe("inv-2");
+      expect(recordAudit.mock.calls.every((c) => c[1] === txClient)).toBe(true);
     });
 
     it("폐기된 코드가 없으면 아무 줄도 남기지 않는다", async () => {
-      await applyRosterPlan(admin, 2026, [무관한신규줄], ["sp-1"], 1);
+      await applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(), ["sp-1"], 1);
 
       expect(
         recordAudit.mock.calls.some((c) => c[0].action === "invite:revoke:roster"),

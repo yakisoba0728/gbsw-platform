@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { DbClient } from "@/core/db/client";
 
 const create = vi.fn();
 const findUnique = vi.fn();
@@ -196,5 +197,82 @@ describe("recordAudit()", () => {
     expect(create.mock.calls[0]![0].data).toMatchObject({
       actorName: "(알 수 없음)",
     });
+  });
+
+  it("트랜잭션 클라이언트를 받으면 행위자 조회와 감사 생성 모두 그 클라이언트만 쓴다", async () => {
+    const txFindUnique = vi.fn().mockResolvedValue({ name: "트랜잭션 관리자" });
+    const txCreate = vi.fn().mockResolvedValue({});
+    const tx = {
+      auditLog: { create: txCreate },
+      user: { findUnique: txFindUnique },
+    } as unknown as DbClient;
+
+    await recordAudit(
+      {
+        actorUserId: "tx-user",
+        action: "academic-year:set-current",
+        targetType: "AcademicYear",
+        targetId: "8105",
+      },
+      tx,
+    );
+
+    expect(findUnique).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+    expect(txFindUnique).toHaveBeenCalledWith({
+      where: { id: "tx-user" },
+      select: { name: true },
+    });
+    expect(txCreate).toHaveBeenCalledWith({
+      data: {
+        actorUserId: "tx-user",
+        actorName: "트랜잭션 관리자",
+        action: "academic-year:set-current",
+        targetType: "AcademicYear",
+        targetId: "8105",
+        metadata: undefined,
+        ip: null,
+        userAgent: null,
+      },
+    });
+  });
+
+  it("트랜잭션 클라이언트의 행위자 조회가 실패해도 같은 클라이언트로 (알 수 없음)을 기록한다", async () => {
+    const txFindUnique = vi.fn().mockRejectedValue(new Error("tx lookup failed"));
+    const txCreate = vi.fn().mockResolvedValue({});
+    const tx = {
+      auditLog: { create: txCreate },
+      user: { findUnique: txFindUnique },
+    } as unknown as DbClient;
+
+    await expect(
+      recordAudit(
+        {
+          actorUserId: "tx-user",
+          action: "user:manage",
+          targetType: "User",
+        },
+        tx,
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(findUnique).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+    expect(txCreate.mock.calls[0]![0].data).toMatchObject({
+      actorName: "(알 수 없음)",
+    });
+  });
+
+  it("AuditLog.create 실패는 삼키지 않고 호출자에게 전파한다", async () => {
+    const failure = new Error("audit insert failed");
+    create.mockRejectedValue(failure);
+
+    await expect(
+      recordAudit({
+        actorUserId: "u1",
+        action: "user:manage",
+        targetType: "User",
+      }),
+    ).rejects.toBe(failure);
   });
 });

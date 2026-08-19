@@ -55,6 +55,13 @@ const nextConfig: NextConfig = {
   output: "standalone",
   // 응답에서 X-Powered-By: Next.js를 뺀다 — 서버 기술 스택을 광고하지 않는다.
   poweredByHeader: false,
+  experimental: {
+    // 명단 업로드는 5MiB까지 받고, multipart/form-data 경계·part 헤더 여유를 둔다.
+    // Next 16.3의 런타임·타입은 아직 experimental.serverActions에서 이 값을 읽는다.
+    serverActions: {
+      bodySizeLimit: "6mb",
+    },
+  },
 
   async headers() {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];

@@ -80,6 +80,7 @@ describe("왕복: 내보내기 → xlsx 바이트 → 파서 → 분류", () => 
     classNo: 3,
     number: 3,
     status: "ENROLLED",
+    hasGraduatedEnrollment: false,
     accountActive: true,
   };
 
@@ -135,6 +136,7 @@ describe("왕복: 내보내기 → xlsx 바이트 → 파서 → 분류", () => 
       classNo: null,
       number: null,
       status: null,
+      hasGraduatedEnrollment: false,
       accountActive: false,
     };
 
@@ -163,6 +165,7 @@ describe("왕복: 내보내기 → xlsx 바이트 → 파서 → 분류", () => 
       classNo: null,
       number: null,
       status: null,
+      hasGraduatedEnrollment: false,
       accountActive: false,
     };
     const 다른재학생: ExistingStudent = {
@@ -175,6 +178,7 @@ describe("왕복: 내보내기 → xlsx 바이트 → 파서 → 분류", () => 
       classNo: 2,
       number: 15,
       status: "ENROLLED",
+      hasGraduatedEnrollment: false,
       accountActive: true,
     };
 

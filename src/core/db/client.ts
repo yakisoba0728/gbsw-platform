@@ -1,5 +1,5 @@
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "@/generated/prisma/client";
+import { Prisma, PrismaClient } from "@/generated/prisma/client";
 
 const connectionString = process.env.DATABASE_URL;
 
@@ -21,4 +21,19 @@ export const prisma = globalForPrisma.prisma ?? new PrismaClient({ adapter });
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
+}
+
+export type DbClient = Prisma.TransactionClient;
+
+export type TransactionOptions = {
+  maxWait?: number;
+  timeout?: number;
+  isolationLevel?: Prisma.TransactionIsolationLevel;
+};
+
+export function withTransaction<T>(
+  fn: (db: DbClient) => Promise<T>,
+  options?: TransactionOptions,
+): Promise<T> {
+  return prisma.$transaction(fn, options);
 }

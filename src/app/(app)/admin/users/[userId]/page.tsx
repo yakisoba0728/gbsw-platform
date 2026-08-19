@@ -56,6 +56,7 @@ export default async function UserDetailPage({
     name: user.name,
     email: user.email,
     phone: user.phone,
+    updatedAt: user.updatedAt.toISOString(),
     isStudent: profile != null,
     // 재학 중일 때만 학년·반·번호를 이 화면에서 고칠 수 있다.
     canEditAssignment: enrollment?.status === "ENROLLED",
@@ -98,7 +99,7 @@ export default async function UserDetailPage({
               <Field label="전화번호">{user.phone ?? "—"}</Field>
               <Field label="가입일">{formatDate(user.createdAt)}</Field>
               {deleted && user.deletedAt && (
-                <Field label="명단 제외일">{formatDate(user.deletedAt)}</Field>
+              <Field label="삭제 표시일">{formatDate(user.deletedAt)}</Field>
               )}
 
               {profile && (
@@ -190,28 +191,27 @@ export default async function UserDetailPage({
         <div className="flex flex-col gap-4">
           {deleted ? (
             <>
-              {/* 이번 학년도 소속은 실제로 지워진다. 자퇴·전출은 학적 칸으로 남긴다. */}
               <SectionCard
                 variant="panel"
                 headingLevel={3}
-                title="명단에서 빠진 계정"
+                title="삭제 표시된 계정"
               >
                 <p className="text-caption text-mut">
-                  정보 수정·비밀번호 초기화·활성화를 할 수 없습니다. 계정과 학생
-                  정보, 지난 학년도 소속, 상벌점 기록은 남지만 이번 학년도 소속은
-                  사라집니다. 다음 명단 반영에 다시 포함되면 되살아납니다.
+                  예전 명단 제외 기록이 남아 있는 계정입니다. 정보 수정·비밀번호
+                  초기화·활성화를 할 수 없습니다.
                 </p>
               </SectionCard>
 
-              {/* 되돌릴 수 없는 유일한 동작이라 다른 조치와 섞지 않는다. */}
-              <SectionCard
-                variant="panel"
-                tone="danger"
-                headingLevel={3}
-                title="완전 삭제"
-              >
-                <HardDeleteForm user={editable} />
-              </SectionCard>
+              {profile && (
+                <SectionCard
+                  variant="panel"
+                  tone="danger"
+                  headingLevel={3}
+                  title="완전 삭제"
+                >
+                  <HardDeleteForm user={editable} />
+                </SectionCard>
+              )}
             </>
           ) : (
             <>
@@ -230,6 +230,17 @@ export default async function UserDetailPage({
                   <ToggleActiveForm user={editable} />
                 </div>
               </SectionCard>
+
+              {profile && (
+                <SectionCard
+                  variant="panel"
+                  tone="danger"
+                  headingLevel={3}
+                  title="완전 삭제"
+                >
+                  <HardDeleteForm user={editable} />
+                </SectionCard>
+              )}
             </>
           )}
         </div>

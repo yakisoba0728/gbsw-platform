@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { canonicalDateInputSchema } from "@/lib/date-input";
 import {
   CLASS_NO_RANGE_MESSAGE,
   GRADE_RANGE_MESSAGE,
@@ -28,10 +29,10 @@ const expiresInDays = z
 /** 관리자가 학생 코드를 발급할 때 입력하는 값. */
 export const createStudentInviteSchema = z.object({
   name,
-  birthDate: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "생년월일은 YYYY-MM-DD 형식으로 입력해 주세요.")
-    .refine((v) => !Number.isNaN(Date.parse(v)), "존재하지 않는 날짜입니다."),
+  birthDate: canonicalDateInputSchema(
+    "생년월일은 YYYY-MM-DD 형식으로 입력해 주세요.",
+    "존재하지 않는 날짜입니다.",
+  ),
   // 범위와 문구를 같은 곳에서 가져온다 — 문구를 비우면 zod의 영문 기본 문구가
   // 화면에 그대로 나간다.
   grade: z

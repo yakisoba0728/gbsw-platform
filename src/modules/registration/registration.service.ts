@@ -2,13 +2,14 @@ import { randomUUID } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
 import { recordAudit } from "@/core/audit/audit";
 import { isRole, type Role } from "@/core/authz/roles";
+import { type DbClient, withTransaction } from "@/core/db/client";
 import { parseDateInputKst } from "@/lib/datetime";
 import {
   isInviteUsable,
   MAX_INVITE_ATTEMPTS,
   normalizeInviteCode,
 } from "@/lib/invite-code";
-import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
+import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import {
   namedInviteMetaSchema,
   studentInviteMetaSchema,
@@ -17,8 +18,8 @@ import * as repo from "./registration.repo";
 import type { CompleteRegistrationInput } from "./registration.schema";
 import type { VerificationChannel } from "@/modules/verification/verification.schema";
 import {
+  createTemporaryVerifiedProof,
   consumeVerifications,
-  requestCode,
   requireVerified,
 } from "@/modules/verification/verification.service";
 import { birthDateMatches, nameMatches } from "./registration.verify";
@@ -32,6 +33,24 @@ export class RegistrationError extends Error {}
 
 /** 무엇이 틀렸는지 알려주지 않는 공통 실패 문구. */
 const GENERIC_FAILURE = "가입코드 또는 입력한 정보가 맞지 않습니다.";
+/** 학생코드가 겹칠 때 성공 가입 트랜잭션째 재시도하는 횟수. */
+const STUDENT_CODE_RETRIES = 5;
+
+function isSerializationConflict(error: unknown): boolean {
+  if (typeof error !== "object" || error === null || !("code" in error)) {
+    return false;
+  }
+  if (error.code === "P2034") return true;
+  if (error.code !== "P2010" || !("meta" in error)) return false;
+
+  const meta = error.meta as {
+    driverAdapterError?: {
+      cause?: { originalCode?: unknown; kind?: unknown };
+    };
+  };
+  const cause = meta.driverAdapterError?.cause;
+  return cause?.originalCode === "40001" || cause?.kind === "TransactionWriteConflict";
+}
 
 /** 1단계 — 역할만 돌려준다. 사전등록 개인정보는 회신하지 않는다. */
 export async function checkInvite(rawCode: string): Promise<{ role: Role }> {
@@ -52,9 +71,10 @@ export async function requestVerification(
   code: string,
   channel: VerificationChannel,
   target: string,
-): Promise<{ mockCode?: string }> {
+): Promise<{ verified: true }> {
   await checkInvite(code);
-  return requestCode(channel, target);
+  await createTemporaryVerifiedProof(channel, target);
+  return { verified: true };
 }
 
 /** 2단계 — 2차 요소를 대조하고 계정을 만든다. */
@@ -83,18 +103,24 @@ export async function completeRegistration(
   }
 
   if (!verified) {
-    const { revoked } = await repo.registerFailedAttempt(invite.id, MAX_INVITE_ATTEMPTS);
-    if (revoked) {
-      // 2차 요소를 여러 번 틀려 코드가 자동 폐기됐다 (I9). 로그인 이전이라
-      // 행위자를 알 수 없어 actorUserId를 null로 남긴다.
-      await recordAudit({
-        actorUserId: null,
-        actorName: "(가입 시도자)",
-        action: "invite:auto-revoke",
-        targetType: "Invite",
-        targetId: invite.id,
-      });
-    }
+    await withTransaction(async (tx) => {
+      const { revoked } = await repo.registerFailedAttempt(
+        invite.id,
+        MAX_INVITE_ATTEMPTS,
+        tx,
+      );
+      if (revoked) {
+        // 2차 요소를 여러 번 틀려 코드가 자동 폐기됐다 (I9). 로그인 이전이라
+        // 행위자를 알 수 없어 actorUserId를 null로 남긴다.
+        await recordAudit({
+          actorUserId: null,
+          actorName: "(가입 시도자)",
+          action: "invite:auto-revoke",
+          targetType: "Invite",
+          targetId: invite.id,
+        }, tx);
+      }
+    });
     throw new RegistrationError(GENERIC_FAILURE);
   }
 
@@ -108,7 +134,7 @@ export async function completeRegistration(
   const phoneVerification = await requireVerified("PHONE", input.phone);
 
   // ── 계정 생성 ─────────────────────────────────────────────
-  // 코드 소진과 계정 생성이 한 트랜잭션이라 중간에 실패하면 통째로 롤백된다.
+  // 계정·코드·인증코드·감사로그가 한 트랜잭션이라 실패하면 통째로 롤백된다.
   const account = {
     userId: randomUUID(),
     accountId: randomUUID(),
@@ -119,12 +145,18 @@ export async function completeRegistration(
     passwordHash: await hashPassword(input.password),
   };
 
-  try {
+  const verificationIds = [emailVerification.id, phoneVerification.id];
+  const inviteId = invite.id;
+  const parentStudentId = invite.studentId;
+
+  async function completeWithTx(tx: DbClient) {
     if (role === "STUDENT") {
       const meta = student!;
-      const year = await getCurrentYear();
+      const year = await repo.findCurrentYearForUpdate(tx);
+      if (year === null) throw new AcademicYearError("NO_CURRENT_YEAR");
+
       await repo.completeStudentRegistration(
-        invite.id,
+        inviteId,
         account,
         {
           // KST 자정으로 고정한다 — 관리자 수정과 기준이 달라지면 명단 대조가 갈린다.
@@ -134,16 +166,51 @@ export async function completeRegistration(
           number: meta.number,
         },
         year,
+        tx,
       );
     } else if (role === "ADMIN") {
-      await repo.completeAdminRegistration(invite.id, account);
+      await repo.completeAdminRegistration(inviteId, account, tx);
     } else {
-      if (!invite.studentId) throw new RegistrationError(GENERIC_FAILURE);
+      if (!parentStudentId) throw new RegistrationError(GENERIC_FAILURE);
       await repo.completeParentRegistration(
-        invite.id,
+        inviteId,
         account,
-        invite.studentId,
+        parentStudentId,
+        tx,
       );
+    }
+
+    await consumeVerifications(verificationIds, tx);
+
+    await recordAudit({
+      actorUserId: account.userId,
+      action: "registration:complete",
+      targetType: "User",
+      targetId: account.userId,
+      metadata: { role, inviteId },
+    }, tx);
+  }
+
+  try {
+    if (role === "STUDENT") {
+      for (let attempt = 1; attempt <= STUDENT_CODE_RETRIES; attempt += 1) {
+        try {
+          await withTransaction(completeWithTx, {
+            isolationLevel: "Serializable",
+          });
+          break;
+        } catch (error) {
+          if (
+            (repo.isStudentCodeCollision(error) || isSerializationConflict(error)) &&
+            attempt < STUDENT_CODE_RETRIES
+          ) {
+            continue;
+          }
+          throw error;
+        }
+      }
+    } else {
+      await withTransaction(completeWithTx);
     }
   } catch (error) {
     if (error instanceof repo.InviteRaceError) {
@@ -154,18 +221,13 @@ export async function completeRegistration(
         "이 반·번호에 다른 학생이 있습니다. 관리자에게 문의해 주세요.",
       );
     }
+    if (isSerializationConflict(error)) {
+      throw new RegistrationError(
+        "가입 처리 중 충돌이 발생했습니다. 다시 시도해 주세요.",
+      );
+    }
     throw error;
   }
-
-  await consumeVerifications([emailVerification.id, phoneVerification.id]);
-
-  await recordAudit({
-    actorUserId: account.userId,
-    action: "registration:complete",
-    targetType: "User",
-    targetId: account.userId,
-    metadata: { role, inviteId: invite.id },
-  });
 
   return { role };
 }

@@ -10,12 +10,20 @@ import { authClient } from "@/core/auth/auth-client";
 
 /** 배너와 로그인 실패가 같은 문구를 쓴다. */
 const DISABLED_MESSAGE = "사용이 중지된 계정입니다. 관리자에게 문의해 주세요.";
+const PASSWORD_CHANGED_MESSAGE = "비밀번호가 변경되었습니다. 다시 로그인해 주세요.";
 
-export function LoginForm({ disabled = false }: { disabled?: boolean }) {
+export function LoginForm({
+  disabled = false,
+  passwordChanged = false,
+}: {
+  disabled?: boolean;
+  passwordChanged?: boolean;
+}) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(
     disabled ? DISABLED_MESSAGE : null,
   );
+  const notice = !disabled && passwordChanged ? PASSWORD_CHANGED_MESSAGE : null;
   const [pending, setPending] = useState(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -78,6 +86,11 @@ export function LoginForm({ disabled = false }: { disabled?: boolean }) {
       {error && (
         <Note tone="error" className="mb-4">
           {error}
+        </Note>
+      )}
+      {notice && (
+        <Note tone="success" className="mb-4">
+          {notice}
         </Note>
       )}
 

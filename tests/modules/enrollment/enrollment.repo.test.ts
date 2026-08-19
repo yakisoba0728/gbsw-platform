@@ -5,7 +5,7 @@ const enrollmentUpsert = vi.fn();
 const userUpdate = vi.fn();
 const sessionDeleteMany = vi.fn();
 const studentProfileFindMany = vi.fn();
-const transaction = vi.fn();
+const withTransaction = vi.fn();
 
 const tx = {
   schoolClass: { upsert: schoolClassUpsert },
@@ -17,9 +17,9 @@ const tx = {
 vi.mock("@/core/db/client", () => ({
   prisma: {
     studentProfile: { findMany: studentProfileFindMany },
-    // applyAll은 단일 트랜잭션 안에서 돈다 — 콜백에 tx를 그대로 넘겨 흉내 낸다.
-    $transaction: transaction,
   },
+  // applyAll은 단일 트랜잭션 안에서 돈다 — 콜백에 tx를 그대로 넘겨 흉내 낸다.
+  withTransaction,
 }));
 
 const { NumberTakenError, applyAll, listByYear } = await import(
@@ -70,23 +70,36 @@ beforeEach(() => {
   userUpdate.mockReset().mockResolvedValue(undefined);
   sessionDeleteMany.mockReset().mockResolvedValue(undefined);
   studentProfileFindMany.mockReset().mockResolvedValue([]);
-  transaction.mockReset().mockImplementation(async (fn: (tx: unknown) => unknown) => fn(tx));
+  withTransaction.mockReset().mockImplementation(async (fn: (tx: unknown) => unknown) => fn(tx));
 });
 
 describe("applyAll()", () => {
-  it("단일 $transaction 안에서 처리하고 timeout을 기본값보다 올려 준다 (C1)", async () => {
+  it("단일 withTransaction 안에서 처리하고 timeout/maxWait을 고정한다 (C1)", async () => {
     await applyAll(2026, [planned()]);
 
-    expect(transaction).toHaveBeenCalledTimes(1);
-    const options = transaction.mock.calls[0]![1];
-    expect(options.timeout).toBeGreaterThan(5000);
+    expect(withTransaction).toHaveBeenCalledTimes(1);
+    expect(withTransaction.mock.calls[0]![1]).toEqual({ timeout: 30_000, maxWait: 5_000 });
   });
 
-  it("statusChanged가 false면 계정을 건드리지 않는다 (I1)", async () => {
+  it("tx가 전달되면 중첩 트랜잭션을 열지 않고 그 tx로 처리한다", async () => {
+    await applyAll(
+      2026,
+      [planned()],
+      tx as unknown as NonNullable<Parameters<typeof applyAll>[2]>,
+    );
+
+    expect(withTransaction).not.toHaveBeenCalled();
+    expect(enrollmentUpsert).toHaveBeenCalledTimes(1);
+  });
+
+  it("statusChanged가 false면 상태는 유지하고 aggregate revision만 올린다 (I1)", async () => {
     await applyAll(2026, [planned({ statusChanged: false, accountActive: false })]);
 
     expect(enrollmentUpsert).toHaveBeenCalledTimes(1);
-    expect(userUpdate).not.toHaveBeenCalled();
+    expect(userUpdate).toHaveBeenCalledWith({
+      where: { id: "u-1" },
+      data: { updatedAt: expect.any(Date) },
+    });
     expect(sessionDeleteMany).not.toHaveBeenCalled();
   });
 
@@ -116,7 +129,7 @@ describe("applyAll()", () => {
       planned({ studentProfileId: "sp-2", userId: "u-2", number: 4 }),
     ]);
 
-    expect(transaction).toHaveBeenCalledTimes(1);
+    expect(withTransaction).toHaveBeenCalledTimes(1);
     expect(enrollmentUpsert).toHaveBeenCalledTimes(2);
   });
 

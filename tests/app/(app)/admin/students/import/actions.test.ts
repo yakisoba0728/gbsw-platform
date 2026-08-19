@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { RosterRow } from "@/modules/enrollment/roster.parse";
 
 /**
  * 명단 업로드(미리보기·확정·내려받기) 액션의 **경계**.
@@ -19,6 +20,7 @@ const previewRoster = vi.fn();
 const applyRosterPlan = vi.fn();
 const exportRoster = vi.fn();
 
+vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("@/core/auth/session", () => ({ requireAuth }));
 vi.mock("@/modules/enrollment/roster.service", () => ({
@@ -35,6 +37,10 @@ const { RosterError } = await import("@/modules/enrollment/roster.service");
 const { AcademicYearError } = await import(
   "@/modules/academic-year/academic-year.service"
 );
+const { issuePreviewToken, verifyPreviewToken } = await import(
+  "@/app/(app)/admin/students/import/preview-token"
+);
+const { rosterRowsSchema } = await import("@/modules/enrollment/roster.schema");
 const { previewRosterAction, applyRosterAction, exportRosterAction } =
   await import("@/app/(app)/admin/students/import/actions");
 
@@ -45,7 +51,7 @@ function form(fields: Record<string, string | File>): FormData {
 }
 
 /** roster.parse.ts가 미리보기에서 만들어 화면으로 보내는 한 줄 그대로. */
-const ROW = {
+const ROW: RosterRow = {
   line: 2,
   studentCode: "ABCD2345",
   name: "홍길동",
@@ -57,16 +63,72 @@ const ROW = {
   errors: [],
 };
 
-/** import-form.tsx의 확정 폼이 보내는 네 필드 그대로. */
+const PLAN = {
+  newStudents: [],
+  reassign: [],
+  statusChange: [],
+  newAssignment: [],
+  needsAttention: [],
+  errorRows: [],
+  missingFromFile: [],
+  hasBlockingError: false,
+};
+
+function tokenFor(fields: {
+  rows?: unknown;
+  year?: string;
+  rosterFingerprint?: string;
+  confirmedDeletionIds?: string;
+} = {}): string {
+  const rows = rosterRowsSchema.safeParse(fields.rows ?? [ROW]);
+  let deletionIds: string[] = [];
+  try {
+    const parsed = JSON.parse(fields.confirmedDeletionIds ?? "[]");
+    if (Array.isArray(parsed)) deletionIds = parsed.filter((id) => typeof id === "string");
+  } catch {
+    deletionIds = [];
+  }
+
+  return issuePreviewToken({
+    year: Number(fields.year ?? "2026"),
+    rows: rows.success ? rows.data : [ROW],
+    deletionIds,
+    rosterFingerprint: fields.rosterFingerprint ?? "roster-v1",
+  });
+}
+
+function rowsForToken(json: string): unknown {
+  try {
+    return JSON.parse(json);
+  } catch {
+    return [ROW];
+  }
+}
+
+/** import-form.tsx의 확정 폼이 보내는 필드 그대로. */
 function applyForm(over: Record<string, string> = {}): FormData {
-  return form({
+  const fields = {
     rows: JSON.stringify([ROW]),
     year: "2026",
+    rosterFingerprint: "roster-v1",
     confirmedDeletionIds: "[]",
     // 삭제 대상이 없으면 화면에 입력칸이 없어 빈 문자열이 온다 — 정상 경로다.
     // (삭제 대상이 있는데 비어 있으면 서비스가 거부한다 — 이 경계의 몫이 아니다.)
     deletionCount: "",
     ...over,
+  };
+  const previewToken =
+    over.previewToken ??
+    tokenFor({
+      rows: rowsForToken(fields.rows),
+      year: fields.year,
+      rosterFingerprint: fields.rosterFingerprint,
+      confirmedDeletionIds: fields.confirmedDeletionIds,
+    });
+
+  return form({
+    ...fields,
+    previewToken,
   });
 }
 
@@ -76,6 +138,8 @@ const PREVIEW_INITIAL = {
   rows: [],
   plan: null,
   notices: [],
+  rosterFingerprint: null,
+  previewToken: null,
 };
 const APPLY_INITIAL = {
   error: null,
@@ -88,7 +152,13 @@ const APPLY_INITIAL = {
 beforeEach(() => {
   vi.clearAllMocks();
   requireAuth.mockResolvedValue({ id: "admin-1", role: "ADMIN" });
-  previewRoster.mockResolvedValue({ year: 2026, rows: [], plan: null, notices: [] });
+  previewRoster.mockResolvedValue({
+    year: 2026,
+    rows: [ROW],
+    plan: PLAN,
+    notices: [],
+    rosterFingerprint: "roster-v1",
+  });
   applyRosterPlan.mockResolvedValue({
     saved: 2,
     deleted: 0,
@@ -109,6 +179,16 @@ describe("previewRosterAction — 경계 검증", () => {
     expect(previewRoster.mock.calls[0]?.[1].buffer).toBeInstanceOf(Buffer);
     expect(state.error).toBeNull();
     expect(state.year).toBe(2026);
+    expect(state.rosterFingerprint).toBe("roster-v1");
+    expect(state.previewToken).toEqual(expect.any(String));
+    expect(
+      verifyPreviewToken(state.previewToken!, {
+        year: 2026,
+        rows: [ROW],
+        deletionIds: [],
+        rosterFingerprint: "roster-v1",
+      }),
+    ).toBe(true);
   });
 
   it("파일을 안 고르면 서비스를 부르지 않는다", async () => {
@@ -162,6 +242,42 @@ describe("previewRosterAction — 경계 검증", () => {
 
     expect(state.error).toBe("파일을 읽지 못했습니다.");
   });
+
+  it("xlsx 사전 검사 오류는 원인을 한국어로 알린다", async () => {
+    previewRoster.mockRejectedValueOnce(new Error("XLSX_ZIP_BOMB"));
+    const file = new File(["a"], "명단.xlsx");
+
+    const state = await previewRosterAction(PREVIEW_INITIAL, form({ file }));
+
+    expect(state.error).toBe("압축을 풀었을 때 너무 큰 엑셀 파일입니다.");
+  });
+});
+
+describe("preview-token — HMAC 정규형", () => {
+  const input = {
+    year: 2026,
+    rows: [ROW],
+    deletionIds: [],
+    rosterFingerprint: "roster-v1",
+  };
+
+  it("정상 토큰만 통과한다", () => {
+    const token = issuePreviewToken(input);
+
+    expect(verifyPreviewToken(token, input)).toBe(true);
+  });
+
+  it("base64url 문자가 아닌 MAC은 decode 전에 거부한다", () => {
+    const token = issuePreviewToken(input).replace(/.$/u, "!");
+
+    expect(verifyPreviewToken(token, input)).toBe(false);
+  });
+
+  it("패딩이 붙은 대체 base64url 표기도 거부한다", () => {
+    const token = `${issuePreviewToken(input)}=`;
+
+    expect(verifyPreviewToken(token, input)).toBe(false);
+  });
 });
 
 describe("applyRosterAction — 경계 검증", () => {
@@ -172,6 +288,7 @@ describe("applyRosterAction — 경계 검증", () => {
       expect.anything(),
       2026,
       [ROW],
+      "roster-v1",
       [],
       null, // 빈 deletionCount는 "입력 안 함"이라 null로 접힌다
     );
@@ -184,19 +301,62 @@ describe("applyRosterAction — 경계 검증", () => {
     });
   });
 
+  it("서비스에는 스키마가 정규화한 행만 넘긴다", async () => {
+    const decomposedName = "홍길동";
+    const tampered = {
+      ...ROW,
+      name: `  ${decomposedName}  `,
+      errors: ["클라이언트 조작 오류"],
+    };
+
+    await applyRosterAction(
+      APPLY_INITIAL,
+      applyForm({ rows: JSON.stringify([tampered]) }),
+    );
+
+    expect(applyRosterPlan.mock.calls[0]?.[2]).toEqual([
+      { ...ROW, name: "홍길동", errors: [] },
+    ]);
+  });
+
+  it("비재학 행의 조작된 학년·반·번호는 서비스에 닿기 전에 null이 된다", async () => {
+    const tampered = {
+      ...ROW,
+      status: "WITHDRAWN",
+      grade: 1,
+      classNo: 2,
+      number: 13,
+    };
+
+    await applyRosterAction(
+      APPLY_INITIAL,
+      applyForm({ rows: JSON.stringify([tampered]) }),
+    );
+
+    expect(applyRosterPlan.mock.calls[0]?.[2]).toEqual([
+      {
+        ...ROW,
+        status: "WITHDRAWN",
+        grade: null,
+        classNo: null,
+        number: null,
+      },
+    ]);
+  });
+
   it("미리보기가 본 삭제 대상 id 목록이 그대로 서비스에 닿는다", async () => {
     await applyRosterAction(
       APPLY_INITIAL,
-      applyForm({ confirmedDeletionIds: JSON.stringify(["sp-9", "sp-10"]) }),
+      applyForm({ confirmedDeletionIds: JSON.stringify(["sp-10", "sp-9"]) }),
     );
 
-    expect(applyRosterPlan.mock.calls[0]?.[3]).toEqual(["sp-9", "sp-10"]);
+    expect(applyRosterPlan.mock.calls[0]?.[4]).toEqual(["sp-10", "sp-9"]);
   });
 
   it("삭제 인원 확인 건수를 숫자로 넘긴다", async () => {
     await applyRosterAction(APPLY_INITIAL, applyForm({ deletionCount: "42" }));
 
-    expect(applyRosterPlan.mock.calls[0]?.[4]).toBe(42);
+    expect(applyRosterPlan.mock.calls[0]?.[5]).toBe(42);
   });
 
   it("1명이 빠져도 건수를 그대로 넘긴다", async () => {
@@ -205,8 +365,46 @@ describe("applyRosterAction — 경계 검증", () => {
       applyForm({ confirmedDeletionIds: JSON.stringify(["sp-9"]), deletionCount: "1" }),
     );
 
-    expect(applyRosterPlan.mock.calls[0]?.[3]).toEqual(["sp-9"]);
-    expect(applyRosterPlan.mock.calls[0]?.[4]).toBe(1);
+    expect(applyRosterPlan.mock.calls[0]?.[4]).toEqual(["sp-9"]);
+    expect(applyRosterPlan.mock.calls[0]?.[5]).toBe(1);
+  });
+
+  it("미리보기 토큰이 없으면 서비스를 부르지 않는다", async () => {
+    const state = await applyRosterAction(
+      APPLY_INITIAL,
+      applyForm({ previewToken: "" }),
+    );
+
+    expect(applyRosterPlan).not.toHaveBeenCalled();
+    expect(state.error).toBe("미리보기 정보가 바뀌었습니다. 파일을 다시 읽어 주세요.");
+  });
+
+  it("미리보기 이후 행을 조작하면 HMAC 대조에서 거부한다", async () => {
+    const previewToken = tokenFor();
+    const state = await applyRosterAction(
+      APPLY_INITIAL,
+      applyForm({
+        rows: JSON.stringify([{ ...ROW, number: 14 }]),
+        previewToken,
+      }),
+    );
+
+    expect(applyRosterPlan).not.toHaveBeenCalled();
+    expect(state.error).toBe("미리보기 정보가 바뀌었습니다. 파일을 다시 읽어 주세요.");
+  });
+
+  it("미리보기 이후 명단 지문을 조작하면 HMAC 대조에서 거부한다", async () => {
+    const previewToken = tokenFor();
+    const state = await applyRosterAction(
+      APPLY_INITIAL,
+      applyForm({
+        rosterFingerprint: "roster-v2",
+        previewToken,
+      }),
+    );
+
+    expect(applyRosterPlan).not.toHaveBeenCalled();
+    expect(state.error).toBe("미리보기 정보가 바뀌었습니다. 파일을 다시 읽어 주세요.");
   });
 
   it("건수 칸에 숫자가 아닌 값이 오면 서비스를 부르지 않는다", async () => {
@@ -217,6 +415,16 @@ describe("applyRosterAction — 경계 검증", () => {
 
     expect(applyRosterPlan).not.toHaveBeenCalled();
     expect(state.error).toBe("빠지는 인원 수를 정확히 입력해 주세요.");
+  });
+
+  it("미리보기 지문이 없으면 서비스를 부르지 않는다", async () => {
+    const fd = applyForm();
+    fd.delete("rosterFingerprint");
+
+    const state = await applyRosterAction(APPLY_INITIAL, fd);
+
+    expect(applyRosterPlan).not.toHaveBeenCalled();
+    expect(state.error).toBe("미리보기 정보가 없습니다. 파일을 다시 읽어 주세요.");
   });
 
   /*
