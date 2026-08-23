@@ -63,35 +63,42 @@ export default async function MeritStatsPage({
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
-      {/* h1은 상단바가 (app)의 모든 화면에 이미 그린다 — 여기는 h2고 카드는 h3다. */}
-      <h2 className="text-title font-semibold text-ink">상벌점 통계</h2>
-
-      <TrackTabs current={track} hrefFor={(t) => statsHref({ track: t })} />
+      <SectionCard
+        variant="panel"
+        title="상벌점 통계"
+        hint={
+          stats
+            ? isYearScoped(track)
+              ? `${stats.year}학년도 집계 · 반 편성 ${stats.rosterYear}학년도`
+              : `입학부터 전체 누적 · 반 편성 ${stats.rosterYear}학년도`
+            : undefined
+        }
+        aside={
+          <TrackTabs
+            current={track}
+            hrefFor={(t) => statsHref({ track: t })}
+            size="sm"
+          />
+        }
+      >
+        {stats?.scope && (
+          <Badge tone="info" dot={false}>
+            {stats.scope.grade}학년 {stats.scope.classNo}반만 보는 중
+            {/* ✕는 "누르면 이 필터가 풀린다"는 장식이다 — 링크 이름에 넣지 않는다. */}
+            <Link
+              href={statsHref({ grade: null, classNo: null })}
+              className="text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
+            >
+              전교 보기 <span aria-hidden>✕</span>
+            </Link>
+          </Badge>
+        )}
+      </SectionCard>
 
       {!stats ? (
         <NoAcademicYearNotice />
       ) : (
         <>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            <p className="text-caption text-mut">
-              {isYearScoped(track)
-                ? `${stats.year}학년도 집계 · 반 편성 ${stats.rosterYear}학년도`
-                : `입학부터 전체 누적 · 반 편성 ${stats.rosterYear}학년도`}
-            </p>
-            {stats.scope && (
-              <Badge tone="info" dot={false}>
-                {stats.scope.grade}학년 {stats.scope.classNo}반만 보는 중
-                {/* ✕는 "누르면 이 필터가 풀린다"는 장식이다 — 링크 이름에 넣지 않는다. */}
-                <Link
-                  href={statsHref({ grade: null, classNo: null })}
-                  className="text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
-                >
-                  전교 보기 <span aria-hidden>✕</span>
-                </Link>
-              </Badge>
-            )}
-          </div>
-
           {/* 뷰포트가 아니라 놓인 자리의 폭을 본다 — MeritTotalsCards와 같은 기준이다. */}
           <div className="@container">
             <div className="grid grid-cols-2 gap-3 @md:grid-cols-3 @2xl:grid-cols-5">

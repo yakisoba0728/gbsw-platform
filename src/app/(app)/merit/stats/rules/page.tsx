@@ -40,21 +40,29 @@ export default async function RuleStatsPage({
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
-      <h2 className="text-title font-semibold text-ink">규정별 통계</h2>
-
-      <TrackTabs
-        current={track}
-        hrefFor={(t) => hrefWith("/merit/stats/rules", raw, { track: t })}
+      <SectionCard
+        variant="panel"
+        title="규정별 통계"
+        hint={
+          stats
+            ? stats.year === null
+              ? "입학부터 전체 누적"
+              : `${stats.year}학년도 집계`
+            : undefined
+        }
+        aside={
+          <TrackTabs
+            current={track}
+            hrefFor={(t) => hrefWith("/merit/stats/rules", raw, { track: t })}
+            size="sm"
+          />
+        }
       />
 
       {!stats ? (
         <NoAcademicYearNotice />
       ) : (
         <>
-          <p className="text-caption text-mut">
-            {stats.year === null ? "입학부터 전체 누적" : `${stats.year}학년도 집계`}
-          </p>
-
           {/* 뷰포트가 아니라 놓인 자리의 폭을 본다. */}
           <div className="@container">
             <div className="grid grid-cols-2 gap-3 @md:grid-cols-4">

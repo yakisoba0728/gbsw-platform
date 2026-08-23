@@ -164,31 +164,34 @@ export default async function RecentAwardsPage({
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
-      <TrackTabs
-        current={track}
-        hrefFor={(nextTrack) => href({ track: nextTrack, page: null })}
-      />
-
       <SectionCard
         title="최근 부여"
         aside={
-          <div className="flex flex-wrap items-center justify-end gap-3">
-            <span className="text-xs text-mut">총 {result.total}건</span>
-            <ExportRecentAwardsButton
-              track={query.track}
-              kind={query.kind}
-              status={query.status}
-              q={query.q}
-            />
-          </div>
-        }
-        controls={
-          <RecentAwardControls
-            query={query}
-            href={href}
-            pageCount={result.pageCount}
+          <TrackTabs
+            current={track}
+            hrefFor={(nextTrack) => href({ track: nextTrack, page: null })}
+            size="sm"
           />
         }
+        controls={
+          <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+            <RecentAwardControls
+              query={query}
+              href={href}
+              pageCount={result.pageCount}
+            />
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              <span className="text-xs text-mut">총 {result.total}건</span>
+              <ExportRecentAwardsButton
+                track={query.track}
+                kind={query.kind}
+                status={query.status}
+                q={query.q}
+              />
+            </div>
+          </div>
+        }
+        headerAlign="start"
         flush
       >
         {rows.length === 0 ? (
@@ -221,7 +224,7 @@ function RecentAwardControls({
   pageCount: number;
 }) {
   return (
-    <div className="mt-3 space-y-2.5">
+    <div className="space-y-2.5">
       <FilterRow label="종류">
         <ChipLink
           href={href({ kind: null, page: null })}

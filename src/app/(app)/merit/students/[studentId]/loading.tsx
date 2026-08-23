@@ -1,3 +1,4 @@
+import { cardClass } from "@/components/ui/card";
 import {
   Skeleton,
   SkeletonScreen,
@@ -15,13 +16,16 @@ export default function Loading() {
       {/* ← 상벌점 */}
       <Skeleton className="h-4 w-20 rounded-btn" />
 
-      {/* 이름 + 학생코드·학급 */}
-      <div className="space-y-2">
-        <Skeleton className="h-7 w-40 rounded-btn" />
-        <Skeleton className="h-4 w-56 rounded-btn" />
+      {/* 이름 + 학생코드·학급 + 트랙 탭 */}
+      <div className={cardClass("panel")}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-2">
+            <Skeleton className="h-7 w-40 rounded-btn" />
+            <Skeleton className="h-4 w-56 rounded-btn" />
+          </div>
+          <SkeletonTabs size="sm" />
+        </div>
       </div>
-
-      <SkeletonTabs />
 
       {/* 합계 카드는 상쇄점이 0이면 3칸이다 — 흔한 쪽에 맞춘다. */}
       <SkeletonStats count={3} />

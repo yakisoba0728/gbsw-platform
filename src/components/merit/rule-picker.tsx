@@ -144,6 +144,11 @@ export function RulePicker({
           value={open ? query : selected ? optionLabel(selected) : ""}
           placeholder={rules.length === 0 ? "등록된 규정이 없습니다" : "항목 고르기"}
           className="pr-9"
+          style={
+            !open && selected
+              ? { color: "transparent", caretColor: "transparent" }
+              : undefined
+          }
           onChange={(event) => {
             setQuery(event.target.value);
             setActive(0);
@@ -162,7 +167,7 @@ export function RulePicker({
         {/* 닫혀 있고 고른 것이 있으면 종류·점수를 칸 위에 겹쳐 보인다.
             pointer-events-none이라 누르면 그대로 아래 칸이 잡힌다. */}
         {!open && selected && (
-          <div className="pointer-events-none absolute inset-y-0 left-0 right-9 flex items-center gap-2 rounded-field bg-surface px-3">
+          <div className="pointer-events-none absolute inset-0 flex items-center gap-2 rounded-field pr-9 pl-3">
             <KindBadge kind={selected.kind} />
             <span className="min-w-0 flex-1 truncate text-caption text-ink">
               {selected.label}

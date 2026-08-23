@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonClass } from "@/components/ui/button";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { Note } from "@/components/ui/note";
+import { SectionCard } from "@/components/ui/section-card";
 import { formatDate } from "@/lib/datetime";
 import { hrefWith, type SearchParamsInput } from "@/lib/search-params";
 import {
@@ -101,26 +102,42 @@ export default async function StudentMeritPage({
     <div className="mx-auto max-w-4xl space-y-4">
       <BackLink href="/merit">상벌점</BackLink>
 
-      {header && (
-        <div>
-          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-            <h2 className="text-title font-semibold text-ink">{header.name}</h2>
-            {/* 사용자 상세와 같은 배지·같은 문구를 쓴다 — 같은 사실이다. */}
-            {removed && <Badge tone="rejected">삭제됨</Badge>}
-          </div>
-          <div className="mt-1 flex flex-wrap items-center gap-2">
-            <p className="text-caption text-mut">
-              <span className="font-mono">{header.studentCode}</span>
-              {" · "}
-              {header.grade !== null && header.classNo !== null
-                ? `${header.grade}학년 ${header.classNo}반${header.number !== null ? ` ${header.number}번` : ""}`
-                : "소속 미배정"}
-            </p>
-            {/* 부여 폼은 학적을 보지 않는다 — 막지 않되 머리글에서 보이게 한다. */}
-            <EnrollmentTag status={header.status} />
-          </div>
-        </div>
-      )}
+      <SectionCard
+        variant="panel"
+        title={
+          header ? (
+            <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-title">
+              {header.name}
+              {/* 사용자 상세와 같은 배지·같은 문구를 쓴다 — 같은 사실이다. */}
+              {removed && <Badge tone="rejected">삭제됨</Badge>}
+            </span>
+          ) : (
+            "조회 구분"
+          )
+        }
+        aside={
+          <TrackTabs
+            current={track}
+            hrefFor={(t) => trackHref(studentId, raw, t)}
+            size="sm"
+          />
+        }
+        controls={
+          header ? (
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <p className="text-caption text-mut">
+                <span className="font-mono">{header.studentCode}</span>
+                {" · "}
+                {header.grade !== null && header.classNo !== null
+                  ? `${header.grade}학년 ${header.classNo}반${header.number !== null ? ` ${header.number}번` : ""}`
+                  : "소속 미배정"}
+              </p>
+              {/* 부여 폼은 학적을 보지 않는다 — 막지 않되 머리글에서 보이게 한다. */}
+              <EnrollmentTag status={header.status} />
+            </div>
+          ) : undefined
+        }
+      />
 
       {/* 부여 폼이 사라지는 이유를 적어 둔다 — 안 적으면 고장으로 읽힌다. */}
       {removed && header?.removedAt && (
@@ -129,8 +146,6 @@ export default async function StudentMeritPage({
           있지만 새 상벌점은 부여할 수 없습니다.
         </Note>
       )}
-
-      <TrackTabs current={track} hrefFor={(t) => trackHref(studentId, raw, t)} />
 
       {/* 교내 탭에서만. 기숙사는 누적이라 고를 학년도가 없다. */}
       {isYearScoped(track) && (

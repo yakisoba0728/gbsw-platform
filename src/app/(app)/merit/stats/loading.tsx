@@ -1,3 +1,4 @@
+import { cardClass } from "@/components/ui/card";
 import {
   Skeleton,
   SkeletonScreen,
@@ -13,13 +14,16 @@ import {
 export default function Loading() {
   return (
     <SkeletonScreen>
-      {/* 페이지 제목 */}
-      <Skeleton className="h-7 w-40 rounded-btn" />
-
-      <SkeletonTabs />
-
-      {/* "2026학년도 집계 · 반 편성 2026학년도" 한 줄 */}
-      <Skeleton className="h-4 w-64 rounded-btn" />
+      {/* 페이지 제목 · 집계 범위 · 트랙 탭 */}
+      <div className={cardClass("panel")}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-40 rounded-btn" />
+            <Skeleton className="h-4 w-64 rounded-btn" />
+          </div>
+          <SkeletonTabs size="sm" />
+        </div>
+      </div>
 
       <SkeletonStats count={5} />
 

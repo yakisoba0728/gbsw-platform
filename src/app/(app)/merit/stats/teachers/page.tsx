@@ -57,12 +57,23 @@ export default async function TeacherStatsPage({
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
-      {/* h1은 상단바가 그린다 — 여기는 h2고 카드는 h3다. */}
-      <h2 className="text-title font-semibold text-ink">교사별 통계</h2>
-
-      <TrackTabs
-        current={track}
-        hrefFor={(t) => hrefWith("/merit/stats/teachers", raw, { track: t })}
+      <SectionCard
+        variant="panel"
+        title="교사별 통계"
+        hint={
+          stats
+            ? isYearScoped(track)
+              ? `${stats.year}학년도 집계`
+              : "입학부터 전체 누적"
+            : undefined
+        }
+        aside={
+          <TrackTabs
+            current={track}
+            hrefFor={(t) => hrefWith("/merit/stats/teachers", raw, { track: t })}
+            size="sm"
+          />
+        }
       />
 
       {!stats || !totals ? (
@@ -71,12 +82,6 @@ export default async function TeacherStatsPage({
         <EmptyState>부여된 상벌점이 없습니다.</EmptyState>
       ) : (
         <>
-          <p className="text-caption text-mut">
-            {isYearScoped(track)
-              ? `${stats.year}학년도 집계`
-              : "입학부터 전체 누적"}
-          </p>
-
           {/* 뷰포트가 아니라 놓인 자리의 폭을 본다 — 통계 개요와 같은 기준이다. */}
           <div className="@container">
             <div className="grid grid-cols-2 gap-3 @md:grid-cols-3 @2xl:grid-cols-5">

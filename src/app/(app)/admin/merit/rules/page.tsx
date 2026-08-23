@@ -13,9 +13,9 @@ import { ChipLink } from "@/components/ui/chip-link";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SearchForm } from "@/components/ui/search-form";
 import { SectionCard } from "@/components/ui/section-card";
+import { TrackTabs } from "@/components/merit/track-tabs";
 import { hrefWith } from "@/lib/search-params";
 import { filterRules } from "@/components/merit/rule-filter";
-import { TrackTabs } from "@/components/merit/track-tabs";
 import { listRules } from "@/modules/merit/rule.service";
 import { RuleForm } from "./rule-form";
 import { RuleTable } from "./rule-table";
@@ -46,10 +46,17 @@ export default async function RulesPage({
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
-      {/* 트랙을 바꾸면 검색 조건은 버린다 — 목록이 트랙별로 달라 0건이 빈 화면처럼 읽힌다. */}
-      <TrackTabs current={track} hrefFor={(t) => `${BASE_PATH}?track=${t}`} />
-
-      <RuleForm track={track} />
+      <RuleForm
+        track={track}
+        trackTabs={
+          <TrackTabs
+            current={track}
+            // 트랙을 바꾸면 검색 조건은 버린다 — 목록 자체가 달라 0건이 빈 화면처럼 읽힌다.
+            hrefFor={(nextTrack) => `${BASE_PATH}?track=${nextTrack}`}
+            size="sm"
+          />
+        }
+      />
 
       <SectionCard variant="panel" title="규정 찾기">
         {/* 지금 보는 트랙·종류를 함께 실어야 검색과 동시에 필터가 풀리지 않는다. */}

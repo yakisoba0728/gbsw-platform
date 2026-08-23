@@ -12,17 +12,29 @@ import {
 export function TrackTabs({
   current,
   hrefFor,
+  size = "md",
 }: {
   current: MeritTrack;
   hrefFor: (track: MeritTrack) => string;
+  size?: "sm" | "md";
 }) {
   return (
-    <div className="flex items-center gap-2">
+    <nav
+      aria-label="상벌점 구분"
+      className={
+        size === "sm" ? "flex items-center gap-1.5" : "flex items-center gap-2"
+      }
+    >
       {MERIT_TRACKS.map((track) => (
-        <ChipLink key={track} href={hrefFor(track)} active={track === current}>
+        <ChipLink
+          key={track}
+          href={hrefFor(track)}
+          active={track === current}
+          size={size}
+        >
           {MERIT_TRACK_LABELS[track]}
         </ChipLink>
       ))}
-    </div>
+    </nav>
   );
 }

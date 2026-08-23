@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -11,14 +12,25 @@ import { EMPTY_RULE_FORM_STATE } from "./action-state";
 import { createRuleAction } from "./actions";
 
 /** 규정 추가 카드. 넓으면 한 줄에 나란히 서고, 좁으면 칸마다 한 줄을 쓴다. */
-export function RuleForm({ track }: { track: MeritTrack }) {
+export function RuleForm({
+  track,
+  trackTabs,
+}: {
+  track: MeritTrack;
+  trackTabs: ReactNode;
+}) {
   const [state, formAction, pending] = useActionState(
     createRuleAction,
     EMPTY_RULE_FORM_STATE,
   );
 
   return (
-    <SectionCard variant="panel" title="규정 추가" className="@container">
+    <SectionCard
+      variant="panel"
+      title="규정 추가"
+      aside={trackTabs}
+      className="@container"
+    >
       <form
         action={formAction}
         className="flex flex-col gap-2.5 @xl:flex-row @xl:flex-wrap @xl:items-end"

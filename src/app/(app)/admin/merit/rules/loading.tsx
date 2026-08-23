@@ -1,17 +1,18 @@
 import { cardClass } from "@/components/ui/card";
 import { Skeleton, SkeletonScreen, SkeletonTabs } from "@/components/ui/skeleton";
 
-/** `/admin/merit/rules`의 뼈대 — 트랙 탭 · 규정 추가 폼 · 검색/종류 필터 · 규정 표. */
+/** `/admin/merit/rules`의 뼈대 — 규정 추가 폼 · 검색/종류 필터 · 규정 표. */
 export default function Loading() {
   return (
     <SkeletonScreen className="mx-auto max-w-5xl space-y-4">
-      <SkeletonTabs />
-
       {/* 규정 추가 — 아래 다섯 칸의 폭은 rule-form.tsx의 @xl: 폭과 같은 값이다.
           어긋나면 내용이 도착할 때 자리가 튄다. 한쪽을 고치면 다른 쪽도 고친다. */}
       <div className={cardClass("panel")}>
-        <Skeleton className="h-4 w-20 rounded-btn" />
-        <div className="mt-3.5 flex flex-wrap items-end gap-2.5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <Skeleton className="h-5 w-20 rounded-btn" />
+          <SkeletonTabs size="sm" />
+        </div>
+        <div className="mt-4 flex flex-wrap items-end gap-2.5">
           <Skeleton className="h-[70px] min-w-[180px] flex-[2] rounded-field" />
           <Skeleton className="h-[70px] min-w-[100px] flex-1 rounded-field" />
           <Skeleton className="h-[70px] w-[90px] rounded-field" />

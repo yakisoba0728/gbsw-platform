@@ -24,11 +24,24 @@ export function SkeletonScreen({
 }
 
 /** 트랙 탭 자리. */
-export function SkeletonTabs({ count = 2 }: { count?: number }) {
+export function SkeletonTabs({
+  count = 2,
+  size = "md",
+}: {
+  count?: number;
+  size?: "sm" | "md";
+}) {
   return (
-    <div className="flex gap-2">
+    <div className={size === "sm" ? "flex gap-1.5" : "flex gap-2"}>
       {Array.from({ length: count }, (_, i) => (
-        <Skeleton key={i} className="h-9 w-24 rounded-full" />
+        <Skeleton
+          key={i}
+          className={
+            size === "sm"
+              ? "h-[38px] w-16 rounded-full lg:h-[30px]"
+              : "h-9 w-24 rounded-full"
+          }
+        />
       ))}
     </div>
   );

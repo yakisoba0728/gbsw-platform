@@ -62,35 +62,42 @@ export default async function RankingPage({
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
-      {/* h1은 상단바가 그린다 — 여기는 h2고 카드는 h3다. */}
-      <h2 className="text-title font-semibold text-ink">순위 · 현황</h2>
-
-      <TrackTabs current={track} hrefFor={(t) => href({ track: t })} />
+      <SectionCard
+        variant="panel"
+        title="순위 · 현황"
+        hint={
+          stats
+            ? isYearScoped(track)
+              ? `${stats.year}학년도 집계 · 반 편성 ${stats.rosterYear}학년도`
+              : `입학부터 전체 누적 · 반 편성 ${stats.rosterYear}학년도`
+            : undefined
+        }
+        aside={
+          <TrackTabs
+            current={track}
+            hrefFor={(t) => href({ track: t })}
+            size="sm"
+          />
+        }
+      >
+        {stats?.scope && (
+          <Badge tone="info" dot={false}>
+            {stats.scope.grade}학년 {stats.scope.classNo}반
+            {/* ✕는 "누르면 이 필터가 풀린다"는 장식이다 — 링크 이름에 넣지 않는다. */}
+            <Link
+              href={href({ grade: null, classNo: null })}
+              className="text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
+            >
+              전교 보기 <span aria-hidden>✕</span>
+            </Link>
+          </Badge>
+        )}
+      </SectionCard>
 
       {!stats ? (
         <NoAcademicYearNotice />
       ) : (
         <>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            <p className="text-caption text-mut">
-              {isYearScoped(track)
-                ? `${stats.year}학년도 집계 · 반 편성 ${stats.rosterYear}학년도`
-                : `입학부터 전체 누적 · 반 편성 ${stats.rosterYear}학년도`}
-            </p>
-            {stats.scope && (
-              <Badge tone="info" dot={false}>
-                {stats.scope.grade}학년 {stats.scope.classNo}반
-                {/* ✕는 "누르면 이 필터가 풀린다"는 장식이다 — 링크 이름에 넣지 않는다. */}
-                <Link
-                  href={href({ grade: null, classNo: null })}
-                  className="text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
-                >
-                  전교 보기 <span aria-hidden>✕</span>
-                </Link>
-              </Badge>
-            )}
-          </div>
-
           {stats.scope ? (
             <ClassRosterCard stats={stats} track={track} />
           ) : (
