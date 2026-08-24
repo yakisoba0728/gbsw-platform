@@ -18,7 +18,7 @@ import { StatTile } from "@/components/ui/stat-tile";
 import { DataTable, type Column } from "@/components/ui/table";
 import { hrefWith } from "@/lib/search-params";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
-import { demeritCellClass } from "@/components/merit/demerit-level";
+import { DemeritCell } from "@/components/merit/demerit-level";
 import {
   CategoryChart,
   ClassNetChart,
@@ -82,16 +82,24 @@ export default async function MeritStatsPage({
         }
       >
         {stats?.scope && (
-          <Badge tone="info" dot={false}>
-            {stats.scope.grade}학년 {stats.scope.classNo}반만 보는 중
-            {/* ✕는 "누르면 이 필터가 풀린다"는 장식이다 — 링크 이름에 넣지 않는다. */}
+          // 링크는 배지 밖에 둔다 — 안에 넣고 손가락 크기(min-h-9)를 주면
+          // 배지가 40px짜리 알약이 되어 상태 표시가 아니라 버튼으로 읽힌다.
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone="info" dot={false}>
+              {stats.scope.grade}학년 {stats.scope.classNo}반만 보는 중
+            </Badge>
+            {/*
+              ✕는 "누르면 이 필터가 풀린다"는 장식이다 — 링크 이름에 넣지 않는다.
+              gap-1이 낱말 사이 공백을 대신한다 — inline-flex는 글자와 ✕ 사이의
+              공백을 지워 "전교 보기✕"로 붙여 놓는다(BackLink와 같은 규격이다).
+            */}
             <Link
               href={statsHref({ grade: null, classNo: null })}
-              className="text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
+              className="inline-flex min-h-9 items-center gap-1 text-sm text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink lg:min-h-0"
             >
               전교 보기 <span aria-hidden>✕</span>
             </Link>
-          </Badge>
+          </div>
         )}
       </SectionCard>
 
@@ -220,11 +228,11 @@ function WatchList({
     {
       key: "demerit",
       header: "벌점",
-      width: "w-[84px]",
+      // 마지막 열이라 좌우 여백이 px-5다 — 테두리 붙은 세 자리 수가 들어가려면
+      // 84px로는 모자란다.
+      width: "w-[100px]",
       card: "trailing",
-      cell: (row) => (
-        <span className={demeritCellClass(thresholds, row.demerit)}>{row.demerit}</span>
-      ),
+      cell: (row) => <DemeritCell thresholds={thresholds} demerit={row.demerit} />,
     },
   ];
 

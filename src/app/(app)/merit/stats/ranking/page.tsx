@@ -7,7 +7,7 @@ import {
   signedNet,
   type MeritTrack,
 } from "@/core/authz/merit-track";
-import { demeritCellClass } from "@/components/merit/demerit-level";
+import { DemeritCell } from "@/components/merit/demerit-level";
 import { TrackTabs } from "@/components/merit/track-tabs";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -81,16 +81,24 @@ export default async function RankingPage({
         }
       >
         {stats?.scope && (
-          <Badge tone="info" dot={false}>
-            {stats.scope.grade}학년 {stats.scope.classNo}반
-            {/* ✕는 "누르면 이 필터가 풀린다"는 장식이다 — 링크 이름에 넣지 않는다. */}
+          // 링크는 배지 밖에 둔다 — 안에 넣고 손가락 크기(min-h-9)를 주면
+          // 배지가 40px짜리 알약이 되어 상태 표시가 아니라 버튼으로 읽힌다.
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone="info" dot={false}>
+              {stats.scope.grade}학년 {stats.scope.classNo}반
+            </Badge>
+            {/*
+              ✕는 "누르면 이 필터가 풀린다"는 장식이다 — 링크 이름에 넣지 않는다.
+              gap-1이 낱말 사이 공백을 대신한다 — inline-flex는 글자와 ✕ 사이의
+              공백을 지워 "전교 보기✕"로 붙여 놓는다(BackLink와 같은 규격이다).
+            */}
             <Link
               href={href({ grade: null, classNo: null })}
-              className="text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
+              className="inline-flex min-h-9 items-center gap-1 text-sm text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink lg:min-h-0"
             >
               전교 보기 <span aria-hidden>✕</span>
             </Link>
-          </Badge>
+          </div>
         )}
       </SectionCard>
 
@@ -178,14 +186,11 @@ function StudentRankCard({
     {
       key: "demerit",
       header: "벌점",
-      width: "w-[72px]",
+      // 기준을 넘긴 칸은 테두리가 붙어 18px 넓어진다 — 세 자리 수 몫을 미리 준다.
+      width: "w-[86px]",
       card: "meta",
       // 학생 한 명의 벌점이라 기준을 그대로 댄다 — 반 합계와 달리 이 자리는 옳다.
-      cell: (row) => (
-        <span className={demeritCellClass(stats.thresholds, row.demerit)}>
-          {row.demerit}
-        </span>
-      ),
+      cell: (row) => <DemeritCell thresholds={stats.thresholds} demerit={row.demerit} />,
     },
     {
       // 0이어도 늘 낸다 — 없으면 상점 − 벌점이 순점수와 안 맞아 보여 표를 의심하게 된다
@@ -356,13 +361,10 @@ function ClassRosterCard({
     {
       key: "demerit",
       header: "벌점",
-      width: "w-[76px]",
+      // 기준을 넘긴 칸은 테두리가 붙어 18px 넓어진다 — 세 자리 수 몫을 미리 준다.
+      width: "w-[90px]",
       card: "meta",
-      cell: (row) => (
-        <span className={demeritCellClass(stats.thresholds, row.demerit)}>
-          {row.demerit}
-        </span>
-      ),
+      cell: (row) => <DemeritCell thresholds={stats.thresholds} demerit={row.demerit} />,
     },
     {
       // 0이어도 늘 낸다 — 상점 − 벌점이 순점수와 안 맞아 보이면 표를 의심하게 된다.

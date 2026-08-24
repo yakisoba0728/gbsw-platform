@@ -149,7 +149,10 @@ export default async function LogsPage({
 
       {pageCount > 1 && (
         // px-3 + 링크의 px-2 = 표의 px-5. 링크가 자기 터치 영역을 갖는다.
-        <nav className="flex items-center justify-between border-t border-line px-3 py-1.5 text-caption">
+        <nav
+          aria-label="감사로그 페이지"
+          className="flex items-center justify-between border-t border-line px-3 py-1.5 text-caption"
+        >
           <PageLink page={page - 1} disabled={page <= 1} params={raw}>
             이전
           </PageLink>

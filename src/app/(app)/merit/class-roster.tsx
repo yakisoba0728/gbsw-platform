@@ -19,7 +19,7 @@ import {
   AwardSuccessDialog,
   type AwardSuccess,
 } from "@/components/merit/award-success-dialog";
-import { demeritCellClass } from "@/components/merit/demerit-level";
+import { DemeritCell } from "@/components/merit/demerit-level";
 import { EMPTY_MERIT_STATE } from "./action-state";
 import { bulkAwardAction } from "./actions";
 import { ExportButton } from "./export-button";
@@ -192,11 +192,11 @@ export function ClassRoster({
     {
       key: "demerit",
       header: "벌점",
-      width: "w-[70px]",
+      // 기준을 넘긴 칸은 테두리가 붙어 18px 넓어진다 — 세 자리 수가 상쇄 열을
+      // 밀지 않게 상점 열보다 넓게 잡는다.
+      width: "w-[84px]",
       card: "meta",
-      cell: (row) => (
-        <span className={demeritCellClass(thresholds, row.demerit)}>{row.demerit}</span>
-      ),
+      cell: (row) => <DemeritCell thresholds={thresholds} demerit={row.demerit} />,
     },
     {
       // 상쇄 열은 0이어도 항상 낸다 — 상점 − 벌점이 순점수와 안 맞아 보이면 표를 의심하게 된다.
