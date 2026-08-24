@@ -118,7 +118,7 @@ export function ExportRecentAwardsButton(props: RecentAwardsExportInput) {
       pending={pending}
       error={error}
       onClick={download}
-      label="다운로드"
+      label="내보내기"
     />
   );
 }
