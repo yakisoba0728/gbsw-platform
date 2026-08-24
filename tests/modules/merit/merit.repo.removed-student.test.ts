@@ -55,6 +55,33 @@ describe("searchStudents — 명단에서 빠진 학생은 옵트인해야 나�
   });
 });
 
+/**
+ * 학번 갈래. 파싱은 서비스가 하고 여기는 받은 값을 거는 일만 한다 —
+ * 그 학년도 재적에 걸어야 한다: year를 빼면 작년 번호로 남의 학생이 나온다.
+ */
+describe("searchStudents — 학번 갈래", () => {
+  it("학번을 주면 그 학년도 재적에 학년·반·번호를 건다", async () => {
+    await repo.searchStudents("2305", 2026, {
+      includeRemoved: false,
+      studentNumber: { grade: 2, classNo: 3, number: 5 },
+    });
+
+    const or = whereOf(studentProfileFindMany).OR as Record<string, unknown>[];
+    expect(or).toHaveLength(3);
+    expect(or[2]).toEqual({
+      enrollments: {
+        some: { year: 2026, number: 5, schoolClass: { grade: 2, classNo: 3 } },
+      },
+    });
+  });
+
+  it("안 주면 이름·학생코드 두 갈래뿐이다", async () => {
+    await repo.searchStudents("김", 2026, { includeRemoved: false });
+
+    expect(whereOf(studentProfileFindMany).OR).toHaveLength(2);
+  });
+});
+
 describe("findStudentHeader — 상세는 삭제된 학생도 보여준다", () => {
   it("deletedAt으로 거르지 않는다 (admin-users의 findDetail과 같은 규칙)", async () => {
     await repo.findStudentHeader("sp-1", 2026);

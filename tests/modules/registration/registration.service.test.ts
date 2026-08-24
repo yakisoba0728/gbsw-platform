@@ -291,6 +291,61 @@ describe("completeRegistration() — 학생", () => {
   });
 });
 
+describe("completeRegistration() — 초대코드 유효성", () => {
+  /**
+   * 2단계는 1단계 checkInvite를 다시 부르지 않고 같은 검사를 제 손으로 한다.
+   * 이 검사가 빠지면 만료·소진·폐기된 코드로 계정이 만들어진다 — 화면이 1단계를
+   * 통과한 뒤 코드가 죽어도 2단계 요청은 그대로 도착하기 때문이다.
+   */
+  const unusable: [string, ReturnType<typeof invite> | null][] = [
+    ["만료된 코드", invite({ expiresAt: new Date(Date.now() - 1000) })],
+    ["이미 쓰인 코드", invite({ status: "USED" })],
+    ["폐기된 코드", invite({ status: "REVOKED" })],
+    ["없는 코드", null],
+  ];
+
+  it.each(unusable)("%s로는 계정을 만들지 않는다", async (_label, value) => {
+    findInviteByCode.mockResolvedValue(value);
+
+    await expect(
+      completeRegistration({ ...base, name: "김학생", birthDate: "2010-03-04" }),
+    ).rejects.toThrow("가입코드 또는 입력한 정보가 맞지 않습니다.");
+
+    // 2차 요소 대조보다 먼저 막는다 — 트랜잭션도 인증 확인도 시작하지 않는다.
+    expect(withTransaction).not.toHaveBeenCalled();
+    expect(completeStudentRegistration).not.toHaveBeenCalled();
+    expect(completeAdminRegistration).not.toHaveBeenCalled();
+    expect(completeParentRegistration).not.toHaveBeenCalled();
+    expect(registerFailedAttempt).not.toHaveBeenCalled();
+    expect(requireVerified).not.toHaveBeenCalled();
+    expect(emailExists).not.toHaveBeenCalled();
+  });
+
+  it("이름·생년월일이 맞아도 만료된 코드는 거절한다", async () => {
+    // 이름이 틀려서 막힌 것이 아님을 못 박는다 — 같은 입력이 유효한 코드에서는
+    // 위쪽 「이름과 생년월일이 맞으면 계정을 만든다」로 통과한다.
+    findInviteByCode.mockResolvedValue(
+      invite({ expiresAt: new Date(Date.now() - 1000) }),
+    );
+
+    await expect(
+      completeRegistration({ ...base, name: "김학생", birthDate: "2010-03-04" }),
+    ).rejects.toThrow("가입코드 또는 입력한 정보가 맞지 않습니다.");
+
+    expect(completeStudentRegistration).not.toHaveBeenCalled();
+  });
+
+  it("역할이 우리가 아는 셋이 아니면 만들지 않는다", async () => {
+    findInviteByCode.mockResolvedValue(invite({ role: "SUPERUSER" }));
+
+    await expect(
+      completeRegistration({ ...base, name: "김학생", birthDate: "2010-03-04" }),
+    ).rejects.toThrow("가입코드 또는 입력한 정보가 맞지 않습니다.");
+
+    expect(withTransaction).not.toHaveBeenCalled();
+  });
+});
+
 describe("completeRegistration() — 관리자 / 학부모", () => {
   it("관리자는 이름만 맞으면 된다", async () => {
     findInviteByCode.mockResolvedValue(

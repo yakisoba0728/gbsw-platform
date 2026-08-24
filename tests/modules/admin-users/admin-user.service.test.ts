@@ -40,8 +40,14 @@ vi.mock("@/modules/academic-year/academic-year.service", () => ({
   getCurrentYear: vi.fn().mockResolvedValue(2026),
 }));
 
-const { deleteUserPermanently, listUsers, resetPassword, setUserActive, updateUser } =
-  await import("@/modules/admin-users/admin-user.service");
+const {
+  deleteUserPermanently,
+  getUserDetail,
+  listUsers,
+  resetPassword,
+  setUserActive,
+  updateUser,
+} = await import("@/modules/admin-users/admin-user.service");
 
 /** KST 자정으로 저장되는 생년월일 */
 const BIRTH = new Date("2010-07-15T00:00:00+09:00");
@@ -127,6 +133,46 @@ describe("권한", () => {
         metadata: { action: "user:manage" },
       }),
     );
+  });
+});
+
+describe("getUserDetail()", () => {
+  it("관리자가 아니면 상세를 볼 수 없다 — 개인정보와 감사로그 20건이 함께 나간다", async () => {
+    await expect(getUserDetail(student, "u-1")).rejects.toThrow("FORBIDDEN");
+
+    expect(findDetail).not.toHaveBeenCalled();
+    expect(findRelatedAudit).not.toHaveBeenCalled();
+  });
+
+  it("권한 거부를 감사로그에 남긴다 (I5)", async () => {
+    await expect(getUserDetail(student, "u-1")).rejects.toThrow("FORBIDDEN");
+
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: student.id,
+        action: "authz:denied",
+        targetType: "Authz",
+        metadata: { action: "user:manage" },
+      }),
+    );
+  });
+
+  it("관리자에게는 계정과 관련 감사로그를 함께 준다", async () => {
+    findRelatedAudit.mockResolvedValue([{ id: "a-1" }]);
+
+    const result = await getUserDetail(admin, "u-9");
+
+    expect(findDetail).toHaveBeenCalledWith("u-9", 2026);
+    expect(findRelatedAudit).toHaveBeenCalledWith("u-9", 20);
+    expect(result.user).toMatchObject({ id: "u-9" });
+    expect(result.audit).toEqual([{ id: "a-1" }]);
+  });
+
+  it("없는 계정이면 감사로그를 긁지 않는다", async () => {
+    findDetail.mockResolvedValue(null);
+
+    await expect(getUserDetail(admin, "없음")).rejects.toThrow("NOT_FOUND");
+    expect(findRelatedAudit).not.toHaveBeenCalled();
   });
 });
 

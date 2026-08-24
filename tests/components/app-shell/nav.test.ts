@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   activeChild,
   ADMIN_NAV_ITEMS,
+  bottomTabItems,
   isGroupActive,
   NAV_ITEMS,
   titleForPath,
@@ -175,17 +176,41 @@ describe("titleForPath — 하위 메뉴까지 훑는다", () => {
 describe("메뉴 링크가 실제 화면을 가리킨다", () => {
   /**
    * 없는 화면을 메뉴에 넣으면 눌렀을 때 404가 난다 (nav.ts 주석의 규칙).
-   * 라우트 파일이 실제로 있는지 확인한다.
+   * 목록을 손으로 적으면 메뉴를 늘려도 검사가 늘지 않아 규칙을 강제하지 못한다 —
+   * 그래서 자료구조에서 직접 편다. bottomTabItems까지 넣는 이유는 관리자 바텀탭에
+   * NAV_ITEMS 어디에도 없는 「최근 부여」 한 줄을 덧붙이기 때문이다.
    */
-  it.each([
-    ["/merit", "src/app/(app)/merit/page.tsx"],
-    ["/merit/stats", "src/app/(app)/merit/stats/page.tsx"],
-    ["/merit/recent", "src/app/(app)/merit/recent/page.tsx"],
-    ["/admin/merit/rules", "src/app/(app)/admin/merit/rules/page.tsx"],
-    ["/admin/settings", "src/app/(app)/admin/settings/page.tsx"],
-  ])("%s → %s", async (_href, file) => {
+  const navPaths = [
+    ...new Set(
+      [...NAV_ITEMS, ...ADMIN_NAV_ITEMS, ...bottomTabItems("ADMIN")]
+        .flatMap((item) => [item.href, ...(item.children ?? []).map((c) => c.href)])
+        // 하위 메뉴 href에는 쿼리가 붙어 있다. 라우트 파일은 경로로만 찾는다.
+        .map((href) => href.split("?")[0]),
+    ),
+  ];
+
+  /** 앱 셸 라우트 그룹 `(app)` 아래에서 이 경로를 그리는 파일. */
+  const pageFile = (path: string) =>
+    path === "/" ? "src/app/(app)/page.tsx" : `src/app/(app)${path}/page.tsx`;
+
+  it("펴는 코드가 하위 메뉴와 관리자 섹션까지 훑는다", () => {
+    // 펴기가 조용히 빈 목록을 내면 아래 it.each가 통째로 사라진다 — 예전에 손으로
+    // 적어 두었던 경로가 전부 자동 목록에 들어오는지로 그걸 막는다.
+    expect(navPaths).toEqual(
+      expect.arrayContaining([
+        "/",
+        "/merit",
+        "/merit/stats",
+        "/merit/recent",
+        "/admin/merit/rules",
+        "/admin/settings",
+      ]),
+    );
+  });
+
+  it.each(navPaths)("%s → 라우트 파일이 있다", async (path) => {
     const { existsSync } = await import("node:fs");
     const { join } = await import("node:path");
-    expect(existsSync(join(process.cwd(), file))).toBe(true);
+    expect(existsSync(join(process.cwd(), pageFile(path)))).toBe(true);
   });
 });

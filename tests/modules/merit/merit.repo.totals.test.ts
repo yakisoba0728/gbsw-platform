@@ -2,28 +2,41 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const enrollmentFindMany = vi.fn();
 const meritAwardGroupBy = vi.fn();
+const meritAwardFindMany = vi.fn();
+const meritRuleFindMany = vi.fn();
 
 vi.mock("@/core/db/client", () => ({
   prisma: {
     enrollment: { findMany: enrollmentFindMany },
-    meritAward: { groupBy: meritAwardGroupBy },
+    meritAward: { groupBy: meritAwardGroupBy, findMany: meritAwardFindMany },
+    meritRule: { findMany: meritRuleFindMany },
   },
 }));
 
 const {
   classSummaries,
   demeritTotalsByStudent,
+  listAwardsForChart,
   listClassRoster,
+  ruleStats,
+  studentTotals,
+  teacherTotals,
+  topRules,
+  trackTotals,
   trackTotalsBetween,
 } = await import("@/modules/merit/merit.repo");
 
 /**
- * repo의 집계 세 곳. 계산은 merit-track에 모여 있고, 여기서는 그 헬퍼가 실제로
+ * repo의 집계들. 계산은 merit-track에 모여 있고, 여기서는 그 헬퍼가 실제로
  * 물려 있는지를 본다 — 하나만 어긋나도 화면마다 순점수가 달라진다.
+ * 명단에서 출발하는 질의는 재적 where 절도 함께 못 박는다: 목이 값만 돌려주면
+ * 재학·소프트삭제 조건을 지워도 결과가 그대로라 아무 테스트도 깨지지 않는다.
  */
 beforeEach(() => {
   enrollmentFindMany.mockReset().mockResolvedValue([]);
   meritAwardGroupBy.mockReset().mockResolvedValue([]);
+  meritAwardFindMany.mockReset().mockResolvedValue([]);
+  meritRuleFindMany.mockReset().mockResolvedValue([]);
 });
 
 function enrolled(id: string, number: number, grade = 2, classNo = 3) {
@@ -123,6 +136,28 @@ describe("listClassRoster — 반 명단 합계", () => {
 
     expect(meritAwardGroupBy.mock.calls[0][0].where).not.toHaveProperty("year");
   });
+
+  /**
+   * 재학 조건이 빠지면 전학·자퇴한 학생이 반 명단에 되살아나고, 소프트삭제
+   * 조건이 빠지면 명단에서 뺀 학생이 다시 선다. 둘 다 값만 보는 목으로는
+   * 드러나지 않는다 — where 절을 직접 본다.
+   */
+  it("그 학년도 그 반의 재학생만, 지워진 계정은 빼고 본다", async () => {
+    await listClassRoster({ ...roster, totalsYear: 2026 });
+
+    expect(enrollmentFindMany.mock.calls[0][0].where).toMatchObject({
+      year: 2026,
+      status: "ENROLLED",
+      schoolClass: { grade: 2, classNo: 3 },
+      studentProfile: { user: { deletedAt: null } },
+    });
+  });
+
+  it("명단은 번호순으로 가져온다 — 담임이 읽는 순서가 그 순서다", async () => {
+    await listClassRoster({ ...roster, totalsYear: 2026 });
+
+    expect(enrollmentFindMany.mock.calls[0][0].orderBy).toEqual({ number: "asc" });
+  });
 });
 
 describe("classSummaries — 반별 요약", () => {
@@ -209,6 +244,63 @@ describe("classSummaries — 반별 요약", () => {
 
     expect(
       await classSummaries({ year: 2026, track: "SCHOOL", totalsYear: 2026 }),
+    ).toEqual([]);
+    expect(meritAwardGroupBy).not.toHaveBeenCalled();
+  });
+
+  /** 반별로 접는 것이 목적이라 반 미배정은 여기서만 뺀다 — studentTotals는 남긴다. */
+  it("그 학년도 재학생 중 반이 있는 학생만, 지워진 계정은 빼고 본다", async () => {
+    await classSummaries({ year: 2026, track: "SCHOOL", totalsYear: 2026 });
+
+    expect(enrollmentFindMany.mock.calls[0][0].where).toMatchObject({
+      year: 2026,
+      status: "ENROLLED",
+      studentProfile: { user: { deletedAt: null } },
+      classId: { not: null },
+    });
+  });
+});
+
+/**
+ * 전교 명단 합계. listClassRoster와 같은 규칙이되 반 조건이 없다 —
+ * 반 미배정 학생이 순위에서 사라지면 안 된다.
+ */
+describe("studentTotals — 전교 학생 합계", () => {
+  it("그 학년도 재학생만, 지워진 계정은 빼고 본다", async () => {
+    await studentTotals({ year: 2026, track: "SCHOOL", totalsYear: 2026 });
+
+    expect(enrollmentFindMany.mock.calls[0][0].where).toMatchObject({
+      year: 2026,
+      status: "ENROLLED",
+      studentProfile: { user: { deletedAt: null } },
+    });
+  });
+
+  it("반으로 거르지 않는다 — 반 미배정이 놓치기 가장 쉬운 자리다", async () => {
+    enrollmentFindMany.mockResolvedValue([
+      { ...enrolled("sp-1", 1), schoolClass: null },
+    ]);
+
+    const rows = await studentTotals({ year: 2026, track: "SCHOOL", totalsYear: 2026 });
+
+    expect(enrollmentFindMany.mock.calls[0][0].where).not.toHaveProperty("classId");
+    expect(rows[0]).toEqual(
+      expect.objectContaining({ studentProfileId: "sp-1", grade: null, classNo: null }),
+    );
+  });
+
+  it("기록이 없는 학생도 0으로 남는다", async () => {
+    enrollmentFindMany.mockResolvedValue([enrolled("sp-1", 1), enrolled("sp-2", 2)]);
+    meritAwardGroupBy.mockResolvedValue([sum("sp-1", "MERIT", 5)]);
+
+    const rows = await studentTotals({ year: 2026, track: "SCHOOL", totalsYear: 2026 });
+
+    expect(rows.map((r) => r.net)).toEqual([5, 0]);
+  });
+
+  it("재적이 없으면 합계 질의를 하지 않는다", async () => {
+    expect(
+      await studentTotals({ year: 2026, track: "SCHOOL", totalsYear: 2026 }),
     ).toEqual([]);
     expect(meritAwardGroupBy).not.toHaveBeenCalled();
   });
@@ -310,5 +402,87 @@ describe("trackTotalsBetween", () => {
     expect(call.by).toEqual(["kind"]);
     expect(call._count).toEqual({ _all: true });
     expect(call._sum).toEqual({ points: true });
+  });
+});
+
+/**
+ * 취소분 제외. `status: "ACTIVE"`는 repo의 where 절에만 있고 서비스 테스트는
+ * 넘어온 값만 보므로, 이 조건을 지워도 다른 테스트는 전부 통과한다 —
+ * 취소한 벌점이 합계·순위·통계에 되살아나는 것을 아무도 못 잡는다.
+ * 질의마다 한 줄씩 못 박아 그 구멍을 덮는다.
+ */
+describe("취소된 기록은 어느 집계에도 안 든다", () => {
+  /** 명단에서 출발하는 질의는 재적이 있어야 합계 질의까지 간다. */
+  beforeEach(() => {
+    enrollmentFindMany.mockResolvedValue([enrolled("sp-1", 1)]);
+  });
+
+  const CASES = [
+    {
+      name: "trackTotals",
+      run: () => trackTotals({ track: "SCHOOL", totalsYear: 2026 }),
+      mock: meritAwardGroupBy,
+    },
+    {
+      name: "topRules",
+      run: () => topRules({ track: "SCHOOL", totalsYear: 2026 }),
+      mock: meritAwardGroupBy,
+    },
+    {
+      name: "teacherTotals",
+      run: () => teacherTotals({ track: "SCHOOL", totalsYear: 2026 }),
+      mock: meritAwardGroupBy,
+    },
+    {
+      name: "ruleStats",
+      run: () => ruleStats({ track: "SCHOOL", totalsYear: 2026 }),
+      mock: meritAwardGroupBy,
+    },
+    {
+      name: "listAwardsForChart",
+      run: () => listAwardsForChart({ track: "SCHOOL", year: 2026 }),
+      mock: meritAwardFindMany,
+    },
+    {
+      name: "listClassRoster",
+      run: () => listClassRoster({ ...roster, totalsYear: 2026 }),
+      mock: meritAwardGroupBy,
+    },
+    {
+      name: "classSummaries",
+      run: () => classSummaries({ year: 2026, track: "SCHOOL", totalsYear: 2026 }),
+      mock: meritAwardGroupBy,
+    },
+    {
+      name: "studentTotals",
+      run: () => studentTotals({ year: 2026, track: "SCHOOL", totalsYear: 2026 }),
+      mock: meritAwardGroupBy,
+    },
+  ];
+
+  it.each(CASES)("$name", async ({ run, mock }) => {
+    await run();
+
+    expect(mock).toHaveBeenCalled();
+    expect(mock.mock.calls[0][0].where.status).toBe("ACTIVE");
+  });
+
+  /**
+   * 부여자별 집계만 두 갈래로 나뉜다 — 계정이 지워진 쪽(awardedByUserId: null)은
+   * 별개의 질의라 첫 호출만 보면 조건이 빠져도 안 잡힌다.
+   */
+  it("teacherTotals는 계정이 사라진 갈래에도 같은 조건을 건다", async () => {
+    await teacherTotals({ track: "SCHOOL", totalsYear: 2026 });
+
+    expect(meritAwardGroupBy).toHaveBeenCalledTimes(2);
+    for (const [args] of meritAwardGroupBy.mock.calls) {
+      expect(args.where.status).toBe("ACTIVE");
+      expect(args.where.track).toBe("SCHOOL");
+      expect(args.where.year).toBe(2026);
+    }
+    expect(meritAwardGroupBy.mock.calls[0][0].where.awardedByUserId).toEqual({
+      not: null,
+    });
+    expect(meritAwardGroupBy.mock.calls[1][0].where.awardedByUserId).toBeNull();
   });
 });

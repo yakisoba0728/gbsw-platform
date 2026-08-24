@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionUser } from "@/core/auth/session";
 import { parseDateInputKst } from "@/lib/datetime";
 import { schoolYearMonths, schoolYearRange } from "@/modules/merit/merit.chart";
+import { BULK_AWARD_LIMIT } from "@/modules/merit/merit.schema";
 
 const findRuleForUpdate = vi.fn();
 const findCurrentYearForUpdate = vi.fn();
@@ -714,6 +715,74 @@ describe("bulkAwardMerit", () => {
     const result = await service.bulkAwardMerit(admin, bulk, NOW);
     expect(result).toEqual({ count: 2 });
   });
+
+  /**
+   * 인원 방어. zod가 경계에서 먼저 막지만 업무 규칙이라 서비스도 센다 —
+   * 액션을 거치지 않는 호출(앞으로 생길 진입점)에서 이 줄이 유일한 방어다.
+   */
+  describe("인원 상한", () => {
+    it("빈 목록이면 조회도 쓰기도 하지 않는다", async () => {
+      await expect(
+        service.bulkAwardMerit(admin, { ...bulk, studentProfileIds: [] }, NOW),
+      ).rejects.toThrow("NO_STUDENTS");
+
+      expect(findAwardableStudents).not.toHaveBeenCalled();
+      expect(withTransaction).not.toHaveBeenCalled();
+      expect(createAwards).not.toHaveBeenCalled();
+    });
+
+    it("상한을 한 명이라도 넘으면 조회 전에 멈춘다", async () => {
+      const ids = Array.from({ length: BULK_AWARD_LIMIT + 1 }, (_, i) => `sp-${i}`);
+
+      await expect(
+        service.bulkAwardMerit(admin, { ...bulk, studentProfileIds: ids }, NOW),
+      ).rejects.toThrow("TOO_MANY_STUDENTS");
+
+      expect(findAwardableStudents).not.toHaveBeenCalled();
+      expect(createAwards).not.toHaveBeenCalled();
+      expect(recordAudit).not.toHaveBeenCalled();
+    });
+
+    /** 세는 것은 중복을 뺀 뒤다 — 같은 학생을 두 번 골라 상한에 걸리면 안 된다. */
+    it("중복은 상한에 세지 않는다", async () => {
+      const ids = Array.from({ length: BULK_AWARD_LIMIT }, (_, i) => `sp-${i}`);
+
+      await expect(
+        service.bulkAwardMerit(admin, { ...bulk, studentProfileIds: [...ids, "sp-0"] }, NOW),
+      ).resolves.toBeDefined();
+
+      expect(findAwardableStudents).toHaveBeenCalledWith(ids);
+    });
+
+    it("상한 정확히면 통과한다", async () => {
+      const ids = Array.from({ length: BULK_AWARD_LIMIT }, (_, i) => `sp-${i}`);
+
+      await expect(
+        service.bulkAwardMerit(admin, { ...bulk, studentProfileIds: ids }, NOW),
+      ).resolves.toBeDefined();
+
+      expect(createAwards.mock.calls[0][0]).toHaveLength(BULK_AWARD_LIMIT);
+    });
+
+    it("둘 다 MeritError다 — 액션의 MESSAGES가 문구로 옮긴다", async () => {
+      await expect(
+        service.bulkAwardMerit(admin, { ...bulk, studentProfileIds: [] }, NOW),
+      ).rejects.toBeInstanceOf(MeritError);
+      await expect(
+        service.bulkAwardMerit(
+          admin,
+          {
+            ...bulk,
+            studentProfileIds: Array.from(
+              { length: BULK_AWARD_LIMIT + 1 },
+              (_, i) => `sp-${i}`,
+            ),
+          },
+          NOW,
+        ),
+      ).rejects.toBeInstanceOf(MeritError);
+    });
+  });
 });
 
 describe("getClassRoster", () => {
@@ -908,6 +977,53 @@ describe("searchStudents", () => {
 
     expect(searchStudents).toHaveBeenCalledWith("김민준", 2026, {
       includeRemoved: false,
+    });
+  });
+
+  /**
+   * 학번 검색은 서비스가 읽어 repo에 넘기는 배선이다. 안 넘겨도 이름·학생코드
+   * 갈래가 그대로 돌아 화면은 멀쩡해 보이고, 교사가 외우고 있는 유일한 값인
+   * 학번만 조용히 안 먹힌다.
+   */
+  describe("학번(4자리) 검색", () => {
+    it("2305를 2학년 3반 5번으로 읽어 넘긴다", async () => {
+      await service.searchStudents(admin, "2305");
+
+      expect(searchStudents).toHaveBeenCalledWith("2305", 2026, {
+        includeRemoved: false,
+        studentNumber: { grade: 2, classNo: 3, number: 5 },
+      });
+    });
+
+    it("앞뒤 공백을 떼고 읽는다 — 잘라낸 값이 곧 검색어다", async () => {
+      await service.searchStudents(admin, "  1102  ");
+
+      expect(searchStudents).toHaveBeenCalledWith("1102", 2026, {
+        includeRemoved: false,
+        studentNumber: { grade: 1, classNo: 1, number: 2 },
+      });
+    });
+
+    it("학번이 아니면 넘기지 않는다 — 이름·학생코드만 본다", async () => {
+      await service.searchStudents(admin, "김민준");
+
+      expect(searchStudents.mock.calls[0][2].studentNumber).toBeUndefined();
+    });
+
+    /** 0학년·0반·0번은 없다. 학생코드로 읽혀야 하는 값이다. */
+    it("0이 낀 4자리는 학번이 아니다", async () => {
+      await service.searchStudents(admin, "2005");
+
+      expect(searchStudents.mock.calls[0][2].studentNumber).toBeUndefined();
+    });
+
+    it("빠진 학생을 함께 볼 때도 학번을 넘긴다", async () => {
+      await service.searchStudents(admin, "2305", { includeRemoved: true });
+
+      expect(searchStudents).toHaveBeenCalledWith("2305", 2026, {
+        includeRemoved: true,
+        studentNumber: { grade: 2, classNo: 3, number: 5 },
+      });
     });
   });
 

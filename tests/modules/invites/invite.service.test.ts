@@ -47,6 +47,7 @@ const {
   createParentInviteFor,
   createStudentInvite,
   listInvites,
+  listStudentsForInvite,
   MAX_ACTIVE_PARENT_INVITES,
   revokeInvite,
 } = await import("@/modules/invites/invite.service");
@@ -290,6 +291,29 @@ describe("목록", () => {
     await expect(listInvites(student)).rejects.toThrow("FORBIDDEN");
     await listInvites(admin);
     expect(listAll).toHaveBeenCalled();
+  });
+
+  it("학부모 코드 발급용 학생 목록도 관리자만 본다", async () => {
+    // 전교생의 이름·학반번호가 통째로 나가는 조회다. 발급 권한과 같은 문을 쓴다.
+    await expect(listStudentsForInvite(student)).rejects.toThrow("FORBIDDEN");
+    await expect(listStudentsForInvite(parent)).rejects.toThrow("FORBIDDEN");
+    expect(listStudents).not.toHaveBeenCalled();
+
+    await listStudentsForInvite(admin);
+    expect(listStudents).toHaveBeenCalledWith(2026);
+  });
+
+  it("학생 목록 조회 거부도 감사로그에 남긴다 (I5)", async () => {
+    await expect(listStudentsForInvite(student)).rejects.toThrow("FORBIDDEN");
+
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: student.id,
+        action: "authz:denied",
+        targetType: "Authz",
+        metadata: { action: "invite:create" },
+      }),
+    );
   });
 });
 
