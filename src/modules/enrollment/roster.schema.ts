@@ -25,6 +25,16 @@ const birthDateSchema = canonicalDateInputSchema(
 );
 
 /**
+ * 명단 파일 크기 상한. 전교생 300명이면 수십 KB면 충분하다.
+ *
+ * next.config.ts의 `experimental.serverActions.bodySizeLimit`("6mb")보다 작아야 한다 —
+ * 그 값을 넘는 요청은 서버 액션에 닿기도 전에 잘려 안내 대신 오류 경계가 뜬다.
+ * 남는 1MiB는 multipart 경계·part 머리글 몫이다. 액션과 화면이 같은 값을 봐야
+ * 안내 없는 구간이 생기지 않아 여기 한 곳에 둔다.
+ */
+export const ROSTER_FILE_MAX_BYTES = 5 * 1024 * 1024;
+
+/**
  * 확정 반영 경계. 미리보기가 돌려준 행을 그대로 믿지 않는다 — errors를 지워
  * 보내도 아래 refine이 "재학이면 자리가 있어야 한다"를 다시 확인한다.
  * 범위 상수는 파서와 같은 곳에서 가져와야 어긋나지 않는다.

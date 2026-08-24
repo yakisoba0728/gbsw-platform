@@ -14,6 +14,7 @@ const txClient = { tx: true };
 
 /** roster.repo.ts의 실물과 이름·상속만 같은 자리표시자. instanceof로 구분한다. */
 class InviteCodeCollisionError extends Error {}
+class NumberTakenError extends Error {}
 
 vi.mock("@/modules/enrollment/roster.repo", () => ({
   listExisting,
@@ -21,6 +22,7 @@ vi.mock("@/modules/enrollment/roster.repo", () => ({
   findCurrentYearForUpdate,
   findCurrentYear,
   InviteCodeCollisionError,
+  NumberTakenError,
 }));
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
 vi.mock("@/core/db/client", () => ({ withTransaction }));
@@ -414,6 +416,16 @@ describe("applyRosterPlan()", () => {
     await expect(applyRosterPlan(admin, 2026, [newRow], fingerprint([]), [], null)).rejects.toThrow("CODE_COLLISION");
   });
 
+  it("명단 밖 계정이 붙든 (반, 번호)에 걸리면 NUMBER_TAKEN으로 옮긴다", async () => {
+    // 파일 안의 자리 겹침은 planRoster가 이미 막는다 — 여기까지 오는 건 명단 밖
+    // 계정이 그 자리를 붙들고 있는 경우뿐이라 화면 문구가 그 사실을 말해야 한다.
+    applyRoster.mockRejectedValue(new NumberTakenError());
+
+    await expect(applyRosterPlan(admin, 2026, [row], fingerprint(), [], null)).rejects.toThrow(
+      "NUMBER_TAKEN",
+    );
+  });
+
   it("발급 코드는 generateUniqueCode()로 만든다", async () => {
     listExisting.mockResolvedValue([]);
 
@@ -518,6 +530,28 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
         }),
       ]),
     );
+  });
+
+  it("졸업 기록이 있는데 이번 학년도 배정이 남은 학생이 명단에서 빠지면 조용히 다시 쓰지 않는다", async () => {
+    // 2026 졸업 + 2026 재학(재입학·오등록). 예전엔 삭제 면제만 받아 미리보기에서
+    // 사라진 채 untouched로 실려 배정이 그대로 재삽입됐다 — 지금은 확정이 막힌다.
+    const 재입학생 = {
+      ...재학생,
+      studentProfileId: "sp-regrad",
+      userId: "u-regrad",
+      studentCode: "REGR2345",
+      name: "재입학",
+      birthDate: "2008-05-05",
+      hasGraduatedEnrollment: true,
+    };
+    const existing = [재학생, 재입학생];
+    listExisting.mockResolvedValue(existing);
+
+    await expect(
+      applyRosterPlan(admin, 2026, [row], fingerprint(existing), [], null),
+    ).rejects.toThrow("BLOCKED");
+    expect(applyRoster).not.toHaveBeenCalled();
+    expect(recordAudit).not.toHaveBeenCalled();
   });
 
   it("삭제 대상이 없으면 빈 배열로도 막지 않는다", async () => {

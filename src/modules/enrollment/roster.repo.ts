@@ -1,8 +1,11 @@
 import { prisma, type DbClient, withTransaction } from "@/core/db/client";
-import { isUniqueViolation } from "@/core/db/unique-violation";
+import { isUniqueViolation, NumberTakenError } from "@/core/db/unique-violation";
 import type { PlannedRow } from "./roster.plan";
 
 /** Prisma 호출만 둔다. 권한 검사도, 업무 규칙도 여기 두지 않는다. */
+
+/** 다른 repo와 같은 실물을 re-export한다 — 모듈마다 다른 클래스면 instanceof가 안 통한다. */
+export { NumberTakenError };
 
 /** 초대코드가 겹쳤을 때. 동시에 올라온 다른 반영과 경합하면 여기까지 뚫린다. */
 export class InviteCodeCollisionError extends Error {}
@@ -329,6 +332,11 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
     );
   } catch (error) {
     if (isUniqueViolation(error, "code")) throw new InviteCodeCollisionError();
+    // Enrollment_classId_number_key. 명단 밖으로 빠진 계정(관리자로 승격된 학생)의
+    // 그 학년도 배정은 managedStudentProfileIds 범위 밖이라 위에서 안 지워지고
+    // (반, 번호) 자리를 그대로 붙들고 있다 — 그 자리에 다른 학생을 넣으면 여기로 온다.
+    // 날것의 P2002로 올려보내면 화면에 "반영하지 못했습니다."만 뜨고 원인이 사라진다.
+    if (isUniqueViolation(error, "number")) throw new NumberTakenError();
     throw error;
   }
 }

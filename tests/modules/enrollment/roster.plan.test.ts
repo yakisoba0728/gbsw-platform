@@ -251,6 +251,61 @@ describe("planRoster()", () => {
     const plan = planRoster([], [과거졸업생]);
 
     expect(plan.missingFromFile).toHaveLength(0);
+    // 올해 배정이 없으면 확정해도 아무 일이 없다 — 조용히 넘기는 게 맞다.
+    expect(plan.needsAttention).toHaveLength(0);
+    expect(plan.hasBlockingError).toBe(false);
+  });
+
+  describe("졸업 면제가 이번 학년도 배정을 덮어 가리지 않는다", () => {
+    /** 2026 졸업 + 2027 재학(재입학·오등록). 졸업 면제만 하면 어디에도 안 잡힌다. */
+    const 재입학생 = {
+      ...재학생,
+      studentProfileId: "sp-2",
+      userId: "u-2",
+      studentCode: "BCDF2345",
+      name: "재입학",
+      birthDate: "2008-05-05",
+      status: "ENROLLED",
+      hasGraduatedEnrollment: true,
+    };
+
+    it("명단에 줄이 없으면 확인 필요로 올려 확정을 막는다", () => {
+      const plan = planRoster([row()], [재학생, 재입학생]);
+
+      // 물리 삭제하지는 않는다 — repo의 삭제 가드도 이 학생을 건너뛴다.
+      expect(plan.missingFromFile).toHaveLength(0);
+      expect(plan.needsAttention).toHaveLength(1);
+      expect(plan.needsAttention[0]!.studentProfileId).toBe("sp-2");
+      expect(plan.needsAttention[0]!.reason).toContain("졸업 기록이 있는 학생");
+      expect(plan.hasBlockingError).toBe(true);
+    });
+
+    it("파일에 줄이 있으면 평소대로 분류한다", () => {
+      const 재입학줄 = row({
+        line: 3,
+        studentCode: "BCDF2345",
+        name: "재입학",
+        birthDate: "2008-05-05",
+        classNo: 5,
+      });
+
+      const plan = planRoster([row(), 재입학줄], [재학생, 재입학생]);
+
+      expect(plan.needsAttention).toHaveLength(0);
+      expect(plan.reassign).toHaveLength(1);
+      expect(plan.reassign[0]!.studentProfileId).toBe("sp-2");
+      expect(plan.hasBlockingError).toBe(false);
+    });
+
+    it("올해 학적이 졸업이면 그대로 면제한다 — 올해 졸업한 학생의 보존 기록이다", () => {
+      const 올해졸업생 = { ...재입학생, status: "GRADUATED", grade: null, classNo: null, number: null };
+
+      const plan = planRoster([row()], [재학생, 올해졸업생]);
+
+      expect(plan.missingFromFile).toHaveLength(0);
+      expect(plan.needsAttention).toHaveLength(0);
+      expect(plan.hasBlockingError).toBe(false);
+    });
   });
 
   it("문제가 없으면 확정을 막지 않는다", () => {

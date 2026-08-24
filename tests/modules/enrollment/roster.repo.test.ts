@@ -33,7 +33,7 @@ vi.mock("@/core/db/client", () => ({
   withTransaction,
 }));
 
-const { InviteCodeCollisionError, applyRoster } = await import(
+const { InviteCodeCollisionError, NumberTakenError, applyRoster } = await import(
   "@/modules/enrollment/roster.repo"
 );
 
@@ -51,6 +51,31 @@ function realWorldCodeP2002() {
           originalMessage: 'duplicate key value violates unique constraint "Invite_code_key"',
           kind: "UniqueConstraintViolation",
           constraint: { fields: ["code"] },
+        },
+      },
+    },
+  });
+}
+
+/**
+ * Enrollment_classId_number_key 버전. 어댑터가 컬럼 목록 대신 인덱스 이름만 주는
+ * 모양으로 둔다 — 이쪽이 isUniqueViolation의 부분 문자열 판정을 실제로 통과하는지가
+ * 이 테스트의 요점이다.
+ */
+function realWorldNumberP2002() {
+  return Object.assign(new Error("Unique constraint failed"), {
+    name: "PrismaClientKnownRequestError",
+    code: "P2002",
+    meta: {
+      modelName: "Enrollment",
+      driverAdapterError: {
+        name: "DriverAdapterError",
+        cause: {
+          originalCode: "23505",
+          originalMessage:
+            'duplicate key value violates unique constraint "Enrollment_classId_number_key"',
+          kind: "UniqueConstraintViolation",
+          constraint: { index: "Enrollment_classId_number_key" },
         },
       },
     },
@@ -439,6 +464,14 @@ describe("applyRoster()", () => {
         }),
       ),
     ).rejects.toBeInstanceOf(InviteCodeCollisionError);
+  });
+
+  it("명단 밖 계정이 붙들고 있는 (반, 번호)에 걸리면 NumberTakenError로 옮긴다", async () => {
+    // 관리자로 승격된 계정의 그 학년도 배정은 managedStudentProfileIds 범위 밖이라
+    // 위에서 안 지워진다 — 그 자리에 다른 학생을 넣으면 날것의 P2002가 올라갔다.
+    enrollmentCreate.mockRejectedValue(realWorldNumberP2002());
+
+    await expect(applyRoster(2026, input())).rejects.toBeInstanceOf(NumberTakenError);
   });
 
   it("유일 제약과 무관한 오류는 삼키지 않는다", async () => {

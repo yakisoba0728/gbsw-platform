@@ -221,10 +221,12 @@ describe("NumberTakenError", () => {
     const enrollmentRepo = await import("@/modules/enrollment/enrollment.repo");
     const registrationRepo = await import("@/modules/registration/registration.repo");
     const adminUserRepo = await import("@/modules/admin-users/admin-user.repo");
+    const rosterRepo = await import("@/modules/enrollment/roster.repo");
 
     expect(enrollmentRepo.NumberTakenError).toBe(NumberTakenError);
     expect(registrationRepo.NumberTakenError).toBe(NumberTakenError);
     expect(adminUserRepo.NumberTakenError).toBe(NumberTakenError);
+    expect(rosterRepo.NumberTakenError).toBe(NumberTakenError);
     // 서비스가 하는 판정을 그대로 재현한다 (enrollment.service.ts:180 등).
     expect(new NumberTakenError()).toBeInstanceOf(enrollmentRepo.NumberTakenError);
   });

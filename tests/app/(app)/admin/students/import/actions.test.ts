@@ -529,6 +529,27 @@ describe("applyRosterAction — 경계 검증", () => {
     expect(state.error).toBe("반영하지 못했습니다.");
   });
 
+  it("명단 밖 계정이 자리를 붙들고 있으면 어디를 고쳐야 하는지 알린다", async () => {
+    applyRosterPlan.mockRejectedValueOnce(new RosterError("NUMBER_TAKEN"));
+
+    const state = await applyRosterAction(APPLY_INITIAL, applyForm());
+
+    // 파일을 고쳐도 풀리지 않는 오류다 — "반영하지 못했습니다."로 뭉뚱그리면
+    // 관리자가 엉뚱한 곳을 계속 고친다.
+    expect(state.error).toContain("같은 반·번호");
+  });
+
+  it("예상 못 한 오류는 화면에 흘리지 않되 서버 로그에는 남긴다", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    applyRosterPlan.mockRejectedValueOnce(new Error("connect ECONNREFUSED"));
+
+    const state = await applyRosterAction(APPLY_INITIAL, applyForm());
+
+    expect(state.error).toBe("반영하지 못했습니다.");
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
   it("검증에 걸리면 화면을 다시 그리지 않는다", async () => {
     await applyRosterAction(APPLY_INITIAL, applyForm({ rows: "{not json" }));
 
@@ -562,6 +583,24 @@ describe("exportRosterAction — 경계 검증", () => {
     // 화면에는 일반 문구만 나가므로 서버 로그에는 남겨야 한다.
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
+  });
+});
+
+/**
+ * 파일 크기 상한은 두 곳이 맞물려야 안내가 나간다 — 액션의 검사와 next.config.ts의
+ * `bodySizeLimit`. 상한이 본문 상한보다 커지면 그 사이 파일은 액션에 닿기도 전에
+ * 잘려 안내 대신 오류 경계가 뜬다.
+ */
+describe("명단 파일 크기 상한", () => {
+  it("서버 액션 본문 상한보다 작다", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const { ROSTER_FILE_MAX_BYTES } = await import("@/modules/enrollment/roster.schema");
+
+    const config = await readFile(`${process.cwd()}/next.config.ts`, "utf8");
+    const matched = /bodySizeLimit:\s*"(\d+)mb"/.exec(config);
+
+    expect(matched, "next.config.ts에서 bodySizeLimit을 찾지 못했다").not.toBeNull();
+    expect(ROSTER_FILE_MAX_BYTES).toBeLessThan(Number(matched![1]) * 1024 * 1024);
   });
 });
 

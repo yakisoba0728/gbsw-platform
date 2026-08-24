@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useState, useTransition } from "react";
+import { ChevronDownIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,7 @@ import {
 } from "@/modules/enrollment/roster.export";
 import type { RosterRow } from "@/modules/enrollment/roster.parse";
 import type { RosterPlan } from "@/modules/enrollment/roster.plan";
+import { ROSTER_FILE_MAX_BYTES } from "@/modules/enrollment/roster.schema";
 import { APPLY_INITIAL, PREVIEW_INITIAL } from "./action-state";
 import { applyRosterAction, exportRosterAction, previewRosterAction } from "./actions";
 import { previewFingerprintFor } from "./preview-fingerprint";
@@ -140,6 +142,9 @@ function UploadCard({
 }) {
   const [exporting, startExport] = useTransition();
   const [exportError, setExportError] = useState<string | null>(null);
+  // 상한을 넘는 파일은 서버 액션에 닿기 전에 next.config.ts의 bodySizeLimit에 잘려
+  // 안내 대신 오류 경계가 뜬다. 고른 순간 여기서 막아 제출 자체를 못 하게 한다.
+  const [fileError, setFileError] = useState<string | null>(null);
 
   function downloadRoster() {
     setExportError(null);
@@ -210,17 +215,30 @@ function UploadCard({
           accept=".csv,.xlsx"
           required
           aria-label="명단 파일"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            setFileError(
+              file && file.size > ROSTER_FILE_MAX_BYTES ? "파일이 너무 큽니다." : null,
+            );
+          }}
           className="flex-1 text-sm text-ink file:mr-3 file:rounded-btn file:border file:border-line file:bg-soft file:px-3.5 file:py-2 file:text-caption file:font-medium file:text-ink"
         />
         {/* 이 화면을 연 목적은 확정이다 — 여기까지는 전부 그 앞의 단계다. */}
-        <Button type="submit" variant="secondary" size="sm" disabled={pending}>
+        <Button
+          type="submit"
+          variant="secondary"
+          size="sm"
+          disabled={pending || fileError !== null}
+        >
           {pending ? "읽는 중…" : "미리보기"}
         </Button>
       </form>
 
-      {state.error && (
+      {/* 고른 파일이 너무 크면 그 안내가 먼저다 — 제출을 막았으므로 state.error는
+          직전 시도의 남은 문구다. */}
+      {(fileError ?? state.error) && (
         <Note tone="error" className="mt-4">
-          {state.error}
+          {fileError ?? state.error}
         </Note>
       )}
     </SectionCard>
@@ -317,8 +335,15 @@ function PreviewCard({
           {plan.errorRows.map((r) => (
             <IssueRow key={`err-${r.line}`} line={r.line} name={r.name} reason={r.errors.join(" · ")} />
           ))}
+          {/* 명단에서 빠진 학생은 파일 줄이 없어 line이 전부 0이다 — 키에 학생을
+              함께 넣지 않으면 둘 이상일 때 겹친다. */}
           {plan.needsAttention.map((r) => (
-            <IssueRow key={`att-${r.line}`} line={r.line} name={r.name} reason={r.reason} />
+            <IssueRow
+              key={`att-${r.line}-${r.studentProfileId ?? ""}`}
+              line={r.line}
+              name={r.name}
+              reason={r.reason}
+            />
           ))}
         </IssueGroup>
 
@@ -583,8 +608,12 @@ function IssueGroup({
 }) {
   return (
     <details open={defaultOpen} className="group">
-      <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-3 select-none">
-        <span className="text-sm font-medium text-ink">{title}</span>
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-3 select-none [&::-webkit-details-marker]:hidden">
+        <ChevronDownIcon
+          size={16}
+          className="shrink-0 text-mut transition-transform group-open:rotate-180"
+        />
+        <span className="min-w-0 flex-1 text-sm font-medium text-ink">{title}</span>
         <Badge tone={count > 0 ? "demerit" : "neutral"}>{count}건</Badge>
       </summary>
       {count > 0 && <ul className="divide-y divide-line2 px-5 pb-4">{children}</ul>}
@@ -595,7 +624,13 @@ function IssueGroup({
 function IssueRow({ line, name, reason }: { line: number; name: string; reason: string }) {
   return (
     <li className="py-2 text-caption">
-      <span className="font-mono text-rose">{line}행</span>{" "}
+      {/* line 0은 파일에 대응하는 줄이 없다는 표시다 (roster.plan.ts) — 0행이라고
+          적으면 없는 줄을 찾게 된다. */}
+      {line > 0 ? (
+        <span className="font-mono text-rose">{line}행</span>
+      ) : (
+        <span className="font-medium text-rose">명단에 없음</span>
+      )}{" "}
       <span className="font-medium text-ink">{name || "(이름 없음)"}</span>
       <span className="block text-mut">{reason}</span>
     </li>
@@ -615,8 +650,12 @@ function PlannedGroup({
 }) {
   return (
     <details open={defaultOpen} className="group">
-      <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-3 select-none">
-        <span className="text-sm font-medium text-ink">{title}</span>
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-3 select-none [&::-webkit-details-marker]:hidden">
+        <ChevronDownIcon
+          size={16}
+          className="shrink-0 text-mut transition-transform group-open:rotate-180"
+        />
+        <span className="min-w-0 flex-1 text-sm font-medium text-ink">{title}</span>
         <Badge tone="neutral">{count}건</Badge>
       </summary>
       {count > 0 && <ul className="divide-y divide-line2 px-5 pb-4">{children}</ul>}

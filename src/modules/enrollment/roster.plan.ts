@@ -14,7 +14,11 @@ export type ExistingStudent = {
   classNo: number | null;
   number: number | null;
   status: string | null;
-  /** 어느 학년도든 졸업 기록이 있는가. true면 명단 누락만으로 물리 삭제하지 않는다. */
+  /**
+   * 어느 학년도든 졸업 기록이 있는가. true면 명단 누락만으로 물리 삭제하지 않는다 —
+   * roster.repo의 삭제 가드(`enrollments: { none: { status: "GRADUATED" } }`)와 같은
+   * 기준이다. 연도를 가리지 않으므로 `status`(이번 학년도 배정)와 함께 봐야 한다.
+   */
   hasGraduatedEnrollment: boolean;
   /** 이번 반영 전, 계정이 로그인 가능한 상태였는가. */
   accountActive: boolean;
@@ -176,9 +180,39 @@ export function planRoster(
 
   // 명단에 없는 학생은 삭제 대상이다. 단, 졸업생은 이미 떠난 학생의 보존 기록이라
   // 완성본 파일에서 빠졌다는 이유만으로 계정·상벌점까지 물리 삭제하면 안 된다.
-  plan.missingFromFile = existing.filter(
-    (s) => !matchedIds.has(s.studentProfileId) && !s.hasGraduatedEnrollment,
-  );
+  // 면제 기준을 repo의 삭제 가드(`enrollments: { none: { status: "GRADUATED" } }`)와
+  // 똑같이 잡는다 — 어긋나면 "지운다고 세어 화면에 보이고 감사로그까지 남긴 뒤
+  // 실제로는 안 지우는" 상태가 된다.
+  const missing = existing.filter((s) => !matchedIds.has(s.studentProfileId));
+  plan.missingFromFile = missing.filter((s) => !s.hasGraduatedEnrollment);
+
+  // 졸업 기록이 있는데 이번 학년도 배정이 졸업이 아닌 학생(재입학·오등록)은 면제만
+  // 하고 두면 어느 분류에도 안 들어가 미리보기에서 통째로 사라진다. 그래 놓고 서비스는
+  // 그 배정을 untouched로 실어 그대로 다시 넣는다 — 관리자가 줄을 지운 사실이 화면에도
+  // 기록에도 남지 않는다. 자동으로 정할 수 없는 상태라 확인 필요로 올려 확정을 막는다.
+  // (이번 학년도 배정이 없거나 졸업인 학생은 그대로 면제한다 — 지난 학년도 졸업생의
+  // 보존 기록이고, 확정하면 서비스가 그 배정을 있는 그대로 다시 쓴다.)
+  for (const s of missing) {
+    if (!s.hasGraduatedEnrollment) continue;
+    if (s.status === null || s.status === "GRADUATED") continue;
+    plan.needsAttention.push({
+      // 파일에 대응하는 줄이 없다. 서비스의 untouched와 같은 표시를 쓴다.
+      line: 0,
+      studentCode: s.studentCode,
+      name: s.name,
+      birthDate: s.birthDate,
+      grade: s.grade,
+      classNo: s.classNo,
+      number: s.number,
+      status: s.status as RosterRow["status"],
+      errors: [],
+      studentProfileId: s.studentProfileId,
+      beforeName: s.name,
+      reason:
+        "졸업 기록이 있는 학생인데 이번 학년도 학적이 졸업이 아니고 명단에도 줄이 " +
+        "없습니다. 이 학생의 줄을 파일에 넣어 학적을 정해 주세요.",
+    });
+  }
 
   // 신규 줄의 이름·생년월일이 삭제 대상과 겹치면 학생코드 칸만 지워진 것으로 본다.
   // 자동으로 잇지는 않는다 — 잘못 이으면 남의 코드가 붙는다.

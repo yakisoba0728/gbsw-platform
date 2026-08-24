@@ -339,6 +339,12 @@ export async function applyRosterPlan(
     if (error instanceof repo.InviteCodeCollisionError) {
       throw new RosterError("CODE_COLLISION");
     }
+    // 파일 안의 자리 겹침은 planRoster가 이미 걸렀다. 여기까지 오는 것은 명단 밖
+    // 계정이 붙들고 있는 (반, 번호)뿐이라 파일을 고쳐도 풀리지 않는다 — 화면이
+    // 그 사실을 말해야 관리자가 엉뚱한 곳을 고치지 않는다.
+    if (error instanceof repo.NumberTakenError) {
+      throw new RosterError("NUMBER_TAKEN");
+    }
     if (isSerializationConflict(error)) {
       const currentYear = await repo.findCurrentYear();
       throw new RosterError(currentYear === expectedYear ? "ROSTER_CHANGED" : "YEAR_CHANGED");
