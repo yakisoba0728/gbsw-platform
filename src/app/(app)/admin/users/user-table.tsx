@@ -58,7 +58,9 @@ const COLUMNS: readonly Column<UserRow>[] = [
         href={`/admin/users/${row.id}`}
         className="inline-flex min-h-9 flex-col justify-center lg:min-h-0"
       >
-        <span className="font-medium text-ink underline decoration-line-strong underline-offset-2 group-hover:decoration-ink">
+        {/* hover는 밑줄을 가진 span이 받는다 — 조상 <a>에 걸면 text-decoration-color가
+            상속되지 않아 아무 일도 일어나지 않는다. */}
+        <span className="font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink">
           {row.name}
         </span>
         <span className="block text-xs text-mut">{row.email}</span>

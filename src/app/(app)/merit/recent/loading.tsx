@@ -11,14 +11,18 @@ export default function Loading() {
             <Skeleton className="h-5 w-20" />
             <SkeletonTabs size="sm" />
           </div>
-          <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-            <div className="space-y-2.5">
-              <Skeleton className="h-[38px] w-64 rounded-full lg:h-[30px]" />
-              <Skeleton className="h-10 max-w-xl rounded-field" />
-            </div>
-            <div className="flex items-center justify-end gap-3">
-              <Skeleton className="h-4 w-10" />
-              <Skeleton className="h-[38px] w-24 rounded-btn lg:h-[30px]" />
+          {/* 조작부 배치는 page.tsx의 controls와 같은 값이어야 한다 — 어긋나면
+              뼈대가 튄다. */}
+          <div className="@container mt-3">
+            <div className="grid gap-3 @3xl:grid-cols-[minmax(0,1fr)_auto] @3xl:items-end">
+              <div className="space-y-2.5">
+                <Skeleton className="h-[38px] w-64 rounded-full lg:h-[30px]" />
+                <Skeleton className="h-10 max-w-xl rounded-field" />
+              </div>
+              <div className="flex items-center justify-end gap-3">
+                <Skeleton className="h-4 w-10" />
+                <Skeleton className="h-[38px] w-24 rounded-btn lg:h-[30px]" />
+              </div>
             </div>
           </div>
         </div>

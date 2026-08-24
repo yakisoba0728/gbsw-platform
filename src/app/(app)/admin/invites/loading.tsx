@@ -5,7 +5,8 @@ import { Skeleton, SkeletonScreen } from "@/components/ui/skeleton";
 export default function Loading() {
   return (
     <SkeletonScreen className="@container mx-auto max-w-7xl">
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 @2xl:grid-cols-[360px_1fr]">
+      {/* 분기점은 page.tsx와 같은 @6xl이다 — 다르면 뼈대만 2단으로 서고 내용은 1단으로 온다. */}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 @6xl:grid-cols-[360px_1fr]">
         {/* 초대코드 발급 폼 */}
         <div className={cardClass("panel")}>
           <Skeleton className="h-5 w-32 rounded-btn" />

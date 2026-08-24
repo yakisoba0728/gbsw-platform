@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { EmptyState } from "@/components/ui/empty-state";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { requireAuth } from "@/core/auth/session";
 import { can } from "@/core/authz/can";
@@ -42,7 +43,8 @@ export default async function MeritPage({
   if (user.role === "PARENT") {
     const children = await listMyChildren(user);
     if (children.length === 0) {
-      return <p className="text-sm text-mut">연결된 자녀가 없습니다.</p>;
+      // 카드 밖(페이지 본문)에 바로 서는 자리라 자기 테두리를 그린다.
+      return <EmptyState>연결된 자녀가 없습니다.</EmptyState>;
     }
     // 자녀가 여럿이면 ?child= 로 고른다. 없으면 첫째.
     const childId =

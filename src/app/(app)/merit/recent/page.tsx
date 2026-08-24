@@ -174,20 +174,26 @@ export default async function RecentAwardsPage({
           />
         }
         controls={
-          <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-            <RecentAwardControls
-              query={query}
-              href={href}
-              pageCount={result.pageCount}
-            />
-            <div className="flex flex-wrap items-center justify-end gap-3">
-              <span className="text-xs text-mut">총 {result.total}건</span>
-              <ExportRecentAwardsButton
-                track={query.track}
-                kind={query.kind}
-                status={query.status}
-                q={query.q}
+          // 카드 안쪽이라 뷰포트가 아니라 놓인 자리의 폭을 본다. 컨테이너 질의는
+          // 자기 자신을 볼 수 없으므로 기준이 될 상자를 한 겹 둔다.
+          <div className="@container mt-3">
+            {/* 두 칸으로 서려면 검색칸 576px(max-w-xl) + 12px + 건수·내보내기 174px이
+                든다 — 그 아래에서는 검색칸이 눌리므로 48rem(@3xl)에서 나눈다. */}
+            <div className="grid gap-3 @3xl:grid-cols-[minmax(0,1fr)_auto] @3xl:items-end">
+              <RecentAwardControls
+                query={query}
+                href={href}
+                pageCount={result.pageCount}
               />
+              <div className="flex flex-wrap items-center justify-end gap-3">
+                <span className="text-xs text-mut">총 {result.total}건</span>
+                <ExportRecentAwardsButton
+                  track={query.track}
+                  kind={query.kind}
+                  status={query.status}
+                  q={query.q}
+                />
+              </div>
             </div>
           </div>
         }
