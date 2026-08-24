@@ -917,15 +917,22 @@ export async function classSummaries(params: {
     .sort((a, b) => a.grade - b.grade || a.classNo - b.classNo);
 }
 
-/** 많이 나온 항목 순위. 어떤 규정이 실제로 쓰이는지 보여준다. */
+/**
+ * 많이 나온 항목 순위의 재료. 어떤 규정이 실제로 쓰이는지 보여준다.
+ *
+ * **ruleId로 묶고 자르지 않는다.** 기록의 label은 부여 시점 스냅샷이라 규정 이름을
+ * 고치면 같은 규정이 이름별로 나뉜 채 오는데(updateRuleSchema가 label을 받는다),
+ * 여기서 상위 N개로 잘라 버리면 그 규정이 두 칸을 차지한 채 잘려 순위가 틀린다 —
+ * 6건짜리 두 줄로 갈라진 12건 규정이 10건 규정에게 진다. 접는 일도 자르는 일도
+ * 서비스가 접은 뒤에 해야 한다.
+ */
 export async function topRules(params: {
   track: MeritTrack;
   totalsYear: number | null;
-  limit: number;
   studentProfileIds?: string[];
 }) {
   const rows = await prisma.meritAward.groupBy({
-    by: ["label", "kind"],
+    by: ["ruleId", "label", "kind"],
     where: {
       track: params.track,
       status: "ACTIVE",
@@ -936,16 +943,30 @@ export async function topRules(params: {
     },
     _count: { _all: true },
     _sum: { points: true },
-    orderBy: { _count: { label: "desc" } },
-    take: params.limit,
   });
 
+  // 보여줄 이름은 규정의 **현재** 이름이다 — 이름을 고친 직후 옛 스냅샷을 띄우면
+  // 방금 고친 사람이 자기가 고친 항목을 못 찾는다. 규정 행은 지우는 경로가 없어
+  // (onDelete: Restrict) 언제나 찾히지만, 못 찾으면 스냅샷으로 떨어진다.
+  const nameById = await currentRuleNames(rows.map((r) => r.ruleId));
+
   return rows.map((row) => ({
-    label: row.label,
+    ruleId: row.ruleId,
+    label: nameById.get(row.ruleId) ?? row.label,
     kind: row.kind,
     count: row._count._all,
     points: row._sum.points ?? 0,
   }));
+}
+
+/** 규정 id → 지금 이름. 빈 목록이면 질의하지 않는다. */
+async function currentRuleNames(ids: string[]): Promise<Map<string, string>> {
+  if (ids.length === 0) return new Map();
+  const rules = await prisma.meritRule.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, label: true },
+  });
+  return new Map(rules.map((r) => [r.id, r.label]));
 }
 
 /**
@@ -1013,9 +1034,11 @@ export async function ruleStats(params: {
   });
 
   // 분류는 부여 기록에 복사돼 있지 않다(규정이 갖는다) — 규정 쪽에서 가져와 붙인다.
+  // label도 함께 읽는다: 기록의 label은 부여 시점 스냅샷이라 이름을 고친 직후에는
+  // 옛 이름이 뜬다. 규정의 현재 이름이 옳다.
   const rules = await prisma.meritRule.findMany({
     where: { id: { in: rows.map((r) => r.ruleId) } },
-    select: { id: true, category: true, active: true },
+    select: { id: true, label: true, category: true, active: true },
   });
 
   return { rows, rules };

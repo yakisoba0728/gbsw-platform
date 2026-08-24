@@ -156,7 +156,7 @@ export default async function MeritStatsPage({
             scoped={stats.scope !== null}
           />
 
-          <ClassTable rows={stats.classes} thresholds={stats.thresholds} />
+          <ClassTable rows={stats.classes} />
           <TopRules rows={stats.topRules} />
         </>
       )}
@@ -271,13 +271,7 @@ function WatchList({
   );
 }
 
-function ClassTable({
-  rows,
-  thresholds,
-}: {
-  rows: MeritStats["classes"];
-  thresholds: DemeritThresholds;
-}) {
+function ClassTable({ rows }: { rows: MeritStats["classes"] }) {
   if (rows.length === 0) {
     return <EmptyState>배정된 반이 없습니다.</EmptyState>;
   }
@@ -313,9 +307,9 @@ function ClassTable({
       header: "벌점",
       width: "w-[88px]",
       card: "meta",
-      cell: (row) => (
-        <span className={demeritCellClass(thresholds, row.demerit)}>{row.demerit}</span>
-      ),
+      // 반 합계에는 강조를 대지 않는다 — 기준은 학생 한 명에게 정한 값이라
+      // 인원이 많은 반은 예외 없이 넘는다. 위험한 학생은 「기준 초과 학생」이 짚는다.
+      cell: (row) => <span className="text-rose">{row.demerit}</span>,
     },
     {
       key: "offset",

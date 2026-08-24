@@ -95,6 +95,78 @@ describe("getMeritStats — 기숙사(누적 트랙)", () => {
   });
 });
 
+describe("getMeritStats — 「많이 나온 항목」 접기", () => {
+  /**
+   * repo는 (ruleId·label 스냅샷·kind)로 묶어 오면서 label 자리에 규정의 **현재**
+   * 이름을 넣어 준다. 접는 일도 자르는 일도 서비스 몫이다.
+   */
+  it("이름을 고쳐 갈라진 규정을 한 줄로 접는다", async () => {
+    topRules.mockResolvedValue([
+      { ruleId: "r-1", label: "무단지각", kind: "DEMERIT", count: 5, points: 10 },
+      { ruleId: "r-1", label: "무단지각", kind: "DEMERIT", count: 2, points: 4 },
+      { ruleId: "r-2", label: "봉사", kind: "MERIT", count: 3, points: 6 },
+    ]);
+
+    const stats = await service.getMeritStats(admin, "SCHOOL", undefined, NOW);
+
+    expect(stats.topRules).toEqual([
+      { label: "무단지각", kind: "DEMERIT", count: 7, points: 14 },
+      { label: "봉사", kind: "MERIT", count: 3, points: 6 },
+    ]);
+  });
+
+  it("자르기는 접은 뒤다 — 갈라진 규정이 순위에서 밀리면 안 된다", async () => {
+    // 6건짜리 두 줄로 갈라진 12건 규정이 10건 규정에게 지는 것이 옛 결함이다.
+    topRules.mockResolvedValue([
+      { ruleId: "r-big", label: "가", kind: "DEMERIT", count: 6, points: 6 },
+      { ruleId: "r-big", label: "가", kind: "DEMERIT", count: 6, points: 6 },
+      { ruleId: "r-one", label: "나", kind: "DEMERIT", count: 10, points: 10 },
+    ]);
+
+    const stats = await service.getMeritStats(admin, "SCHOOL", undefined, NOW);
+
+    expect(stats.topRules.map((r) => [r.label, r.count])).toEqual([
+      ["가", 12],
+      ["나", 10],
+    ]);
+    // 자르기가 repo로 새면 접기가 무의미해진다.
+    expect(topRules.mock.calls[0][0]).not.toHaveProperty("limit");
+  });
+
+  it("이름이 같은 별개 규정도 한 줄이다 — 화면 행 key가 (구분·항목)이다", async () => {
+    // MeritRule.label에 유일 제약이 없어 같은 이름이 둘 있을 수 있다. 따로 내면
+    // 같은 key가 두 번 나오고, 화면에서 구분되지도 않는다.
+    topRules.mockResolvedValue([
+      { ruleId: "r-1", label: "지각", kind: "DEMERIT", count: 4, points: 8 },
+      { ruleId: "r-2", label: "지각", kind: "DEMERIT", count: 1, points: 2 },
+    ]);
+
+    const stats = await service.getMeritStats(admin, "SCHOOL", undefined, NOW);
+
+    expect(stats.topRules).toEqual([
+      { label: "지각", kind: "DEMERIT", count: 5, points: 10 },
+    ]);
+  });
+
+  it("상위 10개까지만 낸다", async () => {
+    topRules.mockResolvedValue(
+      Array.from({ length: 12 }, (_, i) => ({
+        ruleId: `r-${i}`,
+        label: `항목${i}`,
+        kind: "DEMERIT",
+        count: 12 - i,
+        points: 12 - i,
+      })),
+    );
+
+    const stats = await service.getMeritStats(admin, "SCHOOL", undefined, NOW);
+
+    expect(stats.topRules).toHaveLength(10);
+    expect(stats.topRules[0]!.count).toBe(12);
+    expect(stats.topRules[9]!.count).toBe(3);
+  });
+});
+
 describe("getMeritStats — 교내(학년도 트랙)", () => {
   it("세 조회가 모두 같은 학년도를 보고, since는 아무 데도 안 간다", async () => {
     await service.getMeritStats(admin, "SCHOOL", undefined, NOW);

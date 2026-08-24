@@ -157,9 +157,9 @@ describe("getRuleStats", () => {
         { ruleId: "r-2", label: "봉사", kind: "MERIT", _count: { _all: 2 }, _sum: { points: 4 } },
       ],
       rules: [
-        { id: "r-1", category: "생활", active: true },
+        { id: "r-1", label: "지각", category: "생활", active: true },
         // 규정 관리에서 지웠지만 이미 나간 기록은 남는다.
-        { id: "r-2", category: null, active: false },
+        { id: "r-2", label: "봉사", category: null, active: false },
       ],
     });
 
@@ -168,6 +168,35 @@ describe("getRuleStats", () => {
     expect(totalCount).toBe(7);
     expect(rows[0]).toMatchObject({ label: "지각", category: "생활", deleted: false, count: 5 });
     expect(rows[1]).toMatchObject({ label: "봉사", category: null, deleted: true, count: 2 });
+  });
+
+  it("이름이 바뀐 규정을 한 줄로 접고 건수를 합친다", async () => {
+    // 부여 기록의 label은 부여 시점 스냅샷이라, 규정 이름을 고친 뒤 다시 부여하면
+    // 같은 ruleId가 이름별로 나뉜 채 온다. 접지 않으면 화면이 ruleId를 막대 폭과
+    // 행 key로 쓰므로 뒤 줄이 앞 줄을 덮고, 「쓰인 규정」이 규정 수를 세지 않는다.
+    ruleStats.mockResolvedValue({
+      rows: [
+        { ruleId: "r-1", label: "지각", kind: "DEMERIT", _count: { _all: 5 }, _sum: { points: 10 } },
+        {
+          ruleId: "r-1",
+          label: "등교 지각",
+          kind: "DEMERIT",
+          _count: { _all: 2 },
+          _sum: { points: 4 },
+        },
+      ],
+      // 규정 이름은 이미 "등교 지각"으로 고쳐졌다. 기록에 박힌 "지각"은 옛 스냅샷이다.
+      rules: [{ id: "r-1", label: "등교 지각", category: "생활", active: true }],
+    });
+
+    const { rows, totalCount } = await service.getRuleStats(admin, "SCHOOL");
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ ruleId: "r-1", count: 7, points: 14, kind: "DEMERIT" });
+    // 이름은 규정의 **현재** 이름이다 — 건수가 더 많다는 이유로 옛 이름("지각")을
+    // 남기면 방금 이름을 고친 사람이 자기가 고친 항목을 못 찾는다.
+    expect(rows[0].label).toBe("등교 지각");
+    expect(totalCount).toBe(7);
   });
 
   it("한 번도 안 쓰인 규정을 함께 낸다 — 규정표를 다듬는 자료다", async () => {

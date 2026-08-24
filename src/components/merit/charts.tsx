@@ -74,8 +74,14 @@ export function MonthlyChart({
   axisLabel: string;
 }) {
   const hasData = points.some((p) => p.merit || p.demerit || p.offset);
-  const meritScale = scaleToPercent(points.map((p) => p.merit + p.offset));
-  const demeritScale = scaleToPercent(points.map((p) => p.demerit));
+  // 위아래를 같은 자로 재야 막대 길이를 견줄 수 있다 — 계열마다 척도를 따로 잡으면
+  // 상점 10과 벌점 10이 다른 길이로 서서, 벌점만 많은 달이 상점도 많은 달로 보인다.
+  const scale = scaleToPercent([
+    ...points.map((p) => p.merit + p.offset),
+    ...points.map((p) => p.demerit),
+  ]);
+  const meritScale = scale.slice(0, points.length);
+  const demeritScale = scale.slice(points.length);
 
   return (
     <ChartCard title="월별 추이" hint={axisLabel}>

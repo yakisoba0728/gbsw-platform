@@ -54,7 +54,7 @@ export type MeritStats = {
   rosterYear: number;
   totals: MeritTotals & { awardCount: number };
   classes: Awaited<ReturnType<typeof repo.classSummaries>>;
-  topRules: Awaited<ReturnType<typeof repo.topRules>>;
+  topRules: TopRuleRow[];
   /** 벌점이 기준(warn) 이상인 학생들 — 벌점 많은 순. 표시 전용이다. */
   watchList: WatchListRow[];
   /** 지금 적용 중인 기준. 화면에 적고 표의 강조 색도 이 값으로 칠한다. */
@@ -202,6 +202,54 @@ function addDays(from: Date, days: number): Date {
 /** 순위 표시는 관리자 화면에만 둔다 — 학생에게 등수를 띄우는 건 별개 결정이다. */
 const TOP_RULE_LIMIT = 10;
 
+/** 「많이 나온 항목」 한 줄. 화면이 (구분·항목)을 행 key로 쓴다. */
+export type TopRuleRow = {
+  label: string;
+  kind: string;
+  count: number;
+  points: number;
+};
+
+/**
+ * 규정 하나를 한 줄로 만든다. repo는 (ruleId·label 스냅샷·kind)로 묶어 오므로
+ * 이름을 고친 규정이 여러 줄로 온다 — repo가 붙여 준 **현재 이름**이 그 줄들을
+ * 도로 하나로 모은다(getRuleStats가 ruleId로 접는 것과 같은 결과다).
+ *
+ * 접는 열쇠를 ruleId가 아니라 (kind·label)로 두는 이유: 화면이 그 둘을 행 key로
+ * 쓴다. 이름이 같은 별개 규정 둘을 따로 내면 같은 key가 두 번 나온다 — 화면에서
+ * 구분되지도 않는 두 줄이다.
+ */
+function foldTopRules(rows: Awaited<ReturnType<typeof repo.topRules>>): TopRuleRow[] {
+  const folded = new Map<string, TopRuleRow>();
+
+  for (const row of rows) {
+    const key = `${row.kind}\u0000${row.label}`;
+    const cur = folded.get(key);
+    if (!cur) {
+      folded.set(key, {
+        label: row.label,
+        kind: row.kind,
+        count: row.count,
+        points: row.points,
+      });
+      continue;
+    }
+    cur.count += row.count;
+    cur.points += row.points;
+  }
+
+  // 건수는 흔하게 같다 — 자르는 자리에 동점이 걸리면 어느 항목이 남는지가
+  // 호출마다 달라진다. 이름·구분까지 보조 정렬키로 두면 그 자리가 고정된다.
+  return [...folded.values()]
+    .sort(
+      (a, b) =>
+        b.count - a.count ||
+        a.label.localeCompare(b.label, "ko") ||
+        a.kind.localeCompare(b.kind),
+    )
+    .slice(0, TOP_RULE_LIMIT);
+}
+
 export async function getMeritStats(
   actor: SessionUser,
   track: MeritTrack,
@@ -244,12 +292,7 @@ export async function getMeritStats(
   const [totalRows, classes, topRules, chartAwards, watchList] = await Promise.all([
     repo.trackTotals({ track, totalsYear: scoped, studentProfileIds }),
     repo.classSummaries({ year: rosterYear, track, totalsYear: scoped }),
-    repo.topRules({
-      track,
-      totalsYear: scoped,
-      limit: TOP_RULE_LIMIT,
-      studentProfileIds,
-    }),
+    repo.topRules({ track, totalsYear: scoped, studentProfileIds }),
     repo.listAwardsForChart({ track, year: scoped, since, studentProfileIds }),
     readWatchList(thresholds, track, scoped, rosterYear, studentProfileIds),
   ]);
@@ -273,7 +316,7 @@ export async function getMeritStats(
     classes: scope
       ? classes.filter((c) => c.grade === scope.grade && c.classNo === scope.classNo)
       : classes,
-    topRules,
+    topRules: foldTopRules(topRules),
     watchList,
     thresholds,
   };
@@ -385,6 +428,7 @@ function addTeacherRow(
 
 export type RuleStatRow = {
   ruleId: string;
+  /** 규정의 **현재** 이름. 부여 기록에 박힌 이름은 부여 시점 스냅샷이라 옛것일 수 있다. */
   label: string;
   kind: string;
   category: string | null;
@@ -397,6 +441,7 @@ export type RuleStatRow = {
 export type RuleStats = {
   track: MeritTrack;
   year: number | null;
+  /** 규정 하나에 한 줄이다 — 화면이 ruleId를 막대 폭의 열쇠와 행 key로 쓴다. */
   rows: RuleStatRow[];
   /** 한 번도 쓰이지 않은 규정. 규정표를 다듬는 자료다. */
   unused: Awaited<ReturnType<typeof repo.unusedRules>>;
@@ -423,18 +468,49 @@ export async function getRuleStats(
 
   const byId = new Map(rules.map((r) => [r.id, r]));
 
-  const list: RuleStatRow[] = rows
-    .map((row) => ({
+  // 한 규정이 여러 줄로 오는 것을 여기서 접는다. 부여 기록의 label은 부여 시점
+  // 스냅샷이고 규정 수정이 이름을 바꿀 수 있어(updateRuleSchema), 이름을 고친 뒤
+  // 다시 부여하면 같은 ruleId가 이름별로 나뉜 채 온다. 접지 않으면 화면이
+  // ruleId를 막대 폭의 열쇠와 행 key로 쓰므로 뒤 줄이 앞 줄을 덮고,
+  // 「쓰인 규정」·「삭제된 규정」이 규정 수가 아니라 (규정×이름) 수를 센다.
+  // kind는 갈라지지 않는다 — 수정 스키마가 kind를 받지 않는다.
+  const folded = new Map<string, RuleStatRow>();
+
+  for (const row of rows) {
+    const count = row._count._all;
+    const points = row._sum.points ?? 0;
+    const cur = folded.get(row.ruleId);
+
+    if (cur) {
+      cur.count += count;
+      cur.points += points;
+      continue;
+    }
+
+    const rule = byId.get(row.ruleId);
+    folded.set(row.ruleId, {
       ruleId: row.ruleId,
-      label: row.label,
+      // 규정의 현재 이름을 쓴다 — 이름을 고친 직후 옛 이름이 뜨면 방금 고친 사람이
+      // 자기가 고친 항목을 못 찾는다. 규정 행은 지우는 경로가 없어 언제나 찾히지만,
+      // 못 찾으면 스냅샷으로 떨어진다.
+      label: rule?.label ?? row.label,
       kind: row.kind,
-      category: byId.get(row.ruleId)?.category ?? null,
+      category: rule?.category ?? null,
       // active가 false면 규정 관리에서 지운 것이다. 기록은 남으므로 여기 나온다.
-      deleted: byId.get(row.ruleId)?.active === false,
-      count: row._count._all,
-      points: row._sum.points ?? 0,
-    }))
-    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "ko"));
+      deleted: rule?.active === false,
+      count,
+      points,
+    });
+  }
+
+  // 이름이 같은 규정이 둘 있을 수 있다(MeritRule.label에 유일 제약이 없다) —
+  // ruleId까지 봐야 순서가 호출마다 안 바뀐다.
+  const list: RuleStatRow[] = [...folded.values()].sort(
+    (a, b) =>
+      b.count - a.count ||
+      a.label.localeCompare(b.label, "ko") ||
+      a.ruleId.localeCompare(b.ruleId),
+  );
 
   return {
     track,

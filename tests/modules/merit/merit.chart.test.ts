@@ -184,4 +184,26 @@ describe("scaleToPercent", () => {
     expect(scaleToPercent([0, 0, 0])).toEqual([0, 0, 0]);
     expect(scaleToPercent([])).toEqual([]);
   });
+
+  it("두 계열을 한 번에 재면 같은 값이 같은 길이가 된다", () => {
+    // 월별 추이(MonthlyChart)와 부여자별 막대(TeacherChart)가 쓰는 방식이다.
+    // 계열마다 따로 재면 상점 10과 벌점 10이 다른 길이로 서서 위아래를 못 견준다.
+    const merits = [10, 4];
+    const demerits = [10, 20];
+
+    const scale = scaleToPercent([...merits, ...demerits]);
+    const meritScale = scale.slice(0, merits.length);
+    const demeritScale = scale.slice(merits.length);
+
+    // 같은 값(10)은 어느 계열에 있든 같은 길이다.
+    expect(meritScale[0]).toBe(demeritScale[0]);
+    // 척도의 100%는 두 계열을 통틀어 가장 큰 값 하나가 갖는다.
+    expect(meritScale).toEqual([50, 20]);
+    expect(demeritScale).toEqual([50, 100]);
+  });
+
+  it("계열마다 따로 재면 같은 값이 다른 길이가 된다 — 그래서 한 번에 잰다", () => {
+    // 고치기 전 MonthlyChart가 하던 계산. 상점 10이 100%, 벌점 10이 50%로 섰다.
+    expect(scaleToPercent([10, 4])[0]).not.toBe(scaleToPercent([10, 20])[0]);
+  });
 });
