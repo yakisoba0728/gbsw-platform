@@ -33,6 +33,10 @@ export type RuleRow = {
 /**
  * 규정 목록. `<tr>` 안에는 `<form>`을 둘 수 없어(foster parenting) 폼을 표 바깥에
  * 숨겨 두고 편집 중인 행의 입력만 `form` 속성으로 잇는다. 한 번에 한 줄만 편집한다.
+ *
+ * `form` 속성으로 이어진 입력도 그 폼의 소유라, React 19가 액션 뒤에 부르는
+ * reset()이 함께 되돌린다. 저장에 실패하면 편집 모드는 남고 값만 규정 원본으로
+ * 돌아가므로, 실패 상태가 실어 온 제출값을 defaultValue로 다시 내려 준다.
  */
 export function RuleTable({ rules }: { rules: RuleRow[] }) {
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -72,6 +76,10 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
         <tbody>
           {rules.map((rule) => {
             const editing = editingId === rule.id;
+            // 방금 저장에 실패한 그 행일 때만 제출값을 쓴다 — ruleId로 가르지 않으면
+            // 다른 행을 열었을 때 남의 값이 채워진다.
+            const typed =
+              updateState.values?.ruleId === rule.id ? updateState.values : null;
 
             return (
               <tr key={rule.id} className="border-b border-line2 last:border-0">
@@ -85,7 +93,7 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
                       dense
                       name="category"
                       form="rule-edit-form"
-                      defaultValue={rule.category ?? ""}
+                      defaultValue={typed?.category ?? rule.category ?? ""}
                       maxLength={50}
                       aria-label={`${rule.label} 분류 수정`}
                     />
@@ -100,7 +108,7 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
                       dense
                       name="label"
                       form="rule-edit-form"
-                      defaultValue={rule.label}
+                      defaultValue={typed?.label ?? rule.label}
                       required
                       maxLength={200}
                       aria-label={`${rule.label} 항목명 수정`}
@@ -124,7 +132,7 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
                           dense
                           name="points"
                           form="rule-edit-form"
-                          defaultValue={String(rule.points)}
+                          defaultValue={typed?.points ?? String(rule.points)}
                           inputMode="numeric"
                           required
                           aria-label={`${rule.label} 점수 수정 (${

@@ -53,6 +53,11 @@ export function EditUserForm({ user }: { user: EditableUser }) {
     UPDATE_USER_INITIAL,
   );
 
+  // React 19는 액션이 끝나면 폼을 자동 reset()한다 — 리셋이 되돌리는 값이
+  // 곧 defaultValue다. 저장이 거부됐으면 방금 제출한 값을 내려 관리자가 고친
+  // 칸을 지키고, 성공했으면 revalidate가 가져온 서버 값을 그대로 쓴다.
+  const kept = state.values;
+
   return (
     <form action={formAction}>
       <input type="hidden" name="userId" value={user.id} />
@@ -63,7 +68,7 @@ export function EditUserForm({ user }: { user: EditableUser }) {
         id="name"
         name="name"
         dense
-        defaultValue={user.name}
+        defaultValue={kept?.name ?? user.name}
         maxLength={50}
         required
         className="mb-4"
@@ -75,7 +80,7 @@ export function EditUserForm({ user }: { user: EditableUser }) {
         name="email"
         type="email"
         dense
-        defaultValue={user.email}
+        defaultValue={kept?.email ?? user.email}
         maxLength={200}
         required
         className="mb-4"
@@ -87,7 +92,7 @@ export function EditUserForm({ user }: { user: EditableUser }) {
         name="phone"
         type="tel"
         dense
-        defaultValue={user.phone}
+        defaultValue={kept?.phone ?? user.phone}
         placeholder="010-0000-0000"
         format={formatPhone}
         required
@@ -102,23 +107,25 @@ export function EditUserForm({ user }: { user: EditableUser }) {
             name="birthDate"
             type="date"
             dense
-            defaultValue={user.birthDate}
+            defaultValue={kept?.birthDate ?? user.birthDate}
             required
             className="mb-4"
           />
 
           {user.canEditAssignment ? (
+            // 세 칸 모두 type="number"가 아니다. react-dom은 포커스된 number
+            // 칸의 defaultValue 갱신을 건너뛰므로(커서 튐 방지), 그 칸에 커서를
+            // 둔 채 Enter로 제출해 거부되면 위의 리셋이 옛 값을 되돌린다.
+            // 잃는 min·max는 updateUserSchema가 한글 문구로 그대로 막는다.
             <div className="mb-4 grid grid-cols-3 gap-2">
               <div>
                 <Label htmlFor="grade">학년</Label>
                 <Input
                   id="grade"
                   name="grade"
-                  type="number"
+                  inputMode="numeric"
                   dense
-                  min={1}
-                  max={3}
-                  defaultValue={user.grade}
+                  defaultValue={kept?.grade ?? user.grade}
                   required
                 />
               </div>
@@ -127,11 +134,9 @@ export function EditUserForm({ user }: { user: EditableUser }) {
                 <Input
                   id="classNo"
                   name="classNo"
-                  type="number"
+                  inputMode="numeric"
                   dense
-                  min={1}
-                  max={20}
-                  defaultValue={user.classNo}
+                  defaultValue={kept?.classNo ?? user.classNo}
                   required
                 />
               </div>
@@ -140,11 +145,9 @@ export function EditUserForm({ user }: { user: EditableUser }) {
                 <Input
                   id="number"
                   name="number"
-                  type="number"
+                  inputMode="numeric"
                   dense
-                  min={1}
-                  max={50}
-                  defaultValue={user.number}
+                  defaultValue={kept?.number ?? user.number}
                   required
                 />
               </div>

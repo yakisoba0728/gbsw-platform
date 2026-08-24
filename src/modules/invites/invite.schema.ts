@@ -18,11 +18,18 @@ const name = z
   .min(1, "이름을 입력해 주세요.")
   .max(50, "이름이 너무 깁니다.");
 
+/**
+ * 문구를 네 검사에 모두 단다. 하나라도 비우면 zod 기본 영문 문구
+ * ("Too big: expected number to be <=365")가 한글 화면의 오류 배너로 그대로 나간다 —
+ * 액션이 `Number(raw)`로 넘기므로 비숫자는 NaN이 되어 `.number()`에서 걸린다.
+ */
+const EXPIRY_RANGE_MESSAGE = "유효기간은 1~365일 사이의 정수여야 합니다.";
+
 const expiresInDays = z
-  .number()
-  .int()
-  .min(1)
-  .max(365)
+  .number(EXPIRY_RANGE_MESSAGE)
+  .int(EXPIRY_RANGE_MESSAGE)
+  .min(1, EXPIRY_RANGE_MESSAGE)
+  .max(365, EXPIRY_RANGE_MESSAGE)
   .optional()
   .describe("비우면 무기한");
 

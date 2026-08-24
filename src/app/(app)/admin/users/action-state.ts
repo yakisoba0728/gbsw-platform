@@ -19,13 +19,35 @@ export const USER_ACTION_INITIAL: UserActionState = {
   targetId: null,
 };
 
+/**
+ * 정보 수정 폼이 보내는 칸 그대로 — 검증 전 문자열이라 형식이 틀린 값도 담긴다.
+ * 틀린 값이야말로 되돌려 그려야 관리자가 그 자리를 고칠 수 있다.
+ */
+export type UpdateUserValues = {
+  name: string;
+  email: string;
+  phone: string;
+  birthDate: string;
+  grade: string;
+  classNo: string;
+  number: string;
+};
+
 export type UpdateUserState = {
   error: string | null;
   /** 실제로 바뀐 항목. 빈 배열이면 변경 없음. */
   changed: string[] | null;
+  /**
+   * 저장이 거부됐을 때 폼이 되돌려 그릴 제출값. React 19는 서버 액션이 끝나면
+   * 성공·실패를 가리지 않고 폼을 reset()하므로, 비제어 칸이 되감기지 않으려면
+   * 제출값이 defaultValue로 다시 내려가야 한다. 성공하면 null이다 —
+   * revalidate가 가져온 새 서버 값이 보여야 한다.
+   */
+  values: UpdateUserValues | null;
 };
 
 export const UPDATE_USER_INITIAL: UpdateUserState = {
   error: null,
   changed: null,
+  values: null,
 };

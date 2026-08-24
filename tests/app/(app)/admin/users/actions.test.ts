@@ -84,7 +84,7 @@ function adminForm(over: Record<string, string> = {}): FormData {
 }
 
 const USER_INITIAL = { error: null, tempPassword: null, targetId: null };
-const UPDATE_INITIAL = { error: null, changed: null };
+const UPDATE_INITIAL = { error: null, changed: null, values: null };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -107,7 +107,7 @@ describe("updateUserAction — 경계 검증", () => {
       classNo: 2,
       number: 13,
     });
-    expect(state).toEqual({ error: null, changed: ["name"] });
+    expect(state).toEqual({ error: null, changed: ["name"], values: null });
   });
 
   it("비학생 폼은 학적 칸을 아예 안 보낸다 — 그래도 통과해야 한다", async () => {
@@ -257,6 +257,62 @@ describe("updateUserAction — 경계 검증", () => {
     await updateUserAction(UPDATE_INITIAL, fd);
 
     expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  /*
+   * React 19는 액션이 끝나면 성공·실패를 가리지 않고 폼을 reset()한다. 폼의
+   * 일곱 칸은 defaultValue만 준 비제어 입력이라, 실패 상태가 제출값을 싣지
+   * 않으면 관리자가 고친 내용이 전부 서버 값으로 되감긴다.
+   */
+  it("검증에 걸려도 제출값을 그대로 돌려준다 — 틀린 값도 함께", async () => {
+    const state = await updateUserAction(
+      UPDATE_INITIAL,
+      studentForm({ email: "hong(at)gbsw", name: "홍길자" }),
+    );
+
+    expect(state.values).toEqual({
+      name: "홍길자",
+      email: "hong(at)gbsw",
+      phone: "010-1234-5678",
+      birthDate: "2010-03-02",
+      grade: "1",
+      classNo: "2",
+      number: "13",
+    });
+  });
+
+  it("서비스가 거부해도 제출값을 돌려준다", async () => {
+    updateUser.mockRejectedValueOnce(new AdminUserError("NUMBER_TAKEN"));
+
+    const state = await updateUserAction(
+      UPDATE_INITIAL,
+      studentForm({ number: "13" }),
+    );
+
+    expect(state.values?.number).toBe("13");
+    expect(state.values?.name).toBe("홍길동");
+  });
+
+  it("성공하면 제출값을 싣지 않는다 — 저장된 서버 값이 보여야 한다", async () => {
+    const state = await updateUserAction(UPDATE_INITIAL, studentForm());
+
+    expect(state.values).toBeNull();
+  });
+
+  it("비학생 폼이 안 보낸 칸은 빈 문자열로 돌려준다", async () => {
+    updateUser.mockRejectedValueOnce(new AdminUserError("EMAIL_TAKEN"));
+
+    const state = await updateUserAction(UPDATE_INITIAL, adminForm());
+
+    expect(state.values).toEqual({
+      name: "김교사",
+      email: "kim@gbsw.hs.kr",
+      phone: "010-2222-3333",
+      birthDate: "",
+      grade: "",
+      classNo: "",
+      number: "",
+    });
   });
 });
 

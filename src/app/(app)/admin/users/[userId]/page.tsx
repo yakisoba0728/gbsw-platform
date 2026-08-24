@@ -5,10 +5,12 @@ import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
 import { cardClass } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { SectionCard } from "@/components/ui/section-card";
 import { requirePermission } from "@/core/auth/session";
 import { isRole, ROLE_LABELS } from "@/core/authz/roles";
 import { formatDate, formatDateInput, formatDateTime } from "@/lib/datetime";
+import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import {
   AdminUserError,
   getUserDetail,
@@ -41,6 +43,9 @@ export default async function UserDetailPage({
     detail = await getUserDetail(actor, userId);
   } catch (error) {
     if (error instanceof AdminUserError) notFound();
+    // getUserDetail도 getCurrentYear()를 부른다. 현재 학년도가 없으면 목록 화면과
+    // 같은 안내로 떨어뜨린다 — 여기만 오류 화면이 뜰 이유가 없다.
+    if (error instanceof AcademicYearError) return <NoAcademicYearNotice />;
     throw error;
   }
 

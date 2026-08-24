@@ -72,11 +72,25 @@ export function ClassRoster({
   const [submitted, setSubmitted] = useState<AwardSuccess | null>(null);
   const [success, setSuccess] = useState<AwardSuccess | null>(null);
 
+  /**
+   * 체크박스를 새로 마운트시키는 열쇠. 액션이 끝나면 React가 폼을 reset하는데,
+   * reset은 `defaultChecked`를 따르고 `checked`만 준 제어 체크박스는 그 값이
+   * 갱신되지 않는다 — 화면만 풀리고 `selected`와 「N명 선택됨」은 그대로여서
+   * 둘이 어긋난다. 새로 마운트하면 checked가 defaultChecked로 함께 심겨
+   * reset이 아무것도 바꾸지 않는다. `checked`와 `defaultChecked`를 둘 다 주는
+   * 해법은 쓰지 않는다 — React가 개발 콘솔에 경고를 낸다.
+   *
+   * 성공·실패를 가리지 않고 올린다. 실패한 뒤 남은 체크박스는 defaultChecked가
+   * true로 심겨 있어, 그다음 성공에서 선택을 비워도 reset이 도로 켜 버린다.
+   */
+  const [checkboxKey, setCheckboxKey] = useState(0);
+
   // 일괄 부여가 성공하면 선택을 비운다. 렌더 중 비교로 처리한다 — effect 안에서
   // 곧바로 setState하면 리렌더가 한 번 더 발생한다.
   const [handled, setHandled] = useState(state);
   if (state !== handled) {
     setHandled(state);
+    setCheckboxKey((n) => n + 1);
     if (state.ok) {
       setSelected(new Set());
       if (submitted) setSuccess({ ...submitted, count: state.count });
@@ -120,13 +134,19 @@ export function ClassRoster({
     {
       key: "select",
       header: (
-        <SelectBox checked={allSelected} onChange={toggleAll} label="전체 선택" />
+        <SelectBox
+          key={checkboxKey}
+          checked={allSelected}
+          onChange={toggleAll}
+          label="전체 선택"
+        />
       ),
       width: "w-[44px]",
       // 카드에서는 이름 오른쪽에 선다 — 여러 칸을 title로 쌓으면 이름 위에 얹힌다.
       card: "trailing",
       cell: (row) => (
         <SelectBox
+          key={checkboxKey}
           checked={selected.has(row.studentProfileId)}
           onChange={() => toggleOne(row.studentProfileId)}
           label={`${row.name} 선택`}
@@ -247,6 +267,7 @@ export function ClassRoster({
               {/* 카드 목록에는 표 머리글이 없다 — 전체 선택을 여기 다시 낸다. */}
               <label className="inline-flex items-center gap-2 py-2.5 text-xs font-medium text-mut lg:hidden">
                 <input
+                  key={checkboxKey}
                   type="checkbox"
                   checked={allSelected}
                   onChange={toggleAll}
@@ -264,7 +285,14 @@ export function ClassRoster({
 
             <div className="flex flex-col gap-2.5 @md:flex-row @md:flex-wrap @md:items-end">
               <div className="@md:min-w-[160px] @md:flex-1">
-                <Input name="note" placeholder="메모 (선택)" aria-label="메모" />
+                {/* 실패 상태가 실어 온 제출값을 defaultValue로 내려보낸다 —
+                    자동 reset이 메모를 지우는 대신 그 값으로 되돌린다. */}
+                <Input
+                  name="note"
+                  placeholder="메모 (선택)"
+                  aria-label="메모"
+                  defaultValue={state.note ?? ""}
+                />
               </div>
 
               <Button

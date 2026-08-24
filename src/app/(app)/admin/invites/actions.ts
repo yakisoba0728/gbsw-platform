@@ -17,10 +17,14 @@ import {
   MAX_ACTIVE_PARENT_INVITES,
   revokeInvite,
 } from "@/modules/invites/invite.service";
-import type { InviteFormState, RevokeState } from "./action-state";
+import type {
+  InviteFormState,
+  InviteFormValues,
+  RevokeState,
+} from "./action-state";
 
 /** 화면이 `./actions`에서 가져가던 경로를 유지한다. 값은 action-state.ts에 있다. */
-export type { InviteFormState, RevokeState };
+export type { InviteFormState, InviteFormValues, RevokeState };
 
 /** 서비스가 던지는 오류 코드를 화면 문구로 옮긴다. */
 const MESSAGES: Record<string, string> = {
@@ -47,11 +51,28 @@ function optionalDays(value: FormDataEntryValue | null): number | undefined {
   return Number(raw);
 }
 
+/**
+ * 폼이 보낸 문자열 그대로. 실패 상태에 실어 되돌려 줄 값이라 다듬지 않는다 —
+ * React 19가 액션이 끝난 폼을 리셋하므로 이것이 없으면 입력이 통째로 사라진다.
+ */
+function text(formData: FormData, name: string): string {
+  return String(formData.get(name) ?? "");
+}
+
 export async function createStudentInviteAction(
   _prev: InviteFormState,
   formData: FormData,
 ): Promise<InviteFormState> {
   const actor = await requireAuth();
+
+  const values: InviteFormValues = {
+    name: text(formData, "name"),
+    birthDate: text(formData, "birthDate"),
+    grade: text(formData, "grade"),
+    classNo: text(formData, "classNo"),
+    number: text(formData, "number"),
+    expiresInDays: text(formData, "expiresInDays"),
+  };
 
   const parsed = createStudentInviteSchema.safeParse({
     name: formData.get("name"),
@@ -66,6 +87,7 @@ export async function createStudentInviteAction(
     return {
       error: parsed.error.issues[0]?.message ?? "입력을 확인해 주세요.",
       code: null,
+      values,
     };
   }
 
@@ -74,7 +96,11 @@ export async function createStudentInviteAction(
     revalidatePath("/admin/invites");
     return { error: null, code: formatInviteCode(invite.code) };
   } catch (error) {
-    return { error: messageFor(error, "코드를 발급하지 못했습니다."), code: null };
+    return {
+      error: messageFor(error, "코드를 발급하지 못했습니다."),
+      code: null,
+      values,
+    };
   }
 }
 
@@ -83,6 +109,11 @@ export async function createAdminInviteAction(
   formData: FormData,
 ): Promise<InviteFormState> {
   const actor = await requireAuth();
+
+  const values: InviteFormValues = {
+    name: text(formData, "name"),
+    expiresInDays: text(formData, "expiresInDays"),
+  };
 
   const parsed = createAdminInviteSchema.safeParse({
     name: formData.get("name"),
@@ -93,6 +124,7 @@ export async function createAdminInviteAction(
     return {
       error: parsed.error.issues[0]?.message ?? "입력을 확인해 주세요.",
       code: null,
+      values,
     };
   }
 
@@ -101,7 +133,11 @@ export async function createAdminInviteAction(
     revalidatePath("/admin/invites");
     return { error: null, code: formatInviteCode(invite.code) };
   } catch (error) {
-    return { error: messageFor(error, "코드를 발급하지 못했습니다."), code: null };
+    return {
+      error: messageFor(error, "코드를 발급하지 못했습니다."),
+      code: null,
+      values,
+    };
   }
 }
 
@@ -110,6 +146,13 @@ export async function createParentInviteForAction(
   formData: FormData,
 ): Promise<InviteFormState> {
   const actor = await requireAuth();
+
+  // 6줄짜리 목록에서 학생을 다시 찾는 것이 이 폼에서 가장 비싼 재입력이다.
+  const values: InviteFormValues = {
+    studentId: text(formData, "studentId"),
+    name: text(formData, "name"),
+    expiresInDays: text(formData, "expiresInDays"),
+  };
 
   const parsed = createParentInviteForSchema.safeParse({
     studentId: formData.get("studentId"),
@@ -121,6 +164,7 @@ export async function createParentInviteForAction(
     return {
       error: parsed.error.issues[0]?.message ?? "입력을 확인해 주세요.",
       code: null,
+      values,
     };
   }
 
@@ -129,7 +173,11 @@ export async function createParentInviteForAction(
     revalidatePath("/admin/invites");
     return { error: null, code: formatInviteCode(invite.code) };
   } catch (error) {
-    return { error: messageFor(error, "코드를 발급하지 못했습니다."), code: null };
+    return {
+      error: messageFor(error, "코드를 발급하지 못했습니다."),
+      code: null,
+      values,
+    };
   }
 }
 

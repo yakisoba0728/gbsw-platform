@@ -162,12 +162,39 @@ describe("awardAction — 경계 검증", () => {
     expect(state.ok).toBe(false);
   });
 
-  it("학년도 밖 발생일은 그 이유를 그대로 알린다", async () => {
+  it("오늘이 학년도 밖이면 없는 날짜 칸 대신 학년도를 가리킨다", async () => {
     awardMerit.mockRejectedValueOnce(new MeritError("OCCURRED_OUT_OF_YEAR"));
 
     const state = await awardAction(INITIAL, awardForm());
 
+    // 부여 화면에 발생일 입력이 없다 — 날짜를 고르라는 안내는 없는 칸을 찾게 한다.
     expect(state.error).toContain("현재 학년도");
+    expect(state.error).not.toContain("날짜");
+  });
+
+  it("실패하면 제출한 메모를 그대로 돌려준다", async () => {
+    awardMerit.mockRejectedValueOnce(new MeritError("RULE_INACTIVE"));
+
+    const state = await awardAction(INITIAL, awardForm({ note: " 점호 지각 " }));
+
+    // 액션이 끝나면 React가 폼을 reset한다. 이 값이 메모 칸의 defaultValue가 되어
+    // 지워지는 대신 되살아난다 — zod가 다듬기 전 글자 그대로여야 한다.
+    expect(state.note).toBe(" 점호 지각 ");
+  });
+
+  it("검증에 걸려도 메모를 돌려준다", async () => {
+    const state = await awardAction(
+      INITIAL,
+      awardForm({ ruleId: "", note: "점호 지각" }),
+    );
+
+    expect(state.note).toBe("점호 지각");
+  });
+
+  it("성공하면 메모를 돌려주지 않는다 — 부여한 뒤 칸은 비어야 한다", async () => {
+    const state = await awardAction(INITIAL, awardForm({ note: "점호 지각" }));
+
+    expect(state.note).toBeUndefined();
   });
 
   it("현재 학년도가 없으면 규정 문제로 안내하지 않는다", async () => {
@@ -218,6 +245,14 @@ describe("bulkAwardAction — 경계 검증", () => {
 
     expect(bulkAwardMerit).not.toHaveBeenCalled();
     expect(state.error).toBe("한 번에 100명까지 줄 수 있습니다.");
+  });
+
+  it("실패하면 제출한 메모를 그대로 돌려준다", async () => {
+    bulkAwardMerit.mockRejectedValueOnce(new MeritError("RULE_INACTIVE"));
+
+    const state = await bulkAwardAction(INITIAL, bulkForm({ note: "점호 지각" }));
+
+    expect(state.note).toBe("점호 지각");
   });
 
   it("서비스가 센 건수를 그대로 화면에 넘긴다", async () => {

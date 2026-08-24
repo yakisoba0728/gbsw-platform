@@ -28,26 +28,42 @@ const MESSAGES: Record<string, string> = {
   STUDENT_NOT_FOUND: "학생을 찾을 수 없습니다.",
   NO_STUDENTS: "학생을 선택해 주세요.",
   TOO_MANY_STUDENTS: `한 번에 ${BULK_AWARD_LIMIT}명까지 줄 수 있습니다.`,
-  OCCURRED_OUT_OF_YEAR: "현재 학년도 안의 날짜만 고를 수 있습니다.",
-  OCCURRED_IN_FUTURE: "오늘까지의 날짜만 고를 수 있습니다.",
+  // 발생일은 화면 입력이 아니라 오늘(KST)이다 — 날짜를 고르라고 안내하면 없는 칸을 찾게 된다.
+  // 학년도를 넘기지 않은 채 3월을 맞으면 오늘이 학년도 창 밖이 되어 여기로 온다.
+  OCCURRED_OUT_OF_YEAR: "오늘이 현재 학년도 밖입니다. 학생 관리에서 새 학년도로 바꾸세요.",
+  OCCURRED_IN_FUTURE: "발생일이 미래입니다.",
 };
 
 const NO_CURRENT_YEAR_MESSAGE =
   "현재 학년도가 없습니다. 학생 관리에서 학년도를 먼저 만드세요.";
 
-function toState(error: unknown): MeritActionState {
+/**
+ * 실패 상태 한 벌. `note`는 폼이 자동 reset된 뒤 메모 칸이 되살릴 제출값이다 —
+ * 부여 폼만 넘기고 취소는 넘기지 않는다.
+ */
+function fail(error: string, note?: string): MeritActionState {
+  return { error, ok: false, count: null, note };
+}
+
+/** FormData의 메모를 그대로 읽는다. 되살릴 값이라 zod가 다듬기 전 글자여야 한다. */
+function submittedNote(formData: FormData): string {
+  const raw = formData.get("note");
+  return typeof raw === "string" ? raw : "";
+}
+
+function toState(error: unknown, note?: string): MeritActionState {
   if (error instanceof AcademicYearError) {
-    return { error: NO_CURRENT_YEAR_MESSAGE, ok: false, count: null };
+    return fail(NO_CURRENT_YEAR_MESSAGE, note);
   }
   // 권한 거부를 일반 폴백에 섞지 않는다. 화면이 "처리하지 못했습니다"라고 하면
   // 권한이 없어서 막힌 사람이 일시적 장애로 알고 계속 다시 누른다.
   if (error instanceof ForbiddenError) {
-    return { error: "이 작업을 할 권한이 없습니다.", ok: false, count: null };
+    return fail("이 작업을 할 권한이 없습니다.", note);
   }
   if (error instanceof MeritError) {
-    return { error: MESSAGES[error.message] ?? "처리하지 못했습니다.", ok: false, count: null };
+    return fail(MESSAGES[error.message] ?? "처리하지 못했습니다.", note);
   }
-  return { error: "처리하지 못했습니다.", ok: false, count: null };
+  return fail("처리하지 못했습니다.", note);
 }
 
 export async function awardAction(
@@ -55,6 +71,7 @@ export async function awardAction(
   formData: FormData,
 ): Promise<MeritActionState> {
   const actor = await requireAuth();
+  const note = submittedNote(formData);
 
   // 학년도도 발생일도 받지 않는다 — 서비스가 정한다.
   const parsed = awardSchema.safeParse({
@@ -63,17 +80,13 @@ export async function awardAction(
     note: formData.get("note"),
   });
   if (!parsed.success) {
-    return {
-      error: parsed.error.issues[0]?.message ?? "부여할 항목을 골라 주세요.",
-      ok: false,
-      count: null,
-    };
+    return fail(parsed.error.issues[0]?.message ?? "부여할 항목을 골라 주세요.", note);
   }
 
   try {
     await service.awardMerit(actor, parsed.data);
   } catch (error) {
-    return toState(error);
+    return toState(error, note);
   }
 
   revalidatePath(`/merit/students/${parsed.data.studentProfileId}`);
@@ -85,6 +98,7 @@ export async function bulkAwardAction(
   formData: FormData,
 ): Promise<MeritActionState> {
   const actor = await requireAuth();
+  const note = submittedNote(formData);
 
   const parsed = bulkAwardSchema.safeParse({
     // 체크박스는 같은 name으로 여러 개 온다.
@@ -93,11 +107,7 @@ export async function bulkAwardAction(
     note: formData.get("note"),
   });
   if (!parsed.success) {
-    return {
-      error: parsed.error.issues[0]?.message ?? "학생을 선택해 주세요.",
-      ok: false,
-      count: null,
-    };
+    return fail(parsed.error.issues[0]?.message ?? "학생을 선택해 주세요.", note);
   }
 
   try {
@@ -105,7 +115,7 @@ export async function bulkAwardAction(
     revalidatePath("/merit");
     return { error: null, ok: true, count };
   } catch (error) {
-    return toState(error);
+    return toState(error, note);
   }
 }
 
@@ -120,11 +130,7 @@ export async function cancelAction(
     reason: formData.get("reason"),
   });
   if (!parsed.success) {
-    return {
-      error: parsed.error.issues[0]?.message ?? "취소 사유를 입력해 주세요.",
-      ok: false,
-      count: null,
-    };
+    return fail(parsed.error.issues[0]?.message ?? "취소 사유를 입력해 주세요.");
   }
 
   try {

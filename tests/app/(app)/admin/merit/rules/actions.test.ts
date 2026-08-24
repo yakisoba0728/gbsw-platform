@@ -132,6 +132,40 @@ describe("createRuleAction — 경계 검증", () => {
 
     expect(revalidatePath).not.toHaveBeenCalled();
   });
+
+  /*
+   * React 19는 액션이 끝난 폼을 성공·실패 가리지 않고 reset()한다. 실패 상태가
+   * 제출값을 들고 오지 않으면 화면은 오류만 남기고 입력을 지운다 — 그 값이
+   * 여기서 끊기면 폼도 되살릴 방법이 없다.
+   */
+  it("실패하면 제출값을 그대로 돌려준다", async () => {
+    const state = await createRuleAction(
+      INITIAL,
+      createForm({ points: "0", description: "야간 점호 기준" }),
+    );
+
+    expect(state.values).toEqual({
+      kind: "DEMERIT",
+      label: "점호 지각",
+      points: "0",
+      category: "생활",
+      description: "야간 점호 기준",
+    });
+  });
+
+  it("서비스가 던진 오류로 실패해도 제출값을 돌려준다", async () => {
+    createRule.mockRejectedValueOnce(new MeritError("SOME_NEW_CODE"));
+
+    const state = await createRuleAction(INITIAL, createForm());
+
+    expect(state.values?.label).toBe("점호 지각");
+  });
+
+  it("성공하면 제출값을 싣지 않는다 — 폼은 비어야 한다", async () => {
+    const state = await createRuleAction(INITIAL, createForm());
+
+    expect(state.values).toBeUndefined();
+  });
 });
 
 describe("updateRuleAction — 경계 검증", () => {
@@ -182,6 +216,34 @@ describe("updateRuleAction — 경계 검증", () => {
     const state = await updateRuleAction(INITIAL, updateForm());
 
     expect(state.error).toBe("처리하지 못했습니다.");
+  });
+
+  /*
+   * 인라인 편집은 실패해도 편집 모드가 열린 채 남는다 — 제출값이 함께 오지
+   * 않으면 값만 규정 원본으로 되돌아가 "고친 것이 사라졌다"가 된다.
+   * ruleId는 표가 어느 행에 되돌릴지 가르는 열쇠다.
+   */
+  it("실패하면 ruleId와 함께 제출값을 돌려준다", async () => {
+    updateRule.mockRejectedValueOnce(new MeritError("RULE_CONFLICT"));
+
+    const state = await updateRuleAction(
+      INITIAL,
+      updateForm({ label: "점호 무단 불참", points: "7" }),
+    );
+
+    expect(state.values).toEqual({
+      ruleId: "rule-1",
+      label: "점호 무단 불참",
+      points: "7",
+      category: "생활",
+      description: "",
+    });
+  });
+
+  it("성공하면 제출값을 싣지 않는다 — 편집 모드가 닫힌다", async () => {
+    const state = await updateRuleAction(INITIAL, updateForm());
+
+    expect(state.values).toBeUndefined();
   });
 });
 

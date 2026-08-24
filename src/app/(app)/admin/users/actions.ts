@@ -7,6 +7,7 @@ import { ForbiddenError } from "@/core/authz/errors";
 import {
   USER_ACTION_INITIAL,
   type UpdateUserState,
+  type UpdateUserValues,
   type UserActionState,
 } from "./action-state";
 import {
@@ -143,6 +144,27 @@ export async function deleteUserPermanentlyAction(
 
 // ── 정보 수정 ─────────────────────────────────────────────────
 
+/**
+ * 실패 상태에 실을 제출값. 저장이 거부돼도 폼은 자동 리셋되므로, 이 값이
+ * defaultValue로 되돌아가지 않으면 관리자가 고친 일곱 칸이 전부 서버 값으로
+ * 되감긴다. 없는 칸(비학생의 학년·반·번호)은 빈 문자열이다 — 폼이 그리지도 않는다.
+ */
+function submittedValues(formData: FormData): UpdateUserValues {
+  const text = (name: string): string => {
+    const value = formData.get(name);
+    return typeof value === "string" ? value : "";
+  };
+  return {
+    name: text("name"),
+    email: text("email"),
+    phone: text("phone"),
+    birthDate: text("birthDate"),
+    grade: text("grade"),
+    classNo: text("classNo"),
+    number: text("number"),
+  };
+}
+
 export async function updateUserAction(
   _prev: UpdateUserState,
   formData: FormData,
@@ -162,7 +184,11 @@ export async function updateUserAction(
   });
 
   if (!parsed.success) {
-    return { error: firstIssue(parsed.error, "입력을 확인해 주세요."), changed: null };
+    return {
+      error: firstIssue(parsed.error, "입력을 확인해 주세요."),
+      changed: null,
+      values: submittedValues(formData),
+    };
   }
 
   // userId는 서비스가 따로 받는다. 입력 객체에 섞이면 안 된다.
@@ -171,8 +197,13 @@ export async function updateUserAction(
   try {
     const { changed } = await updateUser(actor, userId, input);
     revalidate(userId);
-    return { error: null, changed };
+    // 성공하면 제출값을 싣지 않는다 — 저장된 서버 값이 보여야 한다.
+    return { error: null, changed, values: null };
   } catch (error) {
-    return { error: messageFor(error, "저장하지 못했습니다."), changed: null };
+    return {
+      error: messageFor(error, "저장하지 못했습니다."),
+      changed: null,
+      values: submittedValues(formData),
+    };
   }
 }

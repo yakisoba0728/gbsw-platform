@@ -126,6 +126,24 @@ describe("createStudentInviteAction — 경계 검증", () => {
     expect(createStudentInvite.mock.calls[0]?.[1].expiresInDays).toBe(30);
   });
 
+  // 유효기간 칸은 type="number"를 쓰지 않는다(포커스된 number 칸은 리셋 뒤 값을
+  // 잃는다). 브라우저 range 가드가 없으니 범위·비숫자를 **스키마가 한국어로**
+  // 막아야 한다 — 문구가 빠지면 zod 영문 기본 문구가 화면에 그대로 나간다.
+  it.each([
+    ["0", "하한 미만"],
+    ["366", "상한 초과"],
+    ["1.5", "정수가 아님"],
+    ["abc", "숫자가 아님"],
+  ])("유효기간이 %s(%s)이면 한국어로 알리고 서비스를 부르지 않는다", async (value) => {
+    const state = await createStudentInviteAction(
+      INITIAL,
+      studentForm({ expiresInDays: value }),
+    );
+
+    expect(createStudentInvite).not.toHaveBeenCalled();
+    expect(state.error).toBe("유효기간은 1~365일 사이의 정수여야 합니다.");
+  });
+
   it("이름이 비면 서비스를 부르지 않고 한국어로 알린다", async () => {
     const state = await createStudentInviteAction(INITIAL, studentForm({ name: " " }));
 
@@ -215,6 +233,41 @@ describe("createStudentInviteAction — 경계 검증", () => {
 
     expect(state.error).toBe("코드를 발급하지 못했습니다.");
   });
+
+  /*
+   * React 19는 액션이 끝난 폼을 성공·실패 가리지 않고 reset()한다. 실패 상태가
+   * 제출값을 들고 오지 않으면 이름·생년월일·학년·반·번호를 처음부터 다시 친다 —
+   * 화면은 이 값으로만 되살릴 수 있다.
+   */
+  it("실패하면 여섯 칸을 그대로 돌려준다", async () => {
+    const state = await createStudentInviteAction(
+      INITIAL,
+      studentForm({ grade: "9", expiresInDays: "30" }),
+    );
+
+    expect(state.values).toEqual({
+      name: "홍길동",
+      birthDate: "2010-03-02",
+      grade: "9",
+      classNo: "2",
+      number: "13",
+      expiresInDays: "30",
+    });
+  });
+
+  it("서비스가 던진 오류로 실패해도 제출값을 돌려준다", async () => {
+    createStudentInvite.mockRejectedValueOnce(new ForbiddenError("invite:create"));
+
+    const state = await createStudentInviteAction(INITIAL, studentForm());
+
+    expect(state.values?.name).toBe("홍길동");
+  });
+
+  it("성공하면 제출값을 싣지 않는다 — 폼은 비어야 한다", async () => {
+    const state = await createStudentInviteAction(INITIAL, studentForm());
+
+    expect(state.values).toBeUndefined();
+  });
 });
 
 describe("createAdminInviteAction — 경계 검증", () => {
@@ -241,6 +294,15 @@ describe("createAdminInviteAction — 경계 검증", () => {
     const state = await createAdminInviteAction(INITIAL, adminForm());
 
     expect(state.error).toBe("권한이 없습니다.");
+  });
+
+  it("실패하면 두 칸을 그대로 돌려준다", async () => {
+    const state = await createAdminInviteAction(
+      INITIAL,
+      adminForm({ name: "", expiresInDays: "7" }),
+    );
+
+    expect(state.values).toEqual({ name: "", expiresInDays: "7" });
   });
 });
 
@@ -275,6 +337,30 @@ describe("createParentInviteForAction — 경계 검증", () => {
     const state = await createParentInviteForAction(INITIAL, parentForm());
 
     expect(state.error).toBe("이 학생에게 쓰지 않은 코드가 3개 있습니다.");
+  });
+
+  /*
+   * 6줄짜리 목록에서 학생을 다시 찾는 것이 이 폼에서 가장 비싼 재입력이다 —
+   * 한도 초과처럼 다시 눌러 볼 만한 오류일수록 고른 학생이 남아야 한다.
+   */
+  it("실패하면 고른 학생을 그대로 돌려준다", async () => {
+    createParentInviteFor.mockRejectedValueOnce(
+      new InviteError("TOO_MANY_ACTIVE_INVITES"),
+    );
+
+    const state = await createParentInviteForAction(INITIAL, parentForm());
+
+    expect(state.values).toEqual({
+      studentId: "sp-1",
+      name: "홍부모",
+      expiresInDays: "",
+    });
+  });
+
+  it("성공하면 제출값을 싣지 않는다", async () => {
+    const state = await createParentInviteForAction(INITIAL, parentForm());
+
+    expect(state.values).toBeUndefined();
   });
 });
 

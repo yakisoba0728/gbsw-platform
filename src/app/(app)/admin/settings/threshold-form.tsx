@@ -37,6 +37,11 @@ export function ThresholdForm({
     EMPTY_THRESHOLD_FORM_STATE,
   );
 
+  // React 19는 액션이 끝나면 폼을 자동 reset()한다 — 리셋이 되돌리는 값이
+  // 곧 defaultValue다. 저장이 거부됐으면 방금 제출한 값을 내리고, 성공했으면
+  // 서버가 다시 내려준 값을 쓴다. 계정 상세의 정보 수정 폼과 같은 방식이다.
+  const kept = state.values;
+
   return (
     <div className="border-b border-line2 px-5 py-4 last:border-0">
       <form action={formAction} className="flex flex-wrap items-end gap-2.5">
@@ -56,7 +61,7 @@ export function ThresholdForm({
             id={`${fieldId}-warn`}
             name="warn"
             inputMode="numeric"
-            defaultValue={String(warn)}
+            defaultValue={kept?.warn ?? String(warn)}
             required
             aria-describedby={`${fieldId}-help`}
           />
@@ -68,7 +73,7 @@ export function ThresholdForm({
             id={`${fieldId}-danger`}
             name="danger"
             inputMode="numeric"
-            defaultValue={String(danger)}
+            defaultValue={kept?.danger ?? String(danger)}
             required
             aria-describedby={`${fieldId}-help`}
           />

@@ -50,7 +50,14 @@ export function AwardForm({
 
         <div className="flex flex-col gap-2.5 @md:flex-row @md:flex-wrap @md:items-end">
           <div className="@md:min-w-[160px] @md:flex-1">
-            <Input name="note" placeholder="메모 (선택)" aria-label="메모" />
+            {/* 액션이 끝나면 React가 폼을 reset한다. 실패 상태가 실어 온 제출값을
+                defaultValue로 내려보내면 reset이 메모를 지우는 대신 되돌린다. */}
+            <Input
+              name="note"
+              placeholder="메모 (선택)"
+              aria-label="메모"
+              defaultValue={state.note ?? ""}
+            />
           </div>
 
           <Button
