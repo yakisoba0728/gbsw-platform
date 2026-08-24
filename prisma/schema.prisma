@@ -375,6 +375,11 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   @@index([actorUserId])
+  // 계정 상세가 actorUserId OR targetId로 최근 20건을 찾는다
+  // (admin-user.repo.findRelatedAudit). 이 인덱스가 없으면 OR의 둘째 갈래가
+  // 안 좁혀져, 관련 줄이 20건에 못 미치는 계정에서 감사로그 전 구간을 훑는다 —
+  // 감사로그는 삭제 경로가 없어 단조 증가한다.
+  @@index([targetId])
   @@index([action])
   @@index([createdAt])
 }
