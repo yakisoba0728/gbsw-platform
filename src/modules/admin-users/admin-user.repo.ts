@@ -80,11 +80,23 @@ export async function findDetail(userId: string, year: number) {
   });
 }
 
-/** 이 계정이 남겼거나 이 계정을 대상으로 한 기록. */
+/**
+ * 이 계정이 남겼거나 이 계정을 대상으로 한 기록.
+ * OR의 두 갈래가 각각 인덱스를 타야 한다 — AuditLog에 actorUserId·targetId 인덱스가
+ * 둘 다 있는 이유다. targetId 인덱스가 없으면 관련 줄이 take에 못 미치는 계정에서
+ * 조기 종료가 안 일어나 감사로그 전 구간을 훑는다.
+ */
 export async function findRelatedAudit(userId: string, take: number) {
   return prisma.auditLog.findMany({
     where: { OR: [{ actorUserId: userId }, { targetId: userId }] },
-    orderBy: { createdAt: "desc" },
+    // 보조 정렬키가 없으면 자르는 자리가 흔들린다. createdAt의 기본값
+    // CURRENT_TIMESTAMP는 Postgres에서 **트랜잭션 시작 시각**이라 명단 일괄 반영
+    // 한 번이 남긴 수백 줄이 밀리초까지 같은 값을 갖는데, SQL은 정렬키가 같은 행
+    // 사이의 순서를 보장하지 않는다 — take 경계에 동점이 걸리면 그중 어느 줄이
+    // 보이는지가 호출마다 달라진다. 감사로그에서 "안 보인다"는 "없다"로 읽힌다.
+    // id는 cuid라 시간순은 아니지만 유일하고 결정적이다 — 경계를 고정하는 데
+    // 필요한 것은 시간순이 아니라 유일성이다.
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take,
   });
 }

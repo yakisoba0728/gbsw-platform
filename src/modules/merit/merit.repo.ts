@@ -356,7 +356,10 @@ export async function listAwards(params: {
       track: params.track,
       ...(params.year === null ? {} : { year: params.year }),
     },
-    orderBy: [{ occurredOn: "desc" }, { createdAt: "desc" }],
+    // 쪽을 나누지 않는 질의라 줄이 사라지지는 않는다. 그래도 마지막 키는 유일해야
+    // 한다 — 일괄 부여는 한 트랜잭션이라 그 안의 행은 발생일도 입력 시각(트랜잭션
+    // 시작 시각)도 같고, 그러면 같은 확인서를 다시 열 때마다 두 줄의 위아래가 바뀐다.
+    orderBy: [{ occurredOn: "desc" }, { createdAt: "desc" }, { id: "desc" }],
     select: {
       id: true,
       year: true,
@@ -631,7 +634,10 @@ export async function searchStudents(
       ],
     },
     take: 30,
-    orderBy: { user: { name: "asc" } },
+    // 이름은 유일하지 않다. 동명이인이 30번째 자리를 다투면 누가 잘려 나가는지가
+    // 호출마다 달라져, 같은 검색어를 다시 쳤을 때 있던 학생이 사라진다.
+    // 자르는 자리를 유일한 키로 고정한다.
+    orderBy: [{ user: { name: "asc" } }, { id: "asc" }],
     select: {
       id: true,
       studentCode: true,
@@ -807,7 +813,14 @@ export async function findRecentAwardPage(
 ) {
   const rows = await prisma.meritAward.findMany({
     where: recentAwardWhere(filter),
-    orderBy: { createdAt: "desc" },
+    // 보조 정렬키가 없으면 쪽 경계가 흔들린다. createdAt의 기본값
+    // CURRENT_TIMESTAMP는 Postgres에서 **트랜잭션 시작 시각**이라 일괄 부여 한 번이
+    // 넣은 반 전체가 밀리초까지 같은 값을 갖는데, SQL은 정렬키가 같은 행 사이의
+    // 순서를 보장하지 않는다 — OFFSET이 달라지면 동점 구간 순서가 뒤집혀 어느
+    // 쪽에도 안 나오는 줄이나 두 번 나오는 줄이 생긴다. id는 cuid라 시간순은
+    // 아니지만 유일하고 결정적이다 — 쪽 경계를 고정하는 데 필요한 것은 시간순이
+    // 아니라 유일성이다.
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     skip,
     take,
     select: RECENT_AWARD_SELECT,
@@ -824,7 +837,10 @@ export async function countRecentAwards(filter: RecentAwardFilter): Promise<numb
 export async function findRecentAwardsForExport(filter: RecentAwardFilter) {
   const rows = await prisma.meritAward.findMany({
     where: recentAwardWhere(filter),
-    orderBy: { createdAt: "desc" },
+    // 쪽을 나누지 않으니 줄이 사라질 일은 없다. 그래도 화면 페이지와 같은 키로
+    // 세운다 — 내보낸 파일을 화면과 나란히 놓고 대조하고, 같은 필터로 두 번
+    // 내려받은 파일을 diff하면 순서 차이만으로 어긋나면 안 된다.
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     select: RECENT_AWARD_SELECT,
   });
 

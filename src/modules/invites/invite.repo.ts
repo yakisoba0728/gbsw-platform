@@ -34,7 +34,13 @@ export async function findById(id: string) {
 
 export async function listAll(year: number) {
   return prisma.invite.findMany({
-    orderBy: { createdAt: "desc" },
+    // 보조 정렬키가 없으면 동점 구간 순서가 흔들린다. createdAt의 기본값
+    // CURRENT_TIMESTAMP는 Postgres에서 **트랜잭션 시작 시각**이라 명단 일괄 반영
+    // 한 번이 발급한 코드 수십 개가 밀리초까지 같은 값을 갖는데, SQL은 정렬키가
+    // 같은 행 사이의 순서를 보장하지 않는다. take가 없어 줄이 사라지지는 않지만,
+    // 같은 목록이 새로고침마다 다르게 서면 방금 발급한 코드를 눈으로 못 쫓는다.
+    // id는 cuid라 시간순은 아니지만 유일하고 결정적이다.
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     include: {
       createdBy: { select: { name: true } },
       usedBy: { select: { name: true, email: true } },
@@ -58,7 +64,9 @@ export async function listAll(year: number) {
 export async function listByStudent(studentId: string) {
   return prisma.invite.findMany({
     where: { studentId },
-    orderBy: { createdAt: "desc" },
+    // 같은 이유로 보조 정렬키를 둔다 (listAll 참고). 한 학생에게 학부모 코드를
+    // 한 번에 여러 개 발급하면 그 코드들이 밀리초까지 같은 createdAt을 갖는다.
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
   });
 }
 
