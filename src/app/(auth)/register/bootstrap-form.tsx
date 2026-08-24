@@ -8,7 +8,10 @@ import { Note } from "@/components/ui/note";
 import { formatPhone } from "@/lib/masks";
 import { createInitialAdminAction, type BootstrapState } from "./actions";
 
-const INITIAL: BootstrapState = { error: null };
+const INITIAL: BootstrapState = {
+  error: null,
+  values: { name: "", email: "", phone: "" },
+};
 
 export function BootstrapForm({ token }: { token: string }) {
   const [state, formAction, pending] = useActionState(
@@ -25,6 +28,11 @@ export function BootstrapForm({ token }: { token: string }) {
       </h1>
       <p className="mb-8 text-caption text-mut">이 화면은 한 번만 열립니다.</p>
 
+      {/*
+        비제어 칸이라 실패 뒤 폼 자동 리셋(React 19)에 지워진다. 액션이 되돌려준
+        제출값을 defaultValue로 다시 심어 살린다 — 리셋은 이 커밋의 DOM 갱신이
+        끝난 뒤에 돌아서 새 defaultValue를 본다. 비밀번호 두 칸은 일부러 뺐다.
+      */}
       <Label htmlFor="name">이름</Label>
       <Input
         id="name"
@@ -32,6 +40,7 @@ export function BootstrapForm({ token }: { token: string }) {
         autoComplete="name"
         maxLength={50}
         required
+        defaultValue={state.values.name}
         className="mb-4"
       />
 
@@ -43,6 +52,7 @@ export function BootstrapForm({ token }: { token: string }) {
         autoComplete="username"
         placeholder="name@gbsw.hs.kr"
         required
+        defaultValue={state.values.email}
         className="mb-4"
       />
 
@@ -55,6 +65,7 @@ export function BootstrapForm({ token }: { token: string }) {
         placeholder="010-0000-0000"
         format={formatPhone}
         required
+        defaultValue={state.values.phone}
         className="mb-4"
       />
 

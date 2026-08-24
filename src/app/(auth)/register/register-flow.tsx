@@ -18,7 +18,10 @@ import {
 import { VerifiedField } from "./verified-field";
 
 const CHECK_INITIAL: CheckInviteState = { code: null, role: null, error: null };
-const REGISTER_INITIAL: RegisterState = { error: null };
+const REGISTER_INITIAL: RegisterState = {
+  error: null,
+  values: { name: "", birthDate: "" },
+};
 
 export function RegisterFlow() {
   const [check, checkAction, checking] = useActionState(
@@ -110,6 +113,11 @@ function ProfileStep({ code, role }: { code: string; role: Role }) {
 
       <h1 className="mb-6 text-title font-semibold text-ink">정보 입력</h1>
 
+      {/*
+        비제어 칸이라 실패 뒤 폼 자동 리셋(React 19)에 지워진다. 액션이 되돌려준
+        제출값을 defaultValue로 다시 심어 살린다 — 리셋은 이 커밋의 DOM 갱신이
+        끝난 뒤에 돌아서 새 defaultValue를 본다. 비밀번호 두 칸은 일부러 뺐다.
+      */}
       {role === "STUDENT" ? (
         <div className="mb-3 grid grid-cols-2 gap-2">
           <div>
@@ -122,11 +130,19 @@ function ProfileStep({ code, role }: { code: string; role: Role }) {
               placeholder="이름"
               maxLength={50}
               required
+              defaultValue={state.values.name}
             />
           </div>
           <div>
             <Label htmlFor="birthDate">생년월일</Label>
-            <Input id="birthDate" name="birthDate" type="date" dense required />
+            <Input
+              id="birthDate"
+              name="birthDate"
+              type="date"
+              dense
+              required
+              defaultValue={state.values.birthDate}
+            />
           </div>
         </div>
       ) : (
@@ -140,6 +156,7 @@ function ProfileStep({ code, role }: { code: string; role: Role }) {
             placeholder="이름"
             maxLength={50}
             required
+            defaultValue={state.values.name}
             className="mb-3"
           />
         </>

@@ -42,10 +42,8 @@ export function VerifiedField({
   const [sent, setSent] = useState(false);
   const [verifiedValue, setVerifiedValue] = useState<string | null>(null);
   const [code, setCode] = useState("");
-  /** 목업 모드에서 채워 넣은 값. 바뀔 때마다 코드 입력칸을 다시 그린다. */
-  const [prefill, setPrefill] = useState<{ value: string; nonce: number } | null>(
-    null,
-  );
+  /** 목업 모드가 인증번호를 대신 채웠다. 그 사실을 화면에 알린다. */
+  const [mocked, setMocked] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -57,6 +55,7 @@ export function VerifiedField({
     if (next !== verifiedValue) {
       setSent(false);
       setCode("");
+      setMocked(false);
       setError(null);
     }
   }
@@ -73,19 +72,15 @@ export function VerifiedField({
         setVerifiedValue(value);
         setSent(false);
         setCode("");
-        setPrefill(null);
+        setMocked(false);
         return;
       }
       setSent(true);
 
-      // 예전 목업이면 받은 코드를 입력칸에 바로 채운다.
-      if (result.mockCode) {
-        setCode(result.mockCode);
-        setPrefill((prev) => ({
-          value: result.mockCode!,
-          nonce: (prev?.nonce ?? 0) + 1,
-        }));
-      }
+      // 재발송하면 서버가 앞선 코드를 만료시킨다. 칸도 함께 비운다.
+      // 예전 목업이면 받은 코드를 그대로 채운다.
+      setCode(result.mockCode ?? "");
+      setMocked(result.mockCode !== undefined);
     });
   }
 
@@ -105,6 +100,12 @@ export function VerifiedField({
     <div className="mb-3">
       <Label htmlFor={id}>{label}</Label>
 
+      {/*
+        이 칸들은 제어 입력이다. 가입 액션이 오류를 return하면 React 19가 폼을
+        통째로 reset()하는데, 비제어면 칸만 비고 verified(readOnly와 「확인됨」의
+        근거)는 state에 남아 앞뒤가 어긋난다 — 게다가 readOnly 칸은 제약 검증에서
+        빠져 required도 빈 값 제출을 못 막는다.
+      */}
       <div className="flex gap-2">
         {format ? (
           <MaskedInput
@@ -117,6 +118,7 @@ export function VerifiedField({
             required
             readOnly={verified}
             format={format}
+            value={value}
             onValueChange={handleValueChange}
             className="min-w-0 flex-1"
           />
@@ -130,6 +132,7 @@ export function VerifiedField({
             placeholder={placeholder}
             required
             readOnly={verified}
+            value={value}
             onChange={(e) => handleValueChange(e.currentTarget.value)}
             className="min-w-0 flex-1"
           />
@@ -155,9 +158,8 @@ export function VerifiedField({
       {sent && !verified && (
         <div className="mt-2 flex gap-2">
           <MaskedInput
-            // 목업으로 값을 채울 때 다시 마운트시킨다 (비제어 인풋이라 key로 갱신).
-            key={prefill?.nonce ?? 0}
-            defaultValue={prefill?.value ?? ""}
+            // 이 칸도 제어다 — 폼이 리셋돼도 화면과 code state가 갈라지지 않는다.
+            value={code}
             aria-label={`${label} 인증번호`}
             dense
             inputMode="numeric"
@@ -179,7 +181,7 @@ export function VerifiedField({
         </div>
       )}
 
-      {sent && !verified && prefill && (
+      {sent && !verified && mocked && (
         <p className="mt-1.5 text-xs text-amber-ink">
           개발 목업 — 발송하지 않고 인증번호를 채웠습니다.
         </p>

@@ -47,6 +47,12 @@ const {
   confirmVerificationAction,
 } = await import("@/app/(auth)/register/actions");
 
+/** 폼이 처음 그릴 때의 상태. 실패하면 여기에 제출값이 실려 돌아온다. */
+const BOOTSTRAP_INITIAL = {
+  error: null,
+  values: { name: "", email: "", phone: "" },
+};
+
 /** 부트스트랩 폼(bootstrap-form.tsx)이 실제로 보내는 필드 그대로. */
 function bootstrapForm(over: Record<string, string> = {}): FormData {
   const fd = new FormData();
@@ -73,7 +79,7 @@ beforeEach(() => {
 describe("createInitialAdminAction — 경계 검증", () => {
   it("폼이 보내는 값 그대로면 서비스까지 도달한다", async () => {
     await expect(
-      createInitialAdminAction({ error: null }, bootstrapForm()),
+      createInitialAdminAction(BOOTSTRAP_INITIAL, bootstrapForm()),
     ).rejects.toThrow("NEXT_REDIRECT");
 
     expect(createInitialAdmin).toHaveBeenCalledOnce();
@@ -81,7 +87,7 @@ describe("createInitialAdminAction — 경계 검증", () => {
 
   it("폼의 phone을 읽는다 — 안 읽으면 스키마가 막아 서비스에 못 간다", async () => {
     await expect(
-      createInitialAdminAction({ error: null }, bootstrapForm()),
+      createInitialAdminAction(BOOTSTRAP_INITIAL, bootstrapForm()),
     ).rejects.toThrow("NEXT_REDIRECT");
 
     expect(createInitialAdmin).toHaveBeenCalledWith(
@@ -92,7 +98,7 @@ describe("createInitialAdminAction — 경계 검증", () => {
 
   it("검증 실패 문구는 한글이다", async () => {
     const state = await createInitialAdminAction(
-      { error: null },
+      BOOTSTRAP_INITIAL,
       bootstrapForm({ phone: "01012" }),
     );
 
@@ -101,7 +107,10 @@ describe("createInitialAdminAction — 경계 검증", () => {
   });
 
   it("검증에 걸리면 토큰을 쓰지 않는다", async () => {
-    await createInitialAdminAction({ error: null }, bootstrapForm({ name: "" }));
+    await createInitialAdminAction(
+      BOOTSTRAP_INITIAL,
+      bootstrapForm({ name: "" }),
+    );
 
     expect(createInitialAdmin).not.toHaveBeenCalled();
   });
@@ -110,7 +119,7 @@ describe("createInitialAdminAction — 경계 검증", () => {
     createInitialAdmin.mockRejectedValueOnce(new Error("ALREADY_SET"));
 
     const state = await createInitialAdminAction(
-      { error: null },
+      BOOTSTRAP_INITIAL,
       bootstrapForm(),
     );
 
@@ -118,9 +127,54 @@ describe("createInitialAdminAction — 경계 검증", () => {
     expect(redirect).not.toHaveBeenCalled();
   });
 
+  // 실패로 액션이 끝나면 React 19가 폼을 자동 reset()한다. 비제어 칸(이름·이메일·
+  // 전화)은 여기서 돌려준 값을 defaultValue로 다시 심어야 살아남는다.
+  it("검증에 걸리면 제출한 이름·이메일·전화를 그대로 돌려준다", async () => {
+    const state = await createInitialAdminAction(
+      BOOTSTRAP_INITIAL,
+      bootstrapForm({ phone: "01012", email: "Admin@GBSW.hs.kr" }),
+    );
+
+    // 스키마가 다듬기 전, 사람이 친 그대로여야 한다 — 칸에 도로 심을 값이다.
+    expect(state.values).toEqual({
+      name: "홍길동",
+      email: "Admin@GBSW.hs.kr",
+      phone: "01012",
+    });
+  });
+
+  it("서비스가 던져도 제출한 이름·이메일·전화를 그대로 돌려준다", async () => {
+    createInitialAdmin.mockRejectedValueOnce(new Error("ALREADY_SET"));
+
+    const state = await createInitialAdminAction(
+      BOOTSTRAP_INITIAL,
+      bootstrapForm({ name: "김철수", email: "kim@gbsw.hs.kr" }),
+    );
+
+    expect(state.values).toEqual({
+      name: "김철수",
+      email: "kim@gbsw.hs.kr",
+      phone: "010-1234-5678",
+    });
+  });
+
+  // 비밀번호는 지워지는 편이 안전하다. 돌려주면 화면에 다시 심긴다.
+  it("돌려주는 값에 비밀번호는 없다", async () => {
+    const state = await createInitialAdminAction(
+      BOOTSTRAP_INITIAL,
+      bootstrapForm({ confirmPassword: "다른-비밀번호-입니다" }),
+    );
+
+    expect(Object.keys(state.values).sort()).toEqual([
+      "email",
+      "name",
+      "phone",
+    ]);
+  });
+
   it("성공하면 바로 로그인시킨다", async () => {
     await expect(
-      createInitialAdminAction({ error: null }, bootstrapForm()),
+      createInitialAdminAction(BOOTSTRAP_INITIAL, bootstrapForm()),
     ).rejects.toThrow("NEXT_REDIRECT");
 
     expect(signInEmail).toHaveBeenCalledWith(
@@ -138,7 +192,7 @@ describe("createInitialAdminAction — 경계 검증", () => {
     signInEmail.mockRejectedValueOnce(new Error("세션 발급 실패"));
 
     await expect(
-      createInitialAdminAction({ error: null }, bootstrapForm()),
+      createInitialAdminAction(BOOTSTRAP_INITIAL, bootstrapForm()),
     ).rejects.toThrow("NEXT_REDIRECT");
 
     expect(redirect).toHaveBeenCalledWith("/");
@@ -151,6 +205,12 @@ describe("createInitialAdminAction — 경계 검증", () => {
 // 학생일 때만 `birthDate`를 더 보낸다.
 
 const CODE = "GBSW-A3K9-2M7P";
+
+/** 폼이 처음 그릴 때의 상태. 실패하면 여기에 제출값이 실려 돌아온다. */
+const REGISTER_INITIAL = {
+  error: null,
+  values: { name: "", birthDate: "" },
+};
 
 /** ProfileStep이 학생에게 그릴 때 보내는 필드 전부. */
 function registerForm(over: Record<string, string> = {}): FormData {
@@ -209,7 +269,7 @@ describe("checkInviteAction — 경계 검증", () => {
 describe("completeRegistrationAction — 경계 검증", () => {
   it("폼이 보내는 값 그대로면 서비스까지 도달한다", async () => {
     await expect(
-      completeRegistrationAction({ error: null }, registerForm()),
+      completeRegistrationAction(REGISTER_INITIAL, registerForm()),
     ).rejects.toThrow("NEXT_REDIRECT");
 
     expect(completeRegistration).toHaveBeenCalledOnce();
@@ -217,7 +277,7 @@ describe("completeRegistrationAction — 경계 검증", () => {
 
   it("폼의 일곱 필드를 모두 읽는다", async () => {
     await expect(
-      completeRegistrationAction({ error: null }, registerForm()),
+      completeRegistrationAction(REGISTER_INITIAL, registerForm()),
     ).rejects.toThrow("NEXT_REDIRECT");
 
     expect(completeRegistration).toHaveBeenCalledWith({
@@ -236,7 +296,7 @@ describe("completeRegistrationAction — 경계 검증", () => {
     fd.delete("birthDate");
 
     await expect(
-      completeRegistrationAction({ error: null }, fd),
+      completeRegistrationAction(REGISTER_INITIAL, fd),
     ).rejects.toThrow("NEXT_REDIRECT");
 
     expect(completeRegistration.mock.calls[0]?.[0].birthDate).toBe("");
@@ -244,7 +304,7 @@ describe("completeRegistrationAction — 경계 검증", () => {
 
   it("비밀번호 확인이 다르면 서비스를 부르지 않는다", async () => {
     const state = await completeRegistrationAction(
-      { error: null },
+      REGISTER_INITIAL,
       registerForm({ confirmPassword: "다른-비밀번호-입니다" }),
     );
 
@@ -254,7 +314,7 @@ describe("completeRegistrationAction — 경계 검증", () => {
 
   it("휴대폰 형식이 틀리면 서비스를 부르지 않는다", async () => {
     const state = await completeRegistrationAction(
-      { error: null },
+      REGISTER_INITIAL,
       registerForm({ phone: "01012" }),
     );
 
@@ -264,7 +324,7 @@ describe("completeRegistrationAction — 경계 검증", () => {
 
   it("생년월일 형식이 틀리면 서비스를 부르지 않는다", async () => {
     const state = await completeRegistrationAction(
-      { error: null },
+      REGISTER_INITIAL,
       registerForm({ birthDate: "2010/03/02" }),
     );
 
@@ -274,7 +334,7 @@ describe("completeRegistrationAction — 경계 검증", () => {
 
   it("존재하지 않는 생년월일이면 서비스를 부르지 않는다", async () => {
     const state = await completeRegistrationAction(
-      { error: null },
+      REGISTER_INITIAL,
       registerForm({ birthDate: "2010-02-30" }),
     );
 
@@ -288,7 +348,7 @@ describe("completeRegistrationAction — 경계 검증", () => {
       new RegistrationError("이름 또는 생년월일이 코드와 다릅니다."),
     );
 
-    const state = await completeRegistrationAction({ error: null }, registerForm());
+    const state = await completeRegistrationAction(REGISTER_INITIAL, registerForm());
 
     expect(state.error).toBe("이름 또는 생년월일이 코드와 다릅니다.");
   });
@@ -298,7 +358,7 @@ describe("completeRegistrationAction — 경계 검증", () => {
       new VerificationError("휴대폰 인증을 먼저 완료해 주세요."),
     );
 
-    const state = await completeRegistrationAction({ error: null }, registerForm());
+    const state = await completeRegistrationAction(REGISTER_INITIAL, registerForm());
 
     expect(state.error).toBe("휴대폰 인증을 먼저 완료해 주세요.");
   });
@@ -308,15 +368,58 @@ describe("completeRegistrationAction — 경계 검증", () => {
       new Error("Unique constraint failed on the fields: (`email`)"),
     );
 
-    const state = await completeRegistrationAction({ error: null }, registerForm());
+    const state = await completeRegistrationAction(REGISTER_INITIAL, registerForm());
 
     expect(state.error).toBe("가입하지 못했습니다.");
     expect(redirect).not.toHaveBeenCalled();
   });
 
+  // 실패로 액션이 끝나면 React 19가 폼을 자동 reset()한다. 비제어 칸(이름·생년월일)은
+  // 여기서 돌려준 값을 defaultValue로 다시 심어야 살아남는다.
+  it("검증에 걸리면 제출한 이름·생년월일을 그대로 돌려준다", async () => {
+    const state = await completeRegistrationAction(
+      REGISTER_INITIAL,
+      registerForm({ confirmPassword: "다른-비밀번호-입니다" }),
+    );
+
+    expect(state.values).toEqual({ name: "홍길동", birthDate: "2010-03-02" });
+  });
+
+  it("서비스가 던져도 제출한 이름·생년월일을 그대로 돌려준다", async () => {
+    completeRegistration.mockRejectedValueOnce(
+      new RegistrationError("이름 또는 생년월일이 코드와 다릅니다."),
+    );
+
+    const state = await completeRegistrationAction(
+      REGISTER_INITIAL,
+      registerForm({ name: "김철수", birthDate: "2009-12-31" }),
+    );
+
+    expect(state.values).toEqual({ name: "김철수", birthDate: "2009-12-31" });
+  });
+
+  // 비밀번호는 지워지는 편이 안전하다. 돌려주면 화면에 다시 심긴다.
+  it("돌려주는 값에 비밀번호는 없다", async () => {
+    const state = await completeRegistrationAction(
+      REGISTER_INITIAL,
+      registerForm({ confirmPassword: "다른-비밀번호-입니다" }),
+    );
+
+    expect(Object.keys(state.values).sort()).toEqual(["birthDate", "name"]);
+  });
+
+  it("생년월일 칸이 없으면 빈 문자열로 돌려준다", async () => {
+    const fd = registerForm({ phone: "01012" });
+    fd.delete("birthDate");
+
+    const state = await completeRegistrationAction(REGISTER_INITIAL, fd);
+
+    expect(state.values).toEqual({ name: "홍길동", birthDate: "" });
+  });
+
   it("성공하면 바로 로그인시킨다", async () => {
     await expect(
-      completeRegistrationAction({ error: null }, registerForm()),
+      completeRegistrationAction(REGISTER_INITIAL, registerForm()),
     ).rejects.toThrow("NEXT_REDIRECT");
 
     expect(signInEmail).toHaveBeenCalledWith(

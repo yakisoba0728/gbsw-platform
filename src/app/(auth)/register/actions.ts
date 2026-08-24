@@ -31,13 +31,28 @@ import {
 
 // ── 최초 관리자 부트스트랩 ─────────────────────────────────────
 
-export type BootstrapState = { error: string | null };
+export type BootstrapState = {
+  error: string | null;
+  /**
+   * 방금 제출한 이름·이메일·전화. 액션이 오류를 return하면 React 19가 폼을 통째로
+   * reset()하므로, 비제어 칸은 이 값을 defaultValue로 다시 심어야 살아남는다.
+   * 비밀번호는 담지 않는다 — 지워지는 편이 안전하다.
+   */
+  values: { name: string; email: string; phone: string };
+};
 
 export async function createInitialAdminAction(
   _prev: BootstrapState,
   formData: FormData,
 ): Promise<BootstrapState> {
   const token = String(formData.get("token") ?? "");
+
+  // 검증보다 먼저 뽑아 둔다 — 어느 실패 경로로 빠지든 화면이 되살릴 값은 같다.
+  const values = {
+    name: String(formData.get("name") ?? ""),
+    email: String(formData.get("email") ?? ""),
+    phone: String(formData.get("phone") ?? ""),
+  };
 
   // 토큰 소진보다 먼저 검증한다 — 입력 오타로 토큰이 날아가면 안 된다.
   // `satisfies`가 스키마의 키를 전부 읽었는지 컴파일 타임에 못 박는다.
@@ -50,14 +65,17 @@ export async function createInitialAdminAction(
   } satisfies Record<keyof BootstrapInput, FormDataEntryValue | null>);
 
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "입력을 확인해 주세요." };
+    return {
+      error: parsed.error.issues[0]?.message ?? "입력을 확인해 주세요.",
+      values,
+    };
   }
 
   try {
     await createInitialAdmin(token, parsed.data);
   } catch {
     // 토큰 불일치인지 이미 설정됐는지 구분해 알리지 않는다.
-    return { error: "관리자 계정을 만들 수 없습니다." };
+    return { error: "관리자 계정을 만들 수 없습니다.", values };
   }
 
   await signInSilently(parsed.data.email, parsed.data.password);
@@ -89,12 +107,26 @@ export async function checkInviteAction(
   }
 }
 
-export type RegisterState = { error: string | null };
+export type RegisterState = {
+  error: string | null;
+  /**
+   * 방금 제출한 이름·생년월일. 액션이 오류를 return하면 React 19가 폼을 통째로
+   * reset()하므로, 비제어 칸은 이 값을 defaultValue로 다시 심어야 살아남는다.
+   * 비밀번호는 담지 않는다 — 지워지는 편이 안전하다.
+   */
+  values: { name: string; birthDate: string };
+};
 
 export async function completeRegistrationAction(
   _prev: RegisterState,
   formData: FormData,
 ): Promise<RegisterState> {
+  // 검증보다 먼저 뽑아 둔다 — 어느 실패 경로로 빠지든 화면이 되살릴 값은 같다.
+  const values = {
+    name: String(formData.get("name") ?? ""),
+    birthDate: String(formData.get("birthDate") ?? ""),
+  };
+
   const parsed = completeRegistrationSchema.safeParse({
     code: formData.get("code"),
     name: formData.get("name"),
@@ -106,7 +138,10 @@ export async function completeRegistrationAction(
   });
 
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "입력을 확인해 주세요." };
+    return {
+      error: parsed.error.issues[0]?.message ?? "입력을 확인해 주세요.",
+      values,
+    };
   }
 
   try {
@@ -118,6 +153,7 @@ export async function completeRegistrationAction(
         error instanceof RegistrationError || error instanceof VerificationError
           ? error.message
           : "가입하지 못했습니다.",
+      values,
     };
   }
 

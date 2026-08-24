@@ -15,6 +15,11 @@ type MaskedInputProps = Omit<ComponentPropsWithoutRef<"input">, "onChange"> & {
 /**
  * 입력할 때마다 서식을 다시 매기는 인풋. onChange 한 곳에서만 처리하므로
  * 타이핑·붙여넣기·자동완성·IME 확정이 전부 같은 경로를 탄다.
+ *
+ * `value`를 주면 제어 입력이 된다 — 폼 자동 리셋(React 19)에도 값이 남아야 하는
+ * 칸에 쓴다. 제어로 써도 커서는 튀지 않는다: 아래에서 el.value를 서식값으로 먼저
+ * 맞춰 두고 부모가 onValueChange로 받은 같은 값을 value로 돌려주므로, React의
+ * updateInput은 "DOM 값과 다를 때만 쓴다"에 걸려 DOM을 건드리지 않는다.
  */
 export function MaskedInput({
   format,
@@ -30,6 +35,8 @@ export function MaskedInput({
 
     const formatted = format(el.value);
 
+    // 이 대입은 제어로 쓸 때도 지우면 안 된다. 빼면 DOM에 서식 전 문자열이 남고
+    // React가 뒤늦게 서식값을 써 넣으면서 커서가 끝으로 밀린다.
     if (formatted !== el.value) {
       el.value = formatted;
       const next = offsetAfterSignificant(formatted, typedBefore);
