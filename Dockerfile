@@ -9,14 +9,16 @@
 FROM node:24-slim@sha256:3638d9a6fe4030bd716be989438248074489337ba3275657f93595428be4fc03 AS base
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
-# deps 단계의 npm ci(postinstall: prisma generate)도, builder 단계의 next build도
-# prisma.config.ts를 통해 DATABASE_URL을 요구한다 — 실제 접속은 하지 않고 값이
-# 존재하기만 하면 되는 자리표시자다. 둘 다에서 쓰이므로 공통 조상인 base에 둔다.
-# 런타임 값은 compose가 주입한다.
-ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build"
+# DATABASE_URL 자리표시자는 base에 두지 않는다. runner도 base를 상속하므로 여기 두면
+# 최종 이미지의 환경변수로 굳고, 실제 값 없이 띄웠을 때 core/db/client.ts의
+# 「DATABASE_URL 환경변수가 없습니다」 가드가 안 걸린 채 build:build로 접속을 시도한다.
+# 값이 실제로 필요한 deps·builder에만 각각 둔다.
 
 # ─── deps: 의존성만 설치 (레이어 캐시용) ──────────────────────
 FROM base AS deps
+# npm ci의 postinstall(prisma generate)이 prisma.config.ts를 통해 DATABASE_URL을
+# 요구한다 — 실제 접속은 하지 않고 값이 존재하기만 하면 되는 자리표시자다.
+ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build"
 # postinstall이 prisma generate를 돌리므로 스키마·설정도 이 시점에 있어야 한다
 # (스키마 없이 npm ci만 하면 "Could not find Prisma Schema"로 실패한다).
 COPY package.json package-lock.json prisma.config.ts ./
@@ -27,6 +29,9 @@ RUN npm ci
 # docker-compose의 migrate 서비스가 이 스테이지를 그대로 재사용한다
 # (Prisma CLI가 여기에만 있고 runner에는 없다).
 FROM base AS builder
+# prisma generate와 next build도 같은 자리표시자를 요구한다. compose의 migrate
+# 서비스가 이 스테이지로 뜰 때는 compose가 진짜 DATABASE_URL로 덮어쓴다.
+ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build"
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npx prisma generate && npm run build

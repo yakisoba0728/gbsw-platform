@@ -81,6 +81,10 @@ services:
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET를 .env에 설정해야 합니다}
       # 기본값(localhost)을 운영에서 빠뜨리면 세션 쿠키에 Secure가 안 붙는다 — 반드시 https:// 값을 넣게 한다.
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:?BETTER_AUTH_URL를 .env에 설정해야 합니다}
+      # 명단 미리보기 토큰(HMAC) 서명 키. 전달 경로가 없으면 코드가 늘
+      # BETTER_AUTH_SECRET으로 떨어져 분리 의도가 조용히 무효가 된다.
+      # 비워 두면 그 fallback을 그대로 쓴다.
+      ROSTER_IMPORT_PREVIEW_SECRET: ${ROSTER_IMPORT_PREVIEW_SECRET:-}
       # 현재 가입은 유효한 초대코드 뒤 즉시 확인 proof를 만들어 발송기를 호출하지
       # 않는다. 아래 값은 실제 SMS 인증을 다시 켤 때 쓸 설정이라 보존한다.
       SMS_KEY: ${SMS_KEY:-}
