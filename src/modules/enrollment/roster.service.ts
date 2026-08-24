@@ -3,6 +3,7 @@ import { recordAudit } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
 import { assertCan } from "@/core/authz/errors";
 import { withTransaction } from "@/core/db/client";
+import { isSerializationConflict } from "@/core/db/transaction-conflict";
 import { generateUniqueCode, toExpiresAt } from "@/modules/invites/invite.service";
 import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
 import { buildExportRows } from "./roster.export";
@@ -14,22 +15,6 @@ export class RosterError extends Error {}
 
 /** 종이로 나눠주는 코드다. 무기한이면 잃어버린 종이가 영원히 유효하다. */
 const INVITE_EXPIRES_DAYS = 90;
-
-function isSerializationConflict(error: unknown): boolean {
-  if (typeof error !== "object" || error === null || !("code" in error)) {
-    return false;
-  }
-  if (error.code === "P2034") return true;
-  if (error.code !== "P2010" || !("meta" in error)) return false;
-
-  const meta = error.meta as {
-    driverAdapterError?: {
-      cause?: { originalCode?: unknown; kind?: unknown };
-    };
-  };
-  const cause = meta.driverAdapterError?.cause;
-  return cause?.originalCode === "40001" || cause?.kind === "TransactionWriteConflict";
-}
 
 type RosterFingerprintStudent = {
   studentProfileId: string;

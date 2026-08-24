@@ -1,4 +1,5 @@
 import { prisma, type DbClient } from "@/core/db/client";
+import { isTransactionFatal } from "@/core/db/transaction-conflict";
 import type { Prisma } from "@/generated/prisma/client";
 import { readRequestContext } from "./request-context";
 
@@ -54,7 +55,9 @@ export async function recordAudit(
 
 /**
  * 기록 시점의 행위자 이름. 계정이 지워져도 남는 스냅샷이다.
- * 조회가 실패해도 던지지 않는다 — 감사 기록 자체가 실패하면 안 된다.
+ * "이름을 못 찾았다"는 삼키고 (알 수 없음)으로 떨어진다 — 감사 기록 자체가
+ * 그것 때문에 실패하면 안 된다. 다만 **트랜잭션이 죽은 오류는 삼키지 않는다**:
+ * 삼켜도 어차피 뒤따르는 create가 죽고, 원래 오류 코드만 사라진다.
  */
 async function lookupActorName(
   actorUserId: string,
@@ -66,7 +69,8 @@ async function lookupActorName(
       select: { name: true },
     });
     return user?.name ?? UNKNOWN_ACTOR_NAME;
-  } catch {
+  } catch (error) {
+    if (isTransactionFatal(error)) throw error;
     return UNKNOWN_ACTOR_NAME;
   }
 }

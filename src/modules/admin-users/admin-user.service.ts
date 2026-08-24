@@ -3,6 +3,7 @@ import { recordAudit } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
 import { assertCan } from "@/core/authz/errors";
 import { withTransaction } from "@/core/db/client";
+import { isSerializationConflict } from "@/core/db/transaction-conflict";
 import { formatDateInput, parseDateInputKst } from "@/lib/datetime";
 import { generateTempPassword } from "@/lib/temp-password";
 import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
@@ -10,22 +11,6 @@ import * as repo from "./admin-user.repo";
 import type { UpdateUserInput } from "./admin-user.schema";
 
 export class AdminUserError extends Error {}
-
-function isSerializationConflict(error: unknown): boolean {
-  if (typeof error !== "object" || error === null || !("code" in error)) {
-    return false;
-  }
-  if (error.code === "P2034") return true;
-  if (error.code !== "P2010" || !("meta" in error)) return false;
-
-  const meta = error.meta as {
-    driverAdapterError?: {
-      cause?: { originalCode?: unknown; kind?: unknown };
-    };
-  };
-  const cause = meta.driverAdapterError?.cause;
-  return cause?.originalCode === "40001" || cause?.kind === "TransactionWriteConflict";
-}
 
 export async function listUsers(actor: SessionUser) {
   await assertCan(actor, "user:manage");

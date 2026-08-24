@@ -263,6 +263,85 @@ describe("recordAudit()", () => {
     });
   });
 
+  it("직렬화 충돌(40001)은 삼키지 않고 전파한다", async () => {
+    // 삼키면 트랜잭션은 어차피 죽고 40001만 사라져, 호출부의
+    // isSerializationConflict가 ROSTER_CHANGED로 옮길 근거를 잃는다.
+    const conflict = Object.assign(new Error("transaction conflict"), {
+      code: "P2010",
+      meta: { driverAdapterError: { cause: { originalCode: "40001" } } },
+    });
+    const txFindUnique = vi.fn().mockRejectedValue(conflict);
+    const txCreate = vi.fn().mockResolvedValue({});
+    const tx = {
+      auditLog: { create: txCreate },
+      user: { findUnique: txFindUnique },
+    } as unknown as DbClient;
+
+    await expect(
+      recordAudit(
+        { actorUserId: "tx-user", action: "user:delete", targetType: "User" },
+        tx,
+      ),
+    ).rejects.toBe(conflict);
+
+    expect(txCreate).not.toHaveBeenCalled();
+  });
+
+  it("어댑터가 종류만 줘도(TransactionWriteConflict) 전파한다", async () => {
+    const conflict = Object.assign(new Error("write conflict"), {
+      code: "P2010",
+      meta: { driverAdapterError: { cause: { kind: "TransactionWriteConflict" } } },
+    });
+    findUnique.mockRejectedValue(conflict);
+
+    await expect(
+      recordAudit({ actorUserId: "u1", action: "user:manage", targetType: "User" }),
+    ).rejects.toBe(conflict);
+
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("이미 중단된 트랜잭션(25P02)도 전파한다", async () => {
+    const aborted = Object.assign(new Error("current transaction is aborted"), {
+      code: "P2010",
+      meta: { driverAdapterError: { cause: { originalCode: "25P02" } } },
+    });
+    findUnique.mockRejectedValue(aborted);
+
+    await expect(
+      recordAudit({ actorUserId: "u1", action: "user:manage", targetType: "User" }),
+    ).rejects.toBe(aborted);
+  });
+
+  it("Prisma가 P2034로 분류한 쓰기 충돌도 전파한다", async () => {
+    const conflict = Object.assign(new Error("write conflict or deadlock"), {
+      code: "P2034",
+    });
+    findUnique.mockRejectedValue(conflict);
+
+    await expect(
+      recordAudit({ actorUserId: "u1", action: "user:manage", targetType: "User" }),
+    ).rejects.toBe(conflict);
+  });
+
+  it("트랜잭션을 죽이지 않는 조회 실패는 여전히 (알 수 없음)으로 떨어진다", async () => {
+    // 연결 끊김 같은 오류는 감사 기록을 막을 이유가 아니다.
+    findUnique.mockRejectedValue(
+      Object.assign(new Error("connection reset"), {
+        code: "P2010",
+        meta: { driverAdapterError: { cause: { originalCode: "08006" } } },
+      }),
+    );
+
+    await expect(
+      recordAudit({ actorUserId: "u1", action: "user:manage", targetType: "User" }),
+    ).resolves.toBeUndefined();
+
+    expect(create.mock.calls[0]![0].data).toMatchObject({
+      actorName: "(알 수 없음)",
+    });
+  });
+
   it("AuditLog.create 실패는 삼키지 않고 호출자에게 전파한다", async () => {
     const failure = new Error("audit insert failed");
     create.mockRejectedValue(failure);
