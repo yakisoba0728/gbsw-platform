@@ -5,8 +5,10 @@
 경북소프트웨어마이스터고등학교 통합관리시스템. 자체 호스팅, 초대 기반 계정, 역할 기반 접근제어.
 
 **현재 상태:** 인증·권한·감사로그·앱 셸에 더해 **학년도·명단·상벌점**까지 있다.
-상벌점이 첫 업무 모듈이며, 새 모듈은 `src/modules/merit/`의 구조를 본보기로 삼는다
-(repo는 하나, 서비스는 책임별로 나눈다).
+상벌점이 첫 업무 모듈이다. 새 모듈의 본보기는 둘로 나뉜다 — **파일 구성과 계층 경계는
+`src/modules/account/`**(schema·repo·service 셋), **권한·오류 코드·서비스 분할까지 갖춘
+업무 모듈의 모습은 `src/modules/merit/`**(repo는 하나, 서비스는 책임별로 나눈다).
+자세한 것은 아래 「폴더 구조」에 적었다.
 
 ## 명령어
 
@@ -15,8 +17,12 @@ npm run db:up        # Postgres 컨테이너 (호스트 5433)
 npm run db:migrate   # prisma migrate dev
 npm run dev          # 사용자가 0명이면 최초 관리자 생성 링크가 콘솔에 찍힌다
 
-npm run verify       # typecheck + lint + test — 작업 종료 전 필수
+npm run verify:unit  # typecheck + lint + 단위 테스트. DB가 필요 없어 개발 중 상시로 돌린다
+npm run verify       # verify:unit + 통합 테스트(DB 필요) + build — 작업 종료 조건
 ```
+
+`verify`는 `verify:unit` → `db:test:setup` → `test:integration` → `build` 순이다.
+통합 테스트는 `TEST_DATABASE_URL`의 별도 DB를 쓰므로 Postgres가 떠 있어야 한다.
 
 ## 아키텍처 규칙 (어기지 말 것)
 
@@ -90,7 +96,12 @@ src/
 tests/                  core/ · modules/ — 구조를 src/와 맞춘다
 ```
 
-`src/modules/account/`가 **모듈 템플릿**이다. 새 모듈은 이 구조를 복사한다.
+**파일 구성은 `src/modules/account/`를 복사한다** — `<모듈>.schema.ts` ·
+`<모듈>.repo.ts` · `<모듈>.service.ts` 셋뿐인 가장 작은 형태라 계층 경계가 그대로 보인다.
+
+**업무 모듈의 완성형은 `src/modules/merit/`다** — 권한 액션·오류 코드(`merit.error.ts`)·
+책임별 서비스 분할까지 갖춘 모습이 필요하면 이쪽을 본다. 둘은 대립하지 않는다:
+account에서 시작해 모듈이 커지면 merit의 모양으로 간다.
 
 ### bootstrap 모듈은 예외다
 
@@ -129,7 +140,8 @@ tests/                  core/ · modules/ — 구조를 src/와 맞춘다
 5. `tests/modules/<모듈>/<모듈>.service.test.ts` — 권한 거부/허용 + 감사로그 검증 (repo·audit은 목)
 6. `app/(app)/<모듈>/` 페이지 + 얇은 서버 액션
 7. `components/app-shell/nav.ts`의 `NAV_ITEMS`에 메뉴 한 줄 추가
-8. `npm run verify` 통과
+8. `npm run verify:unit`으로 빠르게 돌려 보고, **종료 조건은 `npm run verify` 통과**
+   (통합 테스트와 `build`까지 포함한다)
 
 ## 디자인
 

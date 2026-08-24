@@ -29,7 +29,7 @@ cd gbsw-platform
 cp .env.example .env
 ```
 
-`.env`를 열어 아래 넷을 채운다. **`.env`는 절대 커밋하지 않는다** (`.gitignore`에 있다).
+`.env`를 열어 아래 셋을 채운다. **`.env`는 절대 커밋하지 않는다** (`.gitignore`에 있다).
 
 ```bash
 # 비밀번호와 세션 키는 반드시 새로 만든다
@@ -42,14 +42,22 @@ openssl rand -base64 32    # BETTER_AUTH_SECRET 에 넣는다
 | `POSTGRES_PASSWORD` | 위에서 만든 값 | compose가 기동을 거부한다 |
 | `BETTER_AUTH_SECRET` | 위에서 만든 값 | 〃 |
 | `BETTER_AUTH_URL` | `https://실제도메인` | 〃 — **`http://`로 두면 세션 쿠키에 Secure가 안 붙는다** |
-| `DATABASE_URL` | 아래 형식 | 〃 |
+
+**`DATABASE_URL`은 여기서 채우지 않는다.** compose가 `POSTGRES_*` 셋으로 컨테이너용
+접속 문자열을 직접 조립해 `migrate`·`app`에 넣는다 — `.env`의 `DATABASE_URL`은 무시된다.
+
+### 호스트에서 prisma CLI를 쓸 때만 필요하다
+
+`npx prisma studio`처럼 컨테이너 밖에서 DB에 붙는 명령에만 `DATABASE_URL`이 쓰인다.
+그때는 컨테이너가 아니라 **호스트에서 보이는 주소**를 적는다.
 
 ```
-DATABASE_URL=postgresql://gbsw:<POSTGRES_PASSWORD와 같은 값>@db:5432/gbsw
+DATABASE_URL=postgresql://gbsw:<POSTGRES_PASSWORD와 같은 값>@localhost:5433/gbsw
 ```
 
-> 호스트 이름이 `localhost`가 아니라 **`db`** 다. 컨테이너끼리는 서비스 이름으로 찾는다.
-> 로컬 개발용 `.env`를 그대로 가져오면 `localhost:5433`이라 앱이 DB를 못 찾는다.
+> compose 안에서는 호스트 이름이 `localhost`가 아니라 **`db`**, 포트도 5432다
+> (컨테이너끼리는 서비스 이름으로 찾는다). 그 값은 compose가 알아서 만들므로
+> 위 표에 적지 않는다.
 
 ### 문자 발송 (보류)
 

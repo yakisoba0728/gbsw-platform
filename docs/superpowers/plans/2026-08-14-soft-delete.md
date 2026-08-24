@@ -1,5 +1,21 @@
 # 소프트 삭제 구현 계획
 
+> ## ⚠ 이 계획은 더는 유효하지 않다 (2026-08-25 확인)
+>
+> 아래 「결정 사항 (이미 확정됨 — 바꾸지 마라)」의 첫 줄 **「명단에서 줄이 빠지면 →
+> 소프트 삭제. 기록은 남는다」가 실제 구현과 반대다.** 2026-08-19 `877967c`가 명단
+> 반영을 물리 삭제로 되돌렸다 — `roster.repo.applyRoster`는 `user.deleteMany`로 행을
+> 지우고, StudentProfile(User에 Cascade)과 MeritAward(StudentProfile에 Cascade)가
+> 함께 사라진다. **상벌점 기록은 남지 않는다.**
+>
+> `User.deletedAt` 열은 남아 있지만 **값을 채우는 코드가 하나도 없다.** 읽기
+> 경로(로그인 차단·목록 필터)만 살아 있다. 현재 사실은
+> `prisma/schema.prisma`의 `deletedAt` 주석에 적어 두었다.
+>
+> 이 문서는 시점 기록(스냅샷)이라 본문은 고치지 않는다 — `docs/reviews/README.md`의
+> 관례를 따른다. **여기 적힌 태스크를 지금 실행하지 마라.** 소프트 삭제를 다시
+> 하려면 계획부터 새로 쓴다.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 명단 파일에서 줄이 빠져도 학적·상벌점 기록이 사라지지 않게 한다. 진짜 삭제는 사용자 상세에서 한 명씩만.

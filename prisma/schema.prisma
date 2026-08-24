@@ -39,13 +39,21 @@ model User {
   /// 관리자가 비밀번호를 초기화하면 true. (app) 레이아웃에서 가로채 /change-password로 보낸다.
   mustChangePassword Boolean? @default(false)
 
-  /// 명단에서 빠진 계정. null이면 살아 있다.
-  /// 소프트 삭제 — 계정·프로필·상벌점·감사로그·지난 학년도 배정은 그대로 두고
-  /// 목록·로그인에서만 제외한다. 단, 명단 반영으로 빠진 경우 **그 학년도 배정은
-  /// 함께 사라진다** — 명단에서 줄을 지웠다는 건 그 학년도에 있으면 안 될
-  /// 사람이라는 뜻이다. 자퇴·전출은 줄을 지우는 게 아니라 학적 칸으로 기록한다.
-  /// 진짜 삭제(오등록 정리)는 사용자 상세에서 한 명씩 하며 그때는 행이 사라진다.
-  /// status(활성/비활성)와 직교한다 — 비활성 해제와 삭제 복구는 다른 일이다.
+  /// **소프트 삭제 표시가 아니다. 지금 이 값을 채우는 코드는 하나도 없다.**
+  /// 소프트 삭제를 계획했다가(docs/superpowers/plans/2026-08-14-soft-delete.md)
+  /// 물리 삭제로 되돌린 잔재다. 실제 동작은 이렇다 —
+  /// 명단 반영에서 줄이 빠진 학생은 `roster.repo.applyRoster`가 `user.deleteMany`로
+  /// 행 자체를 지운다. StudentProfile은 User에 Cascade, MeritAward는 StudentProfile에
+  /// Cascade라 **상벌점까지 함께 사라진다.** 사용자 상세의 단건 삭제
+  /// (`admin-user.repo.deletePermanently`)도 같다.
+  /// 반대로 명단에 줄이 있으면 `applyRoster`가 이 값을 null로 되돌린다 —
+  /// 남아 있던 옛 표시를 지우는 것이지 새로 찍는 게 아니다.
+  ///
+  /// 열과 인덱스는 남긴다. 지우려면 마이그레이션이 필요한데, **읽기 경로가 아직
+  /// 살아 있어** 지우면 그쪽이 함께 깨진다 — 로그인 차단
+  /// (`core/auth/login-eligibility.ts`, `core/auth/auth.ts`), 계정 목록·명단·초대·
+  /// 상벌점 조회의 `deletedAt: null` 필터가 전부 이 열을 본다. 즉 값을 채우는 날
+  /// 소프트 삭제는 그대로 동작한다.
   deletedAt DateTime?
 
   // ── Better Auth admin 플러그인
@@ -73,6 +81,8 @@ model User {
   meritThresholdsSet MeritThreshold[] @relation("MeritThresholdUpdatedBy")
 
   // 거의 모든 목록 조회가 이 조건(deletedAt: null)으로 거른다.
+  // 지금은 전 행이 null이라 인덱스가 좁혀 주는 게 없지만, 위 주석대로 읽기
+  // 경로가 살아 있어 열과 함께 남긴다.
   @@index([deletedAt])
   @@map("user")
 }
