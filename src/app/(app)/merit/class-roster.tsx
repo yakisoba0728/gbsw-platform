@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -19,6 +19,7 @@ import {
   AwardSuccessDialog,
   type AwardSuccess,
 } from "@/components/merit/award-success-dialog";
+import { AwardConfirmDialog } from "@/components/merit/award-confirm-dialog";
 import { DemeritCell } from "@/components/merit/demerit-level";
 import { EMPTY_MERIT_STATE } from "./action-state";
 import { bulkAwardAction } from "./actions";
@@ -76,6 +77,16 @@ export function ClassRoster({
   // 고른 항목은 hidden input이 싣고 가지만, 제출 버튼을 잠그려면 화면도 알아야 한다.
   const [rule, setRule] = useState<RuleOption | null>(null);
 
+  // 부여 직전 확인. 메모는 확인창에 다시 세울 때만 필요해서 상태로 들지 않고
+  // 열리는 순간 칸에서 읽는다 — 제어 입력으로 바꾸면 액션이 끝난 뒤의 자동 reset이
+  // defaultValue를 따라가면서 화면과 상태가 어긋난다.
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmNote, setConfirmNote] = useState("");
+  // 확인창이 열려 있는 동안 온 오류만 담는다. `state.error`를 그대로 보여주면
+  // 닫았다 다시 열었을 때 아직 누르지도 않은 부여가 실패한 것처럼 보인다.
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+  const noteRef = useRef<HTMLInputElement>(null);
+
   // 성공 알림에 쓸 값. 제출한 순간을 찍어 둔다 — 성공하면 선택과 항목이 비워져
   // 그때 가서 읽으면 이미 없다.
   const [submitted, setSubmitted] = useState<AwardSuccess | null>(null);
@@ -102,7 +113,13 @@ export function ClassRoster({
     setCheckboxKey((n) => n + 1);
     if (state.ok) {
       setSelected(new Set());
+      setConfirmOpen(false);
+      setConfirmError(null);
       if (submitted) setSuccess({ ...submitted, count: state.count });
+    } else {
+      // 실패하면 확인창을 열어 둔다 — 오류가 그 안에 있고, 닫아도 고른 학생이
+      // 그대로 남아 고쳐서 다시 누를 수 있다.
+      setConfirmError(state.error);
     }
   }
 
@@ -323,6 +340,7 @@ export function ClassRoster({
                 {/* 실패 상태가 실어 온 제출값을 defaultValue로 내려보낸다 —
                     자동 reset이 메모를 지우는 대신 그 값으로 되돌린다. */}
                 <Input
+                  ref={noteRef}
                   name="note"
                   placeholder="메모 (선택)"
                   aria-label="메모"
@@ -330,27 +348,38 @@ export function ClassRoster({
                 />
               </div>
 
+              {/* 제출하지 않는다 — 확인창을 연다. 이름은 확인창의 버튼과 같다. */}
               <Button
-                type="submit"
+                type="button"
                 className="w-full @md:w-auto"
                 disabled={pending || selected.size === 0 || !rule}
                 onClick={() => {
-                  if (rule) {
-                    setSubmitted({ ...rule, count: selected.size });
-                  }
+                  setConfirmNote(noteRef.current?.value.trim() ?? "");
+                  setConfirmError(null);
+                  setConfirmOpen(true);
                 }}
               >
-                {pending ? "부여하는 중…" : "일괄 부여"}
+                부여
               </Button>
             </div>
           </div>
         )}
 
-        {state.error && (
-          <Note tone="error" className="mx-5 mb-4">
-            {state.error}
-          </Note>
+        {/* 폼 안에 둔다 — 확인 버튼이 이 폼을 제출한다. */}
+        {rule && (
+          <AwardConfirmDialog
+            open={confirmOpen}
+            onClose={() => setConfirmOpen(false)}
+            rule={rule}
+            note={confirmNote}
+            students={rows.filter((row) => selected.has(row.studentProfileId))}
+            showClass={showClass}
+            pending={pending}
+            error={confirmError}
+            onConfirm={() => setSubmitted({ ...rule, count: selected.size })}
+          />
         )}
+
         <AwardSuccessDialog
           result={success}
           onClose={() => setSuccess(null)}
