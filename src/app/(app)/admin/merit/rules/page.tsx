@@ -187,8 +187,14 @@ async function RulesResult({
   const all = await promise;
   const rules = visibleRules(all, q, kind);
 
+  // 걸러서 아무것도 안 남았을 때. RuleTable은 "등록된 규정이 없습니다"를 내는데,
+  // 규정은 있고 조건에 안 맞을 뿐이라 말이 다르다. 카드 제목은 둘 다 남긴다.
   if (filtering && rules.length === 0) {
-    return <EmptyState>조건에 맞는 규정이 없습니다.</EmptyState>;
+    return (
+      <SectionCard flush title="규정 목록" aside={<span className="text-xs text-mut">0개</span>}>
+        <EmptyState variant="inside">조건에 맞는 규정이 없습니다.</EmptyState>
+      </SectionCard>
+    );
   }
 
   return (

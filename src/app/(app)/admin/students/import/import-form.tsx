@@ -554,8 +554,11 @@ function InvitesResult({
         </p>
       </div>
 
+      {/* 같은 내용을 내는 다른 초대 표 둘(초대 관리·학부모 초대)은 폰에서 카드로
+          접힌다. 여기만 옆으로 스크롤되고 있었다. */}
       <DataTable
         minWidth={520}
+        narrow="cards"
         rows={invites}
         rowKey={(invite) => invite.code}
         columns={INVITE_COLUMNS}
@@ -577,16 +580,19 @@ const INVITE_COLUMNS: readonly Column<IssuedInvite>[] = [
   {
     key: "name",
     header: "이름",
+    card: "title",
     cell: (invite) => <span className="font-medium text-ink">{invite.name}</span>,
   },
   {
     key: "seat",
     header: "소속",
+    card: "meta",
     cell: (invite) => <span className="text-mut">{seatLabel(invite)}</span>,
   },
   {
     key: "code",
     header: "초대코드",
+    card: "trailing",
     cell: (invite) => (
       <span className="font-mono text-caption text-ink">
         {formatInviteCode(invite.code)}

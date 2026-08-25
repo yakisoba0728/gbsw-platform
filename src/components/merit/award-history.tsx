@@ -33,9 +33,6 @@ export function AwardHistory({
   initialState?: CancelProps["initialState"];
 }) {
   const canCancel = cancelAction !== undefined && initialState !== undefined;
-  if (awards.length === 0) {
-    return <EmptyState>내역이 없습니다.</EmptyState>;
-  }
 
   const columns: Column<AwardRow>[] = [
     {
@@ -151,13 +148,18 @@ export function AwardHistory({
 
   return (
     <SectionCard title="부여 내역" headingLevel={3} flush>
-      <DataTable
-        minWidth={canCancel ? 604 : 560}
-        narrow="cards"
-        rows={awards}
-        rowKey={(award) => award.id}
-        columns={columns}
-      />
+      {/* 비어도 카드 제목을 남긴다 — 제목까지 사라지면 무엇이 없는 것인지 모른다. */}
+      {awards.length === 0 ? (
+        <EmptyState variant="inside">내역이 없습니다.</EmptyState>
+      ) : (
+        <DataTable
+          minWidth={canCancel ? 604 : 560}
+          narrow="cards"
+          rows={awards}
+          rowKey={(award) => award.id}
+          columns={columns}
+        />
+      )}
     </SectionCard>
   );
 }

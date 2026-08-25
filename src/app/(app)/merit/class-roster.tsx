@@ -163,7 +163,13 @@ export function ClassRoster({
         : `${grade}학년 ${classNo}반`;
 
   if (rows.length === 0) {
-    return <EmptyState>{scopeLabel}에 학생이 없습니다.</EmptyState>;
+    // 비어도 카드 제목을 남긴다 — 제목까지 사라지면 어느 범위가 비었는지 모른다.
+    // 부여 폼은 내지 않는다: 고를 학생이 없다.
+    return (
+      <SectionCard flush title={scopeLabel} hint="0명">
+        <EmptyState variant="inside">{scopeLabel}에 학생이 없습니다.</EmptyState>
+      </SectionCard>
+    );
   }
 
   const columns: Column<RosterRow>[] = [

@@ -192,10 +192,6 @@ function StudentRankCard({
     },
   ];
 
-  if (stats.students.length === 0) {
-    return <EmptyState>재학 중인 학생이 없습니다.</EmptyState>;
-  }
-
   return (
     <SectionCard
       flush
@@ -204,13 +200,18 @@ function StudentRankCard({
       hint="순점수 높은 순 · 동점은 같은 등수"
       aside={<span className="text-xs text-mut">{stats.students.length}명</span>}
     >
-      <DataTable
-        minWidth={660}
-        narrow="cards"
-        rows={stats.students}
-        rowKey={(row) => row.studentProfileId}
-        columns={columns}
-      />
+      {/* 비어도 카드 제목을 남긴다 — 제목까지 사라지면 무엇이 없는 것인지 모른다. */}
+      {stats.students.length === 0 ? (
+        <EmptyState variant="inside">재학 중인 학생이 없습니다.</EmptyState>
+      ) : (
+        <DataTable
+          minWidth={660}
+          narrow="cards"
+          rows={stats.students}
+          rowKey={(row) => row.studentProfileId}
+          columns={columns}
+        />
+      )}
     </SectionCard>
   );
 }
@@ -283,10 +284,6 @@ function ClassRankCard({
     },
   ];
 
-  if (stats.classes.length === 0) {
-    return <EmptyState>배정된 반이 없습니다.</EmptyState>;
-  }
-
   return (
     <SectionCard
       flush
@@ -295,13 +292,18 @@ function ClassRankCard({
       hint="1인 평균 순점수 순 · 반을 누르면 그 반 전원이 나옵니다"
       aside={<span className="text-xs text-mut">{stats.classes.length}개 반</span>}
     >
-      <DataTable
-        minWidth={620}
-        narrow="cards"
-        rows={stats.classes}
-        rowKey={(row) => `${row.grade}-${row.classNo}`}
-        columns={columns}
-      />
+      {/* 비어도 카드 제목을 남긴다 — 제목까지 사라지면 무엇이 없는 것인지 모른다. */}
+      {stats.classes.length === 0 ? (
+        <EmptyState variant="inside">배정된 반이 없습니다.</EmptyState>
+      ) : (
+        <DataTable
+          minWidth={620}
+          narrow="cards"
+          rows={stats.classes}
+          rowKey={(row) => `${row.grade}-${row.classNo}`}
+          columns={columns}
+        />
+      )}
     </SectionCard>
   );
 }
@@ -365,14 +367,6 @@ function ClassRosterCard({
     },
   ];
 
-  if (stats.students.length === 0) {
-    return (
-      <EmptyState>
-        {stats.scope?.grade}학년 {stats.scope?.classNo}반에 배정된 학생이 없습니다.
-      </EmptyState>
-    );
-  }
-
   return (
     <SectionCard
       flush
@@ -381,13 +375,20 @@ function ClassRosterCard({
       hint="번호순 · 전원"
       aside={<span className="text-xs text-mut">{stats.students.length}명</span>}
     >
-      <DataTable
-        minWidth={600}
-        narrow="cards"
-        rows={stats.students}
-        rowKey={(row) => row.studentProfileId}
-        columns={columns}
-      />
+      {/* 비어도 카드 제목을 남긴다 — 제목까지 사라지면 무엇이 없는 것인지 모른다. */}
+      {stats.students.length === 0 ? (
+        <EmptyState variant="inside">
+          {stats.scope?.grade}학년 {stats.scope?.classNo}반에 배정된 학생이 없습니다.
+        </EmptyState>
+      ) : (
+        <DataTable
+          minWidth={600}
+          narrow="cards"
+          rows={stats.students}
+          rowKey={(row) => row.studentProfileId}
+          columns={columns}
+        />
+      )}
     </SectionCard>
   );
 }

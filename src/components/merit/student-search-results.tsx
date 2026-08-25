@@ -32,10 +32,6 @@ export function StudentSearchResults({
   hrefFor: (row: StudentSearchRow) => string;
   headingLevel?: 2 | 3;
 }) {
-  if (rows.length === 0) {
-    return <EmptyState>검색 결과가 없습니다.</EmptyState>;
-  }
-
   const columns: Column<StudentSearchRow>[] = [
     {
       key: "name",
@@ -88,13 +84,18 @@ export function StudentSearchResults({
       headingLevel={headingLevel}
       aside={<span className="text-xs text-mut">{rows.length}명</span>}
     >
-      <DataTable
-        minWidth={460}
-        narrow="cards"
-        rows={rows}
-        rowKey={(row) => row.studentProfileId}
-        columns={columns}
-      />
+      {/* 비어도 카드 제목을 남긴다 — 제목까지 사라지면 무엇이 없는 것인지 모른다. */}
+      {rows.length === 0 ? (
+        <EmptyState variant="inside">검색 결과가 없습니다.</EmptyState>
+      ) : (
+        <DataTable
+          minWidth={460}
+          narrow="cards"
+          rows={rows}
+          rowKey={(row) => row.studentProfileId}
+          columns={columns}
+        />
+      )}
     </SectionCard>
   );
 }

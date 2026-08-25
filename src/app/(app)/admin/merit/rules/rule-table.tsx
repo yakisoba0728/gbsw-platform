@@ -54,7 +54,12 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
   }
 
   if (rules.length === 0) {
-    return <EmptyState>등록된 규정이 없습니다.</EmptyState>;
+    // 비어도 카드 제목을 남긴다 — 제목까지 사라지면 무엇이 없는 것인지 모른다.
+    return (
+      <SectionCard flush title="규정 목록" aside={<span className="text-xs text-mut">0개</span>}>
+        <EmptyState variant="inside">등록된 규정이 없습니다.</EmptyState>
+      </SectionCard>
+    );
   }
 
   return (

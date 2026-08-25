@@ -274,10 +274,6 @@ function WatchList({
 }
 
 function ClassTable({ rows }: { rows: MeritStats["classes"] }) {
-  if (rows.length === 0) {
-    return <EmptyState>배정된 반이 없습니다.</EmptyState>;
-  }
-
   const columns: Column<MeritStats["classes"][number]>[] = [
     {
       key: "class",
@@ -349,22 +345,23 @@ function ClassTable({ rows }: { rows: MeritStats["classes"] }) {
       headingLevel={3}
       title="반별 현황"
     >
-      <DataTable
-        minWidth={520}
-        narrow="cards"
-        rows={rows}
-        rowKey={(row) => `${row.grade}-${row.classNo}`}
-        columns={columns}
-      />
+      {/* 비어도 카드 제목을 남긴다 — 제목까지 사라지면 무엇이 없는 것인지 모른다. */}
+      {rows.length === 0 ? (
+        <EmptyState variant="inside">배정된 반이 없습니다.</EmptyState>
+      ) : (
+        <DataTable
+          minWidth={520}
+          narrow="cards"
+          rows={rows}
+          rowKey={(row) => `${row.grade}-${row.classNo}`}
+          columns={columns}
+        />
+      )}
     </SectionCard>
   );
 }
 
 function TopRules({ rows }: { rows: MeritStats["topRules"] }) {
-  if (rows.length === 0) {
-    return <EmptyState>부여된 상벌점이 없습니다.</EmptyState>;
-  }
-
   const columns: Column<MeritStats["topRules"][number]>[] = [
     {
       key: "kind",
@@ -401,14 +398,23 @@ function TopRules({ rows }: { rows: MeritStats["topRules"] }) {
   ];
 
   return (
-    <SectionCard flush headingLevel={3} title="많이 나온 항목" hint={`상위 ${rows.length}개`}>
-      <DataTable
-        minWidth={480}
-        narrow="cards"
-        rows={rows}
-        rowKey={(row) => `${row.kind}-${row.label}`}
-        columns={columns}
-      />
+    <SectionCard
+      flush
+      headingLevel={3}
+      title="많이 나온 항목"
+      hint={rows.length === 0 ? undefined : `상위 ${rows.length}개`}
+    >
+      {rows.length === 0 ? (
+        <EmptyState variant="inside">부여된 상벌점이 없습니다.</EmptyState>
+      ) : (
+        <DataTable
+          minWidth={480}
+          narrow="cards"
+          rows={rows}
+          rowKey={(row) => `${row.kind}-${row.label}`}
+          columns={columns}
+        />
+      )}
     </SectionCard>
   );
 }
