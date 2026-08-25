@@ -44,3 +44,7 @@ next-env.d.ts
 /src/generated/prisma
 .superpowers/
 .playwright-mcp/
+
+# 로컬 개발용 — 테스트 계정 비밀번호와 창 띄우는 스크립트가 들어 있다.
+# 학교 시스템 저장소에 평문 비밀번호를 남기지 않는다(테스트용이라도).
+/dev-local/
