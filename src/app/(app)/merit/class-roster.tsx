@@ -117,8 +117,13 @@ export function ClassRoster({
       setConfirmError(null);
       if (submitted) setSuccess({ ...submitted, count: state.count });
     } else {
-      // 실패하면 확인창을 열어 둔다 — 오류가 그 안에 있고, 닫아도 고른 학생이
-      // 그대로 남아 고쳐서 다시 누를 수 있다.
+      // 실패하면 확인창을 열어 둔다 — 오류가 그 안에 있고, 고른 학생이 그대로
+      // 남아 고쳐서 다시 누를 수 있다. 이미 열려 있으면 아무 일도 없다.
+      //
+      // **다시 여는 것이 핵심이다.** 부여는 명단 반영과 잠금을 다투면 몇 초씩
+      // 걸리고, 그 사이 Esc나 「닫기」로 창을 닫을 수 있다. 그때 오류가 오면
+      // 실패가 앉을 자리가 어디에도 없어 조용히 사라진다.
+      setConfirmOpen(true);
       setConfirmError(state.error);
     }
   }
