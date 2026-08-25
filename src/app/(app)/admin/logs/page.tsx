@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requirePermission } from "@/core/auth/session";
 import { formatDateTime } from "@/lib/datetime";
-import { isRole, ROLE_LABELS } from "@/core/authz/roles";
+import { honorificName, isRole, ROLE_LABELS } from "@/core/authz/roles";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionCard } from "@/components/ui/section-card";
@@ -42,10 +42,15 @@ const COLUMNS: readonly Column<LogEntry>[] = [
     key: "actor",
     header: "행위자",
     card: "title",
-    width: "w-[132px]",
+    width: "w-[164px]",
     cell: (entry) => (
       <>
-        <span className="block truncate text-ink">{entry.actorName}</span>
+        <span className="block truncate text-ink">
+          {honorificName(
+            entry.actorName,
+            isRole(entry.actor?.role) ? entry.actor.role : null,
+          )}
+        </span>
         <span className="block truncate text-xs text-mut">
           {entry.actor
             ? isRole(entry.actor.role)

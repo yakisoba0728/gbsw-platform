@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { requireAuth, type SessionUser } from "@/core/auth/session";
 import { can } from "@/core/authz/can";
-import { ROLE_LABELS } from "@/core/authz/roles";
+import { honorificName, ROLE_LABELS } from "@/core/authz/roles";
 import {
   MERIT_TRACK_LABELS,
   MERIT_TRACK_TITLES,
@@ -41,7 +41,7 @@ export default async function DashboardPage() {
           {user.role ? ROLE_LABELS[user.role] : "역할 없음"}
         </p>
         <h2 className="mt-1 text-title font-semibold text-ink">
-          {user.name}님, {greetingFor(new Date())}
+          {honorificName(user.name, user.role)}, {greetingFor(new Date())}
         </h2>
       </section>
 

@@ -4,6 +4,7 @@ import { SectionCard } from "@/components/ui/section-card";
 import { formatDateTime } from "@/lib/datetime";
 import { listThresholdSettings } from "@/modules/merit/threshold.service";
 import { ThresholdForm } from "./threshold-form";
+import { honorificName } from "@/core/authz/roles";
 
 export const metadata: Metadata = { title: "설정" };
 
@@ -41,7 +42,7 @@ export default async function SettingsPage() {
             // 값과 어긋나 하이드레이션이 깨진다.
             updatedLabel={
               row.updatedAt
-                ? `${row.updatedByName ?? "(알 수 없음)"} · ${formatDateTime(row.updatedAt)}`
+                ? `${row.updatedByName ? honorificName(row.updatedByName, "ADMIN") : "(알 수 없음)"} · ${formatDateTime(row.updatedAt)}`
                 : null
             }
           />

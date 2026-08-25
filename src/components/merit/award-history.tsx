@@ -7,6 +7,7 @@ import { CancelButton } from "@/components/merit/cancel-button";
 import { KindBadge, kindColorClass, signedPoints } from "@/components/merit/kind-badge";
 import { formatDate, isSameKstDate } from "@/lib/datetime";
 import type { StudentMeritView } from "@/modules/merit/award.service";
+import { honorificName } from "@/core/authz/roles";
 
 type AwardRow = StudentMeritView["awards"][number];
 
@@ -76,11 +77,13 @@ export function AwardHistory({
               {award.label}
             </span>
             {award.note && <span className="block text-xs text-mut">{award.note}</span>}
-            {/* "관리자면 누구나 취소할 수 있다"의 근거가 이 흔적이다 — 화면에 낸다. */}
+            {/* "교사면 누구나 취소할 수 있다"의 근거가 이 흔적이다 — 화면에 낸다. */}
             {cancelled && (
               <span className="block text-xs text-rose">
                 취소
-                {award.cancelledByName ? ` · ${award.cancelledByName}` : ""}
+                {award.cancelledByName
+                  ? ` · ${honorificName(award.cancelledByName, "ADMIN")}`
+                  : ""}
                 {award.cancelledAt ? ` · ${formatDate(award.cancelledAt)}` : ""}
                 {award.cancelReason ? ` · ${award.cancelReason}` : ""}
               </span>
@@ -107,9 +110,12 @@ export function AwardHistory({
     {
       key: "awardedBy",
       header: "부여",
-      width: "w-[88px]",
+      width: "w-[120px]",
       card: "meta",
-      cell: (award) => <span className="text-mut">{award.awardedByName}</span>,
+      // 부여·취소는 교사 전용이라(can.ts) 이름 스냅샷에 역할이 없어도 호칭이 정해진다.
+      cell: (award) => (
+        <span className="text-mut">{honorificName(award.awardedByName, "ADMIN")}</span>
+      ),
     },
     {
       // 카드에서는 빠진다 — 취소선과 항목 아래 취소 줄이 같은 사실을 이미 적는다.

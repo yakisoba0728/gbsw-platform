@@ -98,6 +98,9 @@ export async function findRelatedAudit(userId: string, take: number) {
     // 필요한 것은 시간순이 아니라 유일성이다.
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take,
+    // 행위자 호칭(선생님·학부모님·님)을 붙이려면 역할이 필요하다. 계정이 지워졌으면
+    // null이 오고 그때는 「님」으로 떨어진다 — 이름 스냅샷은 그대로 남는다.
+    include: { actor: { select: { role: true } } },
   });
 }
 

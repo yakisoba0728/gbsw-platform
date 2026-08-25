@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { SectionCard } from "@/components/ui/section-card";
 import { requirePermission } from "@/core/auth/session";
-import { isRole, ROLE_LABELS } from "@/core/authz/roles";
+import { honorificName, isRole, ROLE_LABELS } from "@/core/authz/roles";
 import { formatDate, formatDateInput, formatDateTime } from "@/lib/datetime";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import {
@@ -179,7 +179,10 @@ export default async function UserDetailPage({
                     <p className="mt-0.5 text-xs text-mut">
                       {entry.actorUserId === user.id
                         ? "본인이 실행"
-                        : `${entry.actorName} 실행`}
+                        : `${honorificName(
+                            entry.actorName,
+                            isRole(entry.actor?.role) ? entry.actor.role : null,
+                          )} 실행`}
                       {formatAuditMetadata(entry.action, entry.metadata) && (
                         <span className="block">
                           {formatAuditMetadata(entry.action, entry.metadata)}

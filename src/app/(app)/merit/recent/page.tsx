@@ -26,6 +26,7 @@ import {
 import { EMPTY_MERIT_STATE } from "../action-state";
 import { cancelAction } from "../actions";
 import { ExportRecentAwardsButton } from "../export-button";
+import { honorificName } from "@/core/authz/roles";
 
 export const metadata: Metadata = { title: "최근 부여" };
 
@@ -136,9 +137,14 @@ export default async function RecentAwardsPage({
     {
       key: "awardedBy",
       header: "부여자",
-      width: "w-[92px]",
+      width: "w-[124px]",
       card: "meta",
-      cell: (row) => <span className="text-xs text-mut">{row.awardedByName}</span>,
+      // 부여·취소는 교사 전용이라(can.ts) 이름 스냅샷에 역할이 없어도 호칭이 정해진다.
+      cell: (row) => (
+        <span className="text-xs text-mut">
+          {honorificName(row.awardedByName, "ADMIN")}
+        </span>
+      ),
     },
     {
       key: "status",

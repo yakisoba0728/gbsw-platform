@@ -6,7 +6,7 @@ import { useState } from "react";
 import { LogoutIcon } from "@/components/icons";
 import { authClient } from "@/core/auth/auth-client";
 import type { Role } from "@/core/authz/roles";
-import { ROLE_LABELS } from "@/core/authz/roles";
+import { honorificName, ROLE_LABELS } from "@/core/authz/roles";
 import { MobileNav } from "./mobile-nav";
 import { titleForPath } from "./nav";
 
@@ -38,7 +38,9 @@ export function Topbar({ name, role }: { name: string; role: Role | null }) {
 
       <div className="flex items-center gap-3">
         <span className="hidden text-right sm:block">
-          <span className="block text-caption font-medium text-ink">{name}</span>
+          <span className="block text-caption font-medium text-ink">
+            {honorificName(name, role)}
+          </span>
           {role && <span className="block text-xs text-mut">{ROLE_LABELS[role]}</span>}
         </span>
 

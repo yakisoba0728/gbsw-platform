@@ -18,6 +18,7 @@ import { formatDate, formatDateTime, isSameKstDate } from "@/lib/datetime";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import { getStudentHeader, getStudentMerit } from "@/modules/merit/award.service";
 import { PrintButton } from "./print-button";
+import { honorificName } from "@/core/authz/roles";
 
 export const metadata: Metadata = { title: "상벌점 확인서" };
 
@@ -160,7 +161,7 @@ export default async function MeritPrintPage({
                     {signedPoints(award.kind, award.points)}
                   </td>
                   <td className="py-2 text-right whitespace-nowrap text-mut">
-                    {award.awardedByName}
+                    {honorificName(award.awardedByName, "ADMIN")}
                   </td>
                 </tr>
               ))}
