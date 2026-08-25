@@ -127,19 +127,34 @@ export function AdminMeritView({
         </Suspense>
       )}
 
-      {/* 학년·반은 상수에서 나온다 — 조회가 아니라 지금 고른 것이라 경계 밖에 선다. */}
-      <ClassPicker params={params} track={track} />
+      {/*
+        두 단 — 왼쪽 명단(2) · 오른쪽 부여(1). 격자를 여기서 소유하는 이유는
+        「반 고르기」가 왼쪽 단 안에 서야 하는데, 그것은 조회 결과가 아니라 지금
+        고른 조건이라 Suspense 경계 **밖에** 있어야 하기 때문이다. 안으로 넣으면
+        학년을 누를 때마다 방금 누른 칩이 뼈대로 덮인다.
 
-      <Suspense
-        key={rosterKey}
-        fallback={
-          <SkeletonScreen className="space-y-4">
-            <SkeletonTable rows={8} />
-          </SkeletonScreen>
-        }
-      >
-        <ClassRosterSection promise={rosterPromise} query={rosterScope} />
-      </Suspense>
+        명단·부여 두 칸은 `ClassRoster`가 낸다. 그 폼이 `display: contents`라
+        두 칸이 이 격자의 자식으로 곧장 들어온다 — 고른 학생 상태를 둘이 나눠
+        쓰므로 한 컴포넌트가 소유해야 하고, 그러면서도 격자 칸은 따로 서야 한다.
+      */}
+      <div className="@container">
+        <div className="grid gap-4 @4xl:grid-cols-[2fr_1fr] @4xl:items-start">
+          <div className="order-2 @4xl:order-1 @4xl:col-start-1 @4xl:row-start-1">
+            <ClassPicker params={params} track={track} />
+          </div>
+
+          <Suspense
+            key={rosterKey}
+            fallback={
+              <SkeletonScreen className="order-3 @4xl:col-start-1 @4xl:row-start-2">
+                <SkeletonTable rows={8} />
+              </SkeletonScreen>
+            }
+          >
+            <ClassRosterSection promise={rosterPromise} query={rosterScope} />
+          </Suspense>
+        </div>
+      </div>
     </div>
   );
 }
