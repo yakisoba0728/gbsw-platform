@@ -61,6 +61,7 @@ export default async function RulesPage({
       <SectionCard variant="panel" title="규정 찾기">
         {/* 지금 보는 트랙·종류를 함께 실어야 검색과 동시에 필터가 풀리지 않는다. */}
         <SearchForm
+          action="/admin/merit/rules"
           defaultValue={q}
           placeholder="항목명 또는 분류로 검색"
           ariaLabel="규정 항목명 또는 분류 검색"

@@ -1,11 +1,19 @@
+import Form from "next/form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 /**
  * GET으로 보내는 검색 폼. 검색 결과가 주소에 남아 새로고침·뒤로가기·링크 공유가
  * 그대로 동작한다. 상태가 URL에만 있어 클라이언트 코드가 필요 없다.
+ *
+ * `next/form`을 쓴다. 맨 `<form method="get">`은 브라우저가 문서를 통째로 다시
+ * 받아 화면이 하얗게 깜빡이고, 그 사이 Next의 `loading.tsx`(스켈레톤)는 아예 뜨지
+ * 않는다 — 클라이언트 라우팅을 거치지 않기 때문이다. 이쪽은 폼이 보이는 순간
+ * 대상 경로의 로딩 UI를 미리 받아 두고 제출 때 클라이언트 이동을 한다.
+ * JS가 없으면 평범한 GET 폼으로 그대로 동작한다.
  */
 export function SearchForm({
+  action,
   name = "q",
   defaultValue,
   placeholder,
@@ -15,6 +23,8 @@ export function SearchForm({
   submitLabel = "검색",
   className = "flex gap-2",
 }: {
+  /** 검색 결과를 그릴 경로. `next/form`은 문자열 action일 때만 클라이언트 이동을 한다. */
+  action: string;
   name?: string;
   defaultValue?: string;
   placeholder?: string;
@@ -30,7 +40,7 @@ export function SearchForm({
   className?: string;
 }) {
   return (
-    <form method="get" className={className}>
+    <Form action={action} className={className}>
       {Object.entries(hidden ?? {}).map(([key, value]) =>
         value == null ? null : (
           <input key={key} type="hidden" name={key} value={value} />
@@ -49,6 +59,6 @@ export function SearchForm({
       <Button type="submit" variant="secondary" className="shrink-0">
         {submitLabel}
       </Button>
-    </form>
+    </Form>
   );
 }

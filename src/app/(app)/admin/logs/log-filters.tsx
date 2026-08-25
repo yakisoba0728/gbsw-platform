@@ -82,6 +82,7 @@ export function LogFilters({
       {/* 검색은 GET으로 보낸다 — 지금 고른 기간·동작은 hidden으로 함께 실어야
           검색과 동시에 필터가 풀리지 않는다. */}
       <SearchForm
+        action="/admin/logs"
         name="actor"
         defaultValue={actor}
         placeholder="행위자 이름 · 이메일"

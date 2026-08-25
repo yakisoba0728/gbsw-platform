@@ -121,6 +121,7 @@ export async function AdminMeritView({
 
       {/* 트랙만 함께 싣는다 — 검색은 전교 대상이라 골라 둔 학년·반을 들고 가면 안 맞는다. */}
       <SearchForm
+        action="/merit"
         defaultValue={q}
         placeholder="학번 · 이름 · 학생코드로 검색"
         ariaLabel="학번 · 이름 · 학생코드로 학생 검색"

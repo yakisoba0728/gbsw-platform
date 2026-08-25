@@ -278,6 +278,7 @@ function RecentAwardControls({
       </FilterRow>
 
       <SearchForm
+        action={PATH}
         defaultValue={query.q}
         placeholder="학생 · 항목 · 메모 · 부여자"
         ariaLabel="학생, 항목, 메모 또는 부여자 검색"
