@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { honorificName, isRole, ROLE_LABELS, ROLES } from "@/core/authz/roles";
+import {
+  honorificName,
+  honorificSuffix,
+  isRole,
+  ROLE_LABELS,
+  ROLES,
+} from "@/core/authz/roles";
 
 describe("ROLE_LABELS", () => {
   // 코드 상수는 ADMIN이지만 학교에서 그 자리는 교사다. 「관리자」로 되돌아가면
@@ -40,6 +46,31 @@ describe("honorificName()", () => {
   it("모든 역할이 이름을 그대로 품는다", () => {
     for (const role of ROLES) {
       expect(honorificName("김민준", role)).toContain("김민준");
+    }
+  });
+});
+
+describe("honorificSuffix()", () => {
+  // 상단바가 이름과 호칭을 다른 굵기로 그린다. 앞 공백이 이 값에 들어 있지 않으면
+  // 「이정민선생님」으로 붙어 버린다 — 붙여 쓰는 「님」과 구분되는 지점이다.
+  it.each([
+    ["ADMIN", " 선생님"],
+    ["PARENT", " 학부모님"],
+    ["STUDENT", "님"],
+  ] as const)("%s의 호칭은 %s다", (role, suffix) => {
+    expect(honorificSuffix(role)).toBe(suffix);
+  });
+
+  it("띄어 쓰는 호칭만 앞 공백을 갖는다", () => {
+    expect(honorificSuffix("ADMIN").startsWith(" ")).toBe(true);
+    expect(honorificSuffix("PARENT").startsWith(" ")).toBe(true);
+    expect(honorificSuffix("STUDENT").startsWith(" ")).toBe(false);
+  });
+
+  // 규칙이 두 곳으로 갈라지면 화면마다 다른 호칭이 나온다.
+  it("honorificName은 이 함수를 그대로 이어 붙인 것이다", () => {
+    for (const role of [...ROLES, null, undefined]) {
+      expect(honorificName("김민준", role)).toBe(`김민준${honorificSuffix(role)}`);
     }
   });
 });

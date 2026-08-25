@@ -6,7 +6,7 @@ import { useState } from "react";
 import { LogoutIcon } from "@/components/icons";
 import { authClient } from "@/core/auth/auth-client";
 import type { Role } from "@/core/authz/roles";
-import { honorificName } from "@/core/authz/roles";
+import { honorificSuffix } from "@/core/authz/roles";
 import { MobileNav } from "./mobile-nav";
 import { titleForPath } from "./nav";
 
@@ -35,14 +35,18 @@ export function Topbar({ name, role }: { name: string; role: Role | null }) {
         </h1>
       </div>
 
-      {/* 제목이 이 줄의 유일한 초점이다. 오른쪽은 "지금 누구로 들어와 있나"만 조용히
-          답하면 되므로 한 줄·흐린 글자로 둔다. 직급은 붙이지 않는다 — 호칭이 이미
-          말하고, 대시보드가 역할을 따로 적는다. 이니셜 동그라미도 없앴다: 이름이
-          들어갈 자리를 한 글자가 차지하고 있었다. */}
-      <div className="flex min-w-0 items-center gap-1.5">
-        <span className="truncate text-caption text-mut">
-          {honorificName(name, role)}
+      {/* 제목이 이 줄의 유일한 초점이다. 오른쪽은 "지금 누구로 들어와 있나"만 답한다 —
+          직급 줄도 이니셜 동그라미도 두지 않는다(호칭이 직급을 말하고, 이름이 들어갈
+          자리를 한 글자가 차지하고 있었다).
+          대신 한 줄 안에서 이름과 호칭의 굵기를 가른다. 이름이 신원이고 호칭은 부르는
+          격이라, 둘을 같은 회색으로 뭉치면 문자열 하나로 읽힌다. */}
+      <div className="flex min-w-0 items-center">
+        <span className="truncate text-caption">
+          <span className="font-medium text-ink">{name}</span>
+          <span className="text-mut">{honorificSuffix(role)}</span>
         </span>
+
+        <span className="mx-2 h-4 w-px shrink-0 bg-line" aria-hidden />
 
         <button
           type="button"

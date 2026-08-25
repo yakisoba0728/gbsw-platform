@@ -14,18 +14,25 @@ export const ROLE_LABELS: Record<Role, string> = {
 };
 
 /**
- * 사람을 부를 때 쓰는 이름. 역할마다 호칭이 다르다.
+ * 이름 뒤에 붙는 호칭. 앞 공백까지 이 값에 들어 있다 —
+ * 「님」만 이름에 붙여 쓰고(의존명사라 그게 맞는 표기다) 「선생님」·「학부모님」은
+ * 그 자체가 단어라 띄운다. 역할을 모르면(계정이 지워진 감사로그 등) 「님」이다.
  *
- * 「님」만 이름에 붙여 쓴다 — 의존명사라 그게 맞는 표기이고, 「선생님」·「학부모님」은
- * 그 자체가 단어라 띄운다. 역할을 모르면(계정이 지워진 감사로그 등) 「님」으로 떨어진다.
+ * 이름과 호칭을 다른 굵기로 그리는 화면이 있어 따로 뗀다 — 붙인 문자열이 필요하면
+ * `honorificName`을 쓴다. 규칙은 여기 한 곳에만 둔다.
  */
+export function honorificSuffix(role: Role | null | undefined): string {
+  if (role === "ADMIN") return " 선생님";
+  if (role === "PARENT") return " 학부모님";
+  return "님";
+}
+
+/** 사람을 부를 때 쓰는 이름. */
 export function honorificName(
   name: string,
   role: Role | null | undefined,
 ): string {
-  if (role === "ADMIN") return `${name} 선생님`;
-  if (role === "PARENT") return `${name} 학부모님`;
-  return `${name}님`;
+  return `${name}${honorificSuffix(role)}`;
 }
 
 export function isRole(value: unknown): value is Role {
