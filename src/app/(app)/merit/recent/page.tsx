@@ -16,6 +16,7 @@ import { SearchForm } from "@/components/ui/search-form";
 import { SectionCard } from "@/components/ui/section-card";
 import { Skeleton, SkeletonRows } from "@/components/ui/skeleton";
 import { DataTable, type Column } from "@/components/ui/table";
+import { TruncatedText } from "@/components/ui/truncated-text";
 import { formatDate, formatMonthDayTime, isSameKstDate } from "@/lib/datetime";
 import { hrefWith, type SearchParamsInput } from "@/lib/search-params";
 import { listRecentAwards } from "@/modules/merit/award.service";
@@ -163,12 +164,11 @@ async function RecentPagination({
 }
 
 /**
- * 항목 한 줄에 실을 것. 항목명 뒤에 메모(또는 취소 사유)를 잇는다.
+ * 항목 아래 한 줄에 실을 것 — 메모와 취소 사유.
  *
- * **한 줄로 자르고 나머지는 마우스를 올려 본다.** 메모와 사유는 길이가 정해져
- * 있지 않아(각각 500자) 줄을 나눠 다 보여주면 표가 다섯 줄짜리 카드 더미가 된다.
- * 화면에 세우는 것은 잘린 한 줄, `title`이 전문을 갖는다 — 네이티브 툴팁이라
- * 표의 가로 스크롤 상자에 잘리지 않는다.
+ * **항목과 섞지 않는다.** 하나로 이어 붙이면 잘린 자리가 어디까지가 항목이고
+ * 어디부터가 사유인지 알 수 없고, 사유만 보고 싶어도 항목부터 읽어야 한다.
+ * 둘 다 500자까지 들어오므로 각각 한 줄로 자르고 각각 마우스로 편다.
  */
 function awardDetails(row: RecentRow): { inline: string; full: string } {
   const cancelledBy = row.cancelledByName
@@ -182,19 +182,102 @@ function awardDetails(row: RecentRow): { inline: string; full: string } {
       : null,
   ].filter((part): part is string => part !== null);
 
-  return {
-    inline: parts.join(" · "),
-    // 툴팁은 줄을 나눠도 된다 — 표가 아니라 브라우저가 그린다.
-    full: [row.label, ...parts].join("\n"),
-  };
+  return { inline: parts.join("  ·  "), full: parts.join("\n") };
+}
+
+/** 항목 + (있으면) 메모·사유. 각각 한 줄로 자르고 각각 전문을 띄운다. */
+function AwardLabelCell({ row }: { row: RecentRow }) {
+  const details = awardDetails(row);
+
+  return (
+    <div className="min-w-0">
+      <TruncatedText
+        full={row.label}
+        className={`text-caption ${
+          row.status === "CANCELLED" ? "text-mut line-through" : "text-ink"
+        }`}
+      >
+        {row.label}
+      </TruncatedText>
+
+      {details.inline !== "" && (
+        <TruncatedText full={details.full} className="mt-0.5 text-xs text-mut2">
+          {details.inline}
+        </TruncatedText>
+      )}
+    </div>
+  );
+}
+
+/** 학생 이름 — 상세로 가는 링크. 취소된 건은 이름도 물린다. */
+function StudentLink({ row, track }: { row: RecentRow; track: string }) {
+  return (
+    <Link
+      href={`/merit/students/${row.studentProfileId}?track=${track}`}
+      className={`inline-flex min-h-9 items-center font-medium underline decoration-line-strong underline-offset-2 hover:decoration-ink lg:min-h-0 ${
+        row.status === "CANCELLED" ? "text-mut" : "text-ink"
+      }`}
+    >
+      {row.studentName}
+    </Link>
+  );
+}
+
+/** 학급·번호. 같은 이름이 두 반에 있을 때 유일한 구분이다. */
+function ClassNumber({ row }: { row: RecentRow }) {
+  return (
+    <span className="flex items-baseline gap-1.5 text-xs text-mut2">
+      <span>
+        {row.grade === null || row.classNo === null
+          ? "미배정"
+          : `${row.grade}-${row.classNo}`}
+      </span>
+      <span className="font-mono">{row.number ?? "—"}</span>
+    </span>
+  );
+}
+
+function AwardPoints({ row }: { row: RecentRow }) {
+  return (
+    <span
+      className={`font-medium whitespace-nowrap ${
+        row.status === "CANCELLED" ? "text-mut" : kindColorClass(row.kind)
+      }`}
+    >
+      {signedPoints(row.kind, row.points)}
+    </span>
+  );
 }
 
 /**
- * 결과 표. 조건이 바뀔 때 뼈대로 바뀌는 것은 여기까지다.
+ * 취소됐는지, 아니면 취소할 수 있는지.
+ * 이 화면의 존재 이유가 "점호 직후 잘못 준 것을 되돌리는 것"이라(nav.ts)
+ * 줄마다 취소가 있어야 한다.
+ */
+function AwardStatus({ row }: { row: RecentRow }) {
+  if (row.status === "CANCELLED") return <Badge tone="cancelled">취소</Badge>;
+
+  return (
+    <CancelButton
+      awardId={row.id}
+      studentProfileId={row.studentProfileId}
+      cancelAction={cancelAction}
+      initialState={EMPTY_MERIT_STATE}
+    />
+  );
+}
+
+/**
+ * 결과 목록. 조건이 바뀔 때 뼈대로 바뀌는 것은 여기까지다.
  *
  * **한 번에 여러 명에게 준 것도 줄을 나눈다.** 부여는 학생 한 명당 한 건이고
  * 취소도 한 건씩이라(`merit.repo`), 묶어 세우면 화면의 단위와 실제로 다루는
  * 단위가 어긋난다.
+ *
+ * 넓은 폭은 표, 좁은 폭은 카드다. `DataTable`의 카드 모드를 쓰지 않는 이유:
+ * 그쪽은 열을 title·meta·trailing 자리에 나눠 넣는데, 이 화면에서 가장 긴 값인
+ * **항목이 어느 자리에도 안 맞는다** — meta에 넣으면 시각·학급·부여자와 한 줄로
+ * 뒤엉켜 문장이 부스러기처럼 읽힌다.
  */
 async function RecentAwardsRows({
   promise,
@@ -224,8 +307,6 @@ async function RecentAwardsRows({
       // 한 줄에 담기는 폭이다. 접히면 표 전체가 두 줄짜리로 두꺼워진다 —
       // table-fixed라 nowrap이 다른 열을 밀지 않는다.
       width: "w-[136px]",
-      card: "meta",
-      cardLabel: false,
       cell: (row) => (
         <span className="text-xs whitespace-nowrap text-mut">
           {formatMonthDayTime(row.createdAt)}
@@ -245,84 +326,32 @@ async function RecentAwardsRows({
       key: "class",
       header: "학급",
       width: "w-[72px]",
-      card: "meta",
-      // 학급과 번호는 한 덩어리다 — 같은 이름이 두 반에 있을 때 유일한 구분이다.
-      cell: (row) => (
-        <span className="flex items-baseline gap-1.5 text-xs text-mut2">
-          <span>
-            {row.grade === null || row.classNo === null
-              ? "미배정"
-              : `${row.grade}-${row.classNo}`}
-          </span>
-          <span className="font-mono">{row.number ?? "—"}</span>
-        </span>
-      ),
+      cell: (row) => <ClassNumber row={row} />,
     },
     {
       key: "student",
       header: "학생",
       width: "w-[92px]",
-      card: "title",
-      cell: (row) => (
-        <Link
-          href={`/merit/students/${row.studentProfileId}?track=${track}`}
-          className={`inline-flex min-h-9 items-center font-medium underline decoration-line-strong underline-offset-2 hover:decoration-ink lg:min-h-0 ${
-            row.status === "CANCELLED" ? "text-mut" : "text-ink"
-          }`}
-        >
-          {row.studentName}
-        </Link>
-      ),
+      cell: (row) => <StudentLink row={row} track={track} />,
     },
     {
       key: "label",
       header: "항목",
-      card: "meta",
-      cardLabel: false,
-      cell: (row) => {
-        const details = awardDetails(row);
-        return (
-          // 표에서만 자른다. 좁은 폭에서는 같은 셀이 카드 한 줄이 되는데, 거기서
-          // nowrap이면 글이 카드 밖으로 흘러 화면이 가로로 스크롤된다 — 폰에서는
-          // 마우스를 올릴 수도 없으니 접어서 다 보여주는 쪽이 맞다.
-          <span
-            className="block overflow-hidden text-ellipsis whitespace-normal text-caption lg:whitespace-nowrap"
-            title={details.full}
-          >
-            <span
-              className={row.status === "CANCELLED" ? "text-mut line-through" : "text-ink"}
-            >
-              {row.label}
-            </span>
-            {details.inline !== "" && (
-              <span className="text-mut2"> · {details.inline}</span>
-            )}
-          </span>
-        );
-      },
+      cell: (row) => <AwardLabelCell row={row} />,
     },
     {
       key: "points",
       header: <span className="block text-right">점수</span>,
       width: "w-[64px]",
-      card: "trailing",
-      cell: (row) => (
-        <span
-          className={`block text-right font-medium whitespace-nowrap ${
-            row.status === "CANCELLED" ? "text-mut" : kindColorClass(row.kind)
-          }`}
-        >
-          {signedPoints(row.kind, row.points)}
-        </span>
-      ),
+      className: "text-right",
+      cell: (row) => <AwardPoints row={row} />,
     },
     {
       key: "awardedBy",
       header: "부여자",
       width: "w-[116px]",
-      card: "meta",
-      // 부여·취소는 교사 전용이라(can.ts) 이름 스냅샷에 역할이 없어도 호칭이 정해진다.
       cell: (row) => (
+        // 부여·취소는 교사 전용이라(can.ts) 이름 스냅샷에 역할이 없어도 호칭이 정해진다.
         <span className="block truncate text-xs text-mut">
           {honorificName(row.awardedByName, "ADMIN")}
         </span>
@@ -332,35 +361,86 @@ async function RecentAwardsRows({
       key: "status",
       header: "상태",
       width: "w-[96px]",
-      card: "actions",
-      // 이 화면의 존재 이유가 "점호 직후 잘못 준 것을 되돌리는 것"이라(nav.ts)
-      // 줄마다 취소가 있어야 한다.
-      cell: (row) =>
-        row.status === "CANCELLED" ? (
-          <Badge tone="cancelled">취소</Badge>
-        ) : (
-          <CancelButton
-            awardId={row.id}
-            studentProfileId={row.studentProfileId}
-            cancelAction={cancelAction}
-            initialState={EMPTY_MERIT_STATE}
-          />
-        ),
+      cell: (row) => <AwardStatus row={row} />,
     },
   ];
 
   return (
-    <DataTable
-      minWidth={820}
-      narrow="cards"
-      // **fixed가 없으면 항목 열이 안 잘린다.** table-layout이 auto면 셀 폭을
-      // 내용이 정하므로 `truncate`가 기댈 확정 폭이 없다 — 긴 규정 한 줄이 표를
-      // 밀어내고, 밀린 만큼 시각·학생 열이 눌려 이름이 세로로 선다.
-      fixed
-      rows={rows}
-      rowKey={(row) => row.id}
-      columns={columns}
-    />
+    <>
+      <ul className="lg:hidden">
+        {rows.map((row) => (
+          <AwardCard key={row.id} row={row} track={track} />
+        ))}
+      </ul>
+
+      <div className="hidden lg:block">
+        <DataTable
+          minWidth={820}
+          // **fixed가 없으면 항목 열이 안 잘린다.** table-layout이 auto면 셀 폭을
+          // 내용이 정하므로 `truncate`가 기댈 확정 폭이 없다 — 긴 규정 한 줄이 표를
+          // 밀어내고, 밀린 만큼 시각·학생 열이 눌려 이름이 세로로 선다.
+          fixed
+          rows={rows}
+          rowKey={(row) => row.id}
+          columns={columns}
+        />
+      </div>
+    </>
+  );
+}
+
+/**
+ * 좁은 폭의 한 건. 표의 여덟 열을 세 줄로 접는다 —
+ * 누가·얼마 / 무엇을 / 언제·누가 줬나.
+ */
+function AwardCard({ row, track }: { row: RecentRow; track: string }) {
+  return (
+    <li className="border-b border-line2 px-5 py-3 last:border-0">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="flex min-w-0 items-baseline gap-2">
+          <StudentLink row={row} track={track} />
+          <ClassNumber row={row} />
+        </span>
+        <AwardPoints row={row} />
+      </div>
+
+      {/* 항목은 카드에서 한 줄로 자르지 않는다 — 폰에서는 마우스를 올릴 수 없다. */}
+      <div className="mt-1.5 flex items-start gap-2">
+        <KindBadge kind={row.kind} />
+        <p
+          className={`min-w-0 text-caption ${
+            row.status === "CANCELLED" ? "text-mut line-through" : "text-ink"
+          }`}
+        >
+          {row.label}
+        </p>
+      </div>
+
+      <AwardCardDetails row={row} />
+
+      <div className="mt-2 flex items-center justify-between gap-3">
+        <span className="min-w-0 truncate text-xs text-mut2">
+          {formatMonthDayTime(row.createdAt)}
+          {!isSameKstDate(row.occurredOn, row.createdAt) &&
+            ` (발생 ${formatDate(row.occurredOn)})`}
+          {" · "}
+          {honorificName(row.awardedByName, "ADMIN")}
+        </span>
+        <span className="shrink-0">
+          <AwardStatus row={row} />
+        </span>
+      </div>
+    </li>
+  );
+}
+
+/** 카드의 메모·취소 사유. 표와 달리 접어서 다 보여준다. */
+function AwardCardDetails({ row }: { row: RecentRow }) {
+  const details = awardDetails(row);
+  if (details.full === "") return null;
+
+  return (
+    <p className="mt-1 text-xs whitespace-pre-line text-mut2">{details.full}</p>
   );
 }
 
