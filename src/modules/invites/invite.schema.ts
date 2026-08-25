@@ -105,3 +105,15 @@ export const namedInviteMetaSchema = z.object({
 
 export type StudentInviteMeta = z.infer<typeof studentInviteMetaSchema>;
 export type NamedInviteMeta = z.infer<typeof namedInviteMetaSchema>;
+
+/**
+ * 초대코드 폐기. **사유가 필수다** — 취소·삭제와 같은 규약이다.
+ * 폐기하면 목록에서 대기 상태가 사라지는데, 왜 없앴는지를 되짚을 자료가
+ * 감사로그밖에 없다(로그 화면이 `metadata.reason`을 「사유: …」로 그린다).
+ */
+export const revokeInviteSchema = z.object({
+  inviteId: z.string().trim().min(1),
+  reason: z.string().trim().min(1, "폐기 사유를 입력해 주세요.").max(500),
+});
+
+export type RevokeInviteInput = z.infer<typeof revokeInviteSchema>;

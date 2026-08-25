@@ -321,7 +321,7 @@ describe("폐기", () => {
   it("관리자는 아무 코드나 폐기할 수 있다", async () => {
     findById.mockResolvedValue({ id: "inv1", studentId: null });
 
-    await revokeInvite(admin, "inv1");
+    await revokeInvite(admin, { inviteId: "inv1", reason: "잘못 발급" });
 
     expect(withTransaction).toHaveBeenCalledTimes(1);
     expect(revokePending).toHaveBeenCalledWith("inv1", txClient);
@@ -331,11 +331,29 @@ describe("폐기", () => {
     );
   });
 
+  /**
+   * 폐기하면 목록에서 대기 상태가 사라진다. 「왜 없앴나」를 되짚을 자료가
+   * 감사로그밖에 없어서 사유를 필수로 받는다 — 안 실리면 받는 의미가 없다.
+   */
+  it("사유를 감사로그에 남긴다", async () => {
+    findById.mockResolvedValue({ id: "inv1", studentId: null });
+
+    await revokeInvite(admin, { inviteId: "inv1", reason: "잘못된 학생에게 발급함" });
+
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "invite:revoke",
+        metadata: { reason: "잘못된 학생에게 발급함" },
+      }),
+      txClient,
+    );
+  });
+
   it("학생은 자기 학부모 코드만 폐기할 수 있다", async () => {
     findById.mockResolvedValue({ id: "inv1", studentId: "student-1" });
     getStudentProfileByUserId.mockResolvedValue({ id: "student-1" });
 
-    await revokeInvite(student, "inv1");
+    await revokeInvite(student, { inviteId: "inv1", reason: "잘못 발급" });
 
     expect(revokePending).toHaveBeenCalledWith("inv1", txClient);
   });
@@ -344,7 +362,7 @@ describe("폐기", () => {
     findById.mockResolvedValue({ id: "inv1", studentId: "other-student" });
     getStudentProfileByUserId.mockResolvedValue({ id: "student-1" });
 
-    await expect(revokeInvite(student, "inv1")).rejects.toThrow("FORBIDDEN");
+    await expect(revokeInvite(student, { inviteId: "inv1", reason: "잘못 발급" })).rejects.toThrow("FORBIDDEN");
     expect(revokePending).not.toHaveBeenCalled();
   });
 
@@ -352,7 +370,7 @@ describe("폐기", () => {
     findById.mockResolvedValue({ id: "inv1", studentId: "other-student" });
     getStudentProfileByUserId.mockResolvedValue({ id: "student-1" });
 
-    await expect(revokeInvite(student, "inv1")).rejects.toThrow("FORBIDDEN");
+    await expect(revokeInvite(student, { inviteId: "inv1", reason: "잘못 발급" })).rejects.toThrow("FORBIDDEN");
 
     expect(recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -369,7 +387,7 @@ describe("폐기", () => {
     findById.mockResolvedValue({ id: "inv1", studentId: null });
     revokePending.mockResolvedValue(0);
 
-    await expect(revokeInvite(admin, "inv1")).rejects.toThrow("NOT_PENDING");
+    await expect(revokeInvite(admin, { inviteId: "inv1", reason: "잘못 발급" })).rejects.toThrow("NOT_PENDING");
     expect(recordAudit).not.toHaveBeenCalled();
   });
 
@@ -377,7 +395,7 @@ describe("폐기", () => {
     findById.mockResolvedValue({ id: "inv1", studentId: null });
     revokePending.mockResolvedValue(0);
 
-    await expect(revokeInvite(admin, "inv1")).rejects.toThrow("NOT_PENDING");
+    await expect(revokeInvite(admin, { inviteId: "inv1", reason: "잘못 발급" })).rejects.toThrow("NOT_PENDING");
 
     expect(withTransaction).toHaveBeenCalledTimes(1);
     expect(revokePending).toHaveBeenCalledWith("inv1", txClient);

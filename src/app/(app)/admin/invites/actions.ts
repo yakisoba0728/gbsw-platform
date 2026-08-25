@@ -8,6 +8,7 @@ import {
   createAdminInviteSchema,
   createParentInviteForSchema,
   createStudentInviteSchema,
+  revokeInviteSchema,
 } from "@/modules/invites/invite.schema";
 import {
   createAdminInvite,
@@ -186,15 +187,22 @@ export async function revokeInviteAction(
   formData: FormData,
 ): Promise<RevokeState> {
   const actor = await requireAuth();
-  const inviteId = String(formData.get("inviteId") ?? "");
+
+  const parsed = revokeInviteSchema.safeParse({
+    inviteId: formData.get("inviteId"),
+    reason: formData.get("reason"),
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0].message };
+  }
 
   try {
-    await revokeInvite(actor, inviteId);
+    await revokeInvite(actor, parsed.data);
     // 교사 목록과 학생의 학부모 코드 목록 양쪽에서 쓰인다.
     revalidatePath("/admin/invites");
     revalidatePath("/parent-invite");
-    return { error: null };
+    return { ok: true, error: null };
   } catch (error) {
-    return { error: messageFor(error, "폐기하지 못했습니다.") };
+    return { ok: false, error: messageFor(error, "폐기하지 못했습니다.") };
   }
 }

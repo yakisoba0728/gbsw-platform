@@ -365,15 +365,34 @@ describe("createParentInviteForAction — 경계 검증", () => {
 });
 
 describe("revokeInviteAction — 경계 검증", () => {
-  it("revoke-button.tsx의 hidden input 하나면 서비스까지 도달한다", async () => {
-    const state = await revokeInviteAction({ error: null }, form({ inviteId: "inv-1" }));
+  const REVOKE = { ok: false, error: null };
 
-    expect(revokeInvite).toHaveBeenCalledWith(expect.anything(), "inv-1");
+  /**
+   * 폐기는 되돌릴 수 없어서 확인 모달이 사유를 받는다. 사유가 비면 서비스까지
+   * 가지 않는다 — 감사로그가 「사유: …」를 그리는 자리라 빈 값이 남으면
+   * 왜 없앴는지를 되짚을 수 없다.
+   */
+  it("사유가 비면 서비스를 부르지 않는다", async () => {
+    const state = await revokeInviteAction(REVOKE, form({ inviteId: "inv-1", reason: "  " }));
+
+    expect(revokeInvite).not.toHaveBeenCalled();
+    expect(state.error).toBe("폐기 사유를 입력해 주세요.");
+    expect(state.ok).toBe(false);
+  });
+
+  it("revoke-button.tsx의 hidden input 하나면 서비스까지 도달한다", async () => {
+    const state = await revokeInviteAction(REVOKE, form({ inviteId: "inv-1", reason: "잘못 발급" }));
+
+    expect(revokeInvite).toHaveBeenCalledWith(expect.anything(), {
+      inviteId: "inv-1",
+      reason: "잘못 발급",
+    });
     expect(state.error).toBeNull();
+    expect(state.ok).toBe(true);
   });
 
   it("관리자 목록과 학생 화면을 함께 다시 그린다 — 같은 액션을 둘이 쓴다", async () => {
-    await revokeInviteAction({ error: null }, form({ inviteId: "inv-1" }));
+    await revokeInviteAction(REVOKE, form({ inviteId: "inv-1", reason: "잘못 발급" }));
 
     expect(revalidatePath).toHaveBeenCalledWith("/admin/invites");
     expect(revalidatePath).toHaveBeenCalledWith("/parent-invite");
@@ -386,7 +405,7 @@ describe("revokeInviteAction — 경계 검증", () => {
   it("권한 거부를 '이미 사용된 코드'로 안내하지 않는다", async () => {
     revokeInvite.mockRejectedValueOnce(new ForbiddenError("invite:revoke"));
 
-    const state = await revokeInviteAction({ error: null }, form({ inviteId: "inv-1" }));
+    const state = await revokeInviteAction(REVOKE, form({ inviteId: "inv-1", reason: "잘못 발급" }));
 
     expect(state.error).toBe("권한이 없습니다.");
     expect(state.error).not.toBe("이미 쓰였거나 폐기된 코드입니다.");
@@ -395,7 +414,7 @@ describe("revokeInviteAction — 경계 검증", () => {
   it("정말 사용된 코드일 때만 그 문구를 쓴다", async () => {
     revokeInvite.mockRejectedValueOnce(new InviteError("NOT_PENDING"));
 
-    const state = await revokeInviteAction({ error: null }, form({ inviteId: "inv-1" }));
+    const state = await revokeInviteAction(REVOKE, form({ inviteId: "inv-1", reason: "잘못 발급" }));
 
     expect(state.error).toBe("이미 쓰였거나 폐기된 코드입니다.");
   });
@@ -403,7 +422,7 @@ describe("revokeInviteAction — 경계 검증", () => {
   it("사전에 없는 오류는 영문을 화면에 흘리지 않는다", async () => {
     revokeInvite.mockRejectedValueOnce(new Error("connect ECONNREFUSED"));
 
-    const state = await revokeInviteAction({ error: null }, form({ inviteId: "inv-1" }));
+    const state = await revokeInviteAction(REVOKE, form({ inviteId: "inv-1", reason: "잘못 발급" }));
 
     expect(state.error).toBe("폐기하지 못했습니다.");
   });

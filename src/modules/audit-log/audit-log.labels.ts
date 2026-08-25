@@ -273,14 +273,30 @@ function meritAwardSummary(metadata: Record<string, unknown>): string | null {
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
+/** 「사유: …」 한 조각. 사유를 받는 기록이 늘어도 문구가 갈라지지 않게 모아 둔다. */
+function reasonPart(metadata: Record<string, unknown>): string | null {
+  const reason = metadata.reason;
+  return typeof reason === "string" && reason.length > 0 ? `사유: ${reason}` : null;
+}
+
 /** merit:cancel — 무엇을 취소했는지와 사유. */
 function meritCancelSummary(metadata: Record<string, unknown>): string | null {
   const parts = meritSubject(metadata);
 
-  const reason = metadata.reason;
-  if (typeof reason === "string" && reason.length > 0) parts.push(`사유: ${reason}`);
+  const reason = reasonPart(metadata);
+  if (reason) parts.push(reason);
 
   return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+/**
+ * invite:revoke — 사유만 싣는다.
+ *
+ * 폐기하면 목록에서 대기 상태가 사라져 「왜 없앴나」를 되짚을 자료가 여기밖에
+ * 없다. 이 갈래가 없으면 기본값으로 떨어져 「reason 잘못 발급」처럼 날것으로 찍힌다.
+ */
+function reasonSummary(metadata: Record<string, unknown>): string | null {
+  return reasonPart(metadata);
 }
 
 /** merit:rule:update — 바뀐 필드 요약 + 점수 전/후. 점수가 그대로면 생략한다. */
@@ -331,6 +347,7 @@ const METADATA_FORMATTERS: Partial<
   "academic-year:set-current": setCurrentYearSummary,
   "invite:create": roleSummary,
   "invite:create:parent": roleSummary,
+  "invite:revoke": reasonSummary,
   "invite:revoke:roster": roleSummary,
   "registration:complete": roleSummary,
   "authz:denied": authzDeniedSummary,

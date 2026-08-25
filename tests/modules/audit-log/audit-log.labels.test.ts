@@ -110,6 +110,21 @@ describe("formatAuditMetadata()", () => {
     expect(formatAuditMetadata("merit:award:create", {})).toBeNull();
   });
 
+  /**
+   * 폐기하면 목록에서 대기 상태가 사라져 「왜 없앴나」를 되짚을 자료가 여기밖에
+   * 없다. 갈래가 없으면 기본값으로 떨어져 「reason 잘못 발급」처럼 날것으로 찍혔다.
+   */
+  it("invite:revoke — 사유를 한글로 그린다", () => {
+    expect(
+      formatAuditMetadata("invite:revoke", { reason: "잘못된 학생에게 발급함" }),
+    ).toBe("사유: 잘못된 학생에게 발급함");
+  });
+
+  it("invite:revoke — 사유가 없으면 null이다", () => {
+    expect(formatAuditMetadata("invite:revoke", {})).toBeNull();
+    expect(formatAuditMetadata("invite:revoke", { reason: "" })).toBeNull();
+  });
+
   it("user:update — 바뀐 필드를 한글 라벨로 이어붙인다", () => {
     expect(
       formatAuditMetadata("user:update", { changed: ["name", "phone"] }),

@@ -11,6 +11,7 @@ import type {
   CreateParentInviteForInput,
   CreateParentInviteInput,
   CreateStudentInviteInput,
+  RevokeInviteInput,
 } from "./invite.schema";
 
 export class InviteError extends Error {}
@@ -221,7 +222,8 @@ export async function listMyParentInvites(sessionUser: { id: string }) {
  * 코드 폐기. 교사는 아무 코드나, 학생은 자기가 만든 학부모 코드만 폐기할 수 있다.
  * 이미 사용됐거나 폐기된 코드는 건드리지 않는다.
  */
-export async function revokeInvite(actor: SessionUser, inviteId: string) {
+export async function revokeInvite(actor: SessionUser, input: RevokeInviteInput) {
+  const { inviteId, reason } = input;
   const invite = await repo.findById(inviteId);
   if (!invite) throw new InviteError("NOT_FOUND");
 
@@ -257,6 +259,8 @@ export async function revokeInvite(actor: SessionUser, inviteId: string) {
       action: "invite:revoke",
       targetType: "Invite",
       targetId: inviteId,
+      // 사유는 여기에만 남는다 — 폐기된 코드는 목록에서 대기 상태를 잃는다.
+      metadata: { reason },
     }, tx);
   });
 }

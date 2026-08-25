@@ -37,6 +37,10 @@ export type InviteFormState = {
 
 export const INVITE_FORM_INITIAL: InviteFormState = { error: null, code: null };
 
-export type RevokeState = { error: string | null };
+/**
+ * 폐기 결과. `ok`가 필요한 이유는 확인 모달이 성공했을 때만 닫히기 때문이다 —
+ * 실패하면 쓰던 사유를 남긴 채 열어 두어야 고쳐서 다시 누를 수 있다.
+ */
+export type RevokeState = { ok: boolean; error: string | null };
 
-export const REVOKE_INITIAL: RevokeState = { error: null };
+export const REVOKE_INITIAL: RevokeState = { ok: false, error: null };
