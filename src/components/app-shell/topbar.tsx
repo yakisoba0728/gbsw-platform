@@ -6,7 +6,7 @@ import { useState } from "react";
 import { LogoutIcon } from "@/components/icons";
 import { authClient } from "@/core/auth/auth-client";
 import type { Role } from "@/core/authz/roles";
-import { honorificName, ROLE_LABELS } from "@/core/authz/roles";
+import { honorificName } from "@/core/authz/roles";
 import { MobileNav } from "./mobile-nav";
 import { titleForPath } from "./nav";
 
@@ -16,7 +16,6 @@ export function Topbar({ name, role }: { name: string; role: Role | null }) {
   const [signingOut, setSigningOut] = useState(false);
 
   const title = titleForPath(pathname);
-  const initial = name.trim().slice(0, 1) || "?";
 
   async function handleSignOut() {
     setSigningOut(true);
@@ -36,19 +35,13 @@ export function Topbar({ name, role }: { name: string; role: Role | null }) {
         </h1>
       </div>
 
-      <div className="flex items-center gap-3">
-        <span className="hidden text-right sm:block">
-          <span className="block text-caption font-medium text-ink">
-            {honorificName(name, role)}
-          </span>
-          {role && <span className="block text-xs text-mut">{ROLE_LABELS[role]}</span>}
-        </span>
-
-        <span
-          className="flex size-8 items-center justify-center rounded-full border border-line bg-soft text-xs font-medium text-ink"
-          aria-hidden
-        >
-          {initial}
+      {/* 제목이 이 줄의 유일한 초점이다. 오른쪽은 "지금 누구로 들어와 있나"만 조용히
+          답하면 되므로 한 줄·흐린 글자로 둔다. 직급은 붙이지 않는다 — 호칭이 이미
+          말하고, 대시보드가 역할을 따로 적는다. 이니셜 동그라미도 없앴다: 이름이
+          들어갈 자리를 한 글자가 차지하고 있었다. */}
+      <div className="flex min-w-0 items-center gap-1.5">
+        <span className="truncate text-caption text-mut">
+          {honorificName(name, role)}
         </span>
 
         <button
@@ -56,7 +49,7 @@ export function Topbar({ name, role }: { name: string; role: Role | null }) {
           onClick={handleSignOut}
           disabled={signingOut}
           title="로그아웃"
-          className="rounded-btn p-2.5 text-mut transition-colors hover:bg-soft hover:text-ink disabled:opacity-40"
+          className="shrink-0 rounded-btn p-2.5 text-mut transition-colors hover:bg-soft hover:text-ink disabled:opacity-40"
         >
           <LogoutIcon size={18} />
           <span className="sr-only">로그아웃</span>
