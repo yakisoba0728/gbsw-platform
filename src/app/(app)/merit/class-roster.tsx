@@ -379,6 +379,7 @@ export function ClassRoster({
             note={confirmNote}
             students={rows.filter((row) => selected.has(row.studentProfileId))}
             showClass={showClass}
+            scopeLabel={scopeLabel}
             pending={pending}
             error={confirmError}
             onConfirm={() => setSubmitted({ ...rule, count: selected.size })}

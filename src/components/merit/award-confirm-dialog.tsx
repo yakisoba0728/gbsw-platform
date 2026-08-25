@@ -3,7 +3,13 @@
 import { useEffect, useId, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Note } from "@/components/ui/note";
-import { KindBadge, kindColorClass, signedPoints } from "@/components/merit/kind-badge";
+import {
+  kindColorClass,
+  kindLabel,
+  kindLineClass,
+  kindPanelClass,
+  signedPoints,
+} from "@/components/merit/kind-badge";
 import type { RuleOption } from "@/components/merit/rule-filter";
 
 /** 확인 화면에 세울 학생 한 줄. 명단이 가진 것을 그대로 받는다. */
@@ -33,6 +39,7 @@ export function AwardConfirmDialog({
   note,
   students,
   showClass,
+  scopeLabel,
   pending,
   error,
   onConfirm,
@@ -46,6 +53,8 @@ export function AwardConfirmDialog({
   students: ConfirmStudent[];
   /** 학급을 함께 적을지. 한 반만 보고 있으면 모두 같은 값이라 군더더기다. */
   showClass: boolean;
+  /** 「2학년 3반」·「1학년」·「전교」. 학급 열이 없을 때 어디서 고른 것인지 답한다. */
+  scopeLabel: string;
   pending: boolean;
   error: string | null;
   /** 확인을 눌렀을 때. 호출부가 성공 알림에 쓸 값을 찍는다. */
@@ -68,6 +77,8 @@ export function AwardConfirmDialog({
     if (!open && el.open) el.close();
   }, [open]);
 
+  const tint = kindColorClass(rule.kind);
+
   return (
     <dialog
       ref={dialogRef}
@@ -75,58 +86,73 @@ export function AwardConfirmDialog({
       // Esc로 닫히면 브라우저가 close를 준다. 호출부를 되맞추지 않으면 다음에 안 열린다.
       onClose={onClose}
       // 배경 클릭으로 닫지 않는다 — 고른 학생과 메모가 그대로 남아 있어야 한다.
-      className="rounded-modal border border-line bg-surface p-0 shadow-modal backdrop:bg-black/40"
+      className="animate-modal-in rounded-modal border border-line bg-surface p-0 shadow-modal backdrop:bg-black/40"
     >
-      <div ref={bodyRef} tabIndex={-1} className="w-105 max-w-full p-6 outline-none">
+      <div ref={bodyRef} tabIndex={-1} className="w-115 max-w-full p-6 outline-none">
         <h2 id={`${baseId}-title`} className="text-lg font-semibold text-ink">
           {students.length}명에게 부여합니다
         </h2>
 
-        <div className="mt-4 rounded-card border border-line px-4 py-3">
-          <div className="flex items-start justify-between gap-3">
-            {/* 항목명은 자르지 않는다 — 확인받으려는 것이 바로 이 문장이라
-                말줄임표가 붙으면 확인할 것이 사라진다. 배지가 인라인이라
-                첫 줄 앞에 서고 글은 그 아래로 흐른다. */}
-            <p className="min-w-0 text-ink">
-              <KindBadge kind={rule.kind} />
-              <span className="ml-2 font-medium">{rule.label}</span>
-            </p>
-            <span
-              className={`shrink-0 text-title font-semibold ${kindColorClass(rule.kind)}`}
-            >
+        {/* 무엇을 주는가. 종류가 면적으로 드러나 상점과 벌점을 눈이 먼저 가른다. */}
+        <div className={`mt-4 rounded-card border px-4 py-3.5 ${kindPanelClass(rule.kind)}`}>
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className={`text-caption font-medium ${tint}`}>{kindLabel(rule.kind)}</p>
+              {/* 항목명은 자르지 않는다 — 확인받으려는 것이 이 문장이라
+                  말줄임표가 붙으면 확인할 것이 사라진다. */}
+              <p className="mt-1 font-medium text-ink">{rule.label}</p>
+            </div>
+            <p className={`shrink-0 text-title font-semibold ${tint}`}>
               {signedPoints(rule.kind, rule.points)}
-            </span>
+            </p>
           </div>
 
           {note !== "" && (
-            <p className="mt-2.5 border-t border-line pt-2.5 text-caption text-mut">
-              <span className="font-medium text-ink">메모</span> · {note}
+            <p
+              className={`mt-3 border-t pt-3 text-caption text-ink ${kindLineClass(rule.kind)}`}
+            >
+              <span className={`mr-1.5 font-medium ${tint}`}>메모</span>
+              {note}
             </p>
           )}
         </div>
 
-        {/* 스크롤이 생기는 목록이라 제목을 밖에 둔다 — 안에 두면 함께 밀려 올라간다. */}
-        <p className="mt-4 mb-1.5 text-caption font-medium text-ink">받는 학생</p>
-        <ul className="max-h-52 overflow-y-auto rounded-card border border-line">
-          {students.map((student) => (
-            <li
-              key={student.studentProfileId}
-              className="flex items-baseline gap-2.5 border-b border-line2 px-3.5 py-2 text-caption last:border-b-0"
-            >
-              {showClass && (
-                <span className="w-10 shrink-0 font-mono text-mut2">
-                  {student.grade === null || student.classNo === null
-                    ? "—"
-                    : `${student.grade}-${student.classNo}`}
+        {/* 누가 받는가. 머리글 띠는 스크롤 밖에 둔다 — 안에 두면 함께 밀려 올라간다. */}
+        <div className="mt-3 overflow-hidden rounded-card border border-line">
+          <div className="flex items-center justify-between border-b border-line bg-soft px-4 py-2.5">
+            <span className="text-caption font-medium text-ink">받는 학생</span>
+            {/* 학급 열이 없으면 어디서 고른 것인지가 여기서만 보인다. */}
+            <span className="text-caption text-mut">{scopeLabel}</span>
+          </div>
+
+          {/* 목록이 길면 마지막 줄이 반쯤 잘려 더 있다는 것이 보인다. */}
+          <ul className="max-h-56 divide-y divide-line2 overflow-y-auto">
+            {students.map((student) => (
+              <li
+                key={student.studentProfileId}
+                className="flex items-center gap-3 px-4 py-2.5"
+              >
+                {/* 학급과 번호는 한 덩어리다 — 사이를 벌리면 번호가 이름 쪽으로
+                    떠서 어느 학생의 것인지 한눈에 안 붙는다. */}
+                <span className="flex shrink-0 items-baseline gap-2 text-xs text-mut2">
+                  {showClass && (
+                    <span className="w-10">
+                      {student.grade === null || student.classNo === null
+                        ? "미배정"
+                        : `${student.grade}-${student.classNo}`}
+                    </span>
+                  )}
+                  <span className="w-5 text-right font-mono">
+                    {student.number ?? "—"}
+                  </span>
                 </span>
-              )}
-              <span className="w-6 shrink-0 text-right font-mono text-mut2">
-                {student.number ?? "—"}
-              </span>
-              <span className="truncate font-medium text-ink">{student.name}</span>
-            </li>
-          ))}
-        </ul>
+                <span className="min-w-0 truncate text-caption font-medium text-ink">
+                  {student.name}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
 
         {error && (
           <Note tone="error" className="mt-3">

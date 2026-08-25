@@ -203,6 +203,29 @@
   }
 }
 
+/*
+ * 확인 모달의 등장. 성공 알림(award-pop)보다 짧고 작게 움직인다 — 축하가 아니라
+ * "무엇을 하려는지 다시 본다"는 자리라, 튀어오르면 읽기 전에 손이 먼저 나간다.
+ */
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@utility animate-modal-in {
+  animation: modal-in 160ms cubic-bezier(0.16, 1, 0.3, 1);
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
 @utility scroll-x-hint {
   background:
     linear-gradient(to right, var(--color-surface) 30%, transparent) 0 0 / 32px 100%
