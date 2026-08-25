@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Link from "next/link";
-import { requirePermission } from "@/core/auth/session";
+import { requirePermission, type SessionUser } from "@/core/auth/session";
 import {
   isMeritTrack,
   isYearScoped,
@@ -14,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { SectionCard } from "@/components/ui/section-card";
+import { Skeleton, SkeletonStats, SkeletonTable } from "@/components/ui/skeleton";
 import { StatTile } from "@/components/ui/stat-tile";
 import { DataTable, type Column } from "@/components/ui/table";
 import { hrefWith } from "@/lib/search-params";
@@ -49,17 +51,19 @@ export default async function MeritStatsPage({
   const classNo = numberParam(raw.classNo, 1, 20);
   const scope = grade !== null && classNo !== null ? { grade, classNo } : undefined;
 
-  let stats: MeritStats | null = null;
-  try {
-    stats = await getMeritStats(actor, track, year, new Date(), scope);
-  } catch (error) {
-    if (!(error instanceof AcademicYearError)) throw error;
-  }
-
   /** 지금 쿼리를 유지한 채 일부만 바꾼 주소. 트랙 탭과 반 선택이 함께 쓴다. */
   function statsHref(patch: Record<string, string | null>): string {
     return hrefWith("/merit/stats", raw, patch);
   }
+
+  // 조회를 시작만 하고 기다리지 않는다. 기다리면 이 함수 전체가 멈춰서 트랙 탭과
+  // 범위 배지까지 뼈대로 덮인다 — 방금 고른 조건이 사라지는 그 증상이다.
+  // 두 경계가 같은 약속을 나눠 기다리므로 질의는 한 번이다.
+  const statsPromise = loadStats(actor, track, year, scope);
+
+  // 조건이 바뀌면 경계를 새로 만든다. 이미 해결된 Suspense 경계는 자식이 다시 매달려도
+  // 뼈대 대신 옛 내용을 그대로 보여준다 — key가 없으면 탭을 눌러도 안 바뀐 것처럼 보인다.
+  const boundaryKey = JSON.stringify({ track, year, grade, classNo });
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
@@ -67,11 +71,10 @@ export default async function MeritStatsPage({
         variant="panel"
         title="상벌점 통계"
         hint={
-          stats
-            ? isYearScoped(track)
-              ? `${stats.year}학년도 집계 · 반 편성 ${stats.rosterYear}학년도`
-              : `입학부터 전체 누적 · 반 편성 ${stats.rosterYear}학년도`
-            : undefined
+          // 집계 범위는 데이터에서 나온다 — 본문과 같은 약속을 나눠 기다린다.
+          <Suspense key={boundaryKey} fallback={<HintSkeleton />}>
+            <RangeHint promise={statsPromise} track={track} />
+          </Suspense>
         }
         aside={
           <TrackTabs
@@ -81,12 +84,15 @@ export default async function MeritStatsPage({
           />
         }
       >
-        {stats?.scope && (
+        {scope && (
+          // 배지는 지금 고른 조건이다 — 서비스의 scope는 받은 인자를 그대로 돌려주므로
+          // 데이터를 기다릴 이유가 없다. 경계 밖에 남긴다.
+          //
           // 링크는 배지 밖에 둔다 — 안에 넣고 손가락 크기(min-h-9)를 주면
           // 배지가 40px짜리 알약이 되어 상태 표시가 아니라 버튼으로 읽힌다.
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone="info" dot={false}>
-              {stats.scope.grade}학년 {stats.scope.classNo}반만 보는 중
+              {scope.grade}학년 {scope.classNo}반만 보는 중
             </Badge>
             {/*
               ✕는 "누르면 이 필터가 풀린다"는 장식이다 — 링크 이름에 넣지 않는다.
@@ -103,71 +109,164 @@ export default async function MeritStatsPage({
         )}
       </SectionCard>
 
-      {!stats ? (
-        <NoAcademicYearNotice />
-      ) : (
-        <>
-          {/* 뷰포트가 아니라 놓인 자리의 폭을 본다 — MeritTotalsCards와 같은 기준이다. */}
-          <div className="@container">
-            <div className="grid grid-cols-2 gap-3 @md:grid-cols-3 @2xl:grid-cols-5">
-              <StatTile
-                label="상점"
-                value={stats.totals.merit}
-                valueClassName="text-blue"
-              />
-              <StatTile
-                label="벌점"
-                value={stats.totals.demerit}
-                valueClassName="text-rose"
-              />
-              <StatTile
-                label="상쇄점"
-                value={stats.totals.offset}
-                valueClassName="text-green"
-              />
-              <StatTile
-                label="순점수"
-                value={signedNet(stats.totals.net)}
-                valueClassName={stats.totals.net >= 0 ? "text-green" : "text-rose"}
-              />
-              <StatTile
-                label="부여 건수"
-                value={stats.totals.awardCount}
-                valueClassName="text-ink"
-              />
-            </div>
-          </div>
+      {/* 합계·그래프·표가 전부 같은 조회에서 나온다 — 경계를 하나로 둬야 한꺼번에 들어온다.
+          덩어리마다 나누면 화면이 조각조각 채워져 더 어수선하다. */}
+      <Suspense key={boundaryKey} fallback={<StatsSkeleton />}>
+        <StatsBody promise={statsPromise} track={track} statsHref={statsHref} />
+      </Suspense>
+    </div>
+  );
+}
 
-          <MonthlyChart points={stats.monthly} axisLabel={stats.axisLabel} />
+type StatsPromise = Promise<MeritStats | null>;
 
-          {stats.scope && stats.students ? (
-            <StudentNetChart
-              rows={stats.students}
-              thresholds={stats.thresholds}
-              hrefFor={(id) => `/merit/students/${id}?track=${track}`}
-            />
-          ) : (
-            <ClassNetChart
-              rows={stats.classes}
-              hrefFor={(row) =>
-                statsHref({ grade: String(row.grade), classNo: String(row.classNo) })
-              }
-            />
-          )}
+/**
+ * 현재 학년도가 없으면 안내로 바꾼다. 페이지에서 try/catch로 잡으면 거기서 기다리게 되고,
+ * 경계 밖에서 던지면 error.tsx로 새어 화면 전체가 오류가 된다.
+ */
+async function loadStats(
+  actor: SessionUser,
+  track: MeritTrack,
+  year: number | undefined,
+  scope: { grade: number; classNo: number } | undefined,
+): StatsPromise {
+  try {
+    return await getMeritStats(actor, track, year, new Date(), scope);
+  } catch (error) {
+    if (error instanceof AcademicYearError) return null;
+    throw error;
+  }
+}
 
-          <CategoryChart slices={stats.categories} scopeLabel={stats.chartRange} />
+/** 집계 범위 한 줄. 본문과 같은 약속을 기다리므로 질의가 늘지 않는다. */
+async function RangeHint({
+  promise,
+  track,
+}: {
+  promise: StatsPromise;
+  track: MeritTrack;
+}) {
+  const stats = await promise;
+  if (!stats) return null;
 
-          <WatchList
-            rows={stats.watchList}
-            track={track}
-            thresholds={stats.thresholds}
-            scoped={stats.scope !== null}
+  return (
+    <>
+      {isYearScoped(track)
+        ? `${stats.year}학년도 집계 · 반 편성 ${stats.rosterYear}학년도`
+        : `입학부터 전체 누적 · 반 편성 ${stats.rosterYear}학년도`}
+    </>
+  );
+}
+
+/** 집계에서 나오는 것 전부. 조건이 바뀔 때 뼈대로 바뀌는 것은 여기까지다. */
+async function StatsBody({
+  promise,
+  track,
+  statsHref,
+}: {
+  promise: StatsPromise;
+  track: MeritTrack;
+  statsHref: (patch: Record<string, string | null>) => string;
+}) {
+  const stats = await promise;
+  if (!stats) return <NoAcademicYearNotice />;
+
+  return (
+    <>
+      {/* 뷰포트가 아니라 놓인 자리의 폭을 본다 — MeritTotalsCards와 같은 기준이다. */}
+      <div className="@container">
+        <div className="grid grid-cols-2 gap-3 @md:grid-cols-3 @2xl:grid-cols-5">
+          <StatTile
+            label="상점"
+            value={stats.totals.merit}
+            valueClassName="text-blue"
           />
+          <StatTile
+            label="벌점"
+            value={stats.totals.demerit}
+            valueClassName="text-rose"
+          />
+          <StatTile
+            label="상쇄점"
+            value={stats.totals.offset}
+            valueClassName="text-green"
+          />
+          <StatTile
+            label="순점수"
+            value={signedNet(stats.totals.net)}
+            valueClassName={stats.totals.net >= 0 ? "text-green" : "text-rose"}
+          />
+          <StatTile
+            label="부여 건수"
+            value={stats.totals.awardCount}
+            valueClassName="text-ink"
+          />
+        </div>
+      </div>
 
-          <ClassTable rows={stats.classes} />
-          <TopRules rows={stats.topRules} />
-        </>
+      <MonthlyChart points={stats.monthly} axisLabel={stats.axisLabel} />
+
+      {stats.scope && stats.students ? (
+        <StudentNetChart
+          rows={stats.students}
+          thresholds={stats.thresholds}
+          hrefFor={(id) => `/merit/students/${id}?track=${track}`}
+        />
+      ) : (
+        <ClassNetChart
+          rows={stats.classes}
+          hrefFor={(row) =>
+            statsHref({ grade: String(row.grade), classNo: String(row.classNo) })
+          }
+        />
       )}
+
+      <CategoryChart slices={stats.categories} scopeLabel={stats.chartRange} />
+
+      <WatchList
+        rows={stats.watchList}
+        track={track}
+        thresholds={stats.thresholds}
+        scoped={stats.scope !== null}
+      />
+
+      <ClassTable rows={stats.classes} />
+      <TopRules rows={stats.topRules} />
+    </>
+  );
+}
+
+/**
+ * hint는 <p> 안에 들어간다 — Skeleton은 <div>라 문단에 넣으면 브라우저가 문단을
+ * 먼저 닫아 버려 하이드레이션이 어긋난다. 같은 규격을 인라인으로 쓴다.
+ */
+function HintSkeleton() {
+  return (
+    <span className="inline-block h-4 w-64 max-w-full animate-pulse rounded-btn bg-soft align-middle" />
+  );
+}
+
+/**
+ * 합계·그래프·표 자리. 개수를 화면과 맞춘다 — 어긋나면 집계가 도착할 때 자리가
+ * 통째로 다시 짜인다. 바깥과 같은 space-y-4라 간격도 그대로다.
+ */
+function StatsSkeleton() {
+  return (
+    <div className="space-y-4" aria-busy="true" aria-live="polite">
+      <SkeletonStats count={5} />
+
+      {/* 월별 추이 · 반별(학생별) 순점수 · 분류별 분포 */}
+      <Skeleton className="h-[236px]" />
+      <Skeleton className="h-[236px]" />
+      <Skeleton className="h-[236px]" />
+
+      {/* 표는 셋이다 — 기준 초과 학생 · 반별 현황 · 많이 나온 항목. */}
+      <SkeletonTable rows={4} />
+      <SkeletonTable rows={6} />
+      <SkeletonTable rows={5} />
+
+      {/* 맨 뒤에 둔다 — 앞에 두면 space-y가 첫 칸을 16px 밀어 내린다. */}
+      <span className="sr-only">불러오는 중</span>
     </div>
   );
 }

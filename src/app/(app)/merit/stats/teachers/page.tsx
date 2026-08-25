@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { requirePermission } from "@/core/auth/session";
+import { Suspense } from "react";
+import { requirePermission, type SessionUser } from "@/core/auth/session";
 import {
   isMeritTrack,
   isYearScoped,
@@ -11,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { SectionCard } from "@/components/ui/section-card";
+import { Skeleton, SkeletonStats, SkeletonTable } from "@/components/ui/skeleton";
 import { StatTile } from "@/components/ui/stat-tile";
 import { DataTable, type Column } from "@/components/ui/table";
 import { hrefWith } from "@/lib/search-params";
@@ -37,23 +39,14 @@ export default async function TeacherStatsPage({
       ? Number(raw.year)
       : undefined;
 
-  let stats: TeacherStats | null = null;
-  try {
-    stats = await getTeacherStats(actor, track, year);
-  } catch (error) {
-    if (!(error instanceof AcademicYearError)) throw error;
-  }
+  // 조회를 시작만 하고 기다리지 않는다. 기다리면 이 함수 전체가 멈춰서 트랙 탭까지
+  // 뼈대로 덮인다 — 방금 고른 조건이 사라지는 그 증상이다.
+  // 두 경계가 같은 약속을 나눠 기다리므로 질의는 한 번이다.
+  const statsPromise = loadStats(actor, track, year);
 
-  const totals = stats ? sumRows(stats.rows) : null;
-  const rows: Row[] =
-    stats && totals
-      ? stats.rows.map((row) => ({
-          ...row,
-          // 서비스가 계정 있는 사람과 이름만 남은 사람을 가르는 방식을 그대로 쓴다.
-          key: row.userId ? `u:${row.userId}` : `n:${row.name}`,
-          share: sharePercent(row.awardCount, totals.awardCount),
-        }))
-      : [];
+  // 조건이 바뀌면 경계를 새로 만든다. 이미 해결된 Suspense 경계는 자식이 다시 매달려도
+  // 뼈대 대신 옛 내용을 그대로 보여준다 — key가 없으면 탭을 눌러도 안 바뀐 것처럼 보인다.
+  const boundaryKey = JSON.stringify({ track, year });
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
@@ -61,11 +54,10 @@ export default async function TeacherStatsPage({
         variant="panel"
         title="교사별 통계"
         hint={
-          stats
-            ? isYearScoped(track)
-              ? `${stats.year}학년도 집계`
-              : "입학부터 전체 누적"
-            : undefined
+          // 집계 범위는 데이터에서 나온다 — 본문과 같은 약속을 나눠 기다린다.
+          <Suspense key={boundaryKey} fallback={<HintSkeleton />}>
+            <RangeHint promise={statsPromise} track={track} />
+          </Suspense>
         }
         aside={
           <TrackTabs
@@ -76,27 +68,106 @@ export default async function TeacherStatsPage({
         }
       />
 
-      {!stats || !totals ? (
-        <NoAcademicYearNotice />
-      ) : rows.length === 0 ? (
-        <EmptyState>부여된 상벌점이 없습니다.</EmptyState>
-      ) : (
-        <>
-          {/* 뷰포트가 아니라 놓인 자리의 폭을 본다 — 통계 개요와 같은 기준이다. */}
-          <div className="@container">
-            <div className="grid grid-cols-2 gap-3 @md:grid-cols-3 @2xl:grid-cols-5">
-              <StatTile label="부여자" value={`${stats.teacherCount}명`} />
-              <StatTile label="부여 건수" value={totals.awardCount} />
-              <StatTile label="상점" value={totals.merit} valueClassName="text-blue" />
-              <StatTile label="벌점" value={totals.demerit} valueClassName="text-rose" />
-              <StatTile label="상쇄점" value={totals.offset} valueClassName="text-green" />
-            </div>
-          </div>
+      {/* 합계·그래프·표가 전부 같은 조회에서 나온다 — 경계를 하나로 둬야 한꺼번에 들어온다. */}
+      <Suspense key={boundaryKey} fallback={<TeacherSkeleton />}>
+        <TeacherBody promise={statsPromise} />
+      </Suspense>
+    </div>
+  );
+}
 
-          <TeacherChart rows={rows} />
-          <TeacherTable rows={rows} />
-        </>
-      )}
+type StatsPromise = Promise<TeacherStats | null>;
+
+/**
+ * 현재 학년도가 없으면 안내로 바꾼다. 페이지에서 try/catch로 잡으면 거기서 기다리게 되고,
+ * 경계 밖에서 던지면 error.tsx로 새어 화면 전체가 오류가 된다.
+ */
+async function loadStats(
+  actor: SessionUser,
+  track: MeritTrack,
+  year: number | undefined,
+): StatsPromise {
+  try {
+    return await getTeacherStats(actor, track, year);
+  } catch (error) {
+    if (error instanceof AcademicYearError) return null;
+    throw error;
+  }
+}
+
+/** 집계 범위 한 줄. 본문과 같은 약속을 기다리므로 질의가 늘지 않는다. */
+async function RangeHint({
+  promise,
+  track,
+}: {
+  promise: StatsPromise;
+  track: MeritTrack;
+}) {
+  const stats = await promise;
+  if (!stats) return null;
+
+  return <>{isYearScoped(track) ? `${stats.year}학년도 집계` : "입학부터 전체 누적"}</>;
+}
+
+/** 집계에서 나오는 것 전부. 조건이 바뀔 때 뼈대로 바뀌는 것은 여기까지다. */
+async function TeacherBody({ promise }: { promise: StatsPromise }) {
+  const stats = await promise;
+  if (!stats) return <NoAcademicYearNotice />;
+
+  const totals = sumRows(stats.rows);
+  const rows: Row[] = stats.rows.map((row) => ({
+    ...row,
+    // 서비스가 계정 있는 사람과 이름만 남은 사람을 가르는 방식을 그대로 쓴다.
+    key: row.userId ? `u:${row.userId}` : `n:${row.name}`,
+    share: sharePercent(row.awardCount, totals.awardCount),
+  }));
+
+  if (rows.length === 0) {
+    return <EmptyState>부여된 상벌점이 없습니다.</EmptyState>;
+  }
+
+  return (
+    <>
+      {/* 뷰포트가 아니라 놓인 자리의 폭을 본다 — 통계 개요와 같은 기준이다. */}
+      <div className="@container">
+        <div className="grid grid-cols-2 gap-3 @md:grid-cols-3 @2xl:grid-cols-5">
+          <StatTile label="부여자" value={`${stats.teacherCount}명`} />
+          <StatTile label="부여 건수" value={totals.awardCount} />
+          <StatTile label="상점" value={totals.merit} valueClassName="text-blue" />
+          <StatTile label="벌점" value={totals.demerit} valueClassName="text-rose" />
+          <StatTile label="상쇄점" value={totals.offset} valueClassName="text-green" />
+        </div>
+      </div>
+
+      <TeacherChart rows={rows} />
+      <TeacherTable rows={rows} />
+    </>
+  );
+}
+
+/**
+ * hint는 <p> 안에 들어간다 — Skeleton은 <div>라 문단에 넣으면 브라우저가 문단을
+ * 먼저 닫아 버려 하이드레이션이 어긋난다. 같은 규격을 인라인으로 쓴다.
+ */
+function HintSkeleton() {
+  return (
+    <span className="inline-block h-4 w-64 max-w-full animate-pulse rounded-btn bg-soft align-middle" />
+  );
+}
+
+/**
+ * 합계 칸 · 막대 그래프 · 표 자리. 개수를 화면과 맞춘다 — 어긋나면 집계가 도착할 때
+ * 자리가 통째로 다시 짜인다. 바깥과 같은 space-y-4라 간격도 그대로다.
+ */
+function TeacherSkeleton() {
+  return (
+    <div className="space-y-4" aria-busy="true" aria-live="polite">
+      <SkeletonStats count={5} />
+      <Skeleton className="h-[236px]" />
+      <SkeletonTable rows={8} />
+
+      {/* 맨 뒤에 둔다 — 앞에 두면 space-y가 첫 칸을 16px 밀어 내린다. */}
+      <span className="sr-only">불러오는 중</span>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Link from "next/link";
-import { requirePermission } from "@/core/auth/session";
+import { requirePermission, type SessionUser } from "@/core/auth/session";
 import {
   isMeritTrack,
   isYearScoped,
@@ -13,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { SectionCard } from "@/components/ui/section-card";
+import { SkeletonTable } from "@/components/ui/skeleton";
 import { DataTable, type Column } from "@/components/ui/table";
 import { hrefWith, type SearchParamsInput } from "@/lib/search-params";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
@@ -51,14 +53,16 @@ export default async function RankingPage({
   const classNo = numberParam(raw.classNo, 1, 20);
   const scope = grade !== null && classNo !== null ? { grade, classNo } : undefined;
 
-  let stats: RankingStats | null = null;
-  try {
-    stats = await getRankingStats(actor, track, year, scope);
-  } catch (error) {
-    if (!(error instanceof AcademicYearError)) throw error;
-  }
-
   const href = (patch: Patch) => hrefWith(PATH, raw as SearchParamsInput, patch);
+
+  // 조회를 시작만 하고 기다리지 않는다. 기다리면 이 함수 전체가 멈춰서 트랙 탭과
+  // 범위 배지까지 뼈대로 덮인다 — 방금 고른 조건이 사라지는 그 증상이다.
+  // 두 경계가 같은 약속을 나눠 기다리므로 질의는 한 번이다.
+  const statsPromise = loadStats(actor, track, year, scope);
+
+  // 조건이 바뀌면 경계를 새로 만든다. 이미 해결된 Suspense 경계는 자식이 다시 매달려도
+  // 뼈대 대신 옛 내용을 그대로 보여준다 — key가 없으면 탭을 눌러도 안 바뀐 것처럼 보인다.
+  const boundaryKey = JSON.stringify({ track, year, grade, classNo });
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
@@ -66,11 +70,10 @@ export default async function RankingPage({
         variant="panel"
         title="순위 · 현황"
         hint={
-          stats
-            ? isYearScoped(track)
-              ? `${stats.year}학년도 집계 · 반 편성 ${stats.rosterYear}학년도`
-              : `입학부터 전체 누적 · 반 편성 ${stats.rosterYear}학년도`
-            : undefined
+          // 집계 범위는 데이터에서 나온다 — 본문과 같은 약속을 나눠 기다린다.
+          <Suspense key={boundaryKey} fallback={<HintSkeleton />}>
+            <RangeHint promise={statsPromise} track={track} />
+          </Suspense>
         }
         aside={
           <TrackTabs
@@ -80,12 +83,15 @@ export default async function RankingPage({
           />
         }
       >
-        {stats?.scope && (
+        {scope && (
+          // 배지는 지금 고른 조건이다 — 서비스의 scope는 받은 인자를 그대로 돌려주므로
+          // 데이터를 기다릴 이유가 없다. 경계 밖에 남긴다.
+          //
           // 링크는 배지 밖에 둔다 — 안에 넣고 손가락 크기(min-h-9)를 주면
           // 배지가 40px짜리 알약이 되어 상태 표시가 아니라 버튼으로 읽힌다.
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone="info" dot={false}>
-              {stats.scope.grade}학년 {stats.scope.classNo}반
+              {scope.grade}학년 {scope.classNo}반
             </Badge>
             {/*
               ✕는 "누르면 이 필터가 풀린다"는 장식이다 — 링크 이름에 넣지 않는다.
@@ -102,20 +108,103 @@ export default async function RankingPage({
         )}
       </SectionCard>
 
-      {!stats ? (
-        <NoAcademicYearNotice />
-      ) : (
-        <>
-          {stats.scope ? (
-            <ClassRosterCard stats={stats} track={track} />
-          ) : (
-            <>
-              <StudentRankCard stats={stats} track={track} />
-              <ClassRankCard stats={stats} href={href} />
-            </>
-          )}
-        </>
-      )}
+      {/* 순위표는 전부 같은 조회에서 나온다 — 경계를 하나로 둬야 한꺼번에 들어온다. */}
+      <Suspense
+        key={boundaryKey}
+        fallback={<RankingSkeleton scoped={scope !== undefined} />}
+      >
+        <RankingBody promise={statsPromise} track={track} href={href} />
+      </Suspense>
+    </div>
+  );
+}
+
+type StatsPromise = Promise<RankingStats | null>;
+
+/**
+ * 현재 학년도가 없으면 안내로 바꾼다. 페이지에서 try/catch로 잡으면 거기서 기다리게 되고,
+ * 경계 밖에서 던지면 error.tsx로 새어 화면 전체가 오류가 된다.
+ */
+async function loadStats(
+  actor: SessionUser,
+  track: MeritTrack,
+  year: number | undefined,
+  scope: { grade: number; classNo: number } | undefined,
+): StatsPromise {
+  try {
+    return await getRankingStats(actor, track, year, scope);
+  } catch (error) {
+    if (error instanceof AcademicYearError) return null;
+    throw error;
+  }
+}
+
+/** 집계 범위 한 줄. 본문과 같은 약속을 기다리므로 질의가 늘지 않는다. */
+async function RangeHint({
+  promise,
+  track,
+}: {
+  promise: StatsPromise;
+  track: MeritTrack;
+}) {
+  const stats = await promise;
+  if (!stats) return null;
+
+  return (
+    <>
+      {isYearScoped(track)
+        ? `${stats.year}학년도 집계 · 반 편성 ${stats.rosterYear}학년도`
+        : `입학부터 전체 누적 · 반 편성 ${stats.rosterYear}학년도`}
+    </>
+  );
+}
+
+/** 순위·명단. 조건이 바뀔 때 뼈대로 바뀌는 것은 여기까지다. */
+async function RankingBody({
+  promise,
+  track,
+  href,
+}: {
+  promise: StatsPromise;
+  track: MeritTrack;
+  href: (patch: Patch) => string;
+}) {
+  const stats = await promise;
+  if (!stats) return <NoAcademicYearNotice />;
+
+  return stats.scope ? (
+    <ClassRosterCard stats={stats} track={track} />
+  ) : (
+    <>
+      <StudentRankCard stats={stats} track={track} />
+      <ClassRankCard stats={stats} href={href} />
+    </>
+  );
+}
+
+/**
+ * hint는 <p> 안에 들어간다 — Skeleton은 <div>라 문단에 넣으면 브라우저가 문단을
+ * 먼저 닫아 버려 하이드레이션이 어긋난다. 같은 규격을 인라인으로 쓴다.
+ */
+function HintSkeleton() {
+  return (
+    <span className="inline-block h-4 w-64 max-w-full animate-pulse rounded-btn bg-soft align-middle" />
+  );
+}
+
+/**
+ * 표 자리. 반을 고르면 명단 하나, 전교면 학생 순위와 반 순위 둘이다 — 개수가
+ * 어긋나면 자료가 도착할 때 자리가 통째로 다시 짜인다. 반은 쿼리에서 나오므로
+ * 자료를 기다리지 않고도 어느 쪽인지 안다.
+ */
+function RankingSkeleton({ scoped }: { scoped: boolean }) {
+  return (
+    <div className="space-y-4" aria-busy="true" aria-live="polite">
+      <SkeletonTable rows={scoped ? 8 : 10} />
+      {!scoped && <SkeletonTable rows={6} />}
+
+      {/* 맨 뒤에 둔다 — 앞에 두면 space-y가 첫 표를 16px 밀어 내린다. */}
+      <span className="sr-only">불러오는 중</span>
     </div>
   );
 }

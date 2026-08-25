@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Link from "next/link";
-import { requirePermission } from "@/core/auth/session";
+import { requirePermission, type SessionUser } from "@/core/auth/session";
 import { isMeritTrack, type MeritTrack } from "@/core/authz/merit-track";
 import { KindBadge, kindColorClass, signedPoints } from "@/components/merit/kind-badge";
 import { TrackTabs } from "@/components/merit/track-tabs";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { SectionCard } from "@/components/ui/section-card";
+import { SkeletonStats, SkeletonTable } from "@/components/ui/skeleton";
 import { StatTile } from "@/components/ui/stat-tile";
 import { DataTable, type Column } from "@/components/ui/table";
 import { hrefWith } from "@/lib/search-params";
@@ -31,12 +33,14 @@ export default async function RuleStatsPage({
       ? Number(raw.year)
       : undefined;
 
-  let stats: RuleStats | null = null;
-  try {
-    stats = await getRuleStats(actor, track, year);
-  } catch (error) {
-    if (!(error instanceof AcademicYearError)) throw error;
-  }
+  // 조회를 시작만 하고 기다리지 않는다. 기다리면 이 함수 전체가 멈춰서 트랙 탭까지
+  // 뼈대로 덮인다 — 방금 고른 조건이 사라지는 그 증상이다.
+  // 두 경계가 같은 약속을 나눠 기다리므로 질의는 한 번이다.
+  const statsPromise = loadStats(actor, track, year);
+
+  // 조건이 바뀌면 경계를 새로 만든다. 이미 해결된 Suspense 경계는 자식이 다시 매달려도
+  // 뼈대 대신 옛 내용을 그대로 보여준다 — key가 없으면 탭을 눌러도 안 바뀐 것처럼 보인다.
+  const boundaryKey = JSON.stringify({ track, year });
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
@@ -44,11 +48,10 @@ export default async function RuleStatsPage({
         variant="panel"
         title="규정별 통계"
         hint={
-          stats
-            ? stats.year === null
-              ? "입학부터 전체 누적"
-              : `${stats.year}학년도 집계`
-            : undefined
+          // 집계 범위는 데이터에서 나온다 — 본문과 같은 약속을 나눠 기다린다.
+          <Suspense key={boundaryKey} fallback={<HintSkeleton />}>
+            <RangeHint promise={statsPromise} />
+          </Suspense>
         }
         aside={
           <TrackTabs
@@ -59,29 +62,98 @@ export default async function RuleStatsPage({
         }
       />
 
-      {!stats ? (
-        <NoAcademicYearNotice />
-      ) : (
-        <>
-          {/* 뷰포트가 아니라 놓인 자리의 폭을 본다. */}
-          <div className="@container">
-            <div className="grid grid-cols-2 gap-3 @md:grid-cols-4">
-              <StatTile label="부여 건수" value={stats.totalCount} />
-              <StatTile label="쓰인 규정" value={stats.rows.length} />
-              <StatTile label="안 쓰인 규정" value={stats.unused.length} />
-              <StatTile
-                label="삭제된 규정"
-                value={stats.rows.filter((row) => row.deleted).length}
-              />
-            </div>
-          </div>
+      {/* 합계 칸과 두 표가 전부 같은 조회에서 나온다 — 경계를 하나로 둬야 한꺼번에 들어온다. */}
+      <Suspense key={boundaryKey} fallback={<RuleSkeleton />}>
+        <RuleBody promise={statsPromise} track={track} />
+      </Suspense>
+    </div>
+  );
+}
 
-          <RuleCategoryCard stats={stats} />
+type StatsPromise = Promise<RuleStats | null>;
 
-          {/* 부여가 0건이어도 낸다 — 그때는 모든 규정이 안 쓰인 규정이다. */}
-          <UnusedRules stats={stats} track={track} />
-        </>
-      )}
+/**
+ * 현재 학년도가 없으면 안내로 바꾼다. 페이지에서 try/catch로 잡으면 거기서 기다리게 되고,
+ * 경계 밖에서 던지면 error.tsx로 새어 화면 전체가 오류가 된다.
+ */
+async function loadStats(
+  actor: SessionUser,
+  track: MeritTrack,
+  year: number | undefined,
+): StatsPromise {
+  try {
+    return await getRuleStats(actor, track, year);
+  } catch (error) {
+    if (error instanceof AcademicYearError) return null;
+    throw error;
+  }
+}
+
+/** 집계 범위 한 줄. 본문과 같은 약속을 기다리므로 질의가 늘지 않는다. */
+async function RangeHint({ promise }: { promise: StatsPromise }) {
+  const stats = await promise;
+  if (!stats) return null;
+
+  return <>{stats.year === null ? "입학부터 전체 누적" : `${stats.year}학년도 집계`}</>;
+}
+
+/** 집계에서 나오는 것 전부. 조건이 바뀔 때 뼈대로 바뀌는 것은 여기까지다. */
+async function RuleBody({
+  promise,
+  track,
+}: {
+  promise: StatsPromise;
+  track: MeritTrack;
+}) {
+  const stats = await promise;
+  if (!stats) return <NoAcademicYearNotice />;
+
+  return (
+    <>
+      {/* 뷰포트가 아니라 놓인 자리의 폭을 본다. */}
+      <div className="@container">
+        <div className="grid grid-cols-2 gap-3 @md:grid-cols-4">
+          <StatTile label="부여 건수" value={stats.totalCount} />
+          <StatTile label="쓰인 규정" value={stats.rows.length} />
+          <StatTile label="안 쓰인 규정" value={stats.unused.length} />
+          <StatTile
+            label="삭제된 규정"
+            value={stats.rows.filter((row) => row.deleted).length}
+          />
+        </div>
+      </div>
+
+      <RuleCategoryCard stats={stats} />
+
+      {/* 부여가 0건이어도 낸다 — 그때는 모든 규정이 안 쓰인 규정이다. */}
+      <UnusedRules stats={stats} track={track} />
+    </>
+  );
+}
+
+/**
+ * hint는 <p> 안에 들어간다 — Skeleton은 <div>라 문단에 넣으면 브라우저가 문단을
+ * 먼저 닫아 버려 하이드레이션이 어긋난다. 같은 규격을 인라인으로 쓴다.
+ */
+function HintSkeleton() {
+  return (
+    <span className="inline-block h-4 w-64 max-w-full animate-pulse rounded-btn bg-soft align-middle" />
+  );
+}
+
+/**
+ * 합계 칸 · 분류별 부여 · 안 쓰인 규정 자리. 개수를 화면과 맞춘다 — 어긋나면 집계가
+ * 도착할 때 자리가 통째로 다시 짜인다. 바깥과 같은 space-y-4라 간격도 그대로다.
+ */
+function RuleSkeleton() {
+  return (
+    <div className="space-y-4" aria-busy="true" aria-live="polite">
+      <SkeletonStats count={4} />
+      <SkeletonTable rows={6} />
+      <SkeletonTable rows={5} />
+
+      {/* 맨 뒤에 둔다 — 앞에 두면 space-y가 첫 칸을 16px 밀어 내린다. */}
+      <span className="sr-only">불러오는 중</span>
     </div>
   );
 }
