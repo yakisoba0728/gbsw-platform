@@ -245,6 +245,47 @@ describe("repo.createAwards — 일괄 부여 트랜잭션", () => {
     });
     expect(left).toBe(0);
   });
+
+  /**
+   * 최근 부여 화면은 `batchId` 열이 없어 **입력 시각으로 「한 번의 부여」를 알아낸다**
+   * (`components/merit/recent-feed.ts`). 목으로는 못 잡는다 — Prisma가
+   * `@default(now())`를 create마다 다시 찍는 것이 문제였고, 그건 실제 클라이언트가
+   * 돌아야 드러난다. 갈리면 오류 없이 화면만 흩어진다.
+   */
+  it("한 번의 부여는 밀리초까지 같은 createdAt을 갖는다", async () => {
+    const ruleId = await makeRule({
+      track: "DORM",
+      kind: "MERIT",
+      label: "한 시각 검증",
+      points: 1,
+    });
+    const base = {
+      year: YEAR,
+      ruleId,
+      track: "DORM",
+      kind: "MERIT",
+      label: "한 시각 검증",
+      points: 1,
+      occurredOn: OCCURRED_ON,
+      note: null,
+      awardedByUserId: admin.id,
+      awardedByName: "통합테스트",
+    };
+
+    await repo.createAwards([
+      { ...base, studentProfileId: await makeStudent("stamp-a") },
+      { ...base, studentProfileId: await makeStudent("stamp-b") },
+      { ...base, studentProfileId: await makeStudent("stamp-c") },
+    ]);
+
+    const rows = await prisma.meritAward.findMany({
+      where: { ruleId },
+      select: { createdAt: true },
+    });
+
+    expect(rows).toHaveLength(3);
+    expect(new Set(rows.map((row) => row.createdAt.getTime())).size).toBe(1);
+  });
 });
 
 describe("service.bulkAwardMerit — 실제 경로", () => {

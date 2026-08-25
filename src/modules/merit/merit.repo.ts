@@ -431,10 +431,21 @@ export async function createAwards(
   db?: DbClient,
 ): Promise<{ id: string }[]> {
   const run = async (client: DbClient) => {
+    // **한 번의 부여는 한 시각이다.** 열에 붙은 DB 기본값(CURRENT_TIMESTAMP)은
+    // 여기까지 오지 않는다 — Prisma가 `@default(now())`를 클라이언트에서 찍어
+    // 보내므로 create마다 값이 다시 나고, 실제로 한 트랜잭션 안의 행이
+    // 밀리초 단위로 갈렸다(.411 · .414 · .415).
+    //
+    // 아래 findRecentAwardPage의 보조 정렬키가 이 값이 같다는 전제 위에 서 있다.
+    const createdAt = new Date();
+
     const created: { id: string }[] = [];
     for (const item of items) {
       created.push(
-        await client.meritAward.create({ data: item, select: { id: true } }),
+        await client.meritAward.create({
+          data: { ...item, createdAt },
+          select: { id: true },
+        }),
       );
     }
     return created;
@@ -784,13 +795,12 @@ export async function findRecentAwardPage(
 ) {
   const rows = await prisma.meritAward.findMany({
     where: recentAwardWhere(filter),
-    // 보조 정렬키가 없으면 쪽 경계가 흔들린다. createdAt의 기본값
-    // CURRENT_TIMESTAMP는 Postgres에서 **트랜잭션 시작 시각**이라 일괄 부여 한 번이
-    // 넣은 반 전체가 밀리초까지 같은 값을 갖는데, SQL은 정렬키가 같은 행 사이의
-    // 순서를 보장하지 않는다 — OFFSET이 달라지면 동점 구간 순서가 뒤집혀 어느
-    // 쪽에도 안 나오는 줄이나 두 번 나오는 줄이 생긴다. id는 cuid라 시간순은
-    // 아니지만 유일하고 결정적이다 — 쪽 경계를 고정하는 데 필요한 것은 시간순이
-    // 아니라 유일성이다.
+    // 보조 정렬키가 없으면 쪽 경계가 흔들린다. 일괄 부여 한 번이 넣은 반 전체는
+    // **밀리초까지 같은 createdAt**을 갖는데(`createAwards`가 한 시각을 찍어
+    // 넣는다), SQL은 정렬키가 같은 행 사이의 순서를 보장하지 않는다 — OFFSET이
+    // 달라지면 동점 구간 순서가 뒤집혀 어느 쪽에도 안 나오는 줄이나 두 번 나오는
+    // 줄이 생긴다. id는 cuid라 시간순은 아니지만 유일하고 결정적이다 — 쪽 경계를
+    // 고정하는 데 필요한 것은 시간순이 아니라 유일성이다.
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     skip,
     take,
