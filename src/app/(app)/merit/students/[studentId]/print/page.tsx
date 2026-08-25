@@ -6,13 +6,15 @@ import {
   isYearScoped,
   MERIT_KIND_LABELS,
   MERIT_TRACK_LABELS,
-  signedNet,
   type MeritKind,
   type MeritTrack,
 } from "@/core/authz/merit-track";
 import { signedPoints } from "@/components/merit/kind-badge";
 import { BackLink } from "@/components/ui/back-link";
 import { cardClass } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { TableFrame, tableCellPadding } from "@/components/ui/table";
+import { MeritTotalsCards } from "@/components/merit/merit-totals";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { formatDate, formatDateTime, isSameKstDate } from "@/lib/datetime";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
@@ -111,62 +113,54 @@ export default async function MeritPrintPage({
 
         {/* 합계 4칸. 뷰포트가 아니라 놓인 자리의 폭을 본다 — MeritTotalsCards와 같은 기준이다.
             종이(A4 ≈ 794px)는 언제나 448px를 넘으므로 4칸 그대로 찍힌다. */}
-        <div className="@container">
-          <div className="grid grid-cols-2 gap-3 py-4 @md:grid-cols-4">
-            <Total label="상점" value={view.totals.merit} />
-            <Total label="벌점" value={view.totals.demerit} />
-            <Total label="상쇄점" value={view.totals.offset} />
-            <Total label="순점수" value={view.totals.net} signed strong />
-          </div>
+        <div className="@container py-4">
+          <MeritTotalsCards totals={view.totals} />
         </div>
         <p className="pb-4 text-xs text-mut">
           순점수 = 상점 + 상쇄점 − 벌점. 취소된 기록은 합계에서 빠집니다.
         </p>
 
         {active.length === 0 ? (
-          <p className="border-t border-line py-8 text-center text-caption text-mut">
+          <EmptyState variant="inside">
             해당 범위에 부여된 상벌점이 없습니다.
-          </p>
+          </EmptyState>
         ) : (
-          <table className="w-full border-t border-line text-left text-caption">
-            <thead>
-              <tr className="border-b border-line2 text-xs text-mut">
-                {/* 발생일이다. 입력일이 다른 줄에는 * 표시가 붙고 아래 각주가 설명한다. */}
-                <th className="py-2 font-medium">발생일</th>
-                <th className="py-2 font-medium">구분</th>
-                <th className="py-2 font-medium">항목</th>
-                <th className="py-2 text-right font-medium">점수</th>
-                <th className="py-2 text-right font-medium">부여</th>
-              </tr>
-            </thead>
+          <TableFrame
+            minWidth={520}
+            gutter={false}
+            headers={PRINT_HEADERS}
+            cols={PRINT_COLS}
+          >
             <tbody>
               {active.map((award) => (
                 <tr key={award.id} className="border-b border-line2 last:border-0">
-                  <td className="py-2 font-mono whitespace-nowrap text-mut">
-                    {formatDate(award.occurredOn)}
-                    {!isSameKstDate(award.occurredOn, award.createdAt) && (
-                      <span title={`입력 ${formatDate(award.createdAt)}`}>*</span>
-                    )}
+                  <td className={printCell(0)}>
+                    <span className="font-mono whitespace-nowrap text-mut">
+                      {formatDate(award.occurredOn)}
+                      {!isSameKstDate(award.occurredOn, award.createdAt) && (
+                        <span title={`입력 ${formatDate(award.createdAt)}`}>*</span>
+                      )}
+                    </span>
                   </td>
-                  <td className="py-2 whitespace-nowrap">
+                  <td className={`${printCell(1)} whitespace-nowrap`}>
                     {MERIT_KIND_LABELS[award.kind as MeritKind] ?? award.kind}
                   </td>
-                  <td className="py-2 text-ink">
+                  <td className={`${printCell(2)} text-ink`}>
                     {award.label}
                     {award.note && (
                       <span className="block text-xs text-mut">{award.note}</span>
                     )}
                   </td>
-                  <td className="py-2 text-right font-medium">
+                  <td className={`${printCell(3)} text-right font-medium`}>
                     {signedPoints(award.kind, award.points)}
                   </td>
-                  <td className="py-2 text-right whitespace-nowrap text-mut">
+                  <td className={`${printCell(4)} text-right whitespace-nowrap text-mut`}>
                     {honorificName(award.awardedByName, "ADMIN")}
                   </td>
                 </tr>
               ))}
             </tbody>
-          </table>
+          </TableFrame>
         )}
 
         {/* 종이에는 툴팁이 없다 — 두 날짜가 갈린 줄은 각주로 적는다. */}
@@ -218,27 +212,25 @@ function Row({
   );
 }
 
-function Total({
-  label,
-  value,
-  signed,
-  strong,
-}: {
-  label: string;
-  value: number;
-  signed?: boolean;
-  strong?: boolean;
-}) {
-  return (
-    <div className="rounded-btn border border-line px-3 py-2 text-center">
-      <div className="text-xs text-mut">{label}</div>
-      <div
-        className={
-          strong ? "text-title font-semibold text-ink" : "text-lg font-medium text-ink"
-        }
-      >
-        {signed ? signedNet(value) : value}
-      </div>
-    </div>
-  );
+/** 발생일이다. 입력일이 다른 줄에는 * 표시가 붙고 아래 각주가 설명한다. */
+const PRINT_HEADERS = [
+  "발생일",
+  "구분",
+  "항목",
+  <span key="points" className="block text-right">
+    점수
+  </span>,
+  <span key="by" className="block text-right">
+    부여
+  </span>,
+];
+
+const PRINT_COLS = ["w-[96px]", "w-[64px]", undefined, "w-[64px]", "w-[104px]"];
+
+/**
+ * 확인서의 셀 여백. 카드가 이미 `p-8`을 갖고 있어 표의 바깥 여백은 끈다 —
+ * 그대로 두면 표의 첫 글자만 20px 더 들어가 위 문단과 왼쪽 끝이 어긋난다.
+ */
+function printCell(index: number): string {
+  return `${tableCellPadding(index, PRINT_HEADERS.length, false)} py-2.5`;
 }
