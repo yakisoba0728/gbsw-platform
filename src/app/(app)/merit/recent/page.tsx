@@ -163,31 +163,28 @@ async function RecentPagination({
   );
 }
 
-/**
- * 항목 아래 한 줄에 실을 것 — 메모와 취소 사유.
- *
- * **항목과 섞지 않는다.** 하나로 이어 붙이면 잘린 자리가 어디까지가 항목이고
- * 어디부터가 사유인지 알 수 없고, 사유만 보고 싶어도 항목부터 읽어야 한다.
- * 둘 다 500자까지 들어오므로 각각 한 줄로 자르고 각각 마우스로 편다.
- */
-function awardDetails(row: RecentRow): { inline: string; full: string } {
-  const cancelledBy = row.cancelledByName
+/** 취소 사유 + 취소한 사람. 취소된 건이 아니면 없다. */
+function cancelNote(row: RecentRow): string | null {
+  if (row.status !== "CANCELLED" || !row.cancelReason) return null;
+
+  const by = row.cancelledByName
     ? ` (${honorificName(row.cancelledByName, "ADMIN")})`
     : "";
-
-  const parts = [
-    row.note ? `메모 · ${row.note}` : null,
-    row.status === "CANCELLED" && row.cancelReason
-      ? `취소 · ${row.cancelReason}${cancelledBy}`
-      : null,
-  ].filter((part): part is string => part !== null);
-
-  return { inline: parts.join("  ·  "), full: parts.join("\n") };
+  return `${row.cancelReason}${by}`;
 }
 
-/** 항목 + (있으면) 메모·사유. 각각 한 줄로 자르고 각각 전문을 띄운다. */
+/**
+ * 항목 · 메모 · 취소 사유 — **각각 제 줄에 선다.**
+ *
+ * 이어 붙이면 잘린 자리가 어디까지 항목이고 어디부터 사유인지 알 수 없고, 사유만
+ * 보려 해도 항목부터 읽어야 한다. 메모와 사유를 한 줄에 묶었을 때는 메모가 조금만
+ * 길어도 사유가 통째로 잘려 나가 "취소 사유가 없는 것"처럼 보였다.
+ *
+ * 셋 다 500자까지 들어오므로 각각 한 줄로 자르고 각각 마우스로 편다. 줄 높이는
+ * 취소 버튼이 이미 정하고 있어서, 줄이 하나 늘어도 표가 두꺼워지지 않는다.
+ */
 function AwardLabelCell({ row }: { row: RecentRow }) {
-  const details = awardDetails(row);
+  const cancelled = cancelNote(row);
 
   return (
     <div className="min-w-0">
@@ -200,9 +197,19 @@ function AwardLabelCell({ row }: { row: RecentRow }) {
         {row.label}
       </TruncatedText>
 
-      {details.inline !== "" && (
-        <TruncatedText full={details.full} className="mt-0.5 text-xs text-mut2">
-          {details.inline}
+      {row.note && (
+        <TruncatedText full={`메모 · ${row.note}`} className="mt-0.5 text-xs text-mut2">
+          <span className="text-mut">메모</span> · {row.note}
+        </TruncatedText>
+      )}
+
+      {cancelled && (
+        <TruncatedText
+          full={`취소 사유 · ${cancelled}`}
+          className="mt-0.5 text-xs text-mut2"
+        >
+          {/* 라벨만 벌점 계열로 — 이 줄이 "무효가 된 건"이라는 표시다. */}
+          <span className="text-rose">취소 사유</span> · {cancelled}
         </TruncatedText>
       )}
     </div>
@@ -434,13 +441,23 @@ function AwardCard({ row, track }: { row: RecentRow; track: string }) {
   );
 }
 
-/** 카드의 메모·취소 사유. 표와 달리 접어서 다 보여준다. */
+/** 카드의 메모·취소 사유. 표와 달리 자르지 않고 접어서 다 보여준다. */
 function AwardCardDetails({ row }: { row: RecentRow }) {
-  const details = awardDetails(row);
-  if (details.full === "") return null;
+  const cancelled = cancelNote(row);
 
   return (
-    <p className="mt-1 text-xs whitespace-pre-line text-mut2">{details.full}</p>
+    <>
+      {row.note && (
+        <p className="mt-1 text-xs text-mut2">
+          <span className="text-mut">메모</span> · {row.note}
+        </p>
+      )}
+      {cancelled && (
+        <p className="mt-1 text-xs text-mut2">
+          <span className="text-rose">취소 사유</span> · {cancelled}
+        </p>
+      )}
+    </>
   );
 }
 
