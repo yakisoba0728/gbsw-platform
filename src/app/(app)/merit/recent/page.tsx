@@ -336,7 +336,9 @@ async function RecentAwardsRows({
     },
     {
       key: "label",
-      header: "항목",
+      // 이 칸은 항목만 담지 않는다 — 메모와 취소 사유가 같은 줄에 이어 선다.
+      // 머리글이 「항목」 하나면 뒤에 붙은 글이 무엇인지 표에서 답할 곳이 없다.
+      header: "항목 · 사유",
       cell: (row) => <AwardLabelCell row={row} />,
     },
     {
