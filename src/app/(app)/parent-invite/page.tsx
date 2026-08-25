@@ -81,7 +81,7 @@ const COLUMNS: readonly Column<MyInvite>[] = [
 export default async function ParentInvitePage() {
   const actor = await requirePermission("invite:create:parent");
 
-  // 관리자도 권한 검사는 통과하지만 학생 프로필이 없다.
+  // 교사도 권한 검사는 통과하지만 학생 프로필이 없다.
   if (actor.role !== "STUDENT") {
     return (
       <div className="mx-auto max-w-xl">

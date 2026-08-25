@@ -10,7 +10,7 @@ import type { ThresholdFormState } from "./action-state";
 /** 서비스가 던지는 오류 코드를 화면 문구로 옮긴다. */
 const MESSAGES: Record<string, string> = {
   INVALID_THRESHOLD_ORDER: "위험 기준은 경고 기준보다 커야 합니다.",
-  THRESHOLD_CONFLICT: "다른 관리자가 기준을 바꿨습니다. 새로고침 후 다시 저장해 주세요.",
+  THRESHOLD_CONFLICT: "다른 교사가 기준을 바꿨습니다. 새로고침 후 다시 저장해 주세요.",
 };
 
 /**

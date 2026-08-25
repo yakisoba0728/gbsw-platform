@@ -22,7 +22,7 @@ export default async function RegisterPage({
   const { token } = await searchParams;
   const candidate = typeof token === "string" ? token : undefined;
 
-  // ?token= 이 붙으면 최초 관리자 부트스트랩, 아니면 초대코드 2단계 가입.
+  // ?token= 이 붙으면 최초 교사 부트스트랩, 아니면 초대코드 2단계 가입.
   if (!candidate) {
     return (
       <AuthPanel>

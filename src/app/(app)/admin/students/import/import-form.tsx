@@ -264,7 +264,7 @@ function PreviewCard({
     applyRosterAction,
     APPLY_INITIAL,
   );
-  // 관리자가 직접 적는 인원 수. 입력 중간값도 그대로 보여야 해서 문자열로 든다.
+  // 교사가 직접 적는 인원 수. 입력 중간값도 그대로 보여야 해서 문자열로 든다.
   const [typedDeleteCount, setTypedDeleteCount] = useState("");
 
   const applied = applyState.saved !== null && !applyState.error;

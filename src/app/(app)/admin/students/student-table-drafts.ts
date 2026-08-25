@@ -37,7 +37,7 @@ function sameDraft(a: Draft, b: Draft): boolean {
 }
 
 /**
- * 관리자가 실제로 건드린 필드만 override로 들고 있다. 나머지는 늘 최신 rows에서
+ * 교사가 실제로 건드린 필드만 override로 들고 있다. 나머지는 늘 최신 rows에서
  * 읽으므로 저장 뒤 새로 내려온 값이 그대로 보인다.
  */
 export function draftFor(

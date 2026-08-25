@@ -33,7 +33,7 @@ const expiresInDays = z
   .optional()
   .describe("비우면 무기한");
 
-/** 관리자가 학생 코드를 발급할 때 입력하는 값. */
+/** 교사가 학생 코드를 발급할 때 입력하는 값. */
 export const createStudentInviteSchema = z.object({
   name,
   birthDate: canonicalDateInputSchema(
@@ -60,7 +60,7 @@ export const createStudentInviteSchema = z.object({
   expiresInDays,
 });
 
-/** 관리자가 관리자 코드를 발급할 때 입력하는 값. */
+/** 교사가 교사 코드를 발급할 때 입력하는 값. */
 export const createAdminInviteSchema = z.object({
   name,
   expiresInDays,
@@ -72,7 +72,7 @@ export const createParentInviteSchema = z.object({
   expiresInDays,
 });
 
-/** 관리자가 학생을 지정해 학부모 코드를 발급할 때. */
+/** 교사가 학생을 지정해 학부모 코드를 발급할 때. */
 export const createParentInviteForSchema = z.object({
   studentId: z.string().min(1, "학생을 선택해 주세요."),
   name,

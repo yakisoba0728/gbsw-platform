@@ -13,7 +13,7 @@ import type { RuleFormState, RuleFormValues } from "./action-state";
 
 const MESSAGES: Record<string, string> = {
   RULE_NOT_FOUND: "규정을 찾을 수 없습니다.",
-  RULE_CONFLICT: "다른 관리자가 규정을 바꿨습니다. 새로고침 후 다시 저장해 주세요.",
+  RULE_CONFLICT: "다른 교사가 규정을 바꿨습니다. 새로고침 후 다시 저장해 주세요.",
 };
 
 /**

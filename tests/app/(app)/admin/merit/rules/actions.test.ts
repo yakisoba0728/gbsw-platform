@@ -202,12 +202,12 @@ describe("updateRuleAction — 경계 검증", () => {
     expect(state.error).toBe("규정을 찾을 수 없습니다.");
   });
 
-  it("다른 관리자의 선행 수정을 명확히 알린다", async () => {
+  it("다른 교사의 선행 수정을 명확히 알린다", async () => {
     updateRule.mockRejectedValueOnce(new MeritError("RULE_CONFLICT"));
 
     const state = await updateRuleAction(INITIAL, updateForm());
 
-    expect(state.error).toContain("다른 관리자");
+    expect(state.error).toContain("다른 교사");
   });
 
   it("사전에 없는 코드는 영문 코드를 화면에 흘리지 않는다", async () => {

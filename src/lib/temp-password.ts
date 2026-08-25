@@ -1,7 +1,7 @@
 import { randomInt } from "node:crypto";
 
 /**
- * 관리자가 구두로 전달할 임시 비밀번호. 혼동하기 쉬운 글자를 뺀 알파벳을 쓰고,
+ * 교사가 구두로 전달할 임시 비밀번호. 혼동하기 쉬운 글자를 뺀 알파벳을 쓰고,
  * 대문자·소문자·숫자를 하나씩 넣어 규칙이 강해져도 걸리지 않게 한다.
  */
 const UPPER = "ABCDEFGHJKMNPQRSTUVWXYZ";

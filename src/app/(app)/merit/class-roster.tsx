@@ -54,7 +54,7 @@ export function ClassRoster({
   grade: number;
   classNo: number;
   track: MeritTrack;
-  /** 벌점 강조 기준. 관리자가 설정에서 정한 값을 서버가 내려준다. */
+  /** 벌점 강조 기준. 교사가 설정에서 정한 값을 서버가 내려준다. */
   thresholds: DemeritThresholds;
   year?: number;
   /** 지난 학년도를 보고 있는가. true면 부여 폼을 감춘다. */

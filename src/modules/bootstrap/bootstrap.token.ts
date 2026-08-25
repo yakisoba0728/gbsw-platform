@@ -1,7 +1,7 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 
 /**
- * 최초 관리자 생성용 1회성 토큰. 프로세스 메모리에만 둔다.
+ * 최초 교사 생성용 1회성 토큰. 프로세스 메모리에만 둔다.
  * globalThis에 붙인다 — 모듈 지역 변수면 부팅 훅과 서버 액션이 다른 값을 본다.
  */
 const store = globalThis as unknown as { __gbswBootstrapToken?: string | null };

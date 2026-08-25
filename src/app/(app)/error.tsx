@@ -22,7 +22,7 @@ export default function AppError({
       </h2>
       {/* 원인은 적지 않는다 — 사용자에게 뜻이 없고 내부 사정이 새어 나간다. */}
       <p className="mt-2 text-caption text-mut">
-        다시 시도해도 같으면 관리자에게 알려 주세요.
+        다시 시도해도 같으면 선생님께 알려 주세요.
       </p>
 
       {error.digest && (

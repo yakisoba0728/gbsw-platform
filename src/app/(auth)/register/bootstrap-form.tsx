@@ -24,7 +24,7 @@ export function BootstrapForm({ token }: { token: string }) {
       <input type="hidden" name="token" value={token} />
 
       <h1 className="mb-2 text-title font-semibold text-ink">
-        첫 관리자 계정
+        첫 교사 계정
       </h1>
       <p className="mb-8 text-caption text-mut">이 화면은 한 번만 열립니다.</p>
 

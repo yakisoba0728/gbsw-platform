@@ -20,7 +20,7 @@ export type UserRow = {
   mustChangePassword: boolean;
   classLabel: string | null;
   createdAt: string;
-  /** 지금 로그인한 관리자 본인인가 */
+  /** 지금 로그인한 교사 본인인가 */
   isSelf: boolean;
 };
 
@@ -32,7 +32,7 @@ const STATUS_FILTERS = [
 
 const ROLE_FILTERS = [
   { key: "ALL", label: "전체" },
-  { key: "ADMIN", label: "관리자" },
+  { key: "ADMIN", label: "교사" },
   { key: "STUDENT", label: "학생" },
   { key: "PARENT", label: "학부모" },
 ] as const;

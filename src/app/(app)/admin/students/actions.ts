@@ -21,7 +21,7 @@ const MESSAGES: Record<string, string> = {
   NUMBER_TAKEN: "같은 반에 같은 번호가 있습니다.",
   YEAR_MISMATCH: "학년도가 바뀌었습니다. 새로고침 후 다시 저장해 주세요.",
   ENROLLMENT_CHANGED:
-    "다른 관리자가 학생 정보를 바꿨습니다. 새로고침 후 다시 저장해 주세요.",
+    "다른 교사가 학생 정보를 바꿨습니다. 새로고침 후 다시 저장해 주세요.",
   CANNOT_DEACTIVATE_SELF: "자기 계정은 비활성화할 수 없습니다.",
 };
 

@@ -95,7 +95,7 @@ export async function exportRoster(
  * 확정 반영. 클라이언트가 돌려보낸 행을 서버가 다시 분류한다.
  *
  * 삭제 확인은 둘이 함께 한다 — `confirmedDeletionIds`는 화면이 본 삭제 대상
- * 집합(동의 표시가 아니다), `deletionCountConfirmation`은 관리자가 적은 인원 수다.
+ * 집합(동의 표시가 아니다), `deletionCountConfirmation`은 교사가 적은 인원 수다.
  */
 export async function applyRosterPlan(
   actor: SessionUser,
@@ -132,7 +132,7 @@ export async function applyRosterPlan(
   }
 
   // 미리보기가 보여준 삭제 대상과 지금 다시 세운 대상이 같은 집합이어야 한다.
-  // 하나라도 다르면 관리자가 본 화면과 지금이 다르다는 뜻이다.
+  // 하나라도 다르면 교사가 본 화면과 지금이 다르다는 뜻이다.
   const currentDeletionIds = new Set(plan.missingFromFile.map((m) => m.studentProfileId));
   const currentDeletionIdList = [...currentDeletionIds].sort();
   const confirmedDeletionIdList = [...confirmedDeletionIds].sort();
@@ -141,7 +141,7 @@ export async function applyRosterPlan(
     currentDeletionIdList.every((id, index) => id === confirmedDeletionIdList[index]);
   if (!deletionSetMatches) throw new RosterError("DELETION_SET_CHANGED");
 
-  // 삭제 대상이 하나라도 있으면 관리자가 적은 건수가 서버가 센 건수와 같아야 한다.
+  // 삭제 대상이 하나라도 있으면 교사가 적은 건수가 서버가 센 건수와 같아야 한다.
   const deleteCount = plan.missingFromFile.length;
   if (deleteCount > 0 && deletionCountConfirmation !== deleteCount) {
     throw new RosterError("DELETION_COUNT_MISMATCH");
@@ -326,7 +326,7 @@ export async function applyRosterPlan(
     }
     // 파일 안의 자리 겹침은 planRoster가 이미 걸렀다. 여기까지 오는 것은 명단 밖
     // 계정이 붙들고 있는 (반, 번호)뿐이라 파일을 고쳐도 풀리지 않는다 — 화면이
-    // 그 사실을 말해야 관리자가 엉뚱한 곳을 고치지 않는다.
+    // 그 사실을 말해야 교사가 엉뚱한 곳을 고치지 않는다.
     if (error instanceof repo.NumberTakenError) {
       throw new RosterError("NUMBER_TAKEN");
     }

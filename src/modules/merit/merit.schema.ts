@@ -51,7 +51,7 @@ export const updateRuleSchema = z.object({
   ruleId: z.string().trim().min(1),
   updatedAt: z
     .iso
-    .datetime("다른 관리자가 규정을 바꿨습니다. 새로고침 후 다시 저장해 주세요.")
+    .datetime("다른 교사가 규정을 바꿨습니다. 새로고침 후 다시 저장해 주세요.")
     .transform((value) => new Date(value)),
   label: labelSchema,
   points: positiveInt,
@@ -70,7 +70,7 @@ export const deleteRuleSchema = z.object({
   ruleId: z.string().trim().min(1),
   updatedAt: z
     .iso
-    .datetime("다른 관리자가 규정을 바꿨습니다. 새로고침 후 다시 삭제해 주세요.")
+    .datetime("다른 교사가 규정을 바꿨습니다. 새로고침 후 다시 삭제해 주세요.")
     .transform((value) => new Date(value)),
   reason: z
     .string("삭제 사유를 입력해 주세요.")
@@ -105,7 +105,7 @@ const thresholdUpdatedAt = z
   .pipe(
     z.union([
       z.literal(""),
-      z.iso.datetime("다른 관리자가 기준을 바꿨습니다. 새로고침 후 다시 저장해 주세요."),
+      z.iso.datetime("다른 교사가 기준을 바꿨습니다. 새로고침 후 다시 저장해 주세요."),
     ]),
   )
   .transform((value) => (value === "" ? null : new Date(value)));
@@ -143,7 +143,7 @@ export const awardSchema = z.object({
 export type AwardInput = z.infer<typeof awardSchema>;
 
 /**
- * 취소 입력. 사유는 필수다 — "관리자면 누구나 취소 가능"을 정당화하는 근거가
+ * 취소 입력. 사유는 필수다 — "교사면 누구나 취소 가능"을 정당화하는 근거가
  * 사유와 감사로그이므로, 사유가 선택이면 그 근거가 무너진다.
  */
 export const cancelSchema = z.object({

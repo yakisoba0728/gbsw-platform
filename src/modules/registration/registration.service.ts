@@ -123,7 +123,7 @@ export async function completeRegistration(
   const account = {
     userId: randomUUID(),
     accountId: randomUUID(),
-    // 학생·관리자 이름은 사전등록 값을 쓴다 — 공백 표기를 관리자가 등록한 대로 맞춘다.
+    // 학생·교사 이름은 사전등록 값을 쓴다 — 공백 표기를 교사가 등록한 대로 맞춘다.
     name: role === "PARENT" ? input.name.trim() : expectedName,
     email: input.email,
     phone: input.phone,
@@ -144,7 +144,7 @@ export async function completeRegistration(
         inviteId,
         account,
         {
-          // KST 자정으로 고정한다 — 관리자 수정과 기준이 달라지면 명단 대조가 갈린다.
+          // KST 자정으로 고정한다 — 교사 수정과 기준이 달라지면 명단 대조가 갈린다.
           birthDate: parseDateInputKst(meta.birthDate),
           grade: meta.grade,
           classNo: meta.classNo,
@@ -203,7 +203,7 @@ export async function completeRegistration(
     }
     if (error instanceof repo.NumberTakenError) {
       throw new RegistrationError(
-        "이 반·번호에 다른 학생이 있습니다. 관리자에게 문의해 주세요.",
+        "이 반·번호에 다른 학생이 있습니다. 선생님께 문의해 주세요.",
       );
     }
     if (isSerializationConflict(error)) {

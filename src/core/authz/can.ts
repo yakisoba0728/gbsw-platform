@@ -18,18 +18,18 @@ export type Action =
 
 /**
  * 액션별 허용 역할. ADMIN은 can()이 무조건 통과시켜 여기 없고, 빈 배열은
- * 관리자 전용이다. export하는 이유는 can.test.ts가 표 전체를 대조해서다 (M13).
+ * 교사 전용이다. export하는 이유는 can.test.ts가 표 전체를 대조해서다 (M13).
  */
 export const RULES: Record<Action, Role[]> = {
-  "user:manage": [], // 관리자 전용
-  "student:manage": [], // 관리자 전용
-  "academic-year:manage": [], // 관리자 전용
-  "invite:create": [], // 관리자 전용
-  "invite:list": [], // 관리자 전용
-  "invite:revoke": [], // 관리자 전용
-  "audit:read": [], // 관리자 전용
+  "user:manage": [], // 교사 전용
+  "student:manage": [], // 교사 전용
+  "academic-year:manage": [], // 교사 전용
+  "invite:create": [], // 교사 전용
+  "invite:list": [], // 교사 전용
+  "invite:revoke": [], // 교사 전용
+  "audit:read": [], // 교사 전용
 
-  // 상벌점 — 다섯 다 관리자 전용. 취소를 "자기가 준 것만"으로 좁히지 않는다:
+  // 상벌점 — 다섯 다 교사 전용. 취소를 "자기가 준 것만"으로 좁히지 않는다:
   // 교직원 사이에 권한 차등이 없어 소유권 검사의 근거가 없다.
   "merit:rule:manage": [],
   // 벌점 경고·위험 기준. 읽기는 권한을 걸지 않는다 — 통제하는 것은 바꾸는 일뿐이다.

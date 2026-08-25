@@ -61,7 +61,7 @@ export async function saveEnrollments(
     const saved = await withTransaction(
       async (tx) => {
         // 학년도 대조, 현재값 읽기, 변경 계획, 쓰기와 감사로그를 한 Serializable
-        // 트랜잭션에 둔다. 그래야 두 관리자가 같은 행을 보고 모두 성공하지 않는다.
+        // 트랜잭션에 둔다. 그래야 두 교사가 같은 행을 보고 모두 성공하지 않는다.
         const year = await repo.findCurrentYear(tx);
         if (year !== expectedYear) throw new EnrollmentError("YEAR_MISMATCH");
 

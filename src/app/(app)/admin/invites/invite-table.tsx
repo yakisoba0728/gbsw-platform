@@ -51,7 +51,7 @@ const STATUS_FILTERS = [
 const ROLE_FILTERS = [
   { key: "ALL", label: "전체" },
   { key: "STUDENT", label: "학생" },
-  { key: "ADMIN", label: "관리자" },
+  { key: "ADMIN", label: "교사" },
   { key: "PARENT", label: "학부모" },
 ] as const;
 

@@ -14,7 +14,7 @@ type AwardRow = StudentMeritView["awards"][number];
 type CancelProps = ComponentProps<typeof CancelButton>;
 
 /**
- * 부여 내역. 관리자 화면(취소 가능)과 학생·학부모 화면(조회만)이 공유하며,
+ * 부여 내역. 교사 화면(취소 가능)과 학생·학부모 화면(조회만)이 공유하며,
  * 취소 가능 여부는 액션의 유무로 판단한다. 날짜 칸은 발생일이고, 입력일이 다른
  * 날이면 함께 적는다 — 나중에 날짜를 다툴 때 화면이 줄 수 있는 유일한 근거다.
  */

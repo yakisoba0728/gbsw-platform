@@ -36,7 +36,7 @@ export function toExpiresAt(days: number | undefined): Date | null {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 }
 
-// ── 관리자가 발급하는 코드 ─────────────────────────────────────
+// ── 교사가 발급하는 코드 ─────────────────────────────────────
 
 export async function createStudentInvite(
   actor: SessionUser,
@@ -151,7 +151,7 @@ export async function createParentInvite(
 }
 
 /**
- * 관리자가 학생을 지정해 학부모 코드를 발급한다. 관리자는 모든 학생이 권한
+ * 교사가 학생을 지정해 학부모 코드를 발급한다. 교사는 모든 학생이 권한
  * 범위라 studentId를 받되, 실재하는 학생인지는 서버가 확인한다.
  */
 export async function createParentInviteFor(
@@ -218,7 +218,7 @@ export async function listMyParentInvites(sessionUser: { id: string }) {
 // ── 폐기 ──────────────────────────────────────────────────────
 
 /**
- * 코드 폐기. 관리자는 아무 코드나, 학생은 자기가 만든 학부모 코드만 폐기할 수 있다.
+ * 코드 폐기. 교사는 아무 코드나, 학생은 자기가 만든 학부모 코드만 폐기할 수 있다.
  * 이미 사용됐거나 폐기된 코드는 건드리지 않는다.
  */
 export async function revokeInvite(actor: SessionUser, inviteId: string) {

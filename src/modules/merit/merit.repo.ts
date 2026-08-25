@@ -320,7 +320,7 @@ export async function findAward(id: string) {
 }
 
 /**
- * 취소. ACTIVE인 행만 고친다 — 두 관리자가 동시에 눌러도 먼저 쓴 사람의
+ * 취소. ACTIVE인 행만 고친다 — 두 교사가 동시에 눌러도 먼저 쓴 사람의
  * 이름·사유·시각을 덮지 않는다. 0이면 그 사이 남이 먼저 취소했다는 뜻이다.
  */
 export async function cancelAward(

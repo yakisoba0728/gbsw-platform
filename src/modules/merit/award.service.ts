@@ -163,7 +163,7 @@ export async function awardMerit(
 }
 
 /**
- * 취소. 관리자면 누구나 할 수 있다 — 교직원 사이에 권한 차등이 없다. 책임 추적은
+ * 취소. 교사면 누구나 할 수 있다 — 교직원 사이에 권한 차등이 없다. 책임 추적은
  * 필수 사유 + 이름 스냅샷 + 감사로그가 맡는다. 기록은 지우지 않고 합계에서만 빠진다.
  */
 export async function cancelAward(
@@ -206,7 +206,7 @@ export async function cancelAward(
   });
 }
 
-/** 관리자가 보는 한 학생의 트랙별 현황. */
+/** 교사가 보는 한 학생의 트랙별 현황. */
 export async function getStudentMerit(
   actor: SessionUser,
   studentProfileId: string,
@@ -408,7 +408,7 @@ export async function searchStudents(
 
 /**
  * 이 학생에게 기록이 있는 학년도들. studentProfileId의 출처(URL·자녀 목록·세션)마다
- * 함수를 나누고 각자 자기 근거를 검사한다. 이쪽은 관리자용이다.
+ * 함수를 나누고 각자 자기 근거를 검사한다. 이쪽은 교사용이다.
  */
 export async function listAwardYears(
   actor: SessionUser,

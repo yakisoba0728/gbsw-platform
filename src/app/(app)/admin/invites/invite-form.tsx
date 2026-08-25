@@ -46,7 +46,7 @@ export function InviteForm({ students }: { students: StudentOption[] }) {
           active={target === "ADMIN"}
           onClick={() => setTarget("ADMIN")}
         >
-          관리자
+          교사
         </Button>
         <Button
           variant="chip"
@@ -288,7 +288,7 @@ function AdminForm() {
       <ExpiryField defaultValue={values?.expiresInDays ?? ""} />
 
       <Button type="submit" full disabled={pending}>
-        {pending ? "발급 중…" : "관리자 코드 발급"}
+        {pending ? "발급 중…" : "교사 코드 발급"}
       </Button>
 
       <Result state={state} />

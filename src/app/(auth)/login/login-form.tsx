@@ -9,7 +9,7 @@ import { Note } from "@/components/ui/note";
 import { authClient } from "@/core/auth/auth-client";
 
 /** 배너와 로그인 실패가 같은 문구를 쓴다. */
-const DISABLED_MESSAGE = "사용이 중지된 계정입니다. 관리자에게 문의해 주세요.";
+const DISABLED_MESSAGE = "사용이 중지된 계정입니다. 선생님께 문의해 주세요.";
 const PASSWORD_CHANGED_MESSAGE = "비밀번호가 변경되었습니다. 다시 로그인해 주세요.";
 
 export function LoginForm({

@@ -15,7 +15,7 @@ import type { ParentInviteState } from "./action-state";
 /** 실물은 action-state.ts에 있다. 기존 import 경로를 지키려고 다시 내보낸다. */
 export type { ParentInviteState };
 
-/** 서비스 오류 코드 → 화면 문구. 학생 본인 시점이라 관리자 화면과 다르다. */
+/** 서비스 오류 코드 → 화면 문구. 학생 본인 시점이라 교사 화면과 다르다. */
 const MESSAGES: Record<string, string> = {
   FORBIDDEN: "권한이 없습니다.",
   TOO_MANY_ACTIVE_INVITES: `쓰지 않은 코드가 ${MAX_ACTIVE_PARENT_INVITES}개 있습니다. 하나를 폐기하고 만드세요.`,

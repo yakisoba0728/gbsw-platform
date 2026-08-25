@@ -29,7 +29,7 @@ import {
   VerificationError,
 } from "@/modules/verification/verification.service";
 
-// ── 최초 관리자 부트스트랩 ─────────────────────────────────────
+// ── 최초 교사 부트스트랩 ─────────────────────────────────────
 
 export type BootstrapState = {
   error: string | null;
@@ -75,7 +75,7 @@ export async function createInitialAdminAction(
     await createInitialAdmin(token, parsed.data);
   } catch {
     // 토큰 불일치인지 이미 설정됐는지 구분해 알리지 않는다.
-    return { error: "관리자 계정을 만들 수 없습니다.", values };
+    return { error: "교사 계정을 만들 수 없습니다.", values };
   }
 
   await signInSilently(parsed.data.email, parsed.data.password);

@@ -54,7 +54,7 @@ export function EditUserForm({ user }: { user: EditableUser }) {
   );
 
   // React 19는 액션이 끝나면 폼을 자동 reset()한다 — 리셋이 되돌리는 값이
-  // 곧 defaultValue다. 저장이 거부됐으면 방금 제출한 값을 내려 관리자가 고친
+  // 곧 defaultValue다. 저장이 거부됐으면 방금 제출한 값을 내려 교사가 고친
   // 칸을 지키고, 성공했으면 revalidate가 가져온 서버 값을 그대로 쓴다.
   const kept = state.values;
 

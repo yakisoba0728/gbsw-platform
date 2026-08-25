@@ -104,7 +104,7 @@ export const rosterFingerprintSchema = z
   .min(1, "미리보기 정보가 없습니다. 파일을 다시 읽어 주세요.");
 
 /**
- * 관리자가 적은 삭제 인원. 입력칸이 없는 반영에서는 빈 문자열이 정상이라
+ * 교사가 적은 삭제 인원. 입력칸이 없는 반영에서는 빈 문자열이 정상이라
  * null로 접는다 — 그때 거부할지는 plan을 아는 서비스가 정한다.
  */
 export const deletionCountConfirmationSchema = z.preprocess((v) => {

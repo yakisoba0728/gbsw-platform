@@ -181,7 +181,7 @@ export function Sidebar({ role }: { role: Role | null }) {
         {adminItems.length > 0 && (
           <>
             <p className="px-3 pt-6 pb-2 text-xs font-medium tracking-wider text-mut2 uppercase">
-              관리자
+              교사
             </p>
             {adminItems.map(render)}
           </>

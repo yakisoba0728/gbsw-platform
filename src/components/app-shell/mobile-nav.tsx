@@ -19,7 +19,7 @@ import {
 } from "./nav";
 
 /**
- * 좁은 화면 전용 메뉴 서랍. 하단 탭은 서너 칸이 한계라 관리자 메뉴 대부분이
+ * 좁은 화면 전용 메뉴 서랍. 하단 탭은 서너 칸이 한계라 교사 메뉴 대부분이
  * 여기로만 갈 수 있다. `<dialog>`의 showModal()이 포커스 가두기·Esc 닫기·
  * 뒤쪽 비활성화를 해 준다.
  */
@@ -109,7 +109,7 @@ export function MobileNav({ role }: { role: Role | null }) {
             {adminItems.length > 0 && (
               <>
                 <p className="px-3 pt-6 pb-2 text-xs font-medium tracking-wider text-mut2 uppercase">
-                  관리자
+                  교사
                 </p>
                 {adminItems.map((item) => (
                   <DrawerItem

@@ -123,7 +123,7 @@ describe("createInitialAdminAction — 경계 검증", () => {
       bootstrapForm(),
     );
 
-    expect(state.error).toContain("관리자 계정을 만들 수 없습니다");
+    expect(state.error).toContain("교사 계정을 만들 수 없습니다");
     expect(redirect).not.toHaveBeenCalled();
   });
 

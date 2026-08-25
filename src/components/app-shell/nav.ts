@@ -63,7 +63,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
 ];
 
-/** 관리자 섹션. 비어 있으면 섹션 자체가 렌더링되지 않는다. */
+/** 교사 섹션. 비어 있으면 섹션 자체가 렌더링되지 않는다. */
 export const ADMIN_NAV_ITEMS: NavItem[] = [
   {
     href: "/admin/invites",
@@ -99,7 +99,7 @@ export const ADMIN_NAV_ITEMS: NavItem[] = [
 ];
 
 /**
- * 하단 탭에 세울 항목. 관리자에게 NAV_ITEMS는 대시보드·상벌점 둘뿐이라
+ * 하단 탭에 세울 항목. 교사에게 NAV_ITEMS는 대시보드·상벌점 둘뿐이라
  * (학부모 초대는 학생 전용) 점호 직후 잘못 준 것을 되돌리는 화면이 서랍 안에만
  * 있게 된다. 그 하나를 탭으로 끌어올린다.
  */

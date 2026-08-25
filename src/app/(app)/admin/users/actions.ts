@@ -146,7 +146,7 @@ export async function deleteUserPermanentlyAction(
 
 /**
  * 실패 상태에 실을 제출값. 저장이 거부돼도 폼은 자동 리셋되므로, 이 값이
- * defaultValue로 되돌아가지 않으면 관리자가 고친 일곱 칸이 전부 서버 값으로
+ * defaultValue로 되돌아가지 않으면 교사가 고친 일곱 칸이 전부 서버 값으로
  * 되감긴다. 없는 칸(비학생의 학년·반·번호)은 빈 문자열이다 — 폼이 그리지도 않는다.
  */
 function submittedValues(formData: FormData): UpdateUserValues {

@@ -28,7 +28,7 @@ export default function MeritError({
         상벌점을 불러오지 못했습니다
       </h2>
       <p className="mt-2 text-sm text-mut">
-        계속 같은 화면이 나오면 관리자에게 알려 주세요.
+        계속 같은 화면이 나오면 선생님께 알려 주세요.
       </p>
 
       <div className="mt-6 flex justify-center gap-2">

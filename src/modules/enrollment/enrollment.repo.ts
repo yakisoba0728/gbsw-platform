@@ -18,7 +18,7 @@ export async function findCurrentYear(db: DbClient = prisma): Promise<number | n
 
 /**
  * 그 학년도의 학생 전원. 배정이 없는 학생도 포함한다 — 학년도가 막 넘어가면
- * 전원이 그 상태다. 관리자로 승격된 계정은 프로필이 남아 있어도 뺀다.
+ * 전원이 그 상태다. 교사로 승격된 계정은 프로필이 남아 있어도 뺀다.
  */
 export async function listByYear(year: number, db: DbClient = prisma) {
   const profiles = await db.studentProfile.findMany({

@@ -21,7 +21,7 @@ export const USER_ACTION_INITIAL: UserActionState = {
 
 /**
  * 정보 수정 폼이 보내는 칸 그대로 — 검증 전 문자열이라 형식이 틀린 값도 담긴다.
- * 틀린 값이야말로 되돌려 그려야 관리자가 그 자리를 고칠 수 있다.
+ * 틀린 값이야말로 되돌려 그려야 교사가 그 자리를 고칠 수 있다.
  */
 export type UpdateUserValues = {
   name: string;

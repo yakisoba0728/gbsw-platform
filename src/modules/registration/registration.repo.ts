@@ -126,7 +126,7 @@ async function completeStudentRegistrationWithDb(
 ): Promise<void> {
   await createUserWithCredential(db, account, "STUDENT");
 
-  // 학급은 없으면 만든다 — 관리자가 미리 등록할 필요가 없게.
+  // 학급은 없으면 만든다 — 교사가 미리 등록할 필요가 없게.
   const schoolClass = await db.schoolClass.upsert({
     where: {
       year_grade_classNo: {

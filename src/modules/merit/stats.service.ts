@@ -199,7 +199,7 @@ function addDays(from: Date, days: number): Date {
   return new Date(from.getTime() + days * 24 * 60 * 60 * 1000);
 }
 
-/** 순위 표시는 관리자 화면에만 둔다 — 학생에게 등수를 띄우는 건 별개 결정이다. */
+/** 순위 표시는 교사 화면에만 둔다 — 학생에게 등수를 띄우는 건 별개 결정이다. */
 const TOP_RULE_LIMIT = 10;
 
 /** 「많이 나온 항목」 한 줄. 화면이 (구분·항목)을 행 key로 쓴다. */

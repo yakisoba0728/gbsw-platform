@@ -12,7 +12,7 @@ export default function ForbiddenPage() {
         <h1 className="mt-2 text-title font-semibold text-ink">
           권한이 없습니다
         </h1>
-        <p className="mt-2 text-caption text-mut">관리자에게 문의해 주세요.</p>
+        <p className="mt-2 text-caption text-mut">선생님께 문의해 주세요.</p>
 
         <Link href="/" className={buttonClass({ className: "mt-8" })}>
           대시보드

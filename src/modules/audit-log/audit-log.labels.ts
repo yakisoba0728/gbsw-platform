@@ -58,7 +58,7 @@ function isAuditAction(value: string): value is AuditAction {
 }
 
 const ACTION_LABELS: Record<AuditAction, string> = {
-  "account:bootstrap": "최초 관리자 생성",
+  "account:bootstrap": "최초 교사 계정 생성",
   "account:change-password": "비밀번호 변경",
   "registration:complete": "가입 완료",
   "invite:create": "초대코드 발급",

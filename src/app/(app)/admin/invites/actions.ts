@@ -190,7 +190,7 @@ export async function revokeInviteAction(
 
   try {
     await revokeInvite(actor, inviteId);
-    // 관리자 목록과 학생의 학부모 코드 목록 양쪽에서 쓰인다.
+    // 교사 목록과 학생의 학부모 코드 목록 양쪽에서 쓰인다.
     revalidatePath("/admin/invites");
     revalidatePath("/parent-invite");
     return { error: null };

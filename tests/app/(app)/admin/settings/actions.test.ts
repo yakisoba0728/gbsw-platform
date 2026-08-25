@@ -53,12 +53,12 @@ describe("saveThresholdAction — 경계 검증", () => {
     );
   });
 
-  it("다른 관리자의 선행 수정을 명확히 알린다", async () => {
+  it("다른 교사의 선행 수정을 명확히 알린다", async () => {
     setDemeritThresholds.mockRejectedValueOnce(new MeritError("THRESHOLD_CONFLICT"));
 
     const state = await saveThresholdAction(INITIAL, form());
 
-    expect(state.error).toContain("다른 관리자");
+    expect(state.error).toContain("다른 교사");
     expect(revalidatePath).not.toHaveBeenCalled();
   });
 

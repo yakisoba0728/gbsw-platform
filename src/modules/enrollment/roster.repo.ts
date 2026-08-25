@@ -126,7 +126,7 @@ export type ApplyInput = {
   inviteExpiresAt: Date | null;
   /**
    * 이번 반영이 관리하는 범위(role: STUDENT 전체). 아래 deleteMany를 이 범위로
-   * 좁혀야 관리자로 승격돼 명단 밖으로 빠진 계정의 배정이 함께 지워지지 않는다.
+   * 좁혀야 교사로 승격돼 명단 밖으로 빠진 계정의 배정이 함께 지워지지 않는다.
    */
   managedStudentProfileIds: string[];
   /** 명단에서 빠진 학생 — 계정과 학생 기록을 DB에서 완전히 지운다. */
@@ -152,7 +152,7 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
 
     // 재배정을 다시 넣기 전에 실제 삭제부터 끝낸다.
     if (input.deleteStudentProfileIds.length > 0) {
-      // 조회와 이 트랜잭션 사이에 관리자로 승격됐을 수 있다. role을 다시 좁힌다.
+      // 조회와 이 트랜잭션 사이에 교사로 승격됐을 수 있다. role을 다시 좁힌다.
       const targets = await tx.studentProfile.findMany({
         where: {
           id: { in: input.deleteStudentProfileIds },
@@ -332,7 +332,7 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
     );
   } catch (error) {
     if (isUniqueViolation(error, "code")) throw new InviteCodeCollisionError();
-    // Enrollment_classId_number_key. 명단 밖으로 빠진 계정(관리자로 승격된 학생)의
+    // Enrollment_classId_number_key. 명단 밖으로 빠진 계정(교사로 승격된 학생)의
     // 그 학년도 배정은 managedStudentProfileIds 범위 밖이라 위에서 안 지워지고
     // (반, 번호) 자리를 그대로 붙들고 있다 — 그 자리에 다른 학생을 넣으면 여기로 온다.
     // 날것의 P2002로 올려보내면 화면에 "반영하지 못했습니다."만 뜨고 원인이 사라진다.
