@@ -173,15 +173,30 @@ export type BulkAwardInput = z.infer<typeof bulkAwardSchema>;
 /** 조회용 학년도. 범위는 학년도 모듈의 상수를 그대로 쓴다. */
 const yearQuery = z.coerce.number().int().min(MIN_YEAR).max(MAX_YEAR).optional();
 
-/** 반별 목록 조회 조건. 학년·반은 명단과 같은 범위(1~3학년)를 쓴다. */
+/**
+ * 명단 범위. **학년·반은 선택이다** — 안 고르면 전교, 학년만 고르면 그 학년 전체다.
+ * 고르지 않은 것을 "없음"이 아니라 "좁히지 않음"으로 읽는다.
+ */
 export const classRosterSchema = z.object({
-  grade: z.coerce.number().int().min(1).max(3),
-  classNo: z.coerce.number().int().min(1).max(20),
+  grade: z.coerce.number().int().min(1).max(3).optional(),
+  classNo: z.coerce.number().int().min(1).max(20).optional(),
   track: trackSchema,
   year: yearQuery,
 });
 
 export type ClassRosterInput = z.infer<typeof classRosterSchema>;
+
+/**
+ * 반별 목록 내보내기 조건. 여기서는 학년·반이 **필수**다 — 파일 이름이
+ * 「2026_1학년3반_교내상벌점.xlsx」라 범위가 없으면 이름을 지을 수 없다.
+ * 전교 명단 내보내기는 별개의 일이라 이 경로에 섞지 않는다.
+ */
+export const classRosterExportSchema = classRosterSchema.extend({
+  grade: z.coerce.number().int().min(1).max(3),
+  classNo: z.coerce.number().int().min(1).max(20),
+});
+
+export type ClassRosterExportInput = z.infer<typeof classRosterExportSchema>;
 
 /** 한 학생의 내역 내보내기 조건. 학년도는 교내일 때만 의미가 있다. */
 export const studentHistoryExportSchema = z.object({

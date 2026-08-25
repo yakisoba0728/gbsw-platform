@@ -487,22 +487,45 @@ function foldByStudent(
  */
 export async function listClassRoster(params: {
   year: number;
-  grade: number;
-  classNo: number;
   track: MeritTrack;
   /** 합계를 셀 학년도. null이면 전체 누적(기숙사). */
   totalsYear: number | null;
+  /**
+   * 좁힐 범위. 둘 다 없으면 전교, 학년만 주면 그 학년 전체다.
+   *
+   * **범위를 안 주면 반이 없는 학생도 낸다.** 반 미배정은 놓치기 가장 쉬운 자리라
+   * 전교를 훑는 화면에서 그 학생이 사라지면 안 된다.
+   */
+  grade?: number;
+  classNo?: number;
 }) {
+  const inClass =
+    params.grade === undefined && params.classNo === undefined
+      ? {}
+      : {
+          schoolClass: {
+            ...(params.grade === undefined ? {} : { grade: params.grade }),
+            ...(params.classNo === undefined ? {} : { classNo: params.classNo }),
+          },
+        };
+
   const enrollments = await prisma.enrollment.findMany({
     where: {
       year: params.year,
       status: "ENROLLED",
-      schoolClass: { grade: params.grade, classNo: params.classNo },
+      ...inClass,
       studentProfile: { user: { deletedAt: null } },
     },
-    orderBy: { number: "asc" },
+    // 한 반만 볼 때는 번호순이 곧 명단 순서다. 전교를 훑을 때는 학년·반이 앞에
+    // 서야 읽힌다 — 번호만으로 세우면 1학년 1번 다음에 3학년 1번이 온다.
+    orderBy: [
+      { schoolClass: { grade: "asc" } },
+      { schoolClass: { classNo: "asc" } },
+      { number: "asc" },
+    ],
     select: {
       number: true,
+      schoolClass: { select: { grade: true, classNo: true } },
       studentProfile: {
         select: { id: true, studentCode: true, user: { select: { name: true } } },
       },
@@ -526,58 +549,6 @@ export async function listClassRoster(params: {
   const byStudent = foldByStudent(sums);
 
   // 기록이 하나도 없는 학생도 0으로 남는다 — 명단에 구멍이 생기면 안 된다.
-  return enrollments.map((e) => ({
-    studentProfileId: e.studentProfile.id,
-    studentCode: e.studentProfile.studentCode,
-    name: e.studentProfile.user.name,
-    number: e.number,
-    ...withNetScore(byStudent.get(e.studentProfile.id) ?? emptyKindTotals()),
-  }));
-}
-
-/**
- * 전교 학생과 합계. 순위 화면이 쓴다 — `listClassRoster`가 반 하나를 내는 것과
- * 같은 모양이되 학교 전체다.
- *
- * **반이 없는 학생도 낸다.** classSummaries는 반별로 접는 게 목적이라
- * `classId: null`을 걸러 내지만, 여기서는 그 학생이 순위에서 사라지면 안 된다 —
- * 반 미배정은 놓치기 가장 쉬운 자리다.
- */
-export async function studentTotals(params: {
-  year: number;
-  track: MeritTrack;
-  totalsYear: number | null;
-}) {
-  const enrollments = await prisma.enrollment.findMany({
-    where: {
-      year: params.year,
-      status: "ENROLLED",
-      studentProfile: { user: { deletedAt: null } },
-    },
-    select: {
-      number: true,
-      schoolClass: { select: { grade: true, classNo: true } },
-      studentProfile: {
-        select: { id: true, studentCode: true, user: { select: { name: true } } },
-      },
-    },
-  });
-  if (enrollments.length === 0) return [];
-
-  const sums = await prisma.meritAward.groupBy({
-    by: ["studentProfileId", "kind"],
-    where: {
-      studentProfileId: { in: enrollments.map((e) => e.studentProfile.id) },
-      track: params.track,
-      status: "ACTIVE",
-      ...(params.totalsYear === null ? {} : { year: params.totalsYear }),
-    },
-    _sum: { points: true },
-  });
-
-  const byStudent = foldByStudent(sums);
-
-  // 기록이 없는 학생도 0으로 남는다 — listClassRoster와 같은 규칙이다.
   return enrollments.map((e) => ({
     studentProfileId: e.studentProfile.id,
     studentCode: e.studentProfile.studentCode,

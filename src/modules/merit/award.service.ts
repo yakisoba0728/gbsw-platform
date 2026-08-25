@@ -26,6 +26,7 @@ import type {
   AwardInput,
   BulkAwardInput,
   CancelInput,
+  ClassRosterExportInput,
   ClassRosterInput,
   RecentAwardFilter,
   RecentAwardsExportInput,
@@ -344,13 +345,10 @@ export async function bulkAwardMerit(
 }
 
 /**
- * 반별 목록. 반은 그 학년도 기준, 합계는 트랙 규칙을 따른다 — 반 편성은 학년도
- * 개념이지만 기숙사 점수는 아니다.
+ * 명단. 학년·반을 주면 그만큼 좁히고, 안 주면 전교다. 반은 그 학년도 기준,
+ * 합계는 트랙 규칙을 따른다 — 반 편성은 학년도 개념이지만 기숙사 점수는 아니다.
  */
-export async function getClassRoster(
-  actor: SessionUser,
-  params: { grade: number; classNo: number; track: MeritTrack; year?: number },
-) {
+export async function getClassRoster(actor: SessionUser, params: ClassRosterInput) {
   await assertCan(actor, "merit:read:any");
 
   const year = params.year ?? (await getCurrentYear());
@@ -516,7 +514,7 @@ export async function listRecentAwards(actor: SessionUser, query: RecentAwardsQu
 /** 반별 목록 시트. */
 export async function exportClassRoster(
   actor: SessionUser,
-  params: ClassRosterInput,
+  params: ClassRosterExportInput,
 ): Promise<{ rows: (string | number)[][]; filename: string }> {
   await assertCan(actor, "merit:read:any");
 

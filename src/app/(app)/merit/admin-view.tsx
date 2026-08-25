@@ -58,25 +58,31 @@ export function AdminMeritView({
   const q = typeof params.q === "string" ? params.q : "";
   const trackHref = (next: MeritTrack) => trackHrefFor(params, next);
 
-  // 학년·반이 둘 다 유효할 때만 반 명단을 부른다. 하나만 고른 중간 상태는 정상이다.
+  // 범위는 좁히는 것이지 여는 조건이 아니다 — 학년·반을 안 고르면 전교가, 학년만
+  // 고르면 그 학년 전체가 나온다. 명단이 늘 서 있어야 검색 없이도 학생을 찾을 수 있다.
   const rosterQuery = classRosterSchema.safeParse({
     grade: params.grade,
     classNo: params.classNo,
     track,
     year: params.year,
   });
+  // 손으로 넣은 잘못된 범위(?grade=9)는 좁히지 않은 것으로 되돌린다. 화면이 비는 것보다
+  // 전교가 보이는 쪽이 낫다 — 다른 목록들도 잘못된 쿼리를 안전한 기본값으로 되돌린다.
+  const rosterScope: ClassRosterInput = rosterQuery.success
+    ? rosterQuery.data
+    : { track };
 
   // 조회를 시작만 하고 약속을 들고 있는다. 세 경계가 이 약속을 나눠 기다리므로
   // 질의는 한 번이다.
   const searchPromise = q ? loadSearch(actor, q) : null;
-  const rosterPromise = rosterQuery.success ? loadRoster(actor, rosterQuery.data) : null;
+  const rosterPromise = loadRoster(actor, rosterScope);
 
   // 조건이 바뀌면 경계를 새로 만든다. 이미 해결된 Suspense 경계는 자식이 다시 매달려도
   // 뼈대 대신 **옛 내용을 그대로** 보여준다 — key가 없으면 검색해도 결과가 안 바뀐 것처럼
   // 보인다. 검색과 반 명단은 서로 다른 조건(q vs 학년·반)에서 나오므로 key도 나눈다 —
   // 하나로 묶으면 검색만 했는데 반 명단까지 뼈대가 된다.
   const searchKey = JSON.stringify({ q, track });
-  const rosterKey = rosterQuery.success ? JSON.stringify(rosterQuery.data) : "";
+  const rosterKey = JSON.stringify(rosterScope);
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
@@ -121,18 +127,16 @@ export function AdminMeritView({
       {/* 학년·반은 상수에서 나온다 — 조회가 아니라 지금 고른 것이라 경계 밖에 선다. */}
       <ClassPicker params={params} track={track} />
 
-      {rosterPromise && rosterQuery.success && (
-        <Suspense
-          key={rosterKey}
-          fallback={
-            <SkeletonScreen className="space-y-4">
-              <SkeletonTable rows={8} />
-            </SkeletonScreen>
-          }
-        >
-          <ClassRosterSection promise={rosterPromise} query={rosterQuery.data} />
-        </Suspense>
-      )}
+      <Suspense
+        key={rosterKey}
+        fallback={
+          <SkeletonScreen className="space-y-4">
+            <SkeletonTable rows={8} />
+          </SkeletonScreen>
+        }
+      >
+        <ClassRosterSection promise={rosterPromise} query={rosterScope} />
+      </Suspense>
     </div>
   );
 }

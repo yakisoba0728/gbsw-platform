@@ -12,7 +12,7 @@ import {
   BULK_AWARD_LIMIT,
   bulkAwardSchema,
   cancelSchema,
-  classRosterSchema,
+  classRosterExportSchema,
   recentAwardsExportSchema,
   studentHistoryExportSchema,
 } from "@/modules/merit/merit.schema";
@@ -205,7 +205,8 @@ export async function exportClassRosterAction(input: {
 }): Promise<ExportState> {
   const actor = await requireAuth();
 
-  const parsed = classRosterSchema.safeParse(input);
+  // 내보내기는 학년·반이 있어야 파일 이름을 지을 수 있다 — 화면 조회와 다른 스키마다.
+  const parsed = classRosterExportSchema.safeParse(input);
   if (!parsed.success) {
     return { error: "조회 조건을 확인해 주세요.", rows: [], filename: "" };
   }

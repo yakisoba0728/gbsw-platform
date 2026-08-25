@@ -19,7 +19,6 @@ const {
   listAwardsForChart,
   listClassRoster,
   ruleStats,
-  studentTotals,
   teacherTotals,
   topRules,
   trackTotals,
@@ -73,6 +72,8 @@ describe("listClassRoster — 반 명단 합계", () => {
         studentProfileId: "sp-1",
         studentCode: "CODE-sp-1",
         name: "학생sp-1",
+        grade: 2,
+        classNo: 3,
         number: 1,
         merit: 10,
         demerit: 4,
@@ -153,10 +154,32 @@ describe("listClassRoster — 반 명단 합계", () => {
     });
   });
 
-  it("명단은 번호순으로 가져온다 — 담임이 읽는 순서가 그 순서다", async () => {
+  // 한 반만 볼 때는 번호순이 곧 명단 순서다. 전교를 훑을 때 번호만으로 세우면
+  // 1학년 1번 다음에 3학년 1번이 오므로 학년·반이 앞에 선다.
+  it("학년 · 반 · 번호 순으로 가져온다", async () => {
     await listClassRoster({ ...roster, totalsYear: 2026 });
 
-    expect(enrollmentFindMany.mock.calls[0][0].orderBy).toEqual({ number: "asc" });
+    expect(enrollmentFindMany.mock.calls[0][0].orderBy).toEqual([
+      { schoolClass: { grade: "asc" } },
+      { schoolClass: { classNo: "asc" } },
+      { number: "asc" },
+    ]);
+  });
+
+  /**
+   * 범위는 좁히는 것이지 여는 조건이 아니다 — 안 주면 전교가 나온다.
+   * 부여 화면이 반을 고르기 전에도 명단을 보여주는 근거이자, 순위 화면이 쓰는 경로다.
+   */
+  it("학년·반을 안 주면 반 조건 자체를 걸지 않는다", async () => {
+    await listClassRoster({ year: 2026, track: "SCHOOL", totalsYear: 2026 });
+
+    expect(enrollmentFindMany.mock.calls[0][0].where).not.toHaveProperty("schoolClass");
+  });
+
+  it("학년만 주면 그 학년으로만 좁힌다", async () => {
+    await listClassRoster({ year: 2026, grade: 2, track: "SCHOOL", totalsYear: 2026 });
+
+    expect(enrollmentFindMany.mock.calls[0][0].where.schoolClass).toEqual({ grade: 2 });
   });
 });
 
@@ -265,9 +288,9 @@ describe("classSummaries — 반별 요약", () => {
  * 전교 명단 합계. listClassRoster와 같은 규칙이되 반 조건이 없다 —
  * 반 미배정 학생이 순위에서 사라지면 안 된다.
  */
-describe("studentTotals — 전교 학생 합계", () => {
+describe("listClassRoster — 범위 없이 부르면 전교다", () => {
   it("그 학년도 재학생만, 지워진 계정은 빼고 본다", async () => {
-    await studentTotals({ year: 2026, track: "SCHOOL", totalsYear: 2026 });
+    await listClassRoster({ year: 2026, track: "SCHOOL", totalsYear: 2026 });
 
     expect(enrollmentFindMany.mock.calls[0][0].where).toMatchObject({
       year: 2026,
@@ -281,7 +304,7 @@ describe("studentTotals — 전교 학생 합계", () => {
       { ...enrolled("sp-1", 1), schoolClass: null },
     ]);
 
-    const rows = await studentTotals({ year: 2026, track: "SCHOOL", totalsYear: 2026 });
+    const rows = await listClassRoster({ year: 2026, track: "SCHOOL", totalsYear: 2026 });
 
     expect(enrollmentFindMany.mock.calls[0][0].where).not.toHaveProperty("classId");
     expect(rows[0]).toEqual(
@@ -293,14 +316,14 @@ describe("studentTotals — 전교 학생 합계", () => {
     enrollmentFindMany.mockResolvedValue([enrolled("sp-1", 1), enrolled("sp-2", 2)]);
     meritAwardGroupBy.mockResolvedValue([sum("sp-1", "MERIT", 5)]);
 
-    const rows = await studentTotals({ year: 2026, track: "SCHOOL", totalsYear: 2026 });
+    const rows = await listClassRoster({ year: 2026, track: "SCHOOL", totalsYear: 2026 });
 
     expect(rows.map((r) => r.net)).toEqual([5, 0]);
   });
 
   it("재적이 없으면 합계 질의를 하지 않는다", async () => {
     expect(
-      await studentTotals({ year: 2026, track: "SCHOOL", totalsYear: 2026 }),
+      await listClassRoster({ year: 2026, track: "SCHOOL", totalsYear: 2026 }),
     ).toEqual([]);
     expect(meritAwardGroupBy).not.toHaveBeenCalled();
   });
@@ -454,8 +477,8 @@ describe("취소된 기록은 어느 집계에도 안 든다", () => {
       mock: meritAwardGroupBy,
     },
     {
-      name: "studentTotals",
-      run: () => studentTotals({ year: 2026, track: "SCHOOL", totalsYear: 2026 }),
+      name: "listClassRoster (전교)",
+      run: () => listClassRoster({ year: 2026, track: "SCHOOL", totalsYear: 2026 }),
       mock: meritAwardGroupBy,
     },
   ];

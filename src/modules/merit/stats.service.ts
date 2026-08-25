@@ -521,7 +521,7 @@ export async function getRuleStats(
   };
 }
 
-export type RankedStudent = Awaited<ReturnType<typeof repo.studentTotals>>[number] & {
+export type RankedStudent = Awaited<ReturnType<typeof repo.listClassRoster>>[number] & {
   /** 같은 순점수는 같은 등수다. 다음 등수는 인원만큼 건너뛴다 (1,2,2,4). */
   rank: number;
   level: DemeritLevel;
@@ -584,7 +584,8 @@ export async function getRankingStats(
       true,
     );
   } else {
-    const all = await repo.studentTotals({ year: rosterYear, track, totalsYear: scoped });
+    // 범위를 주지 않는다 — 순위는 전교가 대상이고 반 미배정 학생도 들어가야 한다.
+    const all = await repo.listClassRoster({ year: rosterYear, track, totalsYear: scoped });
     students = withRanks(
       [...all].sort((a, b) => b.net - a.net || a.name.localeCompare(b.name, "ko")),
       thresholds,

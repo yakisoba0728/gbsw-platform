@@ -8,7 +8,6 @@ import type { SessionUser } from "@/core/auth/session";
 
 const classSummaries = vi.fn();
 const listClassRoster = vi.fn();
-const studentTotals = vi.fn();
 // 같은 모듈의 나머지 export — 팩토리에 없으면 undefined가 되어 다른 서비스가 깨진다.
 const trackTotals = vi.fn();
 const trackTotalsBetween = vi.fn();
@@ -20,7 +19,6 @@ const findStudentsWithClass = vi.fn();
 vi.mock("@/modules/merit/merit.repo", () => ({
   classSummaries,
   listClassRoster,
-  studentTotals,
   trackTotals,
   trackTotalsBetween,
   topRules,
@@ -53,7 +51,7 @@ const admin: SessionUser = {
 };
 const student: SessionUser = { ...admin, id: "u-1", role: "STUDENT" };
 
-/** repo.studentTotals가 내는 모양. 순점수만 다르게 준다. */
+/** 전교 조회(범위 없음)가 내는 모양. 순점수만 다르게 준다. */
 function total(
   id: string,
   name: string,
@@ -74,12 +72,14 @@ function total(
   };
 }
 
-/** repo.listClassRoster가 내는 모양 — 반 소속 칸이 없다(고른 반이 곧 소속이다). */
+/** 반을 좁힌 조회가 내는 모양. 같은 repo 함수라 학급 칸도 함께 온다. */
 function rosterRow(id: string, number: number, net: number, demerit = 0) {
   return {
     studentProfileId: id,
     studentCode: `CODE-${id}`,
     name: `학생${number}`,
+    grade: 2,
+    classNo: 3,
     number,
     merit: net > 0 ? net : 0,
     demerit,
@@ -102,12 +102,28 @@ function classRow(grade: number, classNo: number, avgNet: number) {
   };
 }
 
+/**
+ * 전교와 한 반을 같은 repo 함수가 낸다 — 범위(grade)를 줬는지로 갈린다.
+ * 그래서 목도 인자를 보고 갈라야 한다.
+ */
+function mockRoster(sets: { all?: unknown[]; scoped?: unknown[] } = {}) {
+  listClassRoster.mockImplementation((params: { grade?: number }) =>
+    Promise.resolve(params.grade === undefined ? (sets.all ?? []) : (sets.scoped ?? [])),
+  );
+}
+
+/** 범위 없이(전교로) 부른 호출들. */
+const allCalls = () =>
+  listClassRoster.mock.calls.filter((c) => c[0].grade === undefined);
+/** 반을 좁혀 부른 호출들. */
+const scopedCalls = () =>
+  listClassRoster.mock.calls.filter((c) => c[0].grade !== undefined);
+
 beforeEach(() => {
   vi.clearAllMocks();
   getCurrentYear.mockResolvedValue(2026);
   classSummaries.mockResolvedValue([]);
-  listClassRoster.mockResolvedValue([]);
-  studentTotals.mockResolvedValue([]);
+  mockRoster();
 });
 
 describe("getRankingStats — 권한", () => {
@@ -116,21 +132,20 @@ describe("getRankingStats — 권한", () => {
       "FORBIDDEN",
     );
 
-    expect(studentTotals).not.toHaveBeenCalled();
-    expect(classSummaries).not.toHaveBeenCalled();
     expect(listClassRoster).not.toHaveBeenCalled();
+    expect(classSummaries).not.toHaveBeenCalled();
   });
 });
 
 describe("getRankingStats — 전교 학생 순위", () => {
   it("동점은 같은 등수고, 다음 등수는 인원만큼 건너뛴다", async () => {
     // 순점수 10점이 셋이면 1·1·1등이고 그 다음은 2등이 아니라 4등이다.
-    studentTotals.mockResolvedValue([
+    mockRoster({ all: [
       total("sp-d", "라학생", 5),
       total("sp-a", "가학생", 10),
       total("sp-c", "다학생", 10),
       total("sp-b", "나학생", 10),
-    ]);
+    ] });
 
     const stats = await service.getRankingStats(admin, "SCHOOL");
 
@@ -145,11 +160,11 @@ describe("getRankingStats — 전교 학생 순위", () => {
   });
 
   it("벌점 단계를 줄마다 붙인다 — 표가 기준을 다시 계산하지 않는다", async () => {
-    studentTotals.mockResolvedValue([
+    mockRoster({ all: [
       total("sp-1", "가학생", -30, { demerit: 30 }),
       total("sp-2", "나학생", -20, { demerit: 20 }),
       total("sp-3", "다학생", -1, { demerit: 1 }),
-    ]);
+    ] });
 
     const stats = await service.getRankingStats(admin, "SCHOOL");
 
@@ -159,8 +174,8 @@ describe("getRankingStats — 전교 학생 순위", () => {
   it("반을 안 고르면 반 명단 조회를 하지 않는다", async () => {
     await service.getRankingStats(admin, "SCHOOL");
 
-    expect(studentTotals).toHaveBeenCalledTimes(1);
-    expect(listClassRoster).not.toHaveBeenCalled();
+    expect(allCalls()).toHaveLength(1);
+    expect(scopedCalls()).toHaveLength(0);
   });
 });
 
@@ -169,11 +184,11 @@ describe("getRankingStats — 반을 고른 경우", () => {
 
   it("등수를 붙이지 않고 repo가 준 번호순을 지킨다", async () => {
     // repo가 번호순으로 준다. 점수 순으로 다시 세우면 담임이 찾는 줄이 옮겨 간다.
-    listClassRoster.mockResolvedValue([
+    mockRoster({ scoped: [
       rosterRow("sp-1", 1, -5),
       rosterRow("sp-2", 2, 12),
       rosterRow("sp-3", 3, 0),
-    ]);
+    ] });
 
     const stats = await service.getRankingStats(admin, "SCHOOL", undefined, scope);
 
@@ -182,14 +197,14 @@ describe("getRankingStats — 반을 고른 경우", () => {
   });
 
   it("고른 반을 그대로 소속으로 붙이고 전교 조회는 하지 않는다", async () => {
-    listClassRoster.mockResolvedValue([rosterRow("sp-1", 1, 3)]);
+    mockRoster({ scoped: [rosterRow("sp-1", 1, 3)] });
 
     const stats = await service.getRankingStats(admin, "SCHOOL", undefined, scope);
 
     expect(stats.scope).toEqual(scope);
     expect(stats.students[0]).toMatchObject({ grade: 2, classNo: 3 });
-    expect(studentTotals).not.toHaveBeenCalled();
-    expect(listClassRoster.mock.calls[0][0]).toMatchObject({
+    expect(allCalls()).toHaveLength(0);
+    expect(scopedCalls()[0][0]).toMatchObject({
       year: 2026,
       grade: 2,
       classNo: 3,
@@ -243,14 +258,14 @@ describe("getRankingStats — 반 순위", () => {
 describe("getRankingStats — 집계 범위", () => {
   it("교내는 그 학년도, 기숙사는 누적이고 반 편성은 언제나 학년도 기준이다", async () => {
     await service.getRankingStats(admin, "SCHOOL");
-    expect(studentTotals.mock.calls[0][0]).toEqual({
+    expect(allCalls()[0][0]).toEqual({
       year: 2026,
       track: "SCHOOL",
       totalsYear: 2026,
     });
 
     await service.getRankingStats(admin, "DORM");
-    expect(studentTotals.mock.calls[1][0]).toEqual({
+    expect(allCalls()[1][0]).toEqual({
       year: 2026,
       track: "DORM",
       // 기숙사 점수는 입학부터 누적이다. 반 편성만 학년도를 본다.
@@ -264,7 +279,7 @@ describe("getRankingStats — 집계 범위", () => {
 
     expect(stats.year).toBe(2025);
     expect(stats.rosterYear).toBe(2025);
-    expect(studentTotals.mock.calls[0][0]).toEqual({
+    expect(allCalls()[0][0]).toEqual({
       year: 2025,
       track: "SCHOOL",
       totalsYear: 2025,

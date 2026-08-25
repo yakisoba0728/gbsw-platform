@@ -28,6 +28,9 @@ export type RosterRow = {
   studentProfileId: string;
   studentCode: string;
   name: string;
+  /** 반이 없는 학생도 명단에 남는다 — 그래서 null이 온다. */
+  grade: number | null;
+  classNo: number | null;
   number: number | null;
   merit: number;
   demerit: number;
@@ -39,7 +42,12 @@ export type { RuleOption };
 
 type SortKey = "number" | "net";
 
-/** 반 명단 + 일괄 부여. 정렬은 번호순이 기본이고, 순점수 헤더를 누르면 순점수순으로 바뀐다. */
+/**
+ * 명단 + 일괄 부여. 정렬은 번호순이 기본이고, 순점수 헤더를 누르면 순점수순으로 바뀐다.
+ *
+ * 범위(학년·반)는 선택이다 — 안 고르면 전교가 온다. 그때는 번호만으로 누가 누군지
+ * 알 수 없어 학급 열이 함께 선다.
+ */
 export function ClassRoster({
   rows,
   grade,
@@ -51,8 +59,9 @@ export function ClassRoster({
   rules,
 }: {
   rows: RosterRow[];
-  grade: number;
-  classNo: number;
+  /** 좁힌 범위. 없으면 전교(또는 그 학년 전체)다. */
+  grade?: number;
+  classNo?: number;
   track: MeritTrack;
   /** 벌점 강조 기준. 교사가 설정에서 정한 값을 서버가 내려준다. */
   thresholds: DemeritThresholds;
@@ -122,12 +131,17 @@ export function ClassRoster({
     });
   }
 
+  // 범위를 좁히지 않았으면 번호만으로는 누구인지 모른다 — 학급을 함께 낸다.
+  const showClass = classNo === undefined;
+  const scopeLabel =
+    grade === undefined
+      ? "전교"
+      : classNo === undefined
+        ? `${grade}학년`
+        : `${grade}학년 ${classNo}반`;
+
   if (rows.length === 0) {
-    return (
-      <EmptyState>
-        {grade}학년 {classNo}반에 학생이 없습니다.
-      </EmptyState>
-    );
+    return <EmptyState>{scopeLabel}에 학생이 없습니다.</EmptyState>;
   }
 
   const columns: Column<RosterRow>[] = [
@@ -170,6 +184,24 @@ export function ClassRoster({
       card: "meta",
       cell: (row) => <span className="font-mono text-mut">{row.number ?? "—"}</span>,
     },
+    ...(showClass
+      ? [
+          {
+            key: "class",
+            header: "학급",
+            width: "w-[92px]",
+            card: "meta" as const,
+            // 반이 없는 학생도 명단에 남는다 — 그 자리를 빈칸이 아니라 말로 채운다.
+            cell: (row: RosterRow) => (
+              <span className="text-mut">
+                {row.grade === null || row.classNo === null
+                  ? "미배정"
+                  : `${row.grade}-${row.classNo}`}
+              </span>
+            ),
+          } satisfies Column<RosterRow>,
+        ]
+      : []),
     {
       key: "name",
       header: "이름",
@@ -242,10 +274,13 @@ export function ClassRoster({
 
       <SectionCard
         flush
-        title={`${grade}학년 ${classNo}반`}
+        title={scopeLabel}
         hint={`${rows.length}명`}
         aside={
-          <ExportButton grade={grade} classNo={classNo} track={track} year={year} />
+          // 파일 이름이 「1학년3반」이라 한 반을 고른 때만 낼 수 있다.
+          grade !== undefined && classNo !== undefined ? (
+            <ExportButton grade={grade} classNo={classNo} track={track} year={year} />
+          ) : undefined
         }
       >
         <DataTable
