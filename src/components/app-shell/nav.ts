@@ -17,7 +17,6 @@ import type { Role } from "@/core/authz/roles";
 
 /** 하위 메뉴 한 줄. 아이콘 없이 들여쓴 링크로 나온다. */
 export type NavChild = {
-  /** 쿼리스트링을 포함할 수 있다 (예: `/merit?track=DORM`). */
   href: string;
   label: string;
   /** 비우면 부모가 보이는 모든 역할에게 보인다. */
@@ -44,8 +43,8 @@ export const NAV_ITEMS: NavItem[] = [
     label: "상벌점",
     icon: MeritIcon,
     children: [
-      { href: "/merit?track=SCHOOL", label: "그린마일리지" },
-      { href: "/merit?track=DORM", label: "기숙사 상벌점" },
+      // 교내·기숙사는 메뉴로 가르지 않는다 — 같은 화면이고, 화면 안의 탭이 고른다.
+      // 다른 상벌점 화면(최근 부여·통계·규정)이 전부 그 방식이다.
       { href: "/merit/recent", label: "최근 부여", roles: ["ADMIN"] },
       { href: "/merit/stats", label: "통계 개요", roles: ["ADMIN"] },
       { href: "/merit/stats/ranking", label: "순위 · 현황", roles: ["ADMIN"] },
@@ -129,16 +128,10 @@ function flatten(): { href: string; label: string }[] {
   for (const item of [...NAV_ITEMS, ...ADMIN_NAV_ITEMS]) {
     all.push({ href: item.href, label: item.label });
     for (const child of item.children ?? []) {
-      // 하위 메뉴의 href에는 쿼리가 붙어 있다. 제목은 경로로만 찾으므로 떼어낸다.
-      all.push({ href: childPath(child), label: child.label });
+      all.push({ href: child.href, label: child.label });
     }
   }
   return all;
-}
-
-/** 하위 메뉴 href에서 쿼리를 뗀 경로. */
-function childPath(child: NavChild): string {
-  return child.href.split("?")[0];
 }
 
 /** 현재 경로의 메뉴 이름. 상단바 제목으로 쓴다. 하위 메뉴까지 훑는다. */
@@ -159,47 +152,20 @@ export function isActive(pathname: string, href: string): boolean {
 /** 부모 메뉴가 활성인가. 하위 메뉴가 다른 경로에 있을 수 있어 함께 본다. */
 export function isGroupActive(pathname: string, item: NavItem): boolean {
   if (isActive(pathname, item.href)) return true;
-  return (item.children ?? []).some((child) => isActive(pathname, childPath(child)));
+  return (item.children ?? []).some((child) => isActive(pathname, child.href));
 }
-
-/** 쿼리가 없을 때 화면이 실제로 쓰는 기본값. */
-const DEFAULT_PARAMS: Record<string, string> = {
-  track: "SCHOOL",
-};
 
 /**
- * 이 하위 메뉴가 현재 위치와 들어맞는가. 쿼리까지 본다 — `?track=SCHOOL`과
- * `?track=DORM`은 경로가 같다. 여러 개가 동시에 맞을 수 있어 activeChild()가 하나를 고른다.
+ * 지금 켜야 할 하위 메뉴 하나. 여러 개가 걸리면 경로가 가장 긴 것이 이긴다 —
+ * `/merit/stats`와 `/merit/stats/ranking`은 둘 다 맞는다.
  */
-function matchesChild(
-  pathname: string,
-  search: URLSearchParams,
-  child: NavChild,
-): boolean {
-  const [path, query] = child.href.split("?");
-  if (!isActive(pathname, path)) return false;
-  if (!query) return true;
-
-  for (const [key, value] of new URLSearchParams(query)) {
-    const actual = search.get(key);
-    if (actual === null) {
-      if (value !== DEFAULT_PARAMS[key]) return false;
-    } else if (actual !== value) {
-      return false;
-    }
-  }
-  return true;
-}
-
-/** 지금 켜야 할 하위 메뉴 하나. 여러 개가 걸리면 경로가 가장 긴 것이 이긴다. */
 export function activeChild(
   pathname: string,
-  search: URLSearchParams,
   children: NavChild[],
 ): NavChild | null {
   const matched = children
-    .filter((child) => matchesChild(pathname, search, child))
-    .sort((a, b) => childPath(b).length - childPath(a).length);
+    .filter((child) => isActive(pathname, child.href))
+    .sort((a, b) => b.href.length - a.href.length);
 
   return matched[0] ?? null;
 }

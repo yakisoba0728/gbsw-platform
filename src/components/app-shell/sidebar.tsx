@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import type { Role } from "@/core/authz/roles";
 import { cn } from "@/lib/cn";
 import {
@@ -58,18 +58,16 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
 function NavGroup({
   item,
   pathname,
-  search,
   role,
 }: {
   item: NavItem;
   pathname: string;
-  search: URLSearchParams;
   role: Role | null;
 }) {
   const children = visibleChildren(item, role);
   const expanded = isGroupActive(pathname, item);
   // 하나만 켠다 — /merit/stats는 /merit로도 시작해서 그냥 두면 둘 다 강조된다.
-  const current = activeChild(pathname, search, children);
+  const current = activeChild(pathname, children);
   const Icon = item.icon;
 
   return (
@@ -144,7 +142,6 @@ function ChevronDown({ className }: { className?: string }) {
 
 export function Sidebar({ role }: { role: Role | null }) {
   const pathname = usePathname();
-  const search = useSearchParams();
   const items = visibleItems(NAV_ITEMS, role);
   const adminItems = visibleItems(ADMIN_NAV_ITEMS, role);
 
@@ -155,7 +152,6 @@ export function Sidebar({ role }: { role: Role | null }) {
         key={item.href}
         item={item}
         pathname={pathname}
-        search={search}
         role={role}
       />
     ) : (

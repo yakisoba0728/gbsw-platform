@@ -9,9 +9,10 @@ export const MERIT_TRACK_LABELS: Record<MeritTrack, string> = {
 };
 
 /**
- * 화면 제목에 쓰는 이름. `MERIT_TRACK_LABELS`(교내·기숙사)는 표 안처럼 좁은
- * 자리의 짧은 표기고, 이쪽은 메뉴(nav.ts)에 적힌 정식 이름이다 — 상단바 제목이
- * 쿼리를 못 보므로 두 트랙을 가르는 글자가 화면 안에 반드시 하나는 있어야 한다.
+ * 화면 제목에 쓰는 정식 이름. `MERIT_TRACK_LABELS`(교내·기숙사)는 탭·표처럼 좁은
+ * 자리의 짧은 표기다 — 제목과 탭을 한 줄에 나란히 둬도 같은 말이 두 번 나오지 않는
+ * 이유가 이 구분이다. 상단바 제목은 쿼리를 못 보므로(어느 트랙이든 "상벌점"이다)
+ * 지금 어느 쪽을 보고 있는지는 화면 안의 글자가 답해야 한다.
  */
 export const MERIT_TRACK_TITLES: Record<MeritTrack, string> = {
   SCHOOL: "그린마일리지",

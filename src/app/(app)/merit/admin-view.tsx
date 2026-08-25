@@ -18,6 +18,7 @@ import { classRosterSchema } from "@/modules/merit/merit.schema";
 import { getClassRoster, searchStudents } from "@/modules/merit/award.service";
 import { listActiveRules } from "@/modules/merit/rule.service";
 import { getDemeritThresholds } from "@/modules/merit/threshold.service";
+import { TrackTabs } from "@/components/merit/track-tabs";
 import { ClassRoster } from "./class-roster";
 
 type Params = SearchParamsInput;
@@ -25,6 +26,14 @@ type Params = SearchParamsInput;
 /** 탭·필터 링크. 다른 쿼리를 지우지 않는다 — 반·학년도를 고른 채 탭만 옮길 수 있어야 한다. */
 function meritHref(params: Params, patch: Record<string, string>): string {
   return hrefWith("/merit", params, patch);
+}
+
+/** 트랙 탭. 고른 반은 들고 가고 학년도만 버린다 — 기숙사는 누적이라 의미가 없다. */
+function trackHrefFor(params: Params, track: MeritTrack): string {
+  return hrefWith("/merit", params, {
+    track,
+    ...(track === "DORM" ? { year: null } : {}),
+  });
 }
 
 export async function AdminMeritView({
@@ -37,6 +46,7 @@ export async function AdminMeritView({
   params: Params;
 }) {
   const q = typeof params.q === "string" ? params.q : "";
+  const trackHref = (next: MeritTrack) => trackHrefFor(params, next);
 
   // 두 조회 다 getCurrentYear()를 거친다. 학년도가 없으면 던지므로 여기서 잡아
   // 페이지 전체가 아니라 안내만 보여준다.
@@ -97,11 +107,15 @@ export async function AdminMeritView({
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
-      {/* 트랙을 가르는 유일한 글자다 — 상단바 제목(titleForPath)은 쿼리를 떼고
-          찾으므로 교내·기숙사 어느 쪽이든 "상벌점"으로만 나온다. */}
-      <h2 className="text-title font-semibold text-ink">
-        {MERIT_TRACK_TITLES[track]}
-      </h2>
+      {/* 제목은 정식 이름(그린마일리지), 탭은 짧은 표기(교내)라 나란히 둬도 겹치지
+          않는다. 상단바 제목은 쿼리를 떼고 찾으므로 어느 트랙이든 "상벌점"이다 —
+          지금 어느 쪽을 보고 있는지는 이 줄이 답한다. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-title font-semibold text-ink">
+          {MERIT_TRACK_TITLES[track]}
+        </h2>
+        <TrackTabs current={track} hrefFor={trackHref} size="sm" />
+      </div>
 
       {noCurrentYear && <NoAcademicYearNotice />}
 

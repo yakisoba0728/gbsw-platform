@@ -11,13 +11,10 @@ import {
 } from "@/components/app-shell/nav";
 
 const merit = NAV_ITEMS.find((item) => item.href === "/merit") as NavItem;
-const q = (search: string) => new URLSearchParams(search);
 
 describe("상벌점 메뉴 구성", () => {
-  it("하위 메뉴 여덟을 갖는다 — 통계가 네 갈래다", () => {
+  it("하위 메뉴 여섯을 갖는다 — 통계가 네 갈래다", () => {
     expect(merit.children?.map((c) => c.label)).toEqual([
-      "그린마일리지",
-      "기숙사 상벌점",
       "최근 부여",
       "통계 개요",
       "순위 · 현황",
@@ -27,27 +24,33 @@ describe("상벌점 메뉴 구성", () => {
     ]);
   });
 
+  // 교내·기숙사는 같은 화면이고 화면 안의 탭이 고른다. 메뉴로 다시 가르면
+  // 한 화면이 두 줄로 서고, 그걸 구분하려고 nav가 쿼리를 읽어야 한다.
+  it("트랙은 메뉴로 가르지 않는다", () => {
+    const hrefs = merit.children?.map((c) => c.href) ?? [];
+    expect(hrefs.some((href) => href.includes("track="))).toBe(false);
+    expect(hrefs).not.toContain("/merit");
+  });
+
+  it("어떤 하위 메뉴에도 쿼리가 붙지 않는다", () => {
+    const all = [...NAV_ITEMS, ...ADMIN_NAV_ITEMS].flatMap((i) => i.children ?? []);
+    expect(all.every((child) => !child.href.includes("?"))).toBe(true);
+  });
+
   it("부모는 역할 제한이 없다 — 학생·학부모도 본다", () => {
     expect(merit.roles).toBeUndefined();
   });
 
-  it("학생·학부모에게는 트랙 둘만 보인다 — 통계 네 갈래는 관리자만", () => {
-    expect(visibleChildren(merit, "STUDENT").map((c) => c.label)).toEqual([
-      "그린마일리지",
-      "기숙사 상벌점",
-    ]);
-    expect(visibleChildren(merit, "PARENT").map((c) => c.label)).toEqual([
-      "그린마일리지",
-      "기숙사 상벌점",
-    ]);
-    expect(visibleChildren(merit, "ADMIN")).toHaveLength(8);
+  // 하위 메뉴가 전부 교사 전용이라 학생·학부모에게는 하나도 안 보인다.
+  // Sidebar는 그때 그룹이 아니라 평범한 링크(/merit)로 그린다.
+  it("학생·학부모에게는 하위 메뉴가 없다 — 부여 화면 하나로 간다", () => {
+    expect(visibleChildren(merit, "STUDENT")).toEqual([]);
+    expect(visibleChildren(merit, "PARENT")).toEqual([]);
+    expect(visibleChildren(merit, "ADMIN")).toHaveLength(6);
   });
 
-  it("로그인 전(role null)에는 역할 제한이 걸린 하위 메뉴가 안 보인다", () => {
-    expect(visibleChildren(merit, null).map((c) => c.label)).toEqual([
-      "그린마일리지",
-      "기숙사 상벌점",
-    ]);
+  it("로그인 전(role null)에도 하위 메뉴가 안 보인다", () => {
+    expect(visibleChildren(merit, null)).toEqual([]);
   });
 
   it("상벌점 규정이 관리자 섹션에서 빠졌다 — 하위 메뉴로 옮겼다", () => {
@@ -91,55 +94,39 @@ describe("isGroupActive — 부모가 켜지는 조건", () => {
 
 describe("activeChild — 하나만 켜진다", () => {
   const all = merit.children!;
-  const active = (path: string, search: string) =>
-    activeChild(path, q(search), all)?.label ?? null;
+  const active = (path: string) => activeChild(path, all)?.label ?? null;
 
-  it("track이 맞는 항목만 켜진다 — 경로가 같아 pathname만으로는 못 가른다", () => {
-    expect(active("/merit", "track=DORM")).toBe("기숙사 상벌점");
-    expect(active("/merit", "track=SCHOOL")).toBe("그린마일리지");
-  });
-
-  it("파라미터가 없으면 기본 트랙(교내)이 켜진다", () => {
-    expect(active("/merit", "")).toBe("그린마일리지");
-  });
-
-  it("다른 쿼리가 섞여 있어도 track만 본다", () => {
-    expect(active("/merit", "grade=2&classNo=3&track=DORM")).toBe("기숙사 상벌점");
-    expect(active("/merit", "q=김민준")).toBe("그린마일리지");
-  });
-
-  it("학생 상세도 상위 트랙 항목을 켠다 — /merit 아래이기 때문이다", () => {
-    expect(active("/merit/students/abc", "track=DORM")).toBe("기숙사 상벌점");
+  it("부여 화면에서는 아무 하위 메뉴도 안 켜진다 — 부모 링크가 그 자리다", () => {
+    expect(active("/merit")).toBeNull();
+    expect(active("/merit/students/abc")).toBeNull();
   });
 
   it("통계 화면에서는 통계만 켜진다 — /merit로도 시작하지만 더 긴 경로가 이긴다", () => {
-    expect(active("/merit/stats", "")).toBe("통계 개요");
-    expect(active("/merit/stats", "track=DORM")).toBe("통계 개요");
+    expect(active("/merit/stats")).toBe("통계 개요");
   });
 
   it("통계 하위 화면은 개요가 아니라 자기 것이 켜진다 — 경로가 더 길다", () => {
-    expect(active("/merit/stats/teachers", "")).toBe("교사별");
-    expect(active("/merit/stats/ranking", "track=DORM")).toBe("순위 · 현황");
-    expect(active("/merit/stats/rules", "")).toBe("규정별");
+    expect(active("/merit/stats/teachers")).toBe("교사별");
+    expect(active("/merit/stats/ranking")).toBe("순위 · 현황");
+    expect(active("/merit/stats/rules")).toBe("규정별");
+  });
+
+  it("최근 부여도 자기 것이 켜진다", () => {
+    expect(active("/merit/recent")).toBe("최근 부여");
   });
 
   it("규정 관리 화면에서는 규정 관리만 켜진다", () => {
-    expect(active("/admin/merit/rules", "")).toBe("규정 관리");
+    expect(active("/admin/merit/rules")).toBe("규정 관리");
   });
 
   it("역할 때문에 안 보이는 항목은 켜질 수 없다", () => {
-    // 학생 메뉴에는 통계가 아예 없다. 학생이 /merit/stats에 닿을 일도 없지만
-    // (requirePermission이 /forbidden으로 보낸다), 닿더라도 통계가 켜지지는 않는다 —
-    // /merit로 시작하니 그린마일리지가 켜질 뿐이다.
-    const studentChildren = visibleChildren(merit, "STUDENT");
-    expect(activeChild("/merit/stats", q(""), studentChildren)?.label).toBe(
-      "그린마일리지",
-    );
-    expect(studentChildren.some((c) => c.label === "통계")).toBe(false);
+    // 학생 메뉴에는 하위 메뉴가 없다. /merit/stats에 닿을 일도 없지만
+    // (requirePermission이 /forbidden으로 보낸다), 닿더라도 켤 것이 없다.
+    expect(activeChild("/merit/stats", visibleChildren(merit, "STUDENT"))).toBeNull();
   });
 
   it("상관없는 경로에서는 아무것도 안 켜진다", () => {
-    expect(active("/admin/students", "")).toBeNull();
+    expect(active("/admin/students")).toBeNull();
   });
 });
 
@@ -183,9 +170,7 @@ describe("메뉴 링크가 실제 화면을 가리킨다", () => {
   const navPaths = [
     ...new Set(
       [...NAV_ITEMS, ...ADMIN_NAV_ITEMS, ...bottomTabItems("ADMIN")]
-        .flatMap((item) => [item.href, ...(item.children ?? []).map((c) => c.href)])
-        // 하위 메뉴 href에는 쿼리가 붙어 있다. 라우트 파일은 경로로만 찾는다.
-        .map((href) => href.split("?")[0]),
+        .flatMap((item) => [item.href, ...(item.children ?? []).map((c) => c.href)]),
     ),
   ];
 

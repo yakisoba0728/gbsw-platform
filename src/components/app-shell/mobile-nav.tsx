@@ -101,7 +101,6 @@ export function MobileNav({ role }: { role: Role | null }) {
                 key={item.href}
                 item={item}
                 pathname={pathname}
-                search={search}
                 role={role}
               />
             ))}
@@ -116,7 +115,6 @@ export function MobileNav({ role }: { role: Role | null }) {
                     key={item.href}
                     item={item}
                     pathname={pathname}
-                    search={search}
                     role={role}
                   />
                 ))}
@@ -148,16 +146,14 @@ function Rail() {
 function DrawerItem({
   item,
   pathname,
-  search,
   role,
 }: {
   item: NavItem;
   pathname: string;
-  search: URLSearchParams;
   role: Role | null;
 }) {
   const children = visibleChildren(item, role);
-  const current = activeChild(pathname, search, children);
+  const current = activeChild(pathname, children);
   const active =
     children.length > 0
       ? isGroupActive(pathname, item)

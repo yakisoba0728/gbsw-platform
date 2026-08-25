@@ -1,5 +1,6 @@
 import { AwardHistory } from "@/components/merit/award-history";
 import { MeritTotalsCards } from "@/components/merit/merit-totals";
+import { TrackTabs } from "@/components/merit/track-tabs";
 import { ChipLink } from "@/components/ui/chip-link";
 import { hrefWith, type SearchParamsInput } from "@/lib/search-params";
 import type { StudentMeritView } from "@/modules/merit/award.service";
@@ -29,9 +30,26 @@ export function OwnMeritView({
       <div className="flex flex-wrap items-center justify-between gap-3">
         {/* h1은 상단바가 (app)의 모든 화면에 이미 그린다 — 여기는 h2다. */}
         <h2 className="text-title font-semibold text-ink">{title}</h2>
-        {childOptions && childOptions.length > 1 && (
-          <ChildPicker options={childOptions} selected={selectedChild} params={params} />
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <TrackTabs
+            current={view.track}
+            hrefFor={(next) =>
+              hrefWith("/merit", params, {
+                track: next,
+                // 기숙사는 누적이라 학년도가 의미 없다.
+                ...(next === "DORM" ? { year: null } : {}),
+              })
+            }
+            size="sm"
+          />
+          {childOptions && childOptions.length > 1 && (
+            <ChildPicker
+              options={childOptions}
+              selected={selectedChild}
+              params={params}
+            />
+          )}
+        </div>
       </div>
 
       {view.track === "SCHOOL" && (
