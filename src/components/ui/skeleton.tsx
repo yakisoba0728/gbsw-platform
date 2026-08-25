@@ -58,6 +58,21 @@ export function SkeletonStats({ count }: { count: number }) {
   );
 }
 
+/**
+ * 카드 **안쪽**의 표 자리. 화면이 카드 껍데기와 머리글을 이미 그렸을 때 쓴다 —
+ * 검색·필터가 그대로 서 있어야 하므로 결과 영역만 이걸로 바꾼다.
+ */
+export function SkeletonRows({ rows = 6 }: { rows?: number }) {
+  return (
+    <div className="space-y-3 px-5 py-4" aria-busy="true" aria-live="polite">
+      <span className="sr-only">불러오는 중</span>
+      {Array.from({ length: rows }, (_, i) => (
+        <Skeleton key={i} className="h-6" />
+      ))}
+    </div>
+  );
+}
+
 /** 머리글 + 표가 든 카드 자리. */
 export function SkeletonTable({ rows = 6 }: { rows?: number }) {
   return (
