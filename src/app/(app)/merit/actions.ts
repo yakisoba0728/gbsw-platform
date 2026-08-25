@@ -51,9 +51,28 @@ function submittedNote(formData: FormData): string {
   return typeof raw === "string" ? raw : "";
 }
 
+/**
+ * 트랜잭션이 예산 안에 못 끝났는가(Prisma P2028). 부여는 AcademicYear를 잠그는데
+ * 명단 일괄 반영이 같은 잠금을 최대 120초 쥔다 — 학년 초에 실제로 겹친다.
+ * 서비스 오류가 아니라 일시적 경합이라 안내가 달라야 한다.
+ */
+function isTransactionTimeout(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "P2028"
+  );
+}
+
 function toState(error: unknown, note?: string): MeritActionState {
   if (error instanceof AcademicYearError) {
     return fail(NO_CURRENT_YEAR_MESSAGE, note);
+  }
+  if (isTransactionTimeout(error)) {
+    // 폴백 문구로 나가면 "처리하지 못했습니다"만 남아 왜 막혔는지 아무 데도 안 남는다.
+    console.error("[merit] 트랜잭션이 예산 안에 끝나지 않았습니다.", error);
+    return fail("다른 작업이 학년도를 쓰고 있습니다. 잠시 뒤 다시 부여하세요.", note);
   }
   // 권한 거부를 일반 폴백에 섞지 않는다. 화면이 "처리하지 못했습니다"라고 하면
   // 권한이 없어서 막힌 사람이 일시적 장애로 알고 계속 다시 누른다.

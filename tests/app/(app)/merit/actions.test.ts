@@ -205,6 +205,30 @@ describe("awardAction — 경계 검증", () => {
     expect(state.error).toContain("현재 학년도가 없습니다");
   });
 
+  // 명단 일괄 반영이 AcademicYear 잠금을 최대 120초 쥔다 — 그 사이 부여가 예산을
+  // 넘기면 Prisma가 P2028을 준다. 폴백으로 새면 왜 막혔는지 화면에도 로그에도 안 남는다.
+  it("트랜잭션이 예산을 넘기면 일시적 경합으로 안내하고 서버에 남긴다", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    awardMerit.mockRejectedValueOnce(Object.assign(new Error("tx"), { code: "P2028" }));
+
+    const state = await awardAction(INITIAL, awardForm());
+
+    expect(state.error).toContain("다른 작업이 학년도를 쓰고 있습니다");
+    expect(state.error).not.toBe("처리하지 못했습니다.");
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it("메모는 트랜잭션 경합으로 실패해도 되살아난다", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    awardMerit.mockRejectedValueOnce(Object.assign(new Error("tx"), { code: "P2028" }));
+
+    const state = await awardAction(INITIAL, awardForm({ note: "복도 뛰어다님" }));
+
+    expect(state.note).toBe("복도 뛰어다님");
+    spy.mockRestore();
+  });
+
   it("사전에 없는 코드는 영문 코드를 화면에 흘리지 않는다", async () => {
     awardMerit.mockRejectedValueOnce(new MeritError("SOME_NEW_CODE"));
 

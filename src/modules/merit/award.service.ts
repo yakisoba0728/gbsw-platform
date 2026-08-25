@@ -153,7 +153,13 @@ export async function awardMerit(
         occurredOn: occurredOn.toISOString(),
       },
     }, tx);
-  });
+  },
+  // bulkAwardMerit과 같은 예산을 준다. 이 트랜잭션은 findCurrentYearForUpdate로
+  // AcademicYear를 잠그는데, 명단 일괄 반영이 같은 잠금을 최대 120초 쥔다
+  // (roster.service의 timeout). 기본값 5초로는 학년 초 명단 반영 중에 부여가
+  // P2028로 떨어지고, 화면에는 원인을 알 수 없는 문구만 나간다.
+  { timeout: 30_000, maxWait: 5_000 },
+  );
 }
 
 /**
