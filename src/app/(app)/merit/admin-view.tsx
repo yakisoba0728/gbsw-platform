@@ -29,7 +29,7 @@ import { ClassRoster } from "./class-roster";
 type Params = SearchParamsInput;
 
 /** 탭·필터 링크. 다른 쿼리를 지우지 않는다 — 반·학년도를 고른 채 탭만 옮길 수 있어야 한다. */
-function meritHref(params: Params, patch: Record<string, string>): string {
+function meritHref(params: Params, patch: Record<string, string | null>): string {
   return hrefWith("/merit", params, patch);
 }
 
@@ -276,7 +276,12 @@ async function ClassRosterSection({
 const GRADES = [1, 2, 3];
 const CLASS_NOS = [1, 2, 3, 4];
 
-/** 학년·반 고르기. 폼이 아니라 링크라서 선택 상태가 URL에 남는다. */
+/**
+ * 학년·반 고르기. 폼이 아니라 링크라서 선택 상태가 URL에 남는다.
+ *
+ * 두 줄 다 「전체」로 시작한다 — 좁힌 뒤 전교로 되돌아올 길이 없으면 고르는 순간
+ * 갇힌다. 반 줄은 학년을 고른 뒤에야 선다: 학년 없는 반은 범위가 아니다.
+ */
 function ClassPicker({ params, track }: { params: Params; track: MeritTrack }) {
   const grade = typeof params.grade === "string" ? params.grade : "";
   const classNo = typeof params.classNo === "string" ? params.classNo : "";
@@ -285,6 +290,15 @@ function ClassPicker({ params, track }: { params: Params; track: MeritTrack }) {
     <SectionCard variant="panel" title="반 고르기">
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="mr-1 text-xs font-medium text-mut">학년</span>
+        <ChipLink
+          size="sm"
+          // 학년을 지우면 반도 함께 지운다 — 남겨 두면 다음에 학년을 고를 때
+          // 고른 적 없는 반이 딸려 온다.
+          href={meritHref(params, { track, grade: null, classNo: null })}
+          active={grade === ""}
+        >
+          전체
+        </ChipLink>
         {GRADES.map((g) => (
           <ChipLink
             key={g}
@@ -296,19 +310,28 @@ function ClassPicker({ params, track }: { params: Params; track: MeritTrack }) {
           </ChipLink>
         ))}
       </div>
-      <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-        <span className="mr-1 text-xs font-medium text-mut">반</span>
-        {CLASS_NOS.map((c) => (
+      {grade !== "" && (
+        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-xs font-medium text-mut">반</span>
           <ChipLink
-            key={c}
             size="sm"
-            href={meritHref(params, { track, classNo: String(c) })}
-            active={classNo === String(c)}
+            href={meritHref(params, { track, classNo: null })}
+            active={classNo === ""}
           >
-            {c}반
+            전체
           </ChipLink>
-        ))}
-      </div>
+          {CLASS_NOS.map((c) => (
+            <ChipLink
+              key={c}
+              size="sm"
+              href={meritHref(params, { track, classNo: String(c) })}
+              active={classNo === String(c)}
+            >
+              {c}반
+            </ChipLink>
+          ))}
+        </div>
+      )}
     </SectionCard>
   );
 }

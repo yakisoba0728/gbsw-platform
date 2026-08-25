@@ -5,6 +5,7 @@ import {
   BULK_AWARD_LIMIT,
   bulkAwardSchema,
   cancelSchema,
+  classRosterExportSchema,
   classRosterSchema,
   createRuleSchema,
   deleteRuleSchema,
@@ -163,6 +164,42 @@ describe("조회 학년도", () => {
 
   it("학년도는 선택 입력이다", () => {
     expect(classRosterSchema.parse(roster).year).toBeUndefined();
+  });
+});
+
+/**
+ * 명단 범위. 좁히는 조건이라 안 주면 전교이고, 학교에 없는 단위(학년 없는 반)는
+ * 거부가 아니라 「안 고른 것」으로 되돌린다.
+ */
+describe("명단 범위", () => {
+  it("학년·반을 안 주면 전교다", () => {
+    const parsed = classRosterSchema.parse({ track: "SCHOOL" });
+    expect(parsed.grade).toBeUndefined();
+    expect(parsed.classNo).toBeUndefined();
+  });
+
+  it("학년만 주면 그 학년 전체다", () => {
+    const parsed = classRosterSchema.parse({ grade: "2", track: "SCHOOL" });
+    expect(parsed.grade).toBe(2);
+    expect(parsed.classNo).toBeUndefined();
+  });
+
+  it("학년 없는 반은 반을 안 고른 것으로 읽는다", () => {
+    // 통과시키면 세 학년이 뒤섞인 명단이 「전교」라는 이름을 달고 선다.
+    const parsed = classRosterSchema.parse({ classNo: "3", track: "SCHOOL" });
+    expect(parsed.grade).toBeUndefined();
+    expect(parsed.classNo).toBeUndefined();
+  });
+
+  it("내보내기는 학년·반이 있어야 한다 — 파일 이름이 범위다", () => {
+    expect(classRosterExportSchema.safeParse({ track: "SCHOOL" }).success).toBe(false);
+    expect(
+      classRosterExportSchema.safeParse({ grade: "1", track: "SCHOOL" }).success,
+    ).toBe(false);
+    expect(
+      classRosterExportSchema.safeParse({ grade: "1", classNo: "3", track: "SCHOOL" })
+        .success,
+    ).toBe(true);
   });
 });
 

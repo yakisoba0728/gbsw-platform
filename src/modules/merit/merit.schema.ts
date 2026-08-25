@@ -177,21 +177,31 @@ const yearQuery = z.coerce.number().int().min(MIN_YEAR).max(MAX_YEAR).optional()
  * 명단 범위. **학년·반은 선택이다** — 안 고르면 전교, 학년만 고르면 그 학년 전체다.
  * 고르지 않은 것을 "없음"이 아니라 "좁히지 않음"으로 읽는다.
  */
-export const classRosterSchema = z.object({
+const classRosterBase = z.object({
   grade: z.coerce.number().int().min(1).max(3).optional(),
   classNo: z.coerce.number().int().min(1).max(20).optional(),
   track: trackSchema,
   year: yearQuery,
 });
 
-export type ClassRosterInput = z.infer<typeof classRosterSchema>;
+export type ClassRosterInput = z.infer<typeof classRosterBase>;
+
+/**
+ * 학년 없이 반만 온 것은 반을 안 고른 것으로 읽는다. 「모든 학년의 3반」은 학교에
+ * 없는 단위라서, 통과시키면 세 학년이 뒤섞인 명단이 「전교」라는 이름을 달고 선다.
+ * 화면은 반 고르기를 학년 뒤에 두므로 이 조합은 손으로 넣은 주소로만 온다.
+ */
+export const classRosterSchema = classRosterBase.transform(
+  (scope): ClassRosterInput =>
+    scope.grade === undefined ? { ...scope, classNo: undefined } : scope,
+);
 
 /**
  * 반별 목록 내보내기 조건. 여기서는 학년·반이 **필수**다 — 파일 이름이
  * 「2026_1학년3반_교내상벌점.xlsx」라 범위가 없으면 이름을 지을 수 없다.
  * 전교 명단 내보내기는 별개의 일이라 이 경로에 섞지 않는다.
  */
-export const classRosterExportSchema = classRosterSchema.extend({
+export const classRosterExportSchema = classRosterBase.extend({
   grade: z.coerce.number().int().min(1).max(3),
   classNo: z.coerce.number().int().min(1).max(20),
 });
