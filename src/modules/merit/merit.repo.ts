@@ -436,7 +436,8 @@ export async function createAwards(
     // 보내므로 create마다 값이 다시 나고, 실제로 한 트랜잭션 안의 행이
     // 밀리초 단위로 갈렸다(.411 · .414 · .415).
     //
-    // 아래 findRecentAwardPage의 보조 정렬키가 이 값이 같다는 전제 위에 서 있다.
+    // 최근 부여 화면은 이 값으로 「한 번의 부여」를 알아낸다(`recent-feed.ts`).
+    // 갈리면 반 전체에 한 번 준 것이 서로 무관한 스무 줄로 흩어진다.
     const createdAt = new Date();
 
     const created: { id: string }[] = [];
@@ -733,7 +734,20 @@ const RECENT_AWARD_SELECT = {
   occurredOn: true,
   createdAt: true,
   studentProfile: {
-    select: { id: true, user: { select: { name: true } } },
+    select: {
+      id: true,
+      user: { select: { name: true } },
+      // 학년도로 걸러 오지 않는다 — 중첩 where는 바깥 행의 `year`를 참조할 수
+      // 없다. 한 학생의 재적은 학년도당 한 줄(최대 3줄)이므로 통째로 받아
+      // 매핑에서 그 기록의 학년도에 맞는 것을 고른다.
+      enrollments: {
+        select: {
+          year: true,
+          number: true,
+          schoolClass: { select: { grade: true, classNo: true } },
+        },
+      },
+    },
   },
 } satisfies Prisma.MeritAwardSelect;
 
@@ -764,6 +778,9 @@ function recentAwardWhere(filter: RecentAwardFilter): Prisma.MeritAwardWhereInpu
 }
 
 function toRecentAwardRow(row: RecentAwardRecord) {
+  // 그 기록이 난 학년도의 재적. 같은 이름이 둘일 때 학급·번호가 유일한 구분이다.
+  const enrollment = row.studentProfile.enrollments.find((e) => e.year === row.year);
+
   return {
     id: row.id,
     year: row.year,
@@ -780,6 +797,9 @@ function toRecentAwardRow(row: RecentAwardRecord) {
     createdAt: row.createdAt,
     studentProfileId: row.studentProfile.id,
     studentName: row.studentProfile.user.name,
+    grade: enrollment?.schoolClass?.grade ?? null,
+    classNo: enrollment?.schoolClass?.classNo ?? null,
+    number: enrollment?.number ?? null,
   };
 }
 

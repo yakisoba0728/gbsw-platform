@@ -28,7 +28,16 @@ function award() {
     cancelReason: null,
     occurredOn: new Date("2026-08-18T15:00:00.000Z"),
     createdAt: new Date("2026-08-19T01:00:00.000Z"),
-    studentProfile: { id: "sp-1", user: { name: "김민준" } },
+    studentProfile: {
+      id: "sp-1",
+      user: { name: "김민준" },
+      // 재적은 학년도로 걸러 오지 않는다 — 중첩 where가 바깥 행의 year를 못 본다.
+      // 그래서 지난 학년도 줄이 함께 오고, 매핑이 그 기록의 학년도를 고른다.
+      enrollments: [
+        { year: 2025, number: 30, schoolClass: { grade: 1, classNo: 9 } },
+        { year: 2026, number: 7, schoolClass: { grade: 2, classNo: 3 } },
+      ],
+    },
   };
 }
 
@@ -94,6 +103,43 @@ describe("최근 부여 repo", () => {
       studentProfileId: "sp-1",
       studentName: "김민준",
     });
+  });
+
+  /**
+   * 같은 이름이 두 반에 있으면 목록에서 학급·번호가 유일한 구분이다.
+   * 재적을 통째로 받아 매핑에서 고르므로, 고르는 쪽이 틀리면 지난 학년도의
+   * 반이 조용히 붙는다 — 화면은 멀쩡해 보이고 사람만 다르다.
+   */
+  it("학급·번호는 그 기록이 난 학년도의 재적에서 온다", async () => {
+    const rows = await findRecentAwardPage(filter, 0, 20);
+
+    expect(rows[0]).toMatchObject({ grade: 2, classNo: 3, number: 7 });
+  });
+
+  it("그 학년도 재적이 없으면 학급·번호가 null이다", async () => {
+    findMany.mockResolvedValueOnce([
+      { ...award(), studentProfile: { ...award().studentProfile, enrollments: [] } },
+    ]);
+
+    const rows = await findRecentAwardPage(filter, 0, 20);
+
+    expect(rows[0]).toMatchObject({ grade: null, classNo: null, number: null });
+  });
+
+  it("반이 없는 재적도 번호는 살린다", async () => {
+    findMany.mockResolvedValueOnce([
+      {
+        ...award(),
+        studentProfile: {
+          ...award().studentProfile,
+          enrollments: [{ year: 2026, number: 12, schoolClass: null }],
+        },
+      },
+    ]);
+
+    const rows = await findRecentAwardPage(filter, 0, 20);
+
+    expect(rows[0]).toMatchObject({ grade: null, classNo: null, number: 12 });
   });
 
   it("총 건수에도 화면과 같은 필터를 적용한다", async () => {

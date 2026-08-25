@@ -38,6 +38,28 @@ export function formatDateTimeShort(value: Date): string {
   return dateTimeShort.format(value);
 }
 
+const timeShort = new Intl.DateTimeFormat("ko-KR", {
+  timeStyle: "short",
+  timeZone: KST,
+});
+
+/** 오후 5:17 — 날짜가 이미 위에 적힌 자리(날짜별로 묶은 목록)에서 쓴다. */
+export function formatTimeShort(value: Date): string {
+  return timeShort.format(value);
+}
+
+const dayLabel = new Intl.DateTimeFormat("ko-KR", {
+  month: "long",
+  day: "numeric",
+  weekday: "short",
+  timeZone: KST,
+});
+
+/** 8월 25일 (화) — 날짜 구분선용. 연도는 넣지 않는다(구분선 옆에 함께 적는다). */
+export function formatKstDay(value: Date): string {
+  return dayLabel.format(value);
+}
+
 /**
  * `<input type="date">`에 넣을 `YYYY-MM-DD`.
  * 생년월일은 KST 기준 날짜여야 한다 — UTC로 자르면 하루 밀린다.
