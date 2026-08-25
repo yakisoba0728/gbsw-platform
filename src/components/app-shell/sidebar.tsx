@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import type { Role } from "@/core/authz/roles";
 import { cn } from "@/lib/cn";
 import {
@@ -51,9 +52,16 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
 }
 
 /**
- * 하위 메뉴가 있는 항목. 접힘 상태를 따로 두지 않는다 — 그 그룹 안에 있으면
- * 펴지고 아니면 접힌다. 상태를 두면 직접 링크로 들어왔을 때 접힌 채 떠서
- * "지금 어디에 있는지"가 화면에서 사라진다.
+ * 하위 메뉴가 있는 항목.
+ *
+ * **머리글은 펴고 접기만 한다 — 눌러도 화면이 바뀌지 않는다.** 예전에는 링크라
+ * 누르는 순간 첫 화면으로 넘어가면서 동시에 펴졌다: 목록을 보려고 눌렀는데
+ * 이미 다른 곳에 가 있는 셈이라, 무엇이 있는지 훑고 고를 기회가 없었다.
+ * 이동은 하위 항목만 한다.
+ *
+ * 접힘은 상태로 들되 그 묶음 안으로 들어오면 자동으로 편다 — 주소로 바로
+ * 들어왔을 때 접힌 채 뜨면 「지금 어디인가」가 화면에서 사라진다. 나갈 때는
+ * 건드리지 않는다: 손으로 편 것을 화면 이동이 도로 접으면 안 된다.
  */
 function NavGroup({
   item,
@@ -65,25 +73,35 @@ function NavGroup({
   role: Role | null;
 }) {
   const children = visibleChildren(item, role);
-  const expanded = isGroupActive(pathname, item);
+  const inGroup = isGroupActive(pathname, item);
   // 하나만 켠다 — /merit/stats는 /merit로도 시작해서 그냥 두면 둘 다 강조된다.
   const current = activeChild(pathname, children);
   const Icon = item.icon;
 
+  const [expanded, setExpanded] = useState(inGroup);
+  // 렌더 중 비교로 맞춘다 — effect 안에서 setState하면 접힌 화면이 한 번 그려진다.
+  const [lastInGroup, setLastInGroup] = useState(inGroup);
+  if (lastInGroup !== inGroup) {
+    setLastInGroup(inGroup);
+    if (inGroup) setExpanded(true);
+  }
+
+  const listId = `nav-${item.href.replace(/\//g, "-")}`;
+
   return (
     <div>
-      <Link
-        href={item.href}
-        /*
-         * 현재 페이지는 한 화면에 하나다. 하위 항목이 맞으면 그쪽이 현재 페이지이고
-         * 부모 링크는 "그 묶음의 첫 화면으로 가는 길"이다.
-         *
-         * aria-expanded는 붙이지 않는다 — 이 링크는 눌러도 안 접히고 페이지를 옮긴다.
-         */
-        aria-current={
-          current === null && isActive(pathname, item.href) ? "page" : undefined
-        }
-        className={cn(ITEM, expanded ? "font-medium text-ink" : IDLE)}
+      <button
+        type="button"
+        onClick={() => setExpanded((open) => !open)}
+        aria-expanded={expanded}
+        aria-controls={listId}
+        className={cn(
+          ITEM,
+          "w-full text-left",
+          // 그 묶음 안에 있으면 머리글도 진하게 — 배경은 주지 않는다. 현재 화면은
+          // 하위 항목이고, 머리글까지 칠하면 켜진 줄이 둘로 보인다.
+          inGroup ? "font-medium text-ink" : IDLE,
+        )}
       >
         <Icon size={18} />
         {item.label}
@@ -93,11 +111,14 @@ function NavGroup({
             expanded ? "rotate-0" : "-rotate-90",
           )}
         />
-      </Link>
+      </button>
 
       {expanded && (
         // 아이콘 자리(18px)와 간격(12px)만큼 들여써서 부모와 세로선을 맞춘다.
-        <div className="mt-0.5 ml-6 flex flex-col gap-0.5 border-l border-line2 pl-3">
+        <div
+          id={listId}
+          className="mt-0.5 ml-6 flex flex-col gap-0.5 border-l border-line2 pl-3"
+        >
           {children.map((child) => {
             const active = child.href === current?.href;
             return (

@@ -145,6 +145,11 @@ function Rail() {
  * 서랍의 메뉴 한 덩어리. 사이드바와 달리 하위 메뉴를 항상 펼친다 — 서랍은
  * "지금 갈 수 없는 곳으로 가려고" 여는 것이라 접혀 있으면 존재 이유가 없다.
  */
+/**
+ * 서랍의 한 항목. 하위 메뉴가 있으면 머리글은 **펴고 접기만 한다** —
+ * 사이드바와 같은 규칙이다. 누르는 순간 첫 화면으로 넘어가 버리면 목록을
+ * 훑고 고를 기회가 없다.
+ */
 function DrawerItem({
   item,
   pathname,
@@ -156,36 +161,67 @@ function DrawerItem({
 }) {
   const children = visibleChildren(item, role);
   const current = activeChild(pathname, children);
-  const active =
-    children.length > 0
-      ? isGroupActive(pathname, item)
-      : isActive(pathname, item.href);
+  const inGroup = isGroupActive(pathname, item);
   const Icon = item.icon;
 
-  return (
-    <div>
+  const [expanded, setExpanded] = useState(inGroup);
+  // 렌더 중 비교로 맞춘다 — effect 안에서 setState하면 접힌 채로 한 번 그려진다.
+  //
+  // `inGroup`이 아니라 `pathname`을 본다. 서랍은 화면을 옮겨도 **다시 마운트되지
+  // 않으므로**, 첫 마운트 때 접힌 상태가 그대로 굳는다. 실제로 로그 화면에서
+  // 서랍을 열어 통계로 간 뒤 다시 열면, 통계 안에 있는데도 묶음이 접혀 있었다.
+  // 경로가 바뀔 때마다 「지금 그 묶음 안인가」를 다시 묻는다.
+  const [lastPathname, setLastPathname] = useState(pathname);
+  if (lastPathname !== pathname) {
+    setLastPathname(pathname);
+    if (inGroup) setExpanded(true);
+  }
+
+  const listId = `drawer-${item.href.replace(/\//g, "-")}`;
+
+  if (children.length === 0) {
+    const active = isActive(pathname, item.href);
+    return (
       <Link
         href={item.href}
-        // 사이드바와 같은 규칙 — 하위 항목이 맞으면 그쪽이 현재 페이지이고 부모는 아니다.
-        aria-current={
-          current === null && isActive(pathname, item.href) ? "page" : undefined
-        }
-        className={cn(
-          ITEM,
-          active
-            ? children.length > 0
-              ? "font-medium text-ink"
-              : "bg-soft font-medium text-ink"
-            : IDLE,
-        )}
+        aria-current={active ? "page" : undefined}
+        className={cn(ITEM, active ? "bg-soft font-medium text-ink" : IDLE)}
       >
-        {active && children.length === 0 && <Rail />}
+        {active && <Rail />}
         <Icon size={18} />
         {item.label}
       </Link>
+    );
+  }
 
-      {children.length > 0 && (
-        <div className="mt-0.5 ml-6 flex flex-col gap-0.5 border-l border-line2 pl-3">
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setExpanded((open) => !open)}
+        aria-expanded={expanded}
+        aria-controls={listId}
+        className={cn(
+          ITEM,
+          "w-full text-left",
+          inGroup ? "font-medium text-ink" : IDLE,
+        )}
+      >
+        <Icon size={18} />
+        {item.label}
+        <ChevronDown
+          className={cn(
+            "ml-auto text-mut2 transition-transform",
+            expanded ? "rotate-0" : "-rotate-90",
+          )}
+        />
+      </button>
+
+      {expanded && (
+        <div
+          id={listId}
+          className="mt-0.5 ml-6 flex flex-col gap-0.5 border-l border-line2 pl-3"
+        >
           {children.map((child) => (
             <Link
               key={child.href}
@@ -205,5 +241,24 @@ function DrawerItem({
         </div>
       )}
     </div>
+  );
+}
+
+function ChevronDown({ className }: { className?: string }) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <path d="M6 9l6 6 6-6" />
+    </svg>
   );
 }
