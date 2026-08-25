@@ -7,7 +7,12 @@ import { honorificName, isRole, ROLE_LABELS } from "@/core/authz/roles";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionCard } from "@/components/ui/section-card";
-import { Skeleton, SkeletonRows } from "@/components/ui/skeleton";
+import {
+  Skeleton,
+  SkeletonField,
+  SkeletonRows,
+  SkeletonTabs,
+} from "@/components/ui/skeleton";
 import { DataTable, type Column } from "@/components/ui/table";
 import { hrefWith } from "@/lib/search-params";
 import {
@@ -197,12 +202,8 @@ async function LogFilterBar({
 function LogFiltersSkeleton() {
   return (
     <>
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        {Array.from({ length: 14 }, (_, i) => (
-          <Skeleton key={i} className="h-7 w-20 rounded-full" />
-        ))}
-      </div>
-      <Skeleton className="mt-2.5 h-10 rounded-field" />
+      <SkeletonTabs count={14} size="sm" width="w-20" className="mt-3 flex-wrap" />
+      <SkeletonField dense className="mt-2.5" />
     </>
   );
 }

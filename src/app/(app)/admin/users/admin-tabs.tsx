@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { cn } from "@/lib/cn";
+import { ChipLink } from "@/components/ui/chip-link";
 import {
   ADMIN_TABS,
   ADMIN_TAB_LABELS,
@@ -13,9 +12,8 @@ import { hasUnsavedEdits } from "./unsaved";
 /**
  * 계정 관리의 탭 줄.
  *
- * `ChipLink`를 쓰지 않고 `Link`를 직접 세우는 이유는 `onNavigate`가 필요해서다 —
- * 학생 탭에 저장하지 않은 수정이 있으면 떠나기 전에 한 번 묻는다. 모양은
- * `ChipLink`의 sm 규격을 그대로 베낀다.
+ * 학생 탭에 저장하지 않은 수정이 있으면 떠나기 전에 한 번 묻는다 —
+ * `ChipLink`의 `onNavigate`로 이동을 취소한다.
  *
  * 브라우저 기본 확인창을 쓴다. 이 저장소의 `ConfirmDialog`는 사유 입력이 필수인
  * 되돌릴 수 없는 동작용이라 여기에 맞지 않고, "저장 안 한 게 있는데 나갈래?"는
@@ -29,10 +27,11 @@ export function AdminTabs({ current }: { current: AdminTab }) {
         const active = item === current;
 
         return (
-          <Link
+          <ChipLink
             key={item}
+            size="sm"
+            active={active}
             href={param === null ? "/admin/users" : `/admin/users?tab=${param}`}
-            aria-current={active ? "page" : undefined}
             onNavigate={(event) => {
               if (active || !hasUnsavedEdits()) return;
               if (
@@ -43,15 +42,9 @@ export function AdminTabs({ current }: { current: AdminTab }) {
                 event.preventDefault();
               }
             }}
-            className={cn(
-              "inline-flex items-center rounded-full border px-3 py-2.5 text-xs font-medium whitespace-nowrap transition-colors lg:py-1.5",
-              active
-                ? "border-ink bg-ink text-white"
-                : "border-line bg-surface text-mut hover:bg-soft hover:text-ink",
-            )}
           >
             {ADMIN_TAB_LABELS[item]}
-          </Link>
+          </ChipLink>
         );
       })}
     </nav>

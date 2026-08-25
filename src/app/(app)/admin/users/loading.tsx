@@ -1,4 +1,7 @@
-import { Skeleton, SkeletonScreen } from "@/components/ui/skeleton";
+import {
+  SkeletonScreen,
+  SkeletonTabs,
+} from "@/components/ui/skeleton";
 
 /**
  * `/admin/users`의 로딩 뼈대 — **탭 줄까지만 그린다.**
@@ -11,7 +14,7 @@ import { Skeleton, SkeletonScreen } from "@/components/ui/skeleton";
 export default function Loading() {
   return (
     <SkeletonScreen className="mx-auto max-w-7xl">
-      <Skeleton className="h-[38px] w-44 rounded-full lg:h-[30px]" />
+      <SkeletonTabs count={3} size="sm" width="w-14" />
     </SkeletonScreen>
   );
 }

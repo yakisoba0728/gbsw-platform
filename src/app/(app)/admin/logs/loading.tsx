@@ -1,5 +1,10 @@
 import { cardClass } from "@/components/ui/card";
-import { Skeleton, SkeletonScreen } from "@/components/ui/skeleton";
+import {
+  Skeleton,
+  SkeletonField,
+  SkeletonScreen,
+  SkeletonTabs,
+} from "@/components/ui/skeleton";
 
 /**
  * `/admin/logs`의 뼈대. 동작 필터는 쌓인 동작 수만큼 생겨 두 줄까지 간다 —
@@ -11,12 +16,8 @@ export default function Loading() {
       <div className={cardClass("flush")}>
         <div className="border-b border-line px-5 py-4">
           <Skeleton className="h-5 w-24 rounded-btn" />
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {Array.from({ length: 14 }, (_, i) => (
-              <Skeleton key={i} className="h-7 w-20 rounded-full" />
-            ))}
-          </div>
-          <Skeleton className="mt-2.5 h-10 rounded-field" />
+          <SkeletonTabs count={14} size="sm" width="w-20" className="mt-3 flex-wrap" />
+          <SkeletonField dense className="mt-2.5" />
         </div>
         <div className="space-y-3 px-5 py-4">
           {Array.from({ length: 10 }, (_, i) => (

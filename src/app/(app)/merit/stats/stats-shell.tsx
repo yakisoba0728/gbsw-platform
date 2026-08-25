@@ -5,6 +5,7 @@ import { TrackTabs } from "@/components/merit/track-tabs";
 import { Badge } from "@/components/ui/badge";
 import { ChipLink } from "@/components/ui/chip-link";
 import { SectionCard } from "@/components/ui/section-card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   STATS_VIEWS,
   STATS_VIEW_LABELS,
@@ -97,12 +98,7 @@ export function StatsShell({
   );
 }
 
-/**
- * hint는 `<p>` 안에 들어간다 — Skeleton은 `<div>`라 문단에 넣으면 브라우저가 문단을
- * 먼저 닫아 버려 하이드레이션이 어긋난다. 같은 규격을 인라인으로 쓴다.
- */
+/** 집계 범위 한 줄 자리. hint는 `<p>` 안이라 `<span>`으로 그린다. */
 export function HintSkeleton() {
-  return (
-    <span className="inline-block h-4 w-64 max-w-full animate-pulse rounded-btn bg-soft align-middle" />
-  );
+  return <Skeleton as="span" className="inline-block h-4 w-64 max-w-full align-middle" />;
 }

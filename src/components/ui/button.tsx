@@ -8,6 +8,7 @@ export type ButtonVariant =
   | "approve"
   | "reject"
   | "ghost"
+  | "quiet"
   | "chip";
 
 export type ButtonSize = "sm" | "md" | "lg" | "icon";
@@ -20,6 +21,11 @@ const VARIANTS: Record<ButtonVariant, string> = {
   approve: "border-transparent bg-green text-white hover:bg-green-press",
   reject: "border-transparent bg-rose text-white hover:bg-rose-press",
   ghost: "border-transparent bg-transparent text-ink hover:bg-soft",
+  // 앱 셸의 아이콘 버튼(로그아웃·메뉴 열기·닫기). 평소에는 물러나 있다가 손이
+  // 닿을 때만 잉크색이 된다 — ghost는 처음부터 잉크색이라 화면 모서리에서
+  // 본문만큼 크게 읽힌다. cn()은 tailwind-merge가 아니라 className으로
+  // text-ink를 덮을 수 없어서 variant로 가른다.
+  quiet: "border-transparent bg-transparent text-mut hover:bg-soft hover:text-ink",
   chip: "border-line bg-surface text-mut hover:bg-soft hover:text-ink",
 };
 

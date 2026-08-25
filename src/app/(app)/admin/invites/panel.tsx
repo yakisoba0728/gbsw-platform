@@ -11,7 +11,12 @@ import {
 } from "@/modules/invites/invite.service";
 import { cardClass } from "@/components/ui/card";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
-import { Skeleton, SkeletonScreen } from "@/components/ui/skeleton";
+import {
+  Skeleton,
+  SkeletonField,
+  SkeletonScreen,
+  SkeletonTabs,
+} from "@/components/ui/skeleton";
 import { InviteForm, type StudentOption } from "./invite-form";
 import { InviteTable, type InviteRow } from "./invite-table";
 
@@ -164,12 +169,8 @@ function InviteListSkeleton() {
     <SkeletonScreen className={cardClass("flush", "min-w-0")}>
       <div className="border-b border-line px-5 py-4">
         <Skeleton className="h-5 w-24 rounded-btn" />
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {Array.from({ length: 8 }, (_, i) => (
-            <Skeleton key={i} className="h-7 w-16 rounded-full" />
-          ))}
-        </div>
-        <Skeleton className="mt-2.5 h-11 rounded-field" />
+        <SkeletonTabs count={8} size="sm" className="mt-3 flex-wrap" />
+        <SkeletonField dense className="mt-2.5" />
       </div>
       <div className="space-y-3 px-5 py-4">
         {Array.from({ length: 6 }, (_, i) => (

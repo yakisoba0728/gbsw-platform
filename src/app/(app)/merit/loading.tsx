@@ -1,6 +1,7 @@
 import { cardClass } from "@/components/ui/card";
 import {
   Skeleton,
+  SkeletonField,
   SkeletonScreen,
   SkeletonTable,
   SkeletonTabs,
@@ -13,26 +14,22 @@ import {
 export default function Loading() {
   return (
     <SkeletonScreen>
-      <SkeletonTabs />
+      <SkeletonTabs size="sm" />
 
       {/* 검색 폼 — 입력칸 + 버튼 */}
       <div className="flex gap-2">
-        <Skeleton className="h-[42px] flex-1 rounded-field" />
-        <Skeleton className="h-[42px] w-[72px] rounded-btn" />
+        <SkeletonField className="flex-1" />
+        <Skeleton className="h-9 w-[72px] rounded-btn" />
       </div>
 
       {/* 반 고르기 카드 — 제목 + 학년·반 칩 */}
       <div className={cardClass("panel")}>
         <Skeleton className="mb-4 h-5 w-20 rounded-btn" />
         <div className="flex flex-wrap gap-1.5">
-          {Array.from({ length: 4 }, (_, i) => (
-            <Skeleton key={i} className="h-[30px] w-[68px] rounded-full" />
-          ))}
+          <SkeletonTabs count={4} size="sm" width="w-[68px]" />
         </div>
         <div className="mt-2.5 flex flex-wrap gap-1.5">
-          {Array.from({ length: 5 }, (_, i) => (
-            <Skeleton key={i} className="h-[30px] w-[60px] rounded-full" />
-          ))}
+          <SkeletonTabs count={5} size="sm" width="w-[60px]" />
         </div>
       </div>
 

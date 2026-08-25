@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import { LogoutIcon } from "@/components/icons";
 import { authClient } from "@/core/auth/auth-client";
 import type { Role } from "@/core/authz/roles";
@@ -48,16 +49,17 @@ export function Topbar({ name, role }: { name: string; role: Role | null }) {
 
         <span className="mx-2 h-4 w-px shrink-0 bg-line" aria-hidden />
 
-        <button
-          type="button"
+        <Button
+          variant="quiet"
+          size="icon"
           onClick={handleSignOut}
           disabled={signingOut}
           title="로그아웃"
-          className="shrink-0 rounded-btn p-2.5 text-mut transition-colors hover:bg-soft hover:text-ink disabled:opacity-40"
+          className="shrink-0"
         >
           <LogoutIcon size={18} />
           <span className="sr-only">로그아웃</span>
-        </button>
+        </Button>
       </div>
     </header>
   );

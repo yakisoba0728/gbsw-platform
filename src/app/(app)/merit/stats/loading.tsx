@@ -26,7 +26,7 @@ export default function Loading() {
         </div>
 
         {/* 갈래 탭 — 개요 · 순위·현황 · 교사별 · 규정별 */}
-        <Skeleton className="mt-3 h-[38px] w-72 rounded-full lg:h-[30px]" />
+        <SkeletonTabs count={4} size="sm" className="mt-3 flex-wrap" />
       </div>
     </SkeletonScreen>
   );

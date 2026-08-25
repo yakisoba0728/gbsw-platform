@@ -2,9 +2,20 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { cardClass } from "./card";
 
-/** 뼈대 한 덩어리. 크기는 화면이 자기 짜임에 맞게 정한다. */
-export function Skeleton({ className }: { className?: string }) {
-  return <div className={cn("animate-pulse rounded-btn bg-soft", className)} />;
+/**
+ * 뼈대 한 덩어리. 크기는 화면이 자기 짜임에 맞게 정한다.
+ *
+ * `as="span"`은 `<p>` 안에 들어가는 자리가 쓴다 — `<div>`를 문단에 넣으면
+ * 브라우저가 문단을 먼저 닫아 버려 하이드레이션이 어긋난다.
+ */
+export function Skeleton({
+  as: Tag = "div",
+  className,
+}: {
+  as?: "div" | "span";
+  className?: string;
+}) {
+  return <Tag className={cn("animate-pulse rounded-btn bg-soft", className)} />;
 }
 
 /** 뼈대는 눈으로만 읽히므로 "불러오는 중"을 따로 알린다. */
@@ -23,27 +34,57 @@ export function SkeletonScreen({
   );
 }
 
-/** 트랙 탭 자리. */
+/**
+ * 칩 줄 자리 — 트랙 탭·필터 칩.
+ *
+ * 높이는 `button.tsx`의 chip 규격을 따른다: `sm`은 `h-9 lg:h-8`, `md`는 `h-9`.
+ * 여기 숫자를 손으로 적어 두었더니 실제 칩과 8px까지 어긋난 채 굳어 있었다 —
+ * 뼈대가 내용보다 낮으면 결과가 도착할 때 화면이 통째로 밀린다.
+ */
 export function SkeletonTabs({
   count = 2,
   size = "md",
+  /** 칩 하나의 폭. 글자 수가 다른 줄은 호출부가 정한다. */
+  width = "w-16",
+  className,
 }: {
   count?: number;
   size?: "sm" | "md";
+  width?: string;
+  /** 줄 자체의 여백·줄바꿈. 실제 칩 줄이 쓰는 것과 같은 값을 준다. */
+  className?: string;
 }) {
   return (
-    <div className={size === "sm" ? "flex gap-1.5" : "flex gap-2"}>
+    <div className={cn(size === "sm" ? "flex gap-1.5" : "flex gap-2", className)}>
       {Array.from({ length: count }, (_, i) => (
         <Skeleton
           key={i}
-          className={
-            size === "sm"
-              ? "h-[38px] w-16 rounded-full lg:h-[30px]"
-              : "h-9 w-24 rounded-full"
-          }
+          className={cn(
+            "rounded-full",
+            size === "sm" ? "h-9 lg:h-8" : "h-9",
+            width,
+          )}
         />
       ))}
     </div>
+  );
+}
+
+/**
+ * 입력칸 자리. 실제 높이는 `Input`의 `dense`가 38px, 기본이 42px이다 —
+ * 다섯 화면이 40·40·42·44·44로 제각기 어림잡고 있었다.
+ */
+export function SkeletonField({
+  dense = false,
+  className,
+}: {
+  dense?: boolean;
+  className?: string;
+}) {
+  return (
+    <Skeleton
+      className={cn(dense ? "h-[38px]" : "h-[42px]", "rounded-field", className)}
+    />
   );
 }
 

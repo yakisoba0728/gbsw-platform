@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { CloseIcon, MenuIcon } from "@/components/icons";
 import type { Role } from "@/core/authz/roles";
 import { cn } from "@/lib/cn";
@@ -51,17 +52,18 @@ export function MobileNav({ role }: { role: Role | null }) {
 
   return (
     <>
-      <button
-        type="button"
+      <Button
+        variant="quiet"
+        size="icon"
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls="mobile-nav"
-        className="-ml-2 rounded-btn p-2.5 text-mut transition-colors hover:bg-soft hover:text-ink lg:hidden"
+        className="-ml-2 lg:hidden"
       >
         <MenuIcon size={20} />
         <span className="sr-only">메뉴 열기</span>
-      </button>
+      </Button>
 
       <dialog
         id="mobile-nav"
@@ -85,14 +87,14 @@ export function MobileNav({ role }: { role: Role | null }) {
                 <span className="block text-xs text-mut">통합관리시스템</span>
               </span>
             </span>
-            <button
-              type="button"
+            <Button
+              variant="quiet"
+              size="icon"
               onClick={() => setOpen(false)}
-              className="rounded-btn p-2.5 text-mut transition-colors hover:bg-soft hover:text-ink"
             >
               <CloseIcon size={18} />
               <span className="sr-only">메뉴 닫기</span>
-            </button>
+            </Button>
           </div>
 
           <nav className="flex flex-col gap-0.5">

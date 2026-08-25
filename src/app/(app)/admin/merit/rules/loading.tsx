@@ -1,5 +1,10 @@
 import { cardClass } from "@/components/ui/card";
-import { Skeleton, SkeletonScreen, SkeletonTabs } from "@/components/ui/skeleton";
+import {
+  Skeleton,
+  SkeletonField,
+  SkeletonScreen,
+  SkeletonTabs,
+} from "@/components/ui/skeleton";
 
 /** `/admin/merit/rules`의 뼈대 — 규정 추가 폼 · 검색/종류 필터 · 규정 표. */
 export default function Loading() {
@@ -24,12 +29,8 @@ export default function Loading() {
       {/* 규정 찾기 — 제목 + 검색 + 종류 필터 */}
       <div className={cardClass("panel")}>
         <Skeleton className="mb-4 h-5 w-20 rounded-btn" />
-        <Skeleton className="h-11 rounded-field" />
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {Array.from({ length: 5 }, (_, i) => (
-            <Skeleton key={i} className="h-7 w-16 rounded-full" />
-          ))}
-        </div>
+        <SkeletonField />
+        <SkeletonTabs count={5} size="sm" className="mt-3 flex-wrap" />
         <Skeleton className="mt-3 h-4 w-16 rounded-btn" />
       </div>
 

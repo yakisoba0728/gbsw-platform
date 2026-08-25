@@ -16,6 +16,7 @@ export function TableFrame({
   headers,
   sort,
   fixed = false,
+  gutter = true,
   className,
   children,
 }: {
@@ -31,6 +32,14 @@ export function TableFrame({
   sort?: readonly (AriaAttributes["aria-sort"] | undefined)[];
   /** 글자 길이와 무관하게 열 폭을 고정한다. */
   fixed?: boolean;
+  /**
+   * 첫·끝 열의 바깥 여백. 기본은 있다(`px-5`).
+   *
+   * 여백이 이미 있는 카드(`cardClass("page")`) 안에 표를 넣는 자리가 끄고 쓴다 —
+   * 그대로 두면 표의 첫 글자만 20px 더 들어가, 바로 위 문단과 왼쪽 끝이 어긋난다.
+   * 인쇄 확인서가 그런 자리다.
+   */
+  gutter?: boolean;
   className?: string;
   /** `<tbody>` */
   children: ReactNode;
@@ -63,7 +72,7 @@ export function TableFrame({
                 aria-sort={sort?.[i]}
                 className={cn(
                   "py-2.5 font-medium",
-                  tableCellPadding(i, headers.length),
+                  tableCellPadding(i, headers.length, gutter),
                 )}
               >
                 {header}
@@ -78,8 +87,15 @@ export function TableFrame({
 }
 
 /** 위의 패딩 규칙을 `<tbody>` 셀도 쓴다. 각자 적으면 세로줄이 어긋난다. */
-export function tableCellPadding(index: number, count: number): string {
-  return index === 0 || index === count - 1 ? "px-5" : "px-3";
+export function tableCellPadding(
+  index: number,
+  count: number,
+  gutter = true,
+): string {
+  const edge = index === 0 || index === count - 1;
+  // 바깥 여백을 끈 표에서도 열 사이는 벌린다 — 안 벌리면 글자끼리 맞붙는다.
+  if (!gutter) return edge ? (index === 0 ? "pr-3" : "pl-3") : "px-3";
+  return edge ? "px-5" : "px-3";
 }
 
 /** 카드 모드에서 이 열이 앉는 자리. */

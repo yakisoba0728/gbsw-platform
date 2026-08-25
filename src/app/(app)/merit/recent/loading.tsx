@@ -1,5 +1,11 @@
 import { cardClass } from "@/components/ui/card";
-import { Skeleton, SkeletonRows, SkeletonScreen, SkeletonTabs } from "@/components/ui/skeleton";
+import {
+  Skeleton,
+  SkeletonField,
+  SkeletonRows,
+  SkeletonScreen,
+  SkeletonTabs,
+} from "@/components/ui/skeleton";
 
 /**
  * `/merit/recent`의 로딩 뼈대 — 조건 패널 + 목록 표.
@@ -19,14 +25,15 @@ export default function Loading() {
 
         <div className="@container mt-4 space-y-2.5">
           {/* 종류 · 상태 두 줄. 칩 높이는 ChipLink의 sm 규격을 따른다. */}
-          <Skeleton className="h-[38px] w-72 rounded-full lg:h-[30px]" />
-          <Skeleton className="h-[38px] w-56 rounded-full lg:h-[30px]" />
+          <SkeletonTabs count={4} size="sm" className="flex-wrap" />
+          <SkeletonTabs count={3} size="sm" className="flex-wrap" />
 
           <div className="grid gap-2.5 @2xl:grid-cols-[minmax(0,1fr)_auto] @2xl:items-center">
-            <Skeleton className="h-10 max-w-xl rounded-field" />
+            <SkeletonField dense className="max-w-xl" />
             <div className="flex items-center justify-end gap-3">
               <Skeleton className="h-4 w-10" />
-              <Skeleton className="h-[38px] w-24 rounded-btn lg:h-[30px]" />
+              {/* 내보내기 버튼은 md라 높이가 고정이다 — 칩과 달리 좁은 폭에서 안 커진다. */}
+              <Skeleton className="h-9 w-24 rounded-btn" />
             </div>
           </div>
         </div>
