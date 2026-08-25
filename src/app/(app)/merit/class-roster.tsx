@@ -295,107 +295,188 @@ export function ClassRoster({
     },
   ];
 
+  const chosen = rows.filter((row) => selected.has(row.studentProfileId));
+
   return (
     <form action={formAction}>
       {[...selected].map((id) => (
         <input key={id} type="hidden" name="studentProfileIds" value={id} />
       ))}
 
-      <SectionCard
-        flush
-        title={scopeLabel}
-        hint={`${rows.length}명`}
-        aside={
-          // 파일 이름이 「1학년3반」이라 한 반을 고른 때만 낼 수 있다.
-          grade !== undefined && classNo !== undefined ? (
-            <ExportButton grade={grade} classNo={classNo} track={track} year={year} />
-          ) : undefined
-        }
-      >
-        <DataTable
-          minWidth={548}
-          narrow="cards"
-          rows={sorted}
-          rowKey={(row) => row.studentProfileId}
-          columns={columns}
-        />
+      {/*
+        두 단으로 선다 — 왼쪽 명단(2), 오른쪽 부여(1).
+        예전에는 부여 폼이 명단 **아래**에 있어서, 항목 고르기를 누르려면 전교
+        명단을 지나 화면 끝까지 내려가야 했고 펼쳐진 목록은 그보다 더 아래로
+        흘렀다. 오른쪽으로 옮기면 명단을 고르는 자리와 줄 항목을 고르는 자리가
+        같은 높이에 선다.
 
-        {/* 지난 학년도를 보고 있으면 부여 폼을 감춘다 — 부여는 현재 학년도로만 들어간다. */}
-        {viewingPast ? (
-          <Note tone="warn" className="mx-5 my-4">
-            부여는 현재 학년도에만 할 수 있습니다.
-          </Note>
-        ) : (
-          <div className="@container space-y-2.5 border-t border-line px-5 py-4">
-            <div className="flex flex-wrap items-center gap-x-3">
-              {/* 카드 목록에는 표 머리글이 없다 — 전체 선택을 여기 다시 낸다. */}
-              <CheckboxField
-                key={checkboxKey}
-                label="전체 선택"
-                checked={allSelected}
-                onChange={toggleAll}
-                className="lg:hidden"
+        기준은 뷰포트가 아니라 이 자리의 폭이다 — 대시보드처럼 좁은 자리에
+        들어갈 수 있다. @4xl(896px) 미만에서는 한 단으로 접고 부여를 위에
+        둔다: 좁은 화면에서 아래에 두면 원래 문제로 되돌아간다.
+      */}
+      <div className="@container">
+        <div className="grid gap-4 @4xl:grid-cols-[2fr_1fr] @4xl:items-start">
+          <div className="order-2 @4xl:order-1">
+            <SectionCard
+              flush
+              title={scopeLabel}
+              hint={`${rows.length}명`}
+              aside={
+                // 파일 이름이 「1학년3반」이라 한 반을 고른 때만 낼 수 있다.
+                grade !== undefined && classNo !== undefined ? (
+                  <ExportButton
+                    grade={grade}
+                    classNo={classNo}
+                    track={track}
+                    year={year}
+                  />
+                ) : undefined
+              }
+            >
+              <DataTable
+                minWidth={548}
+                narrow="cards"
+                rows={sorted}
+                rowKey={(row) => row.studentProfileId}
+                columns={columns}
               />
-              <span className="text-xs font-medium text-mut">
-                {selected.size}명 선택됨
-              </span>
-            </div>
-
-            {/* 항목 고르기는 한 줄을 통째로 쓴다 — 검색 목록이 아래로 펼쳐진다. */}
-            <RulePicker rules={rules} onChange={setRule} />
-
-            <div className="flex flex-col gap-2.5 @md:flex-row @md:flex-wrap @md:items-end">
-              <div className="@md:min-w-[160px] @md:flex-1">
-                {/* 실패 상태가 실어 온 제출값을 defaultValue로 내려보낸다 —
-                    자동 reset이 메모를 지우는 대신 그 값으로 되돌린다. */}
-                <Input
-                  ref={noteRef}
-                  name="note"
-                  placeholder="메모 (선택)"
-                  aria-label="메모"
-                  defaultValue={state.note ?? ""}
-                />
-              </div>
-
-              {/* 제출하지 않는다 — 확인창을 연다. 이름은 확인창의 버튼과 같다. */}
-              <Button
-                type="button"
-                className="w-full @md:w-auto"
-                disabled={pending || selected.size === 0 || !rule}
-                onClick={() => {
-                  setConfirmNote(noteRef.current?.value.trim() ?? "");
-                  setConfirmError(null);
-                  setConfirmOpen(true);
-                }}
-              >
-                부여
-              </Button>
-            </div>
+            </SectionCard>
           </div>
-        )}
 
-        {/* 폼 안에 둔다 — 확인 버튼이 이 폼을 제출한다. */}
-        {rule && (
-          <AwardConfirmDialog
-            open={confirmOpen}
-            onClose={() => setConfirmOpen(false)}
-            rule={rule}
-            note={confirmNote}
-            students={rows.filter((row) => selected.has(row.studentProfileId))}
-            showClass={showClass}
-            scopeLabel={scopeLabel}
-            pending={pending}
-            error={confirmError}
-            onConfirm={() => setSubmitted({ ...rule, count: selected.size })}
-          />
-        )}
+          {/* 오른쪽 단은 스크롤을 따라온다 — 명단이 길어도 부여가 화면에 남는다. */}
+          <div className="order-1 @4xl:order-2 @4xl:sticky @4xl:top-4">
+            {viewingPast ? (
+              <SectionCard variant="panel" title="상벌점 부여" headingLevel={3}>
+                {/* 지난 학년도를 보고 있으면 폼을 감춘다 — 부여는 현재 학년도로만 들어간다. */}
+                <Note tone="warn">부여는 현재 학년도에만 할 수 있습니다.</Note>
+              </SectionCard>
+            ) : (
+              <SectionCard
+                variant="panel"
+                title="상벌점 부여"
+                headingLevel={3}
+                aside={
+                  <span className="text-xs font-medium text-mut">
+                    {selected.size}명 선택됨
+                  </span>
+                }
+              >
+                <div className="space-y-2.5">
+                  {/* 카드 목록에는 표 머리글이 없다 — 전체 선택을 여기 다시 낸다. */}
+                  <CheckboxField
+                    key={checkboxKey}
+                    label="전체 선택"
+                    checked={allSelected}
+                    onChange={toggleAll}
+                    className="@4xl:hidden"
+                  />
 
-        <AwardSuccessDialog
-          result={success}
-          onClose={() => setSuccess(null)}
+                  <RulePicker rules={rules} onChange={setRule} />
+
+                  {/* 실패 상태가 실어 온 제출값을 defaultValue로 내려보낸다 —
+                      자동 reset이 메모를 지우는 대신 그 값으로 되돌린다. */}
+                  <Input
+                    ref={noteRef}
+                    name="note"
+                    placeholder="메모 (선택)"
+                    aria-label="메모"
+                    defaultValue={state.note ?? ""}
+                  />
+
+                  {/* 제출하지 않는다 — 확인창을 연다. 이름은 확인창의 버튼과 같다. */}
+                  <Button
+                    type="button"
+                    full
+                    disabled={pending || selected.size === 0 || !rule}
+                    onClick={() => {
+                      setConfirmNote(noteRef.current?.value.trim() ?? "");
+                      setConfirmError(null);
+                      setConfirmOpen(true);
+                    }}
+                  >
+                    부여
+                  </Button>
+
+                  {/* 고른 사람을 여기서도 보여준다 — 확인창을 열기 전에 잘못 고른
+                      것이 눈에 띄어야 한다. 명단은 왼쪽에 있고 체크는 흩어져 있다. */}
+                  <ChosenList students={chosen} showClass={showClass} />
+                </div>
+              </SectionCard>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {state.error && (
+        <Note tone="error" className="mt-4">
+          {state.error}
+        </Note>
+      )}
+
+      {/* 폼 안에 둔다 — 확인 버튼이 이 폼을 제출한다. */}
+      {rule && (
+        <AwardConfirmDialog
+          open={confirmOpen}
+          onClose={() => setConfirmOpen(false)}
+          rule={rule}
+          note={confirmNote}
+          students={chosen}
+          showClass={showClass}
+          scopeLabel={scopeLabel}
+          pending={pending}
+          error={confirmError}
+          onConfirm={() => setSubmitted({ ...rule, count: selected.size })}
         />
-      </SectionCard>
+      )}
+
+      <AwardSuccessDialog result={success} onClose={() => setSuccess(null)} />
     </form>
+  );
+}
+
+/**
+ * 고른 학생 목록. 명단에서 체크한 것이 오른쪽 부여 칸에도 보여야 한다 —
+ * 명단이 길면 체크가 화면 밖으로 흩어져 몇 명인지만으로는 확인이 안 된다.
+ *
+ * 길어지면 스크롤한다. 부여 칸 전체가 늘어나면 스크롤을 따라오는 의미가 없다.
+ */
+function ChosenList({
+  students,
+  showClass,
+}: {
+  students: RosterRow[];
+  showClass: boolean;
+}) {
+  if (students.length === 0) {
+    return (
+      // 「왼쪽」이라 적지 않는다 — 좁은 폭에서는 명단이 아래로 간다.
+      <p className="rounded-card border border-line px-4 py-3 text-caption text-mut2">
+        명단에서 학생을 고르세요.
+      </p>
+    );
+  }
+
+  return (
+    <ul className="max-h-52 divide-y divide-line2 overflow-y-auto rounded-card border border-line">
+      {students.map((student) => (
+        <li
+          key={student.studentProfileId}
+          className="flex items-center gap-2.5 px-4 py-2 text-caption"
+        >
+          <span className="flex shrink-0 items-baseline gap-2 text-xs text-mut2">
+            {showClass && (
+              <span className="w-10">
+                {student.grade === null || student.classNo === null
+                  ? "미배정"
+                  : `${student.grade}-${student.classNo}`}
+              </span>
+            )}
+            <span className="w-5 text-right font-mono">{student.number ?? "—"}</span>
+          </span>
+          <span className="min-w-0 truncate font-medium text-ink">{student.name}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 

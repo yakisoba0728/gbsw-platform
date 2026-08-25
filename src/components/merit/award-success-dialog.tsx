@@ -14,14 +14,14 @@ export type AwardSuccess = {
   count: number | null;
 };
 
-/** 저절로 닫히기까지. 읽기에 충분하되 다음 부여를 막지 않는 길이다. */
-const AUTO_CLOSE_MS = 2200;
-
 /**
  * 부여 성공 알림. 폼 아래 배너 대신 모달로 띄운다 — 반 명단은 화면이 길어서
  * 아래쪽 배너가 스크롤 밖에 있고, 그러면 눌렀는지 아닌지가 화면에 안 남는다.
  *
- * 열림 상태를 따로 들지 않는다. `result`가 곧 열림이고, 닫는 길(시간·Esc·버튼)은
+ * **저절로 닫히지 않는다.** 예전에는 2.2초 뒤 사라졌는데, 무엇을 몇 명에게 줬는지
+ * 읽는 도중에 없어지면 다시 볼 방법이 최근 부여 화면뿐이다. 닫는 것은 사람이 한다.
+ *
+ * 열림 상태를 따로 들지 않는다. `result`가 곧 열림이고, 닫는 길(Esc·버튼·배경)은
  * 전부 `onClose`로 모여 호출부가 그것을 null로 만든다 — 상태가 두 군데면
  * 두 번째 성공에서 어긋난다.
  */
@@ -34,14 +34,6 @@ export function AwardSuccessDialog({
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
 
-  // 매 렌더 새로 만들어지는 콜백이라 effect의 의존성에 넣으면 타이머가 계속
-  // 처음부터 다시 시작한다. 최신 것만 붙들어 둔다 — 렌더 중에 ref를 건드리면
-  // 안 되므로(동시성 렌더에서 버려질 수 있다) 커밋된 뒤에 넣는다.
-  const closeRef = useRef(onClose);
-  useEffect(() => {
-    closeRef.current = onClose;
-  });
-
   useEffect(() => {
     const el = dialogRef.current;
     if (!el) return;
@@ -50,10 +42,7 @@ export function AwardSuccessDialog({
       if (el.open) el.close();
       return;
     }
-
     if (!el.open) el.showModal();
-    const timer = setTimeout(() => closeRef.current(), AUTO_CLOSE_MS);
-    return () => clearTimeout(timer);
   }, [result]);
 
   const kindLabel = result
