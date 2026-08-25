@@ -8,6 +8,7 @@ import { Note } from "@/components/ui/note";
 import { SectionCard } from "@/components/ui/section-card";
 import { Select } from "@/components/ui/select";
 import { TableFrame, tableCellPadding } from "@/components/ui/table";
+import { setUnsavedEdits } from "@/app/(app)/admin/users/unsaved";
 import {
   ENROLLMENT_STATUSES,
   ENROLLMENT_STATUS_LABELS,
@@ -102,6 +103,16 @@ export function StudentTable({
       };
     }),
   );
+
+  // 탭 줄이 떠나기 전에 물어볼 수 있게 알려 둔다. 여기서 고친 것은 「저장」을
+  // 누르기 전까지 화면 상태로만 있어서, 이 표가 내려가면 말없이 사라진다.
+  const dirty = dirtyIds.length > 0;
+  useEffect(() => {
+    setUnsavedEdits(dirty);
+    // 내려갈 때는 반드시 끈다 — 안 끄면 학생 탭을 떠난 뒤에도 표시가 켜진 채라
+    // 계정·초대 탭 사이를 오갈 때마다 없는 수정을 두고 묻는다.
+    return () => setUnsavedEdits(false);
+  }, [dirty]);
 
   return (
     <form

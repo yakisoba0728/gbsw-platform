@@ -1,15 +1,10 @@
 import type { Metadata } from "next";
 import { requireAuth } from "@/core/auth/session";
-import { ChipLink } from "@/components/ui/chip-link";
 import { InvitesPanel } from "../invites/panel";
 import { StudentsPanel } from "../students/panel";
+import { parseAdminTab } from "./admin-tab";
+import { AdminTabs } from "./admin-tabs";
 import { AccountsPanel } from "./panel";
-import {
-  ADMIN_TABS,
-  ADMIN_TAB_LABELS,
-  adminTabParam,
-  parseAdminTab,
-} from "./admin-tab";
 
 /**
  * 탭 제목은 탭을 따라가지 않는다. `generateMetadata`에 searchParams를 물리면
@@ -41,22 +36,7 @@ export default async function AdminUsersPage({
     // 세 탭이 같은 자리에 선다 — 폭을 여기서 한 번만 정한다. 탭마다 다르면
     // 탭을 누를 때마다 카드 가장자리가 좌우로 흔들린다.
     <div className="@container mx-auto max-w-7xl space-y-4">
-      <nav aria-label="계정 관리 갈래" className="flex flex-wrap gap-1.5">
-        {ADMIN_TABS.map((item) => (
-          <ChipLink
-            key={item}
-            size="sm"
-            active={item === tab}
-            href={
-              adminTabParam(item) === null
-                ? "/admin/users"
-                : `/admin/users?tab=${adminTabParam(item)}`
-            }
-          >
-            {ADMIN_TAB_LABELS[item]}
-          </ChipLink>
-        ))}
-      </nav>
+      <AdminTabs current={tab} />
 
       {tab === "invites" && <InvitesPanel />}
       {tab === "students" && <StudentsPanel />}
