@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useActionState } from "react";
-import { ChevronLeftIcon } from "@/components/icons";
+import { BackLink } from "@/components/ui/back-link";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { MaskedInput } from "@/components/ui/masked-input";
@@ -103,13 +103,9 @@ function ProfileStep({ code, role }: { code: string; role: Role }) {
       <input type="hidden" name="code" value={code} />
 
       {/* 같은 주소로 되돌아가 1단계부터 다시 시작한다 (JS 없이도 동작). */}
-      <a
-        href="/register"
-        className="mb-3 inline-flex items-center gap-1 text-xs font-medium text-mut transition-colors hover:text-ink"
-      >
-        <ChevronLeftIcon size={15} />
+      <BackLink href="/register" reload className="mb-3">
         가입코드 다시 입력
-      </a>
+      </BackLink>
 
       <h1 className="mb-6 text-title font-semibold text-ink">정보 입력</h1>
 

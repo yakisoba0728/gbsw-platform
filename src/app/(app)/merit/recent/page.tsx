@@ -428,8 +428,10 @@ function AwardCard({ row, track }: { row: RecentRow; track: string }) {
 
       <AwardCardDetails row={row} />
 
-      <div className="mt-2 flex items-center justify-between gap-3">
-        <span className="min-w-0 truncate text-xs text-mut2">
+      {/* 여백·색을 `DataTable`의 카드 줄(CardRow)과 맞춘다 — 두 카드 무리가
+          한 화면에 서므로 바닥 줄만 한 단계 흐리면 다른 것처럼 읽힌다. */}
+      <div className="mt-1.5 flex items-center justify-between gap-3">
+        <span className="min-w-0 truncate text-xs text-mut">
           {formatMonthDayTime(row.createdAt)}
           {!isSameKstDate(row.occurredOn, row.createdAt) &&
             ` (발생 ${formatDate(row.occurredOn)})`}

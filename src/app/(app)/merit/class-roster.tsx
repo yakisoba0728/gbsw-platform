@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
+import { Checkbox, CheckboxField } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
@@ -176,7 +177,7 @@ export function ClassRoster({
     {
       key: "select",
       header: (
-        <SelectBox
+        <Checkbox
           key={checkboxKey}
           checked={allSelected}
           onChange={toggleAll}
@@ -187,7 +188,7 @@ export function ClassRoster({
       // 카드에서는 이름 오른쪽에 선다 — 여러 칸을 title로 쌓으면 이름 위에 얹힌다.
       card: "trailing",
       cell: (row) => (
-        <SelectBox
+        <Checkbox
           key={checkboxKey}
           checked={selected.has(row.studentProfileId)}
           onChange={() => toggleOne(row.studentProfileId)}
@@ -328,16 +329,13 @@ export function ClassRoster({
           <div className="@container space-y-2.5 border-t border-line px-5 py-4">
             <div className="flex flex-wrap items-center gap-x-3">
               {/* 카드 목록에는 표 머리글이 없다 — 전체 선택을 여기 다시 낸다. */}
-              <label className="inline-flex items-center gap-2 py-2.5 text-xs font-medium text-mut lg:hidden">
-                <input
-                  key={checkboxKey}
-                  type="checkbox"
-                  checked={allSelected}
-                  onChange={toggleAll}
-                  className="size-4 accent-pri"
-                />
-                전체 선택
-              </label>
+              <CheckboxField
+                key={checkboxKey}
+                label="전체 선택"
+                checked={allSelected}
+                onChange={toggleAll}
+                className="lg:hidden"
+              />
               <span className="text-xs font-medium text-mut">
                 {selected.size}명 선택됨
               </span>
@@ -398,33 +396,6 @@ export function ClassRoster({
         />
       </SectionCard>
     </form>
-  );
-}
-
-/**
- * 명단 체크박스. `<label>`이 감싸 실제 탭 영역을 36px로 넓힌다 — 상자 자체는
- * 16px이고 사감은 어두운 복도에서 이걸 누른다.
- */
-function SelectBox({
-  checked,
-  onChange,
-  label,
-}: {
-  checked: boolean;
-  onChange: () => void;
-  /** 접근 가능한 이름. <label>에 글자가 없으므로 input이 직접 갖는다. */
-  label: string;
-}) {
-  return (
-    <label className="-m-2.5 inline-flex cursor-pointer p-2.5">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={onChange}
-        aria-label={label}
-        className="size-4 accent-pri"
-      />
-    </label>
   );
 }
 

@@ -185,6 +185,9 @@ function StudentRankCard({
     },
     {
       key: "net",
+      // 미리 정렬해 내려온 열이다. 화면에서 바꿀 수는 없지만, 무엇을
+      // 기준으로 세운 표인지는 머리글 셀이 알려야 한다(teachers.tsx와 같다).
+      sort: "descending",
       header: "순점수",
       width: "w-[84px]",
       card: "meta",
@@ -273,6 +276,9 @@ function ClassRankCard({
     },
     {
       key: "avgNet",
+      // 미리 정렬해 내려온 열이다. 화면에서 바꿀 수는 없지만, 무엇을
+      // 기준으로 세운 표인지는 머리글 셀이 알려야 한다(teachers.tsx와 같다).
+      sort: "descending",
       header: "1인 평균",
       width: "w-[92px]",
       card: "meta",
@@ -323,6 +329,9 @@ function ClassRosterCard({
   const columns: Column<RankedStudent>[] = [
     {
       key: "number",
+      // 미리 정렬해 내려온 열이다. 화면에서 바꿀 수는 없지만, 무엇을
+      // 기준으로 세운 표인지는 머리글 셀이 알려야 한다(teachers.tsx와 같다).
+      sort: "ascending",
       header: "번호",
       width: "w-[64px]",
       card: "trailing",
