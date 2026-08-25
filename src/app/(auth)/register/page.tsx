@@ -48,7 +48,7 @@ function Unavailable() {
       <p className="mb-8 text-caption text-mut">
         이 링크로는 계정을 만들 수 없습니다.
       </p>
-      <Link href="/login" className={buttonClass({ size: "lg", full: true })}>
+      <Link href="/login" className={buttonClass({ variant: "secondary", size: "lg", full: true })}>
         로그인
       </Link>
     </div>

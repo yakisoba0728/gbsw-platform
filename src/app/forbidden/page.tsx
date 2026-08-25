@@ -14,7 +14,7 @@ export default function ForbiddenPage() {
         </h1>
         <p className="mt-2 text-caption text-mut">선생님께 문의해 주세요.</p>
 
-        <Link href="/" className={buttonClass({ className: "mt-8" })}>
+        <Link href="/" className={buttonClass({ variant: "secondary", className: "mt-8" })}>
           대시보드
         </Link>
       </div>

@@ -5,8 +5,7 @@ export type ButtonVariant =
   | "primary"
   | "secondary"
   | "danger"
-  | "approve"
-  | "reject"
+  | "danger-solid"
   | "ghost"
   | "quiet"
   | "chip";
@@ -17,9 +16,13 @@ const VARIANTS: Record<ButtonVariant, string> = {
   // 에메랄드 위 글자는 근검정이다. 흰 글자는 대비가 2:1까지 떨어진다.
   primary: "border-transparent bg-pri text-on-pri hover:bg-pri-press",
   secondary: "border-line-strong bg-surface text-ink hover:bg-soft",
+  // 되돌릴 수 있는 파괴적 동작 — 표 한 줄의 취소·삭제·폐기. 흰 바탕이라
+  // 화면에서 가장 무거운 것이 되지 않는다.
   danger: "border-rose-line bg-surface text-rose hover:bg-rose-soft",
-  approve: "border-transparent bg-green text-white hover:bg-green-press",
-  reject: "border-transparent bg-rose text-white hover:bg-rose-press",
+  // **화면의 주된 동작이 되돌릴 수 없을 때.** primary와 같은 무게를 갖되 색으로
+  // 말린다 — 명단 반영의 「확정」이 그 자리다(계정과 기록을 영구히 지운다).
+  // 그 버튼이 오래 초록이었고, 같은 카드에 "복원 기능은 없습니다"가 적혀 있었다.
+  "danger-solid": "border-transparent bg-rose text-white hover:bg-rose-press",
   ghost: "border-transparent bg-transparent text-ink hover:bg-soft",
   // 앱 셸의 아이콘 버튼(로그아웃·메뉴 열기·닫기). 평소에는 물러나 있다가 손이
   // 닿을 때만 잉크색이 된다 — ghost는 처음부터 잉크색이라 화면 모서리에서

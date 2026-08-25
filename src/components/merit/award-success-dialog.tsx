@@ -72,7 +72,9 @@ export function AwardSuccessDialog({
     >
       {result && (
         <div className="w-80 max-w-full p-6 text-center">
-          <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-pri">
+          {/* 옅은 초록 바탕 + 진한 초록 체크. 진한 에메랄드(`bg-pri`)는 실행
+              버튼의 자리라 장식으로 쓰지 않는다(디자인 기준 §색). */}
+          <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-pri-soft">
             <svg
               width="26"
               height="26"
@@ -82,7 +84,7 @@ export function AwardSuccessDialog({
               strokeWidth="2.4"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className="animate-award-check text-on-pri"
+              className="animate-award-check text-pri-ink"
               aria-hidden
             >
               <path d="M5 12.5l4.5 4.5L19 7.5" />

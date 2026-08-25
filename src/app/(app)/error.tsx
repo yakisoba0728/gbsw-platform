@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { Button, buttonClass } from "@/components/ui/button";
 
 /**
  * 로그인 이후 화면의 오류 경계. `(app)/layout.tsx` 안쪽이라 앱 셸이 그대로 남는다.
@@ -33,10 +33,9 @@ export default function AppError({
 
       <div className="mt-8 flex items-center gap-4">
         <Button onClick={retry}>다시 시도</Button>
-        <Link
-          href="/"
-          className="text-caption text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
-        >
+        {/* 막다른 화면의 「대시보드」는 어디서나 같은 모양이다 — 403·404·오류
+            네 화면이 초록 버튼·흰 버튼·맨 글자 링크로 제각각이었다. */}
+        <Link href="/" className={buttonClass({ variant: "secondary" })}>
           대시보드
         </Link>
       </div>

@@ -183,7 +183,7 @@ function UploadCard({
           </Button>
           <Button
             type="button"
-            variant="ghost"
+            variant="secondary"
             size="sm"
             onClick={() => {
               void downloadTemplate();
@@ -479,8 +479,12 @@ function PreviewCard({
               </label>
             )}
             <div className="flex justify-end">
+              {/* 초록(실행)이 아니라 붉은 채움이다 — 누르면 계정과 학생 기록이
+                  DB에서 영구히 사라지고 복원 기능이 없다. 화면의 주된 동작이라
+                  무게는 primary와 같게 두되 색으로 말린다. */}
               <Button
                 type="submit"
+                variant="danger-solid"
                 size="sm"
                 disabled={
                   applying ||

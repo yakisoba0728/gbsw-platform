@@ -18,7 +18,7 @@ export default function AppNotFound() {
         주소가 바뀌었거나 삭제된 항목입니다.
       </p>
 
-      <Link href="/" className={buttonClass({ className: "mt-8" })}>
+      <Link href="/" className={buttonClass({ variant: "secondary", className: "mt-8" })}>
         대시보드
       </Link>
     </div>
