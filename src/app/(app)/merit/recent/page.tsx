@@ -174,38 +174,45 @@ function cancelNote(row: RecentRow): string | null {
 }
 
 /**
- * 표의 항목 칸 — **한 줄이다.** 「항목 · 메모 · 취소 사유」를 가운뎃점으로 잇고
- * 넘치는 만큼 자른다. 전문은 마우스를 올리면 조각마다 줄을 나눠 뜬다.
+ * 항목 · 메모 · 취소 사유 — **각각 제 줄에 선다.**
  *
- * 조각을 색으로 가른다 — 항목은 본문 색, 메모는 흐리게, 취소 사유 라벨만 벌점
- * 계열이다. 한 줄에 이어 붙이면 어디부터 사유인지 글자만으로는 안 보이는데,
- * 그 줄이 그 건을 무효로 만든 표시라 묻히면 안 된다.
+ * 한 줄로 이어 붙여 봤고, 그렇게 하면 안 된다. 잘린 자리가 어디까지 항목이고
+ * 어디부터 사유인지 알 수 없고, 사유만 보려 해도 항목부터 읽어야 하며, 셋이
+ * 이어진 한 줄은 마우스를 올리기 전에는 문장 하나로 읽힌다.
+ *
+ * 셋 다 500자까지 들어오므로 각각 한 줄로 자르고 각각 마우스로 편다. 줄 높이는
+ * 취소 버튼이 이미 정하고 있어서, 줄이 하나 늘어도 표가 두꺼워지지 않는다.
  */
 function AwardLabelCell({ row }: { row: RecentRow }) {
   const cancelled = cancelNote(row);
 
-  const full = [
-    row.label,
-    row.note ? `메모 · ${row.note}` : null,
-    cancelled ? `취소 사유 · ${cancelled}` : null,
-  ]
-    .filter((part): part is string => part !== null)
-    .join("\n");
-
   return (
-    <TruncatedText full={full} className="text-caption">
-      <span className={row.status === "CANCELLED" ? "text-mut line-through" : "text-ink"}>
+    <div className="min-w-0">
+      <TruncatedText
+        full={row.label}
+        className={`text-caption ${
+          row.status === "CANCELLED" ? "text-mut line-through" : "text-ink"
+        }`}
+      >
         {row.label}
-      </span>
-      {row.note && <span className="text-mut2"> · 메모 · {row.note}</span>}
-      {cancelled && (
-        <>
-          <span className="text-mut2"> · </span>
-          <span className="text-rose">취소 사유</span>
-          <span className="text-mut2"> · {cancelled}</span>
-        </>
+      </TruncatedText>
+
+      {row.note && (
+        <TruncatedText full={`메모 · ${row.note}`} className="mt-0.5 text-xs text-mut2">
+          <span className="text-mut">메모</span> · {row.note}
+        </TruncatedText>
       )}
-    </TruncatedText>
+
+      {cancelled && (
+        <TruncatedText
+          full={`취소 사유 · ${cancelled}`}
+          className="mt-0.5 text-xs text-mut2"
+        >
+          {/* 라벨만 벌점 계열로 — 이 줄이 "무효가 된 건"이라는 표시다. */}
+          <span className="text-rose">취소 사유</span> · {cancelled}
+        </TruncatedText>
+      )}
+    </div>
   );
 }
 
