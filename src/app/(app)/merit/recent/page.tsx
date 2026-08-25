@@ -316,10 +316,14 @@ async function RecentAwardsRows({
       // table-fixed라 nowrap이 다른 열을 밀지 않는다.
       width: "w-[136px]",
       cell: (row) => (
-        <span className="text-xs whitespace-nowrap text-mut">
-          {formatMonthDayTime(row.createdAt)}
+        // 발생일은 제 줄에 세운다. 한 줄에 이어 붙였더니 table-fixed로 폭이 묶인
+        // 칸에서 nowrap이 겹쳐, 「(발생 …)」이 옆 칸의 구분 배지를 덮었다.
+        <span className="block text-xs text-mut">
+          <span className="whitespace-nowrap">{formatMonthDayTime(row.createdAt)}</span>
           {!isSameKstDate(row.occurredOn, row.createdAt) && (
-            <span className="ml-1 text-mut2">(발생 {formatDate(row.occurredOn)})</span>
+            <span className="block whitespace-nowrap text-mut2">
+              발생 {formatDate(row.occurredOn)}
+            </span>
           )}
         </span>
       ),
