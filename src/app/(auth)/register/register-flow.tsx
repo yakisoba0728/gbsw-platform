@@ -58,7 +58,7 @@ function CodeStep({
       <p className="mb-8 text-caption text-mut">받으신 가입코드를 입력합니다.</p>
 
       <Label htmlFor="code">가입코드</Label>
-      <MaskedInput
+      <MaskedInput size="lg"
         id="code"
         name="code"
         placeholder="GBSW-0000-0000"
@@ -121,7 +121,7 @@ function ProfileStep({ code, role }: { code: string; role: Role }) {
             <Input
               id="name"
               name="name"
-              dense
+              size="lg"
               autoComplete="name"
               placeholder="이름"
               maxLength={50}
@@ -135,7 +135,7 @@ function ProfileStep({ code, role }: { code: string; role: Role }) {
               id="birthDate"
               name="birthDate"
               type="date"
-              dense
+              size="lg"
               required
               defaultValue={state.values.birthDate}
             />
@@ -147,7 +147,7 @@ function ProfileStep({ code, role }: { code: string; role: Role }) {
           <Input
             id="name"
             name="name"
-            dense
+            size="lg"
             autoComplete="name"
             placeholder="이름"
             maxLength={50}
@@ -188,7 +188,7 @@ function ProfileStep({ code, role }: { code: string; role: Role }) {
         id="password"
         name="password"
         type="password"
-        dense
+        size="lg"
         autoComplete="new-password"
         placeholder="비밀번호"
         minLength={10}
@@ -201,7 +201,7 @@ function ProfileStep({ code, role }: { code: string; role: Role }) {
         id="confirmPassword"
         name="confirmPassword"
         type="password"
-        dense
+        size="lg"
         autoComplete="new-password"
         placeholder="비밀번호 확인"
         required

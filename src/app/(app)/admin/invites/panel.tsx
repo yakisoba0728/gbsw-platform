@@ -170,7 +170,7 @@ function InviteListSkeleton() {
       <div className="border-b border-line px-5 py-4">
         <Skeleton className="h-5 w-24 rounded-btn" />
         <SkeletonTabs count={8} size="sm" className="mt-3 flex-wrap" />
-        <SkeletonField dense className="mt-2.5" />
+        <SkeletonField size="sm" className="mt-2.5" />
       </div>
       <div className="space-y-3 px-5 py-4">
         {Array.from({ length: 6 }, (_, i) => (

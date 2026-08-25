@@ -162,7 +162,7 @@ export function StudentTable({
             </div>
 
             <Input
-              dense
+              size="sm"
               value={query}
               onChange={(e) => setQuery(e.currentTarget.value)}
               // Enter가 이 폼을 제출시키지 않게 막는다 — 검색은 저장이 아니다.
@@ -218,7 +218,7 @@ export function StudentTable({
                         {/* 폭은 바깥에서 준다 — cn()이 w-full을 못 덮는다. */}
                         <div className="w-20">
                           <Input
-                            dense
+                            size="sm"
                             type="number"
                             aria-label={`${row.name} ${
                               { grade: "학년", classNo: "반", number: "번호" }[f]
@@ -235,7 +235,7 @@ export function StudentTable({
                     <td className={cell(4)}>
                       <div className="w-28">
                         <Select
-                          dense
+                          size="sm"
                           aria-label={`${row.name} 학적`}
                           value={d.status}
                           onChange={(e) =>

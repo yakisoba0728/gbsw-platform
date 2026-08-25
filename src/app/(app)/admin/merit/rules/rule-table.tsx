@@ -95,7 +95,7 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
                 <td className={`${cell(1)} text-mut`}>
                   {editing ? (
                     <Input
-                      dense
+                      size="sm"
                       name="category"
                       form="rule-edit-form"
                       defaultValue={typed?.category ?? rule.category ?? ""}
@@ -110,7 +110,7 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
                 <td className={`${cell(2)} font-medium text-ink`}>
                   {editing ? (
                     <Input
-                      dense
+                      size="sm"
                       name="label"
                       form="rule-edit-form"
                       defaultValue={typed?.label ?? rule.label}
@@ -134,7 +134,7 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
                       // Input의 w-full을 className으로 덮을 수 없다.
                       <span className="inline-block w-16">
                         <Input
-                          dense
+                          size="sm"
                           name="points"
                           form="rule-edit-form"
                           defaultValue={typed?.points ?? String(rule.points)}

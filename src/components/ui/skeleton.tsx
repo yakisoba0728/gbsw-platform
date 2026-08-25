@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { cardClass } from "./card";
+import type { FieldSize } from "./input";
 
 /**
  * 뼈대 한 덩어리. 크기는 화면이 자기 짜임에 맞게 정한다.
@@ -75,18 +76,21 @@ export function SkeletonTabs({
  * 다섯 화면이 40·40·42·44·44로 제각기 어림잡고 있었다.
  */
 export function SkeletonField({
-  dense = false,
+  size = "md",
   className,
 }: {
-  dense?: boolean;
+  size?: FieldSize;
   className?: string;
 }) {
-  return (
-    <Skeleton
-      className={cn(dense ? "h-[38px]" : "h-[42px]", "rounded-field", className)}
-    />
-  );
+  return <Skeleton className={cn(FIELD_HEIGHTS[size], "rounded-field", className)} />;
 }
+
+/** `input.tsx`의 HEIGHTS와 같은 값이어야 한다. 한쪽만 고치면 다시 어긋난다. */
+const FIELD_HEIGHTS: Record<FieldSize, string> = {
+  sm: "h-9 lg:h-8",
+  md: "h-9",
+  lg: "h-11",
+};
 
 /** 합계 칸 줄. `grid-cols-N`은 N이 인자라 Tailwind가 만들어 내지 못한다. */
 export function SkeletonStats({ count }: { count: number }) {

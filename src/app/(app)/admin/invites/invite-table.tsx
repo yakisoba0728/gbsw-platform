@@ -206,7 +206,7 @@ export function InviteTable({ rows }: { rows: InviteRow[] }) {
           </div>
 
           <Input
-            dense
+            size="sm"
             value={query}
             onChange={(e) => setQuery(e.currentTarget.value)}
             aria-label="코드 · 이름 · 학반번호 검색"

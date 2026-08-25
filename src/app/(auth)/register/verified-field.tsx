@@ -112,7 +112,7 @@ export function VerifiedField({
             id={id}
             name={name}
             type={type}
-            dense
+            size="lg"
             autoComplete={autoComplete}
             placeholder={placeholder}
             required
@@ -127,7 +127,7 @@ export function VerifiedField({
             id={id}
             name={name}
             type={type}
-            dense
+            size="lg"
             autoComplete={autoComplete}
             placeholder={placeholder}
             required
@@ -145,7 +145,7 @@ export function VerifiedField({
         ) : (
           <Button
             variant="secondary"
-            size="sm"
+            size="lg"
             onClick={send}
             disabled={pending || value.length === 0}
             className="shrink-0"
@@ -161,7 +161,7 @@ export function VerifiedField({
             // 이 칸도 제어다 — 폼이 리셋돼도 화면과 code state가 갈라지지 않는다.
             value={code}
             aria-label={`${label} 인증번호`}
-            dense
+            size="lg"
             inputMode="numeric"
             placeholder="인증번호 6자리"
             format={formatVerificationCode}
@@ -171,7 +171,7 @@ export function VerifiedField({
           {/* 이 화면의 초록은 가입 버튼 하나다. */}
           <Button
             variant="secondary"
-            size="sm"
+            size="lg"
             onClick={confirm}
             disabled={pending || code.length !== 6}
             className="shrink-0"

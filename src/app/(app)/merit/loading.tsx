@@ -18,7 +18,7 @@ export default function Loading() {
 
       {/* 검색 폼 — 입력칸 + 버튼 */}
       <div className="flex gap-2">
-        <SkeletonField className="flex-1" />
+        <SkeletonField size="sm" className="flex-1" />
         <Skeleton className="h-9 w-[72px] rounded-btn" />
       </div>
 

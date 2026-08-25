@@ -62,7 +62,7 @@ export function LoginForm({
       <p className="mb-8 text-caption text-mut">학교 계정으로 로그인합니다.</p>
 
       <Label htmlFor="email">이메일</Label>
-      <Input
+      <Input size="lg"
         id="email"
         name="email"
         type="email"
@@ -73,7 +73,7 @@ export function LoginForm({
       />
 
       <Label htmlFor="password">비밀번호</Label>
-      <Input
+      <Input size="lg"
         id="password"
         name="password"
         type="password"

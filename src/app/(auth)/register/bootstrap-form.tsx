@@ -34,7 +34,7 @@ export function BootstrapForm({ token }: { token: string }) {
         끝난 뒤에 돌아서 새 defaultValue를 본다. 비밀번호 두 칸은 일부러 뺐다.
       */}
       <Label htmlFor="name">이름</Label>
-      <Input
+      <Input size="lg"
         id="name"
         name="name"
         autoComplete="name"
@@ -45,7 +45,7 @@ export function BootstrapForm({ token }: { token: string }) {
       />
 
       <Label htmlFor="email">이메일</Label>
-      <Input
+      <Input size="lg"
         id="email"
         name="email"
         type="email"
@@ -57,7 +57,7 @@ export function BootstrapForm({ token }: { token: string }) {
       />
 
       <Label htmlFor="phone">전화번호</Label>
-      <MaskedInput
+      <MaskedInput size="lg"
         id="phone"
         name="phone"
         type="tel"
@@ -72,7 +72,7 @@ export function BootstrapForm({ token }: { token: string }) {
       <Label htmlFor="password">
         비밀번호 <span className="font-normal text-mut">(10자 이상)</span>
       </Label>
-      <Input
+      <Input size="lg"
         id="password"
         name="password"
         type="password"
@@ -83,7 +83,7 @@ export function BootstrapForm({ token }: { token: string }) {
       />
 
       <Label htmlFor="confirmPassword">비밀번호 확인</Label>
-      <Input
+      <Input size="lg"
         id="confirmPassword"
         name="confirmPassword"
         type="password"

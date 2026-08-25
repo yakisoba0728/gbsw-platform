@@ -47,8 +47,9 @@ export function SearchForm({
         ),
       )}
 
+      {/* 옆의 검색 버튼과 같은 md다. 표 안의 즉석 필터와 달리 이 칸은 화면의
+          주된 조회 수단이라, 데스크톱에서 32px로 줄이면 버튼만 커 보인다. */}
       <Input
-        dense
         name={name}
         defaultValue={defaultValue}
         placeholder={placeholder}

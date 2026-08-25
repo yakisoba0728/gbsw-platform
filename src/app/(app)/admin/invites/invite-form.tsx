@@ -102,7 +102,7 @@ function ParentForm({ students }: { students: StudentOption[] }) {
         key={keepStudentId ?? "none"}
         name="studentId"
         defaultValue={keepStudentId}
-        size={6}
+        rows={6}
         required
         aria-label="학생 선택"
         className="mb-4"

@@ -176,7 +176,7 @@ export function UserTable({ rows }: { rows: UserRow[] }) {
           </div>
 
           <Input
-            dense
+            size="sm"
             value={query}
             onChange={(e) => setQuery(e.currentTarget.value)}
             aria-label="이름 · 이메일 · 학반번호 · 전화번호 검색"

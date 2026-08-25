@@ -29,7 +29,7 @@ export default function Loading() {
           <SkeletonTabs count={3} size="sm" className="flex-wrap" />
 
           <div className="grid gap-2.5 @2xl:grid-cols-[minmax(0,1fr)_auto] @2xl:items-center">
-            <SkeletonField dense className="max-w-xl" />
+            <SkeletonField size="sm" className="max-w-xl" />
             <div className="flex items-center justify-end gap-3">
               <Skeleton className="h-4 w-10" />
               {/* 내보내기 버튼은 md라 높이가 고정이다 — 칩과 달리 좁은 폭에서 안 커진다. */}

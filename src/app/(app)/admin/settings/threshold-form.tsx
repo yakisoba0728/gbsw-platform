@@ -50,7 +50,9 @@ export function ThresholdForm({
 
         <div className="w-26">
           <span className="mb-1.5 block text-caption font-medium text-mut">트랙</span>
-          <p className="py-3 text-sm font-medium text-ink">
+          {/* 읽기 전용이지만 옆 입력칸과 한 줄에 서므로 같은 높이를 갖는다 —
+              `py-3`으로 두었더니 44px이 되어 42px짜리 칸들보다 라벨이 2px 올라갔다. */}
+          <p className="flex h-9 items-center text-sm font-medium text-ink">
             {MERIT_TRACK_LABELS[track]}
           </p>
         </div>

@@ -67,7 +67,7 @@ export function EditUserForm({ user }: { user: EditableUser }) {
       <Input
         id="name"
         name="name"
-        dense
+        size="sm"
         defaultValue={kept?.name ?? user.name}
         maxLength={50}
         required
@@ -79,7 +79,7 @@ export function EditUserForm({ user }: { user: EditableUser }) {
         id="email"
         name="email"
         type="email"
-        dense
+        size="sm"
         defaultValue={kept?.email ?? user.email}
         maxLength={200}
         required
@@ -91,7 +91,7 @@ export function EditUserForm({ user }: { user: EditableUser }) {
         id="phone"
         name="phone"
         type="tel"
-        dense
+        size="sm"
         defaultValue={kept?.phone ?? user.phone}
         placeholder="010-0000-0000"
         format={formatPhone}
@@ -106,7 +106,7 @@ export function EditUserForm({ user }: { user: EditableUser }) {
             id="birthDate"
             name="birthDate"
             type="date"
-            dense
+            size="sm"
             defaultValue={kept?.birthDate ?? user.birthDate}
             required
             className="mb-4"
@@ -124,7 +124,7 @@ export function EditUserForm({ user }: { user: EditableUser }) {
                   id="grade"
                   name="grade"
                   inputMode="numeric"
-                  dense
+                  size="sm"
                   defaultValue={kept?.grade ?? user.grade}
                   required
                 />
@@ -135,7 +135,7 @@ export function EditUserForm({ user }: { user: EditableUser }) {
                   id="classNo"
                   name="classNo"
                   inputMode="numeric"
-                  dense
+                  size="sm"
                   defaultValue={kept?.classNo ?? user.classNo}
                   required
                 />
@@ -146,7 +146,7 @@ export function EditUserForm({ user }: { user: EditableUser }) {
                   id="number"
                   name="number"
                   inputMode="numeric"
-                  dense
+                  size="sm"
                   defaultValue={kept?.number ?? user.number}
                   required
                 />
@@ -264,7 +264,7 @@ export function HardDeleteForm({ user }: { user: EditableUser }) {
       <Input
         id="confirmName"
         name="confirmName"
-        dense
+        size="sm"
         value={confirmName}
         onChange={(e) => setConfirmName(e.target.value)}
         autoComplete="off"

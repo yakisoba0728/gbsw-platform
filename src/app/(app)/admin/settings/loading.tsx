@@ -13,9 +13,10 @@ export default function Loading() {
         {Array.from({ length: 2 }, (_, i) => (
           <div key={i} className="border-b border-line2 px-5 py-4 last:border-0">
             <div className="flex flex-wrap items-end gap-2.5">
-              <Skeleton className="h-18 w-26 rounded-field" />
-              <Skeleton className="h-18 w-31 rounded-field" />
-              <Skeleton className="h-18 w-31 rounded-field" />
+              {/* 라벨(≈25px) + 입력칸(md 36px). `Input`의 크기 눈금을 따라간다. */}
+              <Skeleton className="h-[61px] w-26 rounded-field" />
+              <Skeleton className="h-[61px] w-31 rounded-field" />
+              <Skeleton className="h-[61px] w-31 rounded-field" />
               <Skeleton className="h-9 w-18 rounded-btn" />
             </div>
             <Skeleton className="mt-2 h-4 w-full max-w-lg rounded-btn" />

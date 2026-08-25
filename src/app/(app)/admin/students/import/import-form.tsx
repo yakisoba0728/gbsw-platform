@@ -221,7 +221,10 @@ function UploadCard({
               file && file.size > ROSTER_FILE_MAX_BYTES ? "파일이 너무 큽니다." : null,
             );
           }}
-          className="flex-1 text-sm text-ink file:mr-3 file:rounded-btn file:border file:border-line file:bg-soft file:px-3.5 file:py-2 file:text-caption file:font-medium file:text-ink"
+          // 브라우저가 그리는 버튼이라 `Button`을 못 쓴다 — `file:` 접두 클래스로만
+          // 꾸밀 수 있어서 secondary sm 규격(h-9 lg:h-8 · px-3 · text-caption ·
+          // border-line-strong)을 손으로 맞춘다. 옆의 미리보기 버튼과 같은 높이다.
+          className="flex-1 text-sm text-ink file:mr-3 file:h-9 file:rounded-btn file:border file:border-line-strong file:bg-surface file:px-3 file:text-caption file:font-medium file:text-ink lg:file:h-8"
         />
         {/* 이 화면을 연 목적은 확정이다 — 여기까지는 전부 그 앞의 단계다. */}
         <Button
@@ -468,7 +471,7 @@ function PreviewCard({
                 {/* 폭은 바깥에서 준다 — cn()이 w-full을 못 덮는다. */}
                 <div className="w-40">
                   <Input
-                    dense
+                    size="sm"
                     type="number"
                     inputMode="numeric"
                     value={typedDeleteCount}

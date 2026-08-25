@@ -203,7 +203,7 @@ function LogFiltersSkeleton() {
   return (
     <>
       <SkeletonTabs count={14} size="sm" width="w-20" className="mt-3 flex-wrap" />
-      <SkeletonField dense className="mt-2.5" />
+      <SkeletonField size="sm" className="mt-2.5" />
     </>
   );
 }

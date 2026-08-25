@@ -2,10 +2,11 @@
 
 import type { ComponentPropsWithoutRef } from "react";
 import { countSignificant, offsetAfterSignificant } from "@/lib/masks";
-import { Input } from "./input";
+import { Input, type FieldSize } from "./input";
 
-type MaskedInputProps = Omit<ComponentPropsWithoutRef<"input">, "onChange"> & {
-  dense?: boolean;
+type MaskedInputProps = Omit<ComponentPropsWithoutRef<"input">, "onChange" | "size"> & {
+  /** `Input`의 크기 눈금. 그대로 넘긴다. */
+  size?: FieldSize;
   /** 값을 표시 서식으로 바꾼다. 영숫자를 넣거나 빼면 안 된다. */
   format: (raw: string) => string;
   /** 서식이 적용된 뒤의 값 */

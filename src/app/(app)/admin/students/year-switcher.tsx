@@ -34,7 +34,7 @@ export function YearSwitcher({
           {/* 폭은 바깥에서 준다 — cn()이 tailwind-merge가 아니라 w-full을 못 덮는다. */}
           <div className="w-36">
             <Select
-              dense
+              size="sm"
               name="year"
               aria-label="현재 학년도"
               value={selected}
@@ -60,7 +60,7 @@ export function YearSwitcher({
         <form action={createAction} className="flex items-end gap-2">
           <div className="w-28">
             <Input
-              dense
+              size="sm"
               type="number"
               name="year"
               aria-label="새 학년도"

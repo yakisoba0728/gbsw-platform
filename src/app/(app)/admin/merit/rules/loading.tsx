@@ -18,11 +18,12 @@ export default function Loading() {
           <SkeletonTabs size="sm" />
         </div>
         <div className="mt-4 flex flex-wrap items-end gap-2.5">
-          <Skeleton className="h-[70px] min-w-[180px] flex-[2] rounded-field" />
-          <Skeleton className="h-[70px] min-w-[100px] flex-1 rounded-field" />
-          <Skeleton className="h-[70px] w-[90px] rounded-field" />
-          <Skeleton className="h-[70px] min-w-[110px] flex-1 rounded-field" />
-          <Skeleton className="h-[70px] min-w-[160px] flex-[2] rounded-field" />
+          {/* 라벨(≈25px) + 입력칸(md 36px). `Input`의 크기 눈금을 따라간다. */}
+          <Skeleton className="h-[61px] min-w-[180px] flex-[2] rounded-field" />
+          <Skeleton className="h-[61px] min-w-[100px] flex-1 rounded-field" />
+          <Skeleton className="h-[61px] w-[90px] rounded-field" />
+          <Skeleton className="h-[61px] min-w-[110px] flex-1 rounded-field" />
+          <Skeleton className="h-[61px] min-w-[160px] flex-[2] rounded-field" />
         </div>
       </div>
 

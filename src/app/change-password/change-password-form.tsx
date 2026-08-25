@@ -24,7 +24,7 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
       </p>
 
       <Label htmlFor="currentPassword">현재 비밀번호</Label>
-      <Input
+      <Input size="lg"
         id="currentPassword"
         name="currentPassword"
         type="password"
@@ -36,7 +36,7 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
       <Label htmlFor="newPassword">
         새 비밀번호 <span className="font-normal text-mut">(10자 이상)</span>
       </Label>
-      <Input
+      <Input size="lg"
         id="newPassword"
         name="newPassword"
         type="password"
@@ -47,7 +47,7 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
       />
 
       <Label htmlFor="confirmPassword">새 비밀번호 확인</Label>
-      <Input
+      <Input size="lg"
         id="confirmPassword"
         name="confirmPassword"
         type="password"
