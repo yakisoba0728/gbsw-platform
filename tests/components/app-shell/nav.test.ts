@@ -168,9 +168,10 @@ describe("titleForPath — 하위 메뉴까지 훑는다", () => {
 
   it("기존 화면들의 제목이 그대로다", () => {
     expect(titleForPath("/")).toBe("대시보드");
-    expect(titleForPath("/admin/students")).toBe("학생 관리");
+    expect(titleForPath("/admin/users")).toBe("계정 관리");
     expect(titleForPath("/admin/logs")).toBe("로그");
   });
+
 
   it("설정 화면도 제목이 나온다", () => {
     expect(titleForPath("/admin/settings")).toBe("설정");

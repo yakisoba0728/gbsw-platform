@@ -1,10 +1,8 @@
 import type { ComponentType, SVGProps } from "react";
 import {
   DashboardIcon,
-  InviteIcon,
   LogIcon,
   MeritIcon,
-  SettingsIcon,
   SlidersIcon,
   UsersIcon,
 } from "@/components/icons";
@@ -70,22 +68,12 @@ export const NAV_ITEMS: NavItem[] = [
 /** 교사 섹션. 비어 있으면 섹션 자체가 렌더링되지 않는다. */
 export const ADMIN_NAV_ITEMS: NavItem[] = [
   {
-    href: "/admin/invites",
-    label: "초대 관리",
-    icon: InviteIcon,
-    roles: ["ADMIN"],
-  },
-  {
-    href: "/admin/students",
-    label: "학생 관리",
-    shortLabel: "학생",
-    icon: UsersIcon,
-    roles: ["ADMIN"],
-  },
-  {
+    // 계정·초대·학생은 메뉴로 가르지 않는다 — 초대가 계정이 되고 그 계정에
+    // 학급·번호가 붙는 한 흐름이라, 어느 각도로 볼지는 화면 안의 탭(`?tab=`)이 고른다.
     href: "/admin/users",
     label: "계정 관리",
-    icon: SettingsIcon,
+    shortLabel: "계정",
+    icon: UsersIcon,
     roles: ["ADMIN"],
   },
   {
