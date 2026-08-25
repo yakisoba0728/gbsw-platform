@@ -52,10 +52,9 @@ export const NAV_ITEMS: NavItem[] = [
       // 평범한 링크로 그려진다.
       { href: "/merit", label: "상벌점 부여", roles: ["ADMIN"] },
       { href: "/merit/recent", label: "최근 부여", roles: ["ADMIN"] },
-      { href: "/merit/stats", label: "통계 개요", roles: ["ADMIN"] },
-      { href: "/merit/stats/ranking", label: "순위 · 현황", roles: ["ADMIN"] },
-      { href: "/merit/stats/teachers", label: "교사별", roles: ["ADMIN"] },
-      { href: "/merit/stats/rules", label: "규정별", roles: ["ADMIN"] },
+      // 개요·순위·교사별·규정별은 메뉴로 가르지 않는다 — 같은 조회 조건을 쓰는
+      // 같은 자료의 다른 각도라, 화면 안의 갈래 탭(`?view=`)이 고른다.
+      { href: "/merit/stats", label: "통계", roles: ["ADMIN"] },
       { href: "/admin/merit/rules", label: "규정 관리", roles: ["ADMIN"] },
     ],
   },
@@ -167,7 +166,7 @@ export function isGroupActive(pathname: string, item: NavItem): boolean {
 
 /**
  * 지금 켜야 할 하위 메뉴 하나. 여러 개가 걸리면 경로가 가장 긴 것이 이긴다 —
- * `/merit/stats`와 `/merit/stats/ranking`은 둘 다 맞는다.
+ * `/merit`와 `/merit/recent`는 둘 다 맞는다.
  */
 export function activeChild(
   pathname: string,

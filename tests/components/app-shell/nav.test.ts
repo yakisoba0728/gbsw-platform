@@ -13,15 +13,21 @@ import {
 const merit = NAV_ITEMS.find((item) => item.href === "/merit") as NavItem;
 
 describe("상벌점 메뉴 구성", () => {
-  it("하위 메뉴 일곱을 갖는다 — 부여가 맨 앞, 통계가 네 갈래다", () => {
+  it("하위 메뉴 넷을 갖는다 — 부여가 맨 앞이다", () => {
     expect(merit.children?.map((c) => c.label)).toEqual([
       "상벌점 부여",
       "최근 부여",
-      "통계 개요",
-      "순위 · 현황",
-      "교사별",
-      "규정별",
+      "통계",
       "규정 관리",
+    ]);
+  });
+
+  // 개요·순위·교사별·규정별은 같은 조회 조건을 쓰는 같은 자료의 다른 각도라
+  // 화면 안의 갈래 탭(?view=)이 고른다. 메뉴로 다시 가르면 트랙과 같은 실수가 된다.
+  it("통계 갈래는 메뉴로 가르지 않는다", () => {
+    const hrefs = merit.children?.map((c) => c.href) ?? [];
+    expect(hrefs.filter((href) => href.startsWith("/merit/stats"))).toEqual([
+      "/merit/stats",
     ]);
   });
 
@@ -50,7 +56,7 @@ describe("상벌점 메뉴 구성", () => {
   it("학생·학부모에게는 하위 메뉴가 없다 — 부여 화면 하나로 간다", () => {
     expect(visibleChildren(merit, "STUDENT")).toEqual([]);
     expect(visibleChildren(merit, "PARENT")).toEqual([]);
-    expect(visibleChildren(merit, "ADMIN")).toHaveLength(7);
+    expect(visibleChildren(merit, "ADMIN")).toHaveLength(4);
   });
 
   it("로그인 전(role null)에도 하위 메뉴가 안 보인다", () => {
@@ -107,13 +113,21 @@ describe("activeChild — 하나만 켜진다", () => {
   });
 
   it("통계 화면에서는 통계만 켜진다 — /merit로도 시작하지만 더 긴 경로가 이긴다", () => {
-    expect(active("/merit/stats")).toBe("통계 개요");
+    expect(active("/merit/stats")).toBe("통계");
   });
 
-  it("통계 하위 화면은 개요가 아니라 자기 것이 켜진다 — 경로가 더 길다", () => {
-    expect(active("/merit/stats/teachers")).toBe("교사별");
-    expect(active("/merit/stats/ranking")).toBe("순위 · 현황");
-    expect(active("/merit/stats/rules")).toBe("규정별");
+  // 갈래는 쿼리(?view=)로 고르므로 경로가 하나다 — 어느 갈래를 보고 있든
+  // 켜지는 줄은 「통계」 하나여야 한다.
+  it("갈래를 옮겨도 켜지는 줄은 통계 하나다", () => {
+    expect(active("/merit/stats?view=teachers")).toBe("통계");
+    expect(active("/merit/stats?view=ranking")).toBe("통계");
+  });
+
+  // 옛 주소는 리다이렉트로 남겨 뒀다. 잠깐 스치는 사이에도 엉뚱한 줄이 켜지면 안 된다.
+  it("옛 주소에서도 통계가 켜진다", () => {
+    expect(active("/merit/stats/teachers")).toBe("통계");
+    expect(active("/merit/stats/ranking")).toBe("통계");
+    expect(active("/merit/stats/rules")).toBe("통계");
   });
 
   it("최근 부여도 자기 것이 켜진다", () => {
@@ -138,11 +152,11 @@ describe("activeChild — 하나만 켜진다", () => {
 describe("titleForPath — 하위 메뉴까지 훑는다", () => {
   it("하위 메뉴 화면에서 기본값으로 떨어지지 않는다", () => {
     expect(titleForPath("/admin/merit/rules")).toBe("규정 관리");
-    expect(titleForPath("/merit/stats")).toBe("통계 개요");
-    expect(titleForPath("/merit/stats/teachers")).toBe("교사별");
-    expect(titleForPath("/merit/stats/ranking")).toBe("순위 · 현황");
+    expect(titleForPath("/merit/stats")).toBe("통계");
+    // 옛 주소(리다이렉트)에서도 상단바가 기본값으로 떨어지지 않는다.
+    expect(titleForPath("/merit/stats/teachers")).toBe("통계");
     // /admin/merit/rules와 경로가 안 겹쳐야 한다 — 겹치면 제목이 뒤바뀐다.
-    expect(titleForPath("/merit/stats/rules")).toBe("규정별");
+    expect(titleForPath("/merit/stats/rules")).toBe("통계");
   });
 
   // /merit에는 부모(상벌점)와 하위(상벌점 부여)가 둘 다 걸린다. 상단바 제목은 역할을
