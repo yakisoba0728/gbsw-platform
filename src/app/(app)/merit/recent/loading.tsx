@@ -2,7 +2,7 @@ import { cardClass } from "@/components/ui/card";
 import { Skeleton, SkeletonRows, SkeletonScreen, SkeletonTabs } from "@/components/ui/skeleton";
 
 /**
- * `/merit/recent`의 로딩 뼈대 — 조건 패널 + 날짜별 목록.
+ * `/merit/recent`의 로딩 뼈대 — 조건 패널 + 목록 표.
  *
  * **page.tsx의 골격과 같은 값이어야 한다.** 어긋나면 화면이 들어오는 순간
  * 뼈대가 튀고, 그 튐은 느려서가 아니라 뼈대가 틀려서 생긴 것이라 원인을
@@ -32,12 +32,12 @@ export default function Loading() {
         </div>
       </div>
 
-      <div className={cardClass("flush", "overflow-hidden")}>
-        {/* 날짜 구분선 자리 — 목록은 언제나 이것으로 시작한다. */}
-        <div className="border-b border-line bg-soft px-5 py-2">
-          <Skeleton className="h-4 w-32" />
+      <div className={cardClass("flush")}>
+        {/* 표 머리글 띠 자리. */}
+        <div className="border-b border-line bg-soft px-5 py-2.5">
+          <Skeleton className="h-4 w-24" />
         </div>
-        <SkeletonRows rows={8} />
+        <SkeletonRows rows={10} />
       </div>
     </SkeletonScreen>
   );

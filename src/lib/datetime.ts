@@ -48,6 +48,24 @@ export function formatTimeShort(value: Date): string {
   return timeShort.format(value);
 }
 
+const monthDayTime = new Intl.DateTimeFormat("ko-KR", {
+  month: "numeric",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  hour12: true,
+  timeZone: KST,
+});
+
+/**
+ * 8. 25. 오후 5:59 — 한 줄에 들어가야 하는 표의 시각 열용. 연도를 뺀다:
+ * 목록은 최신순이라 화면에 보이는 것은 거의 올해이고, 연도까지 적으면 그 열이
+ * 두 줄로 접혀 표 전체가 두 배로 두꺼워진다.
+ */
+export function formatMonthDayTime(value: Date): string {
+  return monthDayTime.format(value);
+}
+
 const dayLabel = new Intl.DateTimeFormat("ko-KR", {
   month: "long",
   day: "numeric",

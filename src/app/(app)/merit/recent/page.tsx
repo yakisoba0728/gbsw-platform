@@ -7,10 +7,6 @@ import { honorificName } from "@/core/authz/roles";
 import { KindBadge, kindColorClass, signedPoints } from "@/components/merit/kind-badge";
 import { CancelButton } from "@/components/merit/cancel-button";
 import { TrackTabs } from "@/components/merit/track-tabs";
-import {
-  groupRecentAwards,
-  type AwardBatch,
-} from "@/components/merit/recent-feed";
 import { Badge } from "@/components/ui/badge";
 import { buttonClass } from "@/components/ui/button";
 import { cardClass } from "@/components/ui/card";
@@ -19,12 +15,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SearchForm } from "@/components/ui/search-form";
 import { SectionCard } from "@/components/ui/section-card";
 import { Skeleton, SkeletonRows } from "@/components/ui/skeleton";
-import {
-  formatDate,
-  formatKstDay,
-  formatTimeShort,
-  isSameKstDate,
-} from "@/lib/datetime";
+import { DataTable, type Column } from "@/components/ui/table";
+import { formatDate, formatMonthDayTime, isSameKstDate } from "@/lib/datetime";
 import { hrefWith, type SearchParamsInput } from "@/lib/search-params";
 import { listRecentAwards } from "@/modules/merit/award.service";
 import {
@@ -72,10 +64,6 @@ export default async function RecentAwardsPage({
   // 뼈대로 덮인다 — 사용자가 방금 글자를 넣은 칸이 사라지는 그 증상이다.
   // 세 경계가 같은 약속을 나눠 기다리므로 질의는 한 번이다.
   const resultPromise = listRecentAwards(actor, query);
-
-  // 「오늘」·「어제」의 기준. 서버가 한 번 찍어 내려보낸다 — 접는 함수가 시계를
-  // 직접 읽으면 테스트가 오늘 날짜에 따라 달라진다.
-  const now = new Date();
 
   // 조건이 바뀌면 경계를 새로 만든다. 이미 해결된 Suspense 경계는 자식이 다시 매달려도
   // 뼈대 대신 **옛 내용을 그대로** 보여준다 — key가 없으면 검색해도 목록이 안 바뀐 것처럼 보인다.
@@ -130,9 +118,9 @@ export default async function RecentAwardsPage({
         </div>
       </SectionCard>
 
-      <div className={cardClass("flush", "overflow-hidden")}>
-        <Suspense key={boundaryKey} fallback={<SkeletonRows rows={8} />}>
-          <RecentFeed promise={resultPromise} query={query} now={now} />
+      <div className={cardClass("flush")}>
+        <Suspense key={boundaryKey} fallback={<SkeletonRows rows={10} />}>
+          <RecentAwardsRows promise={resultPromise} query={query} />
         </Suspense>
       </div>
 
@@ -175,24 +163,50 @@ async function RecentPagination({
 }
 
 /**
- * 결과 목록. 조건이 바뀔 때 뼈대로 바뀌는 것은 여기까지다.
+ * 항목 한 줄에 실을 것. 항목명 뒤에 메모(또는 취소 사유)를 잇는다.
  *
- * 표가 아니라 **날짜 → 부여 한 번 → 받은 학생** 순으로 접는다. 표로 세우면 반
- * 전체에 한 번 준 것이 서로 무관한 스무 줄로 보이고, 시각·항목·부여자가 줄마다
- * 되풀이돼 정작 줄마다 다른 것(누가 받았나)이 묻힌다.
+ * **한 줄로 자르고 나머지는 마우스를 올려 본다.** 메모와 사유는 길이가 정해져
+ * 있지 않아(각각 500자) 줄을 나눠 다 보여주면 표가 다섯 줄짜리 카드 더미가 된다.
+ * 화면에 세우는 것은 잘린 한 줄, `title`이 전문을 갖는다 — 네이티브 툴팁이라
+ * 표의 가로 스크롤 상자에 잘리지 않는다.
  */
-async function RecentFeed({
+function awardDetails(row: RecentRow): { inline: string; full: string } {
+  const cancelledBy = row.cancelledByName
+    ? ` (${honorificName(row.cancelledByName, "ADMIN")})`
+    : "";
+
+  const parts = [
+    row.note ? `메모 · ${row.note}` : null,
+    row.status === "CANCELLED" && row.cancelReason
+      ? `취소 · ${row.cancelReason}${cancelledBy}`
+      : null,
+  ].filter((part): part is string => part !== null);
+
+  return {
+    inline: parts.join(" · "),
+    // 툴팁은 줄을 나눠도 된다 — 표가 아니라 브라우저가 그린다.
+    full: [row.label, ...parts].join("\n"),
+  };
+}
+
+/**
+ * 결과 표. 조건이 바뀔 때 뼈대로 바뀌는 것은 여기까지다.
+ *
+ * **한 번에 여러 명에게 준 것도 줄을 나눈다.** 부여는 학생 한 명당 한 건이고
+ * 취소도 한 건씩이라(`merit.repo`), 묶어 세우면 화면의 단위와 실제로 다루는
+ * 단위가 어긋난다.
+ */
+async function RecentAwardsRows({
   promise,
   query,
-  now,
 }: {
   promise: ResultPromise;
   query: RecentAwardsQuery;
-  now: Date;
 }) {
-  const { entries } = await promise;
+  const { entries: rows } = await promise;
+  const track = query.track;
 
-  if (entries.length === 0) {
+  if (rows.length === 0) {
     return (
       <EmptyState variant="inside">
         {query.kind || query.status || query.q
@@ -202,191 +216,151 @@ async function RecentFeed({
     );
   }
 
-  const days = groupRecentAwards(entries, now);
-
-  return (
-    <div>
-      {days.map((day) => (
-        <section key={day.key}>
-          <h2 className="flex items-baseline gap-2 border-b border-line bg-soft px-5 py-2">
-            <span className="text-caption font-medium text-ink">{day.label}</span>
-            {/* 「오늘」만 적으면 화면을 캡처해 붙여 둔 사람이 언제인지 모른다. */}
-            <span className="text-xs text-mut2">{formatKstDay(day.date)}</span>
-          </h2>
-
-          {day.batches.map((batch) => (
-            <AwardBatchBlock key={batch.key} batch={batch} track={query.track} />
-          ))}
-        </section>
-      ))}
-    </div>
-  );
-}
-
-/**
- * 한 번의 부여.
- *
- * 여러 명이면 머리에 모두가 공유하는 사실을, 아래에 줄마다 다른 것(사람과 그
- * 사람의 상태)을 둔다. **한 명이면 그 구조를 쓰지 않는다** — 머리와 한 줄짜리
- * 목록으로 나누면 단건 하나가 표 시절의 두 배 높이를 먹어, 단건이 대부분인
- * 목록에서는 접어 놓고도 더 길어진다.
- */
-function AwardBatchBlock({
-  batch,
-  track,
-}: {
-  batch: AwardBatch<RecentRow>;
-  track: string;
-}) {
-  // 통째로 취소된 부여는 점수·항목을 물리지 않는다 — 반영된 것과 같은 무게로
-  // 서 있으면 목록을 훑을 때 실제 점수를 잘못 읽는다.
-  const allCancelled = batch.entries.every((entry) => entry.status === "CANCELLED");
-  const single = batch.entries.length === 1 ? batch.entries[0] : null;
-
-  return (
-    <article className="border-b border-line last:border-b-0">
-      <div className={single ? "px-5 py-3" : "px-5 pt-3.5 pb-3"}>
-        <div className="flex items-start justify-between gap-x-4 gap-y-1.5">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1.5">
-            <span className="font-mono text-xs text-mut2">
-              {formatTimeShort(batch.createdAt)}
-            </span>
-            <KindBadge kind={batch.kind} />
-            <span
-              className={`text-caption font-semibold ${
-                allCancelled ? "text-mut2" : kindColorClass(batch.kind)
-              }`}
-            >
-              {signedPoints(batch.kind, batch.points)}
-            </span>
-
-            {single ? (
-              // 한 명이면 받은 사람이 곧 이 부여의 제목이다.
-              <StudentName entry={single} track={track} />
-            ) : (
-              <span className="rounded-full bg-mut-soft px-2 py-0.5 text-xs font-medium text-mut">
-                {batch.entries.length}명
-              </span>
-            )}
-          </div>
-
-          <div className="flex shrink-0 items-center gap-3">
-            {/* 부여·취소는 교사 전용이라(can.ts) 이름 스냅샷에 역할이 없어도 호칭이 정해진다. */}
-            <span className="text-xs text-mut">
-              {honorificName(batch.awardedByName, "ADMIN")}
-            </span>
-            {single && <AwardStatus entry={single} />}
-          </div>
-        </div>
-
-        <p
-          className={`mt-1 text-caption ${
-            allCancelled ? "text-mut line-through" : "text-ink"
+  const columns: Column<RecentRow>[] = [
+    {
+      // 이 목록만 입력순이다 — 앞에 서는 시각도 입력 시각이고, 발생일이 다르면 덧붙인다.
+      key: "createdAt",
+      header: "시각",
+      // 한 줄에 담기는 폭이다. 접히면 표 전체가 두 줄짜리로 두꺼워진다 —
+      // table-fixed라 nowrap이 다른 열을 밀지 않는다.
+      width: "w-[136px]",
+      card: "meta",
+      cardLabel: false,
+      cell: (row) => (
+        <span className="text-xs whitespace-nowrap text-mut">
+          {formatMonthDayTime(row.createdAt)}
+          {!isSameKstDate(row.occurredOn, row.createdAt) && (
+            <span className="ml-1 text-mut2">(발생 {formatDate(row.occurredOn)})</span>
+          )}
+        </span>
+      ),
+    },
+    {
+      key: "kind",
+      header: "구분",
+      width: "w-[68px]",
+      cell: (row) => <KindBadge kind={row.kind} />,
+    },
+    {
+      key: "class",
+      header: "학급",
+      width: "w-[72px]",
+      card: "meta",
+      // 학급과 번호는 한 덩어리다 — 같은 이름이 두 반에 있을 때 유일한 구분이다.
+      cell: (row) => (
+        <span className="flex items-baseline gap-1.5 text-xs text-mut2">
+          <span>
+            {row.grade === null || row.classNo === null
+              ? "미배정"
+              : `${row.grade}-${row.classNo}`}
+          </span>
+          <span className="font-mono">{row.number ?? "—"}</span>
+        </span>
+      ),
+    },
+    {
+      key: "student",
+      header: "학생",
+      width: "w-[92px]",
+      card: "title",
+      cell: (row) => (
+        <Link
+          href={`/merit/students/${row.studentProfileId}?track=${track}`}
+          className={`inline-flex min-h-9 items-center font-medium underline decoration-line-strong underline-offset-2 hover:decoration-ink lg:min-h-0 ${
+            row.status === "CANCELLED" ? "text-mut" : "text-ink"
           }`}
         >
-          {batch.label}
-        </p>
-
-        {batch.note && (
-          <p className="mt-0.5 text-caption text-mut">
-            <span className="text-mut2">메모</span> · {batch.note}
-          </p>
-        )}
-
-        {/* 입력한 날과 실제로 일어난 날이 다를 때만 적는다 — 이 목록은 입력순이다. */}
-        {!isSameKstDate(batch.occurredOn, batch.createdAt) && (
-          <p className="mt-0.5 text-xs text-mut2">발생 {formatDate(batch.occurredOn)}</p>
-        )}
-
-        {single && <CancelNote entry={single} className="mt-1" />}
-      </div>
-
-      {!single && (
-        <ul className="divide-y divide-line2 border-t border-line2">
-          {batch.entries.map((entry) => (
-            <AwardStudentRow key={entry.id} entry={entry} track={track} />
-          ))}
-        </ul>
-      )}
-    </article>
-  );
-}
-
-/** 받은 학생 한 줄. 여러 명에게 준 부여에서 줄마다 다른 것은 사람과 상태뿐이다. */
-function AwardStudentRow({ entry, track }: { entry: RecentRow; track: string }) {
-  return (
-    <li className="px-5 py-2">
-      <div className="flex items-center gap-3">
-        <StudentName entry={entry} track={track} />
-        <span className="ml-auto shrink-0">
-          <AwardStatus entry={entry} />
+          {row.studentName}
+        </Link>
+      ),
+    },
+    {
+      key: "label",
+      header: "항목",
+      card: "meta",
+      cardLabel: false,
+      cell: (row) => {
+        const details = awardDetails(row);
+        return (
+          // 표에서만 자른다. 좁은 폭에서는 같은 셀이 카드 한 줄이 되는데, 거기서
+          // nowrap이면 글이 카드 밖으로 흘러 화면이 가로로 스크롤된다 — 폰에서는
+          // 마우스를 올릴 수도 없으니 접어서 다 보여주는 쪽이 맞다.
+          <span
+            className="block overflow-hidden text-ellipsis whitespace-normal text-caption lg:whitespace-nowrap"
+            title={details.full}
+          >
+            <span
+              className={row.status === "CANCELLED" ? "text-mut line-through" : "text-ink"}
+            >
+              {row.label}
+            </span>
+            {details.inline !== "" && (
+              <span className="text-mut2"> · {details.inline}</span>
+            )}
+          </span>
+        );
+      },
+    },
+    {
+      key: "points",
+      header: <span className="block text-right">점수</span>,
+      width: "w-[64px]",
+      card: "trailing",
+      cell: (row) => (
+        <span
+          className={`block text-right font-medium whitespace-nowrap ${
+            row.status === "CANCELLED" ? "text-mut" : kindColorClass(row.kind)
+          }`}
+        >
+          {signedPoints(row.kind, row.points)}
         </span>
-      </div>
-
-      {/* 학급·번호 너비(68px)와 그 뒤 간격(12px)만큼 들여 이름 아래에 붙는다. */}
-      <CancelNote entry={entry} className="mt-0.5 pl-20" />
-    </li>
-  );
-}
-
-/** 학급 · 번호 · 이름. 같은 이름이 두 반에 있을 때 학급·번호가 유일한 구분이다. */
-function StudentName({ entry, track }: { entry: RecentRow; track: string }) {
-  return (
-    <span className="flex min-w-0 items-center gap-3">
-      {/* 학급과 번호는 한 덩어리다 — 사이가 벌어지면 번호가 이름 쪽으로 뜬다. */}
-      <span className="flex shrink-0 items-baseline gap-2 text-xs text-mut2">
-        <span className="w-10">
-          {entry.grade === null || entry.classNo === null
-            ? "미배정"
-            : `${entry.grade}-${entry.classNo}`}
+      ),
+    },
+    {
+      key: "awardedBy",
+      header: "부여자",
+      width: "w-[116px]",
+      card: "meta",
+      // 부여·취소는 교사 전용이라(can.ts) 이름 스냅샷에 역할이 없어도 호칭이 정해진다.
+      cell: (row) => (
+        <span className="block truncate text-xs text-mut">
+          {honorificName(row.awardedByName, "ADMIN")}
         </span>
-        <span className="w-5 text-right font-mono">{entry.number ?? "—"}</span>
-      </span>
-
-      <Link
-        href={`/merit/students/${entry.studentProfileId}?track=${track}`}
-        className={`min-w-0 truncate font-medium underline decoration-line-strong underline-offset-2 hover:decoration-ink ${
-          entry.status === "CANCELLED" ? "text-mut" : "text-ink"
-        }`}
-      >
-        {entry.studentName}
-      </Link>
-    </span>
-  );
-}
-
-/**
- * 취소됐는지, 아니면 취소할 수 있는지.
- * 이 화면의 존재 이유가 "점호 직후 잘못 준 것을 되돌리는 것"이라(nav.ts)
- * 줄마다 취소가 있어야 한다.
- */
-function AwardStatus({ entry }: { entry: RecentRow }) {
-  if (entry.status === "CANCELLED") return <Badge tone="cancelled">취소</Badge>;
+      ),
+    },
+    {
+      key: "status",
+      header: "상태",
+      width: "w-[96px]",
+      card: "actions",
+      // 이 화면의 존재 이유가 "점호 직후 잘못 준 것을 되돌리는 것"이라(nav.ts)
+      // 줄마다 취소가 있어야 한다.
+      cell: (row) =>
+        row.status === "CANCELLED" ? (
+          <Badge tone="cancelled">취소</Badge>
+        ) : (
+          <CancelButton
+            awardId={row.id}
+            studentProfileId={row.studentProfileId}
+            cancelAction={cancelAction}
+            initialState={EMPTY_MERIT_STATE}
+          />
+        ),
+    },
+  ];
 
   return (
-    <CancelButton
-      awardId={entry.id}
-      studentProfileId={entry.studentProfileId}
-      cancelAction={cancelAction}
-      initialState={EMPTY_MERIT_STATE}
+    <DataTable
+      minWidth={820}
+      narrow="cards"
+      // **fixed가 없으면 항목 열이 안 잘린다.** table-layout이 auto면 셀 폭을
+      // 내용이 정하므로 `truncate`가 기댈 확정 폭이 없다 — 긴 규정 한 줄이 표를
+      // 밀어내고, 밀린 만큼 시각·학생 열이 눌려 이름이 세로로 선다.
+      fixed
+      rows={rows}
+      rowKey={(row) => row.id}
+      columns={columns}
     />
-  );
-}
-
-/**
- * 취소 사유. 필수로 받아 두고 여태 어디에도 보이지 않았다 — 되돌린 일을 나중에
- * 되짚는 자리가 이 화면이다.
- */
-function CancelNote({ entry, className }: { entry: RecentRow; className?: string }) {
-  if (entry.status !== "CANCELLED" || !entry.cancelReason) return null;
-
-  return (
-    <p className={`text-xs text-mut2 ${className ?? ""}`}>
-      {entry.cancelReason}
-      {entry.cancelledByName && (
-        <span className="ml-1.5">— {honorificName(entry.cancelledByName, "ADMIN")}</span>
-      )}
-    </p>
   );
 }
 
