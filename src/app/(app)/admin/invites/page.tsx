@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { requirePermission } from "@/core/auth/session";
 import { formatDate } from "@/lib/datetime";
 import { isRole, ROLE_LABELS } from "@/core/authz/roles";
@@ -9,7 +10,9 @@ import {
   listInvites,
   listStudentsForInvite,
 } from "@/modules/invites/invite.service";
+import { cardClass } from "@/components/ui/card";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
+import { Skeleton, SkeletonScreen } from "@/components/ui/skeleton";
 import { InviteForm, type StudentOption } from "./invite-form";
 import { InviteTable, type InviteRow } from "./invite-table";
 
@@ -82,23 +85,22 @@ function toRow(invite: Listed): InviteRow {
 export default async function InvitesPage() {
   const actor = await requirePermission("invite:list");
 
-  // 둘 다 getCurrentYear()를 부른다. 현재 학년도가 없으면 안내 화면으로 떨어뜨린다.
-  let data: {
-    invites: Awaited<ReturnType<typeof listInvites>>;
-    students: Awaited<ReturnType<typeof listStudentsForInvite>>;
-  } | null = null;
-  try {
-    const [invites, students] = await Promise.all([
-      listInvites(actor),
-      listStudentsForInvite(actor),
-    ]);
-    data = { invites, students };
-  } catch (error) {
-    if (!(error instanceof AcademicYearError)) throw error;
-  }
+  // 목록 조회는 시작만 하고 기다리지 않는다. 기다리면 이 함수 전체가 멈춰서 발급 폼까지
+  // 함께 뼈대가 된다 — 글자를 넣던 폼이 사라지는 것이 이 화면에서 가장 나쁜 일이다.
+  const invitesPromise = listInvites(actor);
+  // 아래 학년도 안내로 빠지면 이 약속을 아무도 기다리지 않는다. 받는 곳 없는 거절은
+  // 요청을 통째로 무너뜨리므로 여기서 미리 받아 둔다 — 자식의 await는 그대로 거절을 본다.
+  invitesPromise.catch(() => {});
 
-  if (!data) return <NoAcademicYearNotice />;
-  const { invites, students } = data;
+  // 학생 목록은 조회 결과가 아니라 발급 폼의 재료다 — 경계 밖에 서므로 여기서 기다린다.
+  // listStudentsForInvite도 getCurrentYear()를 부르니 현재 학년도가 없으면 안내로 떨어진다.
+  let students: Awaited<ReturnType<typeof listStudentsForInvite>>;
+  try {
+    students = await listStudentsForInvite(actor);
+  } catch (error) {
+    if (error instanceof AcademicYearError) return <NoAcademicYearNotice />;
+    throw error;
+  }
 
   const options: StudentOption[] = students.map((s) => {
     const enrollment = s.enrollments[0];
@@ -121,8 +123,57 @@ export default async function InvitesPage() {
       */}
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 @6xl:grid-cols-[360px_1fr]">
         <InviteForm students={options} />
-        <InviteTable rows={invites.map(toRow)} />
+        {/* key를 주지 않는다. 발급·폐기 뒤 revalidate에서도 이 경계가 다시 매달리는데,
+            key가 있으면 그때마다 목록이 뼈대로 깜빡인다 — 지금은 새 목록이 닿을 때까지
+            옛 목록이 그대로 서 있는다. */}
+        <Suspense fallback={<InviteListSkeleton />}>
+          <InviteList promise={invitesPromise} />
+        </Suspense>
       </div>
     </div>
+  );
+}
+
+/** 목록. 조건이 없는 화면이라 늦게 와도 되는 것은 이것뿐이다. */
+async function InviteList({
+  promise,
+}: {
+  promise: ReturnType<typeof listInvites>;
+}) {
+  // 학년도가 조회 도중에 사라지면 거절이 여기로 온다. 경계 밖으로 새면 error.tsx가 받아
+  // 화면 전체가 오류가 되므로 이 칸에서 안내로 받는다.
+  let invites: Awaited<ReturnType<typeof listInvites>>;
+  try {
+    invites = await promise;
+  } catch (error) {
+    if (error instanceof AcademicYearError) return <NoAcademicYearNotice />;
+    throw error;
+  }
+
+  return <InviteTable rows={invites.map(toRow)} />;
+}
+
+/**
+ * 목록 자리. loading.tsx의 오른쪽 칸과 같은 짜임이라 내용이 도착할 때 안 튄다.
+ * 이때 폼은 이미 서 있어 뼈대는 이 칸뿐이므로, "불러오는 중"도 여기서만 알린다.
+ */
+function InviteListSkeleton() {
+  return (
+    <SkeletonScreen className={cardClass("flush", "min-w-0")}>
+      <div className="border-b border-line px-5 py-4">
+        <Skeleton className="h-5 w-24 rounded-btn" />
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {Array.from({ length: 8 }, (_, i) => (
+            <Skeleton key={i} className="h-7 w-16 rounded-full" />
+          ))}
+        </div>
+        <Skeleton className="mt-2.5 h-11 rounded-field" />
+      </div>
+      <div className="space-y-3 px-5 py-4">
+        {Array.from({ length: 6 }, (_, i) => (
+          <Skeleton key={i} className="h-6 rounded-btn" />
+        ))}
+      </div>
+    </SkeletonScreen>
   );
 }

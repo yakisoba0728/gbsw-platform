@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Link from "next/link";
 import { requirePermission } from "@/core/auth/session";
 import { formatDateTime } from "@/lib/datetime";
@@ -6,6 +7,7 @@ import { honorificName, isRole, ROLE_LABELS } from "@/core/authz/roles";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionCard } from "@/components/ui/section-card";
+import { Skeleton, SkeletonRows } from "@/components/ui/skeleton";
 import { DataTable, type Column } from "@/components/ui/table";
 import { hrefWith } from "@/lib/search-params";
 import {
@@ -14,7 +16,10 @@ import {
   auditTargetLabel,
   formatAuditMetadata,
 } from "@/modules/audit-log/audit-log.labels";
-import { auditQuerySchema } from "@/modules/audit-log/audit-log.schema";
+import {
+  auditQuerySchema,
+  type AuditQuery,
+} from "@/modules/audit-log/audit-log.schema";
 import { readAuditLog } from "@/modules/audit-log/audit-log.service";
 import { LogFilters } from "./log-filters";
 
@@ -119,26 +124,101 @@ export default async function LogsPage({
   const parsed = auditQuerySchema.safeParse(raw);
   const query = parsed.success ? parsed.data : auditQuerySchema.parse({});
 
-  const { entries, total, actions, page, pageCount } = await readAuditLog(
-    actor,
-    query,
-  );
+  // 조회를 시작만 하고 기다리지 않는다. 기다리면 이 함수 전체가 멈춰서 기간 칩·검색칸까지
+  // 뼈대로 덮인다 — 방금 고른 조건과 글자를 넣던 칸이 사라지는 그 증상이다.
+  // 세 경계가 같은 약속을 나눠 기다리므로 질의는 한 번이다.
+  const resultPromise = readAuditLog(actor, query);
+
+  // 조건이 바뀌면 결과 경계를 새로 만든다. 이미 해결된 Suspense 경계는 자식이 다시
+  // 매달려도 뼈대 대신 **옛 내용을 그대로** 보여준다 — key가 없으면 필터를 바꿔도 표가
+  // 안 바뀐 것처럼 보인다.
+  const boundaryKey = JSON.stringify(query);
 
   return (
     <SectionCard
       title="감사로그"
-      aside={<span className="text-xs text-mut">{total}건</span>}
+      aside={
+        // 건수는 조회 결과다 — 조건이 바뀌면 표와 함께 뼈대가 된다.
+        <Suspense key={boundaryKey} fallback={<Skeleton className="h-4 w-10" />}>
+          <LogTotal promise={resultPromise} />
+        </Suspense>
+      }
       controls={
-        <LogFilters
-          actions={actions}
-          period={query.period}
-          action={query.action ?? ""}
-          actor={query.actor ?? ""}
-        />
+        // 동작 칩의 목록은 쌓인 로그에서 나오지 지금 고른 조건에서 나오지 않는다.
+        // **key를 주지 않는다** — 주면 칩을 누를 때마다 조작부가 통째로 뼈대가 되어
+        // 고치려던 증상이 그대로 남는다. key 없는 경계는 다시 매달려도 옛 내용을 그대로
+        // 세워 두므로 검색칸의 글자와 포커스가 살아남는다.
+        <Suspense fallback={<LogFiltersSkeleton />}>
+          <LogFilterBar promise={resultPromise} query={query} />
+        </Suspense>
       }
       flush
       className="mx-auto max-w-6xl"
     >
+      <Suspense key={boundaryKey} fallback={<SkeletonRows rows={10} />}>
+        <LogRows promise={resultPromise} params={raw} />
+      </Suspense>
+    </SectionCard>
+  );
+}
+
+type ResultPromise = ReturnType<typeof readAuditLog>;
+
+/** 건수. 표와 같은 약속을 기다리므로 질의가 늘지 않는다. */
+async function LogTotal({ promise }: { promise: ResultPromise }) {
+  const { total } = await promise;
+  return <span className="text-xs text-mut">{total}건</span>;
+}
+
+/**
+ * 필터 줄. 기간·행위자는 지금 고른 조건 그대로지만 동작 칩의 목록만은 쌓인 로그에서
+ * 나온다 — 표와 같은 약속에 얹어 질의를 늘리지 않는다.
+ */
+async function LogFilterBar({
+  promise,
+  query,
+}: {
+  promise: ResultPromise;
+  query: AuditQuery;
+}) {
+  const { actions } = await promise;
+
+  return (
+    <LogFilters
+      actions={actions}
+      period={query.period}
+      action={query.action ?? ""}
+      actor={query.actor ?? ""}
+    />
+  );
+}
+
+/** 필터 자리. loading.tsx와 같은 짜임이라 뼈대에서 화면으로 넘어갈 때 표가 안 튄다. */
+function LogFiltersSkeleton() {
+  return (
+    <>
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {Array.from({ length: 14 }, (_, i) => (
+          <Skeleton key={i} className="h-7 w-20 rounded-full" />
+        ))}
+      </div>
+      <Skeleton className="mt-2.5 h-10 rounded-field" />
+    </>
+  );
+}
+
+/** 결과 표와 쪽 넘김. 조건이 바뀔 때 뼈대로 바뀌는 것은 여기까지다. */
+async function LogRows({
+  promise,
+  params,
+}: {
+  promise: ResultPromise;
+  params: Record<string, string | string[] | undefined>;
+}) {
+  const { entries, page, pageCount } = await promise;
+
+  return (
+    <>
       {entries.length === 0 ? (
         <EmptyState variant="inside">조건에 맞는 기록이 없습니다.</EmptyState>
       ) : (
@@ -158,18 +238,18 @@ export default async function LogsPage({
           aria-label="감사로그 페이지"
           className="flex items-center justify-between border-t border-line px-3 py-1.5 text-caption"
         >
-          <PageLink page={page - 1} disabled={page <= 1} params={raw}>
+          <PageLink page={page - 1} disabled={page <= 1} params={params}>
             이전
           </PageLink>
           <span className="text-mut">
             {page} / {pageCount}
           </span>
-          <PageLink page={page + 1} disabled={page >= pageCount} params={raw}>
+          <PageLink page={page + 1} disabled={page >= pageCount} params={params}>
             다음
           </PageLink>
         </nav>
       )}
-    </SectionCard>
+    </>
   );
 }
 
