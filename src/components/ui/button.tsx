@@ -11,7 +11,7 @@ export type ButtonVariant =
   | "quiet"
   | "chip";
 
-export type ButtonSize = "sm" | "md" | "lg" | "icon";
+export type ButtonSize = "sm" | "md" | "lg" | "icon" | "page";
 
 const VARIANTS: Record<ButtonVariant, string> = {
   // 에메랄드 위 글자는 근검정이다. 흰 글자는 대비가 2:1까지 떨어진다.
@@ -41,6 +41,10 @@ const SIZES: Record<ButtonSize, string> = {
   md: "h-9 px-4 text-sm",
   lg: "h-11 px-4 text-sm",
   icon: "size-9 lg:size-8",
+  // 쪽 번호. 한 자리든 세 자리든 같은 폭으로 서야 줄이 안 흔들린다. 예전에는
+  // 호출부가 `className: "min-w-9 px-2"`로 덮으려 했는데, cn()은 tailwind-merge가
+  // 아니라 sm의 px-3이 그대로 남아 둘 중 어느 쪽이 이길지 CSS 순서가 정했다.
+  page: "h-9 min-w-9 px-2 text-caption lg:h-8",
 };
 
 /**

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ChipDivider } from "@/components/ui/filter-row";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -189,7 +190,7 @@ export function InviteTable({ rows }: { rows: InviteRow[] }) {
               </Button>
             ))}
 
-            <span className="mx-1 h-4 w-px bg-line" aria-hidden />
+            <ChipDivider />
 
             {ROLE_FILTERS.map((f) => (
               <Button

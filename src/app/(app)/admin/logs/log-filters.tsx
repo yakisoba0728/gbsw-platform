@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { ChipDivider } from "@/components/ui/filter-row";
 import { Button } from "@/components/ui/button";
 import { SearchForm } from "@/components/ui/search-form";
 import { auditActionLabel } from "@/modules/audit-log/audit-log.labels";
@@ -56,7 +57,7 @@ export function LogFilters({
           </Button>
         ))}
 
-        <span className="mx-1 h-4 w-px bg-line" aria-hidden />
+        <ChipDivider />
 
         <Button
           variant="chip"

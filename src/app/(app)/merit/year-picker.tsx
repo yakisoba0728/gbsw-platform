@@ -1,4 +1,5 @@
 import { ChipLink } from "@/components/ui/chip-link";
+import { FilterRow } from "@/components/ui/filter-row";
 import { hrefWith, type SearchParamsInput } from "@/lib/search-params";
 
 type Params = SearchParamsInput;
@@ -27,8 +28,7 @@ export function YearPicker({
   if (years.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <span className="mr-1 text-xs font-medium text-mut">학년도</span>
+    <FilterRow label="학년도">
       {years.map((y) => (
         <ChipLink
           key={y}
@@ -39,6 +39,6 @@ export function YearPicker({
           {y}학년도
         </ChipLink>
       ))}
-    </div>
+    </FilterRow>
   );
 }

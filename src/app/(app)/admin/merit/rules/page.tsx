@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
+import { FilterRow } from "@/components/ui/filter-row";
 import { requirePermission } from "@/core/auth/session";
 import {
   isMeritKind,
@@ -89,8 +90,7 @@ export default async function RulesPage({
           hidden={{ track, kind }}
         />
 
-        <div className="mt-3 flex flex-wrap items-center gap-1.5">
-          <span className="mr-1 text-xs font-medium text-mut">종류</span>
+        <FilterRow label="종류" className="mt-3">
           <ChipLink
             href={hrefWith(BASE_PATH, raw, { kind: null })}
             active={kind === null}
@@ -108,7 +108,7 @@ export default async function RulesPage({
               {MERIT_KIND_LABELS[k]}
             </ChipLink>
           ))}
-        </div>
+        </FilterRow>
 
         {/* 건수는 조회 결과에서 나온다 — 검색칸·필터를 붙잡아 두려면 여기만 따로 기다린다. */}
         <Suspense

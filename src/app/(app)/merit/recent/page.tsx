@@ -8,10 +8,11 @@ import { KindBadge, kindColorClass, signedPoints } from "@/components/merit/kind
 import { CancelButton } from "@/components/merit/cancel-button";
 import { TrackTabs } from "@/components/merit/track-tabs";
 import { Badge } from "@/components/ui/badge";
-import { buttonClass } from "@/components/ui/button";
 import { cardClass } from "@/components/ui/card";
 import { ChipLink } from "@/components/ui/chip-link";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FilterRow } from "@/components/ui/filter-row";
+import { Pagination } from "@/components/ui/pagination";
 import { SearchForm } from "@/components/ui/search-form";
 import { SectionCard } from "@/components/ui/section-card";
 import { Skeleton, SkeletonRows } from "@/components/ui/skeleton";
@@ -123,12 +124,12 @@ export default async function RecentAwardsPage({
         <Suspense key={boundaryKey} fallback={<SkeletonRows rows={10} />}>
           <RecentAwardsRows promise={resultPromise} query={query} />
         </Suspense>
-      </div>
 
-      {/* 쪽 넘기기는 다 읽은 뒤에 쓴다 — 위에 두면 목록보다 먼저 눈에 든다. */}
-      <Suspense key={boundaryKey} fallback={null}>
-        <RecentPagination promise={resultPromise} page={query.page} href={href} />
-      </Suspense>
+        {/* 쪽 넘기기는 다 읽은 뒤에 쓴다 — 위에 두면 목록보다 먼저 눈에 든다. */}
+        <Suspense key={boundaryKey} fallback={null}>
+          <RecentPagination promise={resultPromise} page={query.page} href={href} />
+        </Suspense>
+      </div>
     </div>
   );
 }
@@ -152,10 +153,10 @@ async function RecentPagination({
   href: (patch: Record<string, string | null>) => string;
 }) {
   const { pageCount } = await promise;
-  if (pageCount <= 1) return null;
 
   return (
     <Pagination
+      label="최근 부여 페이지"
       page={page}
       pageCount={pageCount}
       href={(next) => href({ page: String(next) })}
@@ -512,92 +513,3 @@ function RecentAwardControls({
   );
 }
 
-function FilterRow({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <span className="mr-1 w-8 text-xs font-medium text-mut">{label}</span>
-      {children}
-    </div>
-  );
-}
-
-/** 첫·끝과 현재 주변 두 페이지만 보여 긴 목록에서도 조작부 폭이 고정된다. */
-function paginationItems(page: number, pageCount: number): (number | "gap")[] {
-  const pages = new Set([1, pageCount]);
-  for (let value = page - 2; value <= page + 2; value += 1) {
-    if (value >= 1 && value <= pageCount) pages.add(value);
-  }
-
-  const sorted = [...pages].sort((a, b) => a - b);
-  const items: (number | "gap")[] = [];
-  for (const value of sorted) {
-    const previous = items.at(-1);
-    if (typeof previous === "number" && value - previous > 1) items.push("gap");
-    items.push(value);
-  }
-  return items;
-}
-
-function Pagination({
-  page,
-  pageCount,
-  href,
-}: {
-  page: number;
-  pageCount: number;
-  href: (page: number) => string;
-}) {
-  const items = paginationItems(page, pageCount);
-  const secondary = buttonClass({ variant: "secondary", size: "sm" });
-  const pageClass = (active: boolean) =>
-    buttonClass({ variant: "chip", size: "sm", active, className: "min-w-9 px-2" });
-
-  return (
-    <nav
-      aria-label="최근 부여 페이지"
-      className="flex flex-wrap items-center justify-center gap-1.5"
-    >
-      {page <= 1 ? (
-        <span aria-disabled="true" className={`${secondary} opacity-40`}>
-          이전
-        </span>
-      ) : (
-        <Link href={href(page - 1)} className={secondary}>
-          이전
-        </Link>
-      )}
-
-      {items.map((item, index) =>
-        item === "gap" ? (
-          <span key={`gap-${index}`} className="px-1 text-mut2" aria-hidden>
-            …
-          </span>
-        ) : item === page ? (
-          <span key={item} aria-current="page" className={pageClass(true)}>
-            {item}
-          </span>
-        ) : (
-          <Link key={item} href={href(item)} className={pageClass(false)}>
-            {item}
-          </Link>
-        ),
-      )}
-
-      {page >= pageCount ? (
-        <span aria-disabled="true" className={`${secondary} opacity-40`}>
-          다음
-        </span>
-      ) : (
-        <Link href={href(page + 1)} className={secondary}>
-          다음
-        </Link>
-      )}
-    </nav>
-  );
-}

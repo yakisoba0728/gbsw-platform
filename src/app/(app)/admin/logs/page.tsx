@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import Link from "next/link";
 import { requirePermission } from "@/core/auth/session";
 import { formatDateTime } from "@/lib/datetime";
 import { honorificName, isRole, ROLE_LABELS } from "@/core/authz/roles";
@@ -13,6 +12,7 @@ import {
   SkeletonRows,
   SkeletonTabs,
 } from "@/components/ui/skeleton";
+import { Pagination } from "@/components/ui/pagination";
 import { DataTable, type Column } from "@/components/ui/table";
 import { hrefWith } from "@/lib/search-params";
 import {
@@ -233,51 +233,13 @@ async function LogRows({
         />
       )}
 
-      {pageCount > 1 && (
-        // px-3 + 링크의 px-2 = 표의 px-5. 링크가 자기 터치 영역을 갖는다.
-        <nav
-          aria-label="감사로그 페이지"
-          className="flex items-center justify-between border-t border-line px-3 py-1.5 text-caption"
-        >
-          <PageLink page={page - 1} disabled={page <= 1} params={params}>
-            이전
-          </PageLink>
-          <span className="text-mut">
-            {page} / {pageCount}
-          </span>
-          <PageLink page={page + 1} disabled={page >= pageCount} params={params}>
-            다음
-          </PageLink>
-        </nav>
-      )}
+      <Pagination
+        label="감사로그 페이지"
+        page={page}
+        pageCount={pageCount}
+        href={(next) => hrefWith("/admin/logs", params, { page: String(next) })}
+      />
     </>
   );
 }
 
-function PageLink({
-  page,
-  disabled,
-  params,
-  children,
-}: {
-  page: number;
-  disabled: boolean;
-  params: Record<string, string | string[] | undefined>;
-  children: React.ReactNode;
-}) {
-  // 손가락으로 누르는 자리라 글자만큼이 아니라 36px을 차지한다.
-  const box = "inline-flex min-h-9 items-center px-2";
-
-  if (disabled) {
-    return <span className={`${box} text-mut2`}>{children}</span>;
-  }
-
-  return (
-    <Link
-      href={hrefWith("/admin/logs", params, { page: String(page) })}
-      className={`${box} font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink`}
-    >
-      {children}
-    </Link>
-  );
-}

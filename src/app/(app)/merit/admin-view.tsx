@@ -5,6 +5,7 @@ import {
   MERIT_TRACK_TITLES,
   type MeritTrack,
 } from "@/core/authz/merit-track";
+import { FilterRow } from "@/components/ui/filter-row";
 import { ChipLink } from "@/components/ui/chip-link";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { SearchForm } from "@/components/ui/search-form";
@@ -288,8 +289,7 @@ function ClassPicker({ params, track }: { params: Params; track: MeritTrack }) {
 
   return (
     <SectionCard variant="panel" title="반 고르기">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="mr-1 text-xs font-medium text-mut">학년</span>
+      <FilterRow label="학년">
         <ChipLink
           size="sm"
           // 학년을 지우면 반도 함께 지운다 — 남겨 두면 다음에 학년을 고를 때
@@ -309,10 +309,9 @@ function ClassPicker({ params, track }: { params: Params; track: MeritTrack }) {
             {g}학년
           </ChipLink>
         ))}
-      </div>
+      </FilterRow>
       {grade !== "" && (
-        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-          <span className="mr-1 text-xs font-medium text-mut">반</span>
+        <FilterRow label="반" className="mt-2.5">
           <ChipLink
             size="sm"
             href={meritHref(params, { track, classNo: null })}
@@ -330,7 +329,7 @@ function ClassPicker({ params, track }: { params: Params; track: MeritTrack }) {
               {c}반
             </ChipLink>
           ))}
-        </div>
+        </FilterRow>
       )}
     </SectionCard>
   );
