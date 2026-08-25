@@ -45,6 +45,12 @@ export const NAV_ITEMS: NavItem[] = [
     children: [
       // 교내·기숙사는 메뉴로 가르지 않는다 — 같은 화면이고, 화면 안의 탭이 고른다.
       // 다른 상벌점 화면(최근 부여·통계·규정)이 전부 그 방식이다.
+      //
+      // 부여 화면은 부모와 같은 경로다. 그래도 한 줄로 세우는 이유는, 묶음이 펼쳐졌을 때
+      // 나머지 여섯 줄만 보이면 "부여는 어디로 갔나"가 되기 때문이다. 교사 전용으로 둔다 —
+      // 학생·학부모는 부여하지 않고, 그쪽에서는 하위 메뉴가 하나도 없어 「상벌점」이
+      // 평범한 링크로 그려진다.
+      { href: "/merit", label: "상벌점 부여", roles: ["ADMIN"] },
       { href: "/merit/recent", label: "최근 부여", roles: ["ADMIN"] },
       { href: "/merit/stats", label: "통계 개요", roles: ["ADMIN"] },
       { href: "/merit/stats/ranking", label: "순위 · 현황", roles: ["ADMIN"] },
@@ -136,6 +142,10 @@ function flatten(): { href: string; label: string }[] {
 
 /** 현재 경로의 메뉴 이름. 상단바 제목으로 쓴다. 하위 메뉴까지 훑는다. */
 export function titleForPath(pathname: string): string {
+  // 경로가 같은 것이 둘 있으면(부모 「상벌점」과 하위 「상벌점 부여」가 둘 다 /merit이다)
+  // 부모가 이긴다 — flatten이 부모를 먼저 담고 sort가 안정 정렬이라서다. 상단바 제목은
+  // 역할을 모르는데 「상벌점 부여」는 교사의 말이라, 학생이 같은 주소에서 볼 제목으로는
+  // 맞지 않는다.
   const match = flatten()
     .filter((item) =>
       item.href === "/" ? pathname === "/" : pathname.startsWith(item.href),

@@ -13,8 +13,9 @@ import {
 const merit = NAV_ITEMS.find((item) => item.href === "/merit") as NavItem;
 
 describe("상벌점 메뉴 구성", () => {
-  it("하위 메뉴 여섯을 갖는다 — 통계가 네 갈래다", () => {
+  it("하위 메뉴 일곱을 갖는다 — 부여가 맨 앞, 통계가 네 갈래다", () => {
     expect(merit.children?.map((c) => c.label)).toEqual([
+      "상벌점 부여",
       "최근 부여",
       "통계 개요",
       "순위 · 현황",
@@ -29,7 +30,8 @@ describe("상벌점 메뉴 구성", () => {
   it("트랙은 메뉴로 가르지 않는다", () => {
     const hrefs = merit.children?.map((c) => c.href) ?? [];
     expect(hrefs.some((href) => href.includes("track="))).toBe(false);
-    expect(hrefs).not.toContain("/merit");
+    // 부여 화면은 한 줄뿐이다 — 예전처럼 트랙별로 둘이 되면 안 된다.
+    expect(hrefs.filter((href) => href === "/merit")).toHaveLength(1);
   });
 
   it("어떤 하위 메뉴에도 쿼리가 붙지 않는다", () => {
@@ -43,10 +45,12 @@ describe("상벌점 메뉴 구성", () => {
 
   // 하위 메뉴가 전부 교사 전용이라 학생·학부모에게는 하나도 안 보인다.
   // Sidebar는 그때 그룹이 아니라 평범한 링크(/merit)로 그린다.
+  // 「상벌점 부여」는 교사의 말이다. 학생·학부모에게는 하위 메뉴가 하나도 남지 않아
+  // Sidebar가 그룹이 아니라 평범한 링크(/merit)로 그린다.
   it("학생·학부모에게는 하위 메뉴가 없다 — 부여 화면 하나로 간다", () => {
     expect(visibleChildren(merit, "STUDENT")).toEqual([]);
     expect(visibleChildren(merit, "PARENT")).toEqual([]);
-    expect(visibleChildren(merit, "ADMIN")).toHaveLength(6);
+    expect(visibleChildren(merit, "ADMIN")).toHaveLength(7);
   });
 
   it("로그인 전(role null)에도 하위 메뉴가 안 보인다", () => {
@@ -96,9 +100,10 @@ describe("activeChild — 하나만 켜진다", () => {
   const all = merit.children!;
   const active = (path: string) => activeChild(path, all)?.label ?? null;
 
-  it("부여 화면에서는 아무 하위 메뉴도 안 켜진다 — 부모 링크가 그 자리다", () => {
-    expect(active("/merit")).toBeNull();
-    expect(active("/merit/students/abc")).toBeNull();
+  it("부여 화면에서는 「상벌점 부여」가 켜진다", () => {
+    expect(active("/merit")).toBe("상벌점 부여");
+    // 학생 상세는 부여 화면에서 들어가는 곳이라 같은 줄이 켜진 채로 둔다.
+    expect(active("/merit/students/abc")).toBe("상벌점 부여");
   });
 
   it("통계 화면에서는 통계만 켜진다 — /merit로도 시작하지만 더 긴 경로가 이긴다", () => {
@@ -140,7 +145,9 @@ describe("titleForPath — 하위 메뉴까지 훑는다", () => {
     expect(titleForPath("/merit/stats/rules")).toBe("규정별");
   });
 
-  it("부모 화면은 부모 이름이 나온다", () => {
+  // /merit에는 부모(상벌점)와 하위(상벌점 부여)가 둘 다 걸린다. 상단바 제목은 역할을
+  // 모르는데 「상벌점 부여」는 교사의 말이라, 학생이 같은 주소에서 볼 제목이 아니다.
+  it("경로가 같으면 부모 이름이 이긴다", () => {
     expect(titleForPath("/merit")).toBe("상벌점");
     expect(titleForPath("/merit/students/abc")).toBe("상벌점");
   });
