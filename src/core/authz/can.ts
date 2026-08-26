@@ -14,7 +14,14 @@ export type Action =
   | "merit:threshold:manage"
   | "merit:award"
   | "merit:cancel"
-  | "merit:read:any";
+  | "merit:read:any"
+  | "pass:request"
+  | "pass:consent"
+  | "pass:verify"
+  | "pass:approve"
+  | "pass:issue"
+  | "pass:cancel"
+  | "pass:read:any";
 
 /**
  * 액션별 허용 역할. ADMIN은 can()이 무조건 통과시켜 여기 없고, 빈 배열은
@@ -37,6 +44,22 @@ export const RULES: Record<Action, Role[]> = {
   "merit:award": [],
   "merit:cancel": [],
   "merit:read:any": [],
+
+  // 전자출입증 — 결재 계열 넷은 교사 전용.
+  "pass:approve": [],
+  "pass:issue": [],
+  "pass:cancel": [],
+  "pass:read:any": [],
+
+  // 아래 셋도 소유권 검사가 따라붙는다 — request는 세션→StudentProfile,
+  // consent는 세션→ParentStudent→학생이다.
+  "pass:request": ["STUDENT"],
+  "pass:consent": ["PARENT"],
+
+  // 판정은 역할로 가르지 않는다. 살아 있는 QR을 손에 쥐었다는 것은 학생 화면
+  // 앞에 서 있다는 뜻이고, 나오는 것도 이름·학번·유형·유효 시각뿐이다
+  // (사유·행선지는 pass:read:any에게만).
+  "pass:verify": ["STUDENT", "PARENT"],
 
   // 역할만으로 부족해 서비스가 소유권(세션→StudentProfile)을 함께 검사한다.
   "invite:create:parent": ["STUDENT"],

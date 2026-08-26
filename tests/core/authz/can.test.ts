@@ -20,6 +20,13 @@ const EXPECTED: Record<Action, Role[]> = {
   "merit:award": ["ADMIN"],
   "merit:cancel": ["ADMIN"],
   "merit:read:any": ["ADMIN"],
+  "pass:request": ["ADMIN", "STUDENT"],
+  "pass:consent": ["ADMIN", "PARENT"],
+  "pass:verify": ["ADMIN", "STUDENT", "PARENT"],
+  "pass:approve": ["ADMIN"],
+  "pass:issue": ["ADMIN"],
+  "pass:cancel": ["ADMIN"],
+  "pass:read:any": ["ADMIN"],
 };
 
 const ACTIONS = Object.keys(EXPECTED) as Action[];
@@ -49,7 +56,7 @@ describe("can()", () => {
   });
 
   it("학부모는 초대 관련 권한이 하나도 없다", () => {
-    for (const action of ACTIONS) {
+    for (const action of ACTIONS.filter((a) => a.startsWith("invite:"))) {
       expect(can({ role: "PARENT" }, action)).toBe(false);
     }
   });
@@ -69,5 +76,20 @@ describe("can()", () => {
       expect(can({ role: null }, action)).toBe(false);
       expect(can({}, action)).toBe(false);
     }
+  });
+
+  it("판정은 로그인한 전 역할이 할 수 있다", () => {
+    for (const role of ROLES) {
+      expect(can({ role }, "pass:verify")).toBe(true);
+    }
+    expect(can(null, "pass:verify")).toBe(false);
+  });
+
+  it("학생은 신청만, 학부모는 동의만 할 수 있다", () => {
+    expect(can({ role: "STUDENT" }, "pass:request")).toBe(true);
+    expect(can({ role: "STUDENT" }, "pass:approve")).toBe(false);
+    expect(can({ role: "STUDENT" }, "pass:consent")).toBe(false);
+    expect(can({ role: "PARENT" }, "pass:consent")).toBe(true);
+    expect(can({ role: "PARENT" }, "pass:request")).toBe(false);
   });
 });

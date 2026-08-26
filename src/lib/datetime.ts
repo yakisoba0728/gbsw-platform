@@ -133,6 +133,51 @@ export function parseDateInputKst(value: string): Date {
   return new Date(`${value}T00:00:00+09:00`);
 }
 
+/** `<input type="time">`이 내는 `HH:MM`인가. 24:00·14:60을 걸러낸다. */
+const CANONICAL_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+export function isCanonicalTimeInput(value: string): boolean {
+  return CANONICAL_TIME.test(value);
+}
+
+/**
+ * `YYYY-MM-DD` + `HH:MM`을 KST 그 시각으로 만든다.
+ * `parseDateInputKst`와 같은 규약이다 — 시간대를 붙여 문자열로 넘긴다.
+ */
+export function parseDateTimeInputKst(date: string, time: string): Date {
+  if (!isCanonicalDateInput(date)) {
+    throw new RangeError(`Invalid canonical date input: ${date}`);
+  }
+  if (!isCanonicalTimeInput(time)) {
+    throw new RangeError(`Invalid canonical time input: ${time}`);
+  }
+  return new Date(`${date}T${time}:00+09:00`);
+}
+
+const timeInput = new Intl.DateTimeFormat("en-GB", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+  timeZone: KST,
+});
+
+/**
+ * `<input type="time">`에 넣을 `HH:MM` (KST). `hourCycle: "h23"`이 핵심이다 —
+ * `hour12: false`만 주면 ICU 판에 따라 자정이 `24:00`으로 나와 입력칸이 값을 버린다.
+ */
+export function formatTimeInput(value: Date): string {
+  return timeInput.format(value);
+}
+
+/**
+ * 그 KST 날짜의 **끝** = 다음 날 자정. 외박의 endAt이 이 눈금이다
+ * (종료일 하루를 통째로 포함해야 그날 아침 복귀까지 유효하다).
+ * 한국은 서머타임이 없어 24시간이 정확하다.
+ */
+export function kstNextDayStart(dateInput: string): Date {
+  return new Date(parseDateInputKst(dateInput).getTime() + 24 * 60 * 60 * 1000);
+}
+
 /** 두 시각이 KST 기준 같은 날인가. 밀리초 비교는 안 된다 — 발생일은 자정이다. */
 export function isSameKstDate(a: Date, b: Date): boolean {
   return formatDateInput(a) === formatDateInput(b);

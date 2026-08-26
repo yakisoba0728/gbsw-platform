@@ -9,6 +9,9 @@ import {
   KST,
   parseDateInputKst,
   formatMonthDay,
+  parseDateTimeInputKst,
+  formatTimeInput,
+  kstNextDayStart,
 } from "@/lib/datetime";
 
 /**
@@ -287,5 +290,57 @@ describe("formatMonthDay()", () => {
   it("KST 기준이다 — UTC로 자르면 하루 밀린다", () => {
     // UTC로는 8월 25일 15:10이지만 KST로는 26일 00:10이다.
     expect(formatMonthDay(new Date("2026-08-25T15:10:00Z"))).toBe("8. 26.");
+  });
+});
+
+describe("parseDateTimeInputKst", () => {
+  it("KST 시각으로 읽는다", () => {
+    // 2026-08-27 14:30 KST = 05:30 UTC
+    expect(parseDateTimeInputKst("2026-08-27", "14:30").toISOString()).toBe(
+      "2026-08-27T05:30:00.000Z",
+    );
+  });
+
+  it("자정과 23:59를 다룬다", () => {
+    expect(parseDateTimeInputKst("2026-08-27", "00:00").toISOString()).toBe(
+      "2026-08-26T15:00:00.000Z",
+    );
+    expect(parseDateTimeInputKst("2026-08-27", "23:59").toISOString()).toBe(
+      "2026-08-27T14:59:00.000Z",
+    );
+  });
+
+  it("형식이 아니면 던진다 — 조용히 엉뚱한 시각이 되면 안 된다", () => {
+    expect(() => parseDateTimeInputKst("2026-8-27", "14:30")).toThrow(RangeError);
+    expect(() => parseDateTimeInputKst("2026-08-27", "24:00")).toThrow(RangeError);
+    expect(() => parseDateTimeInputKst("2026-08-27", "14:60")).toThrow(RangeError);
+    expect(() => parseDateTimeInputKst("2026-08-27", "1430")).toThrow(RangeError);
+  });
+});
+
+describe("formatTimeInput", () => {
+  it("KST 24시간 표기로 낸다", () => {
+    expect(formatTimeInput(new Date("2026-08-27T05:30:00.000Z"))).toBe("14:30");
+  });
+
+  it("자정은 24:00이 아니라 00:00이다", () => {
+    expect(formatTimeInput(new Date("2026-08-26T15:00:00.000Z"))).toBe("00:00");
+  });
+
+  it("parseDateTimeInputKst와 왕복한다", () => {
+    for (const time of ["00:00", "07:05", "12:00", "18:45", "23:59"]) {
+      expect(formatTimeInput(parseDateTimeInputKst("2026-08-27", time))).toBe(time);
+    }
+  });
+});
+
+describe("kstNextDayStart", () => {
+  it("그 KST 날짜의 다음 날 자정이다", () => {
+    expect(kstNextDayStart("2026-08-27").toISOString()).toBe("2026-08-27T15:00:00.000Z");
+  });
+
+  it("월말을 넘긴다", () => {
+    expect(kstNextDayStart("2026-08-31").toISOString()).toBe("2026-08-31T15:00:00.000Z");
+    expect(formatDateInput(kstNextDayStart("2026-08-31"))).toBe("2026-09-01");
   });
 });
