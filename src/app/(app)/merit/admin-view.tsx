@@ -139,14 +139,17 @@ export function AdminMeritView({
       */}
       <div className="@container">
         <div className="grid gap-4 @4xl:grid-cols-[2fr_1fr] @4xl:items-start">
-          <div className="order-2 @4xl:order-1 @4xl:col-start-1 @4xl:row-start-1">
+          {/* 좁은 화면에서는 순서가 곧 흐름이다 — 반 고르기 → 명단 → 부여.
+              넓은 화면은 아래 col-start/row-start가 자리를 직접 정하므로
+              이 order는 좁은 화면에만 쓰인다. */}
+          <div className="order-1 @4xl:col-start-1 @4xl:row-start-1">
             <ClassPicker params={params} track={track} />
           </div>
 
           <Suspense
             key={rosterKey}
             fallback={
-              <SkeletonScreen className="order-3 @4xl:col-start-1 @4xl:row-start-2">
+              <SkeletonScreen className="order-2 @4xl:col-start-1 @4xl:row-start-2">
                 <SkeletonTable rows={8} />
               </SkeletonScreen>
             }

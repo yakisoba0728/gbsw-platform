@@ -314,7 +314,7 @@ export function ClassRoster({
       ))}
 
       {/* 왼쪽 — 명단. 반 고르기 아래에 선다. */}
-      <div className="order-4 @4xl:col-start-1 @4xl:row-start-2">
+      <div className="order-2 @4xl:col-start-1 @4xl:row-start-2">
         <SectionCard
           flush
           title={scopeLabel}
@@ -336,8 +336,13 @@ export function ClassRoster({
         </SectionCard>
       </div>
 
-      {/* 오른쪽 — 부여. 스크롤을 따라온다: 명단이 길어도 화면에 남는다. */}
-      <div className="order-1 @4xl:col-start-2 @4xl:row-start-1 @4xl:row-span-2 @4xl:sticky @4xl:top-4">
+      {/*
+        오른쪽 — 부여. 넓은 화면에서는 스크롤을 따라온다(명단이 길어도 화면에 남는다).
+        **좁은 화면에서는 맨 아래다.** 한 단으로 접히면 순서가 곧 할 일의 차례인데,
+        고를 학생도 없는 상태에서 부여 칸이 먼저 나오면 첫 화면이 흐리게 덮인
+        「대상 학생을 먼저 추가하세요」로 시작한다.
+      */}
+      <div className="order-3 @4xl:col-start-2 @4xl:row-start-1 @4xl:row-span-2 @4xl:sticky @4xl:top-4">
         {viewingPast ? (
           <SectionCard variant="panel" title="상벌점 부여" headingLevel={3}>
             {/* 지난 학년도를 보고 있으면 폼을 감춘다 — 부여는 현재 학년도로만 들어간다. */}
@@ -418,7 +423,7 @@ export function ClassRoster({
       </div>
 
       {state.error && (
-        <Note tone="error" className="order-5 @4xl:col-span-2">
+        <Note tone="error" className="order-4 @4xl:col-span-2">
           {state.error}
         </Note>
       )}
