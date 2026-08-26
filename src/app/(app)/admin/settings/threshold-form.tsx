@@ -81,7 +81,12 @@ export function ThresholdForm({
           />
         </div>
 
-        <Button type="submit" disabled={pending}>
+        {/*
+          행 안의 저장이라 secondary다. 규정 표의 인라인 편집도 같은 모양이고,
+          여기는 트랙마다 한 줄이라 primary로 두면 한 카드에 에메랄드가 둘 선다 —
+          그 순간 에메랄드는 「이 화면의 할 일」이라는 뜻을 잃는다.
+        */}
+        <Button type="submit" variant="secondary" disabled={pending}>
           {pending ? "저장 중…" : "저장"}
         </Button>
       </form>

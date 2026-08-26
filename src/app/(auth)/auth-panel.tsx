@@ -31,6 +31,14 @@ export function AuthPanel({ children }: { children: React.ReactNode }) {
             className="object-cover"
           />
           <div className="absolute inset-0 bg-[linear-gradient(150deg,rgba(0,55,44,0.38)_0%,rgba(0,40,32,0.12)_45%,rgba(8,22,18,0.66)_100%)]" />
+          {/*
+            아래쪽 띠. 위 그라데이션은 150deg라 가장 옅은 구간(45%)이 하필 글자가
+            앉는 왼쪽 아래에 온다 — 사진의 그 자리가 밝은 건물이라 흰 글자 대비가
+            2.2:1까지 떨어졌다(기준은 4.5:1, 큰 글자 3:1). 대각선 인상은 그대로
+            두고 글자가 앉는 높이만 덮는다. 마스크 안이라 오른쪽 폼 쪽으로는
+            번지지 않는다.
+          */}
+          <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(4,18,14,0.90)_0%,rgba(4,18,14,0.78)_18%,rgba(4,18,14,0.52)_30%,rgba(4,18,14,0.18)_42%,transparent_56%)]" />
         </div>
 
         <div className="absolute bottom-0 left-0 z-10 hidden w-[46%] p-8 text-white md:block">
