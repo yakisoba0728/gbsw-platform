@@ -62,7 +62,7 @@ export function StudentSearchResults({
       card: "trailing",
       cell: (row) =>
         row.removedAt ? (
-          <span className="font-mono text-xs whitespace-nowrap text-mut">
+          <span className="text-xs whitespace-nowrap tabular-nums text-mut">
             {formatDate(row.removedAt)} 명단 제외
           </span>
         ) : (

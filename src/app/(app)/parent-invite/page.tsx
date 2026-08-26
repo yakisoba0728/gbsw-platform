@@ -59,7 +59,7 @@ const COLUMNS: readonly Column<MyInvite>[] = [
     card: "meta",
     cardLabel: false,
     cell: (row) => (
-      <span className="font-mono text-xs whitespace-nowrap text-mut">
+      <span className="text-xs whitespace-nowrap tabular-nums text-mut">
         {row.createdAt}
       </span>
     ),

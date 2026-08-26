@@ -107,7 +107,7 @@ export default async function MeritPrintPage({
           <Row label="집계 범위" value={scope} />
           {/* 화면 배지는 종이에 안 찍힌다 — 명단에서 빠진 사실은 본문에 적는다. */}
           {header.removedAt && (
-            <Row label="명단 제외일" value={formatDate(header.removedAt)} mono />
+            <Row label="명단 제외일" value={formatDate(header.removedAt)} />
           )}
         </dl>
 
@@ -135,7 +135,7 @@ export default async function MeritPrintPage({
               {active.map((award) => (
                 <tr key={award.id} className="border-b border-line2 last:border-0">
                   <td className={printCell(0)}>
-                    <span className="font-mono whitespace-nowrap text-mut">
+                    <span className="whitespace-nowrap tabular-nums text-mut">
                       {formatDate(award.occurredOn)}
                       {!isSameKstDate(award.occurredOn, award.createdAt) && (
                         <span title={`입력 ${formatDate(award.createdAt)}`}>*</span>
@@ -168,7 +168,7 @@ export default async function MeritPrintPage({
           <p className="mt-4 text-xs text-mut">
             * 표시한 항목은 일이 일어난 뒤에 입력된 기록입니다 (표의 날짜는 발생일).
             {backdated.map((award) => (
-              <span key={award.id} className="ml-1 font-mono">
+              <span key={award.id} className="ml-1 tabular-nums">
                 {formatDate(award.occurredOn)} → 입력 {formatDate(award.createdAt)}
                 {";"}
               </span>
@@ -177,7 +177,7 @@ export default async function MeritPrintPage({
         )}
 
         <footer className="mt-6 border-t border-line pt-3 text-xs text-mut">
-          출력 시각 <span className="font-mono">{formatDateTime(new Date())}</span> ·
+          출력 시각 <span className="tabular-nums">{formatDateTime(new Date())}</span> ·
           발급 {actor.name}
         </footer>
       </article>

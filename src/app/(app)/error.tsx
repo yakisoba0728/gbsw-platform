@@ -26,8 +26,8 @@ export default function AppError({
       </p>
 
       {error.digest && (
-        <p className="mt-4 font-mono text-xs text-mut2">
-          오류 번호 {error.digest}
+        <p className="mt-4 text-xs text-mut2">
+          오류 번호 <span className="font-mono">{error.digest}</span>
         </p>
       )}
 

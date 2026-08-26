@@ -437,7 +437,7 @@ function PreviewCard({
                     className="flex items-center justify-between py-2 text-caption"
                   >
                     <span className="font-medium text-ink">
-                      <span className="font-mono text-amber-ink">{row.line}행</span>{" "}
+                      <span className="tabular-nums text-amber-ink">{row.line}행</span>{" "}
                       {row.name || "(이름 없음)"}
                     </span>
                     <span className="text-mut">{statusLabel(row.status)}</span>
@@ -640,7 +640,7 @@ function IssueRow({ line, name, reason }: { line: number; name: string; reason: 
       {/* line 0은 파일에 대응하는 줄이 없다는 표시다 (roster.plan.ts) — 0행이라고
           적으면 없는 줄을 찾게 된다. */}
       {line > 0 ? (
-        <span className="font-mono text-rose">{line}행</span>
+        <span className="tabular-nums text-rose">{line}행</span>
       ) : (
         <span className="font-medium text-rose">명단에 없음</span>
       )}{" "}

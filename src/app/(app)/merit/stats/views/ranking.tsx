@@ -141,7 +141,7 @@ function StudentRankCard({
       header: "등수",
       width: "w-[64px]",
       card: "trailing",
-      cell: (row) => <span className="font-mono text-mut">{row.rank}</span>,
+      cell: (row) => <span className="tabular-nums text-mut">{row.rank}</span>,
     },
     {
       key: "name",
@@ -235,7 +235,7 @@ function ClassRankCard({
       header: "등수",
       width: "w-[64px]",
       card: "trailing",
-      cell: (row) => <span className="font-mono text-mut">{row.rank}</span>,
+      cell: (row) => <span className="tabular-nums text-mut">{row.rank}</span>,
     },
     {
       key: "class",
@@ -335,7 +335,7 @@ function ClassRosterCard({
       header: "번호",
       width: "w-[64px]",
       card: "trailing",
-      cell: (row) => <span className="font-mono text-mut">{row.number ?? "—"}</span>,
+      cell: (row) => <span className="tabular-nums text-mut">{row.number ?? "—"}</span>,
     },
     {
       key: "name",

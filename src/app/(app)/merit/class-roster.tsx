@@ -211,7 +211,7 @@ export function ClassRoster({
       sort: sortKey === "number" ? "ascending" : "none",
       width: "w-[64px]",
       card: "meta",
-      cell: (row) => <span className="font-mono text-mut">{row.number ?? "—"}</span>,
+      cell: (row) => <span className="tabular-nums text-mut">{row.number ?? "—"}</span>,
     },
     ...(showClass
       ? [
@@ -473,7 +473,7 @@ function ChosenList({
                   : `${student.grade}-${student.classNo}`}
               </span>
             )}
-            <span className="w-5 text-right font-mono">{student.number ?? "—"}</span>
+            <span className="w-5 text-right tabular-nums">{student.number ?? "—"}</span>
           </span>
           <span className="min-w-0 truncate font-medium text-ink">{student.name}</span>
         </li>

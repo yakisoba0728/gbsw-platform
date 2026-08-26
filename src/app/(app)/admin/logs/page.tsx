@@ -45,7 +45,7 @@ const COLUMNS: readonly Column<LogEntry>[] = [
     // 초까지 적는다 — 감사로그는 순서를 가려야 하는 자리다.
     width: "w-[152px]",
     cell: (entry) => (
-      <span className="font-mono text-mut">{formatDateTime(entry.createdAt)}</span>
+      <span className="tabular-nums text-mut">{formatDateTime(entry.createdAt)}</span>
     ),
   },
   {

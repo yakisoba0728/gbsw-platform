@@ -55,6 +55,12 @@
   /* ── 타이포 ─────────────────────────────────────
    * 한글이 본문이라 Pretendard를 유지한다 (시안의 Inter에 대응하는 한글 글꼴).
    * mono는 학생코드·초대코드·감사로그 ID처럼 대조해서 읽는 값에만 쓴다.
+   *
+   * **한글이 한 글자라도 섞이는 문자열에는 절대 쓰지 않는다.** 아래 mono 목록에
+   * 한글 글자가 없어서, 「26. 8. 25. 오후 5:13:16」이나 「12행」을 mono로 그리면
+   * 숫자만 mono로 나오고 「오후」·「행」은 Pretendard로 떨어진다 — 한 낱말 안에서
+   * 글꼴이 갈려 어색해진다. 날짜·번호를 표에서 세로로 맞추고 싶은 것이라면
+   * mono가 아니라 `tabular-nums`다 (Pretendard가 지원한다).
    */
   --font-sans: "Pretendard Variable", Pretendard, -apple-system,
     BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, sans-serif;

@@ -169,7 +169,7 @@ export default async function UserDetailPage({
                       <Badge tone={auditActionTone(entry.action)}>
                         {auditActionLabel(entry.action)}
                       </Badge>
-                      <span className="font-mono text-xs text-mut">
+                      <span className="text-xs tabular-nums text-mut">
                         {formatDateTime(entry.createdAt)}
                       </span>
                       {entry.ip && (

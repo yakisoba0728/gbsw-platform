@@ -43,7 +43,7 @@ export function AwardHistory({
       card: "meta",
       cardLabel: false,
       cell: (award) => (
-        <span className="font-mono whitespace-nowrap text-mut">
+        <span className="whitespace-nowrap tabular-nums text-mut">
           {formatDate(award.occurredOn)}
           {!isSameKstDate(award.occurredOn, award.createdAt) && (
             <span className="block text-xs text-mut2">

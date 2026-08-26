@@ -142,7 +142,7 @@ export function AwardConfirmDialog({
                         : `${student.grade}-${student.classNo}`}
                     </span>
                   )}
-                  <span className="w-5 text-right font-mono">
+                  <span className="w-5 text-right tabular-nums">
                     {student.number ?? "—"}
                   </span>
                 </span>

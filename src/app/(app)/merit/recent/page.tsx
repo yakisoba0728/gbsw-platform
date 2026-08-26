@@ -240,7 +240,7 @@ function ClassNumber({ row }: { row: RecentRow }) {
           ? "미배정"
           : `${row.grade}-${row.classNo}`}
       </span>
-      <span className="font-mono">{row.number ?? "—"}</span>
+      <span className="tabular-nums">{row.number ?? "—"}</span>
     </span>
   );
 }
