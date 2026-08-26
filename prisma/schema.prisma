@@ -80,6 +80,12 @@ model User {
   /// 이 사람이 마지막으로 고친 벌점 기준. 계정이 지워지면 SetNull로 끊긴다.
   meritThresholdsSet MeritThreshold[] @relation("MeritThresholdUpdatedBy")
 
+  /// 전자출입증에서 맡은 자리들. 계정이 지워지면 전부 SetNull로 끊긴다.
+  passesRequested Pass[] @relation("PassRequestedBy")
+  passesConsented Pass[] @relation("PassConsentedBy")
+  passesDecided   Pass[] @relation("PassDecidedBy")
+  passesCancelled Pass[] @relation("PassCancelledBy")
+
   // 거의 모든 목록 조회가 이 조건(deletedAt: null)으로 거른다.
   // 지금은 전 행이 null이라 인덱스가 좁혀 주는 게 없지만, 위 주석대로 읽기
   // 경로가 살아 있어 열과 함께 남긴다.
@@ -165,6 +171,9 @@ model StudentProfile {
 
   /// 상벌점. 학생이 완전 삭제되면 함께 사라진다 (오등록 정리).
   meritAwards MeritAward[]
+
+  /// 전자출입증. 학생이 완전 삭제되면 함께 사라진다 (상벌점과 같은 규약).
+  passes Pass[]
 
   /// 이 학생에게 연결된 학부모들
   parents ParentStudent[]
@@ -515,4 +524,71 @@ model MeritAward {
   @@index([year, track])
   /// 최근 부여 목록 — 트랙별 입력 최신순 페이지네이션.
   @@index([track, createdAt(sort: Desc)])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 6. 전자출입증 — 외출(당일 복귀) · 외박(밤을 밖에서)
+// ─────────────────────────────────────────────────────────────
+
+/// 전자출입증. 설계는 docs/superpowers/specs/2026-08-26-pass-design.md.
+model Pass {
+  id String @id @default(cuid())
+
+  /// **학생의 영구 식별자에 매단다. Enrollment가 아니다** — MeritAward와 같은 이유.
+  /// 명단 일괄 반영은 그 학년도 재적 행을 지우고 다시 넣는다.
+  studentProfileId String
+  studentProfile   StudentProfile @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+
+  /// OUTING | OVERNIGHT — src/core/authz/pass-type.ts의 PassType과 일치해야 한다.
+  type String
+
+  /// REQUESTED | CONSENTED | APPROVED | REJECTED | CANCELLED — 같은 파일의 PassStatus.
+  /// **EXPIRED는 없다.** 만료는 endAt으로 읽을 때 계산한다 — 이 앱에 크론이 없다.
+  status String @default("REQUESTED")
+
+  /// 유효 창. 외출은 시각까지, 외박은 KST 자정 눈금(끝은 종료일 다음 날 자정)이다.
+  startAt DateTime
+  endAt   DateTime
+
+  destination String
+  reason      String
+
+  /// 이 줄을 만든 사람. 학생 신청이면 학생, 교사 직접 부여면 교사.
+  requestedByUserId String?
+  requestedBy       User?   @relation("PassRequestedBy", fields: [requestedByUserId], references: [id], onDelete: SetNull)
+  /// 시점의 이름 스냅샷. AuditLog.actorName과 같은 이유 — 과거의 사실이
+  /// 살아 있는 외래키에 기대면 안 된다. 아래 세 쌍도 같다.
+  requestedByName   String
+
+  // ── 학부모 동의 (외박만)
+  consentedByUserId String?
+  consentedBy       User?     @relation("PassConsentedBy", fields: [consentedByUserId], references: [id], onDelete: SetNull)
+  consentedByName   String?
+  consentedAt       DateTime?
+  /// true면 교사가 보호자 확인을 대신 기록한 것이다 (전화 확인 등).
+  consentByProxy    Boolean   @default(false)
+  consentNote       String?
+
+  // ── 교사 결재
+  decidedByUserId String?
+  decidedBy       User?     @relation("PassDecidedBy", fields: [decidedByUserId], references: [id], onDelete: SetNull)
+  decidedByName   String?
+  decidedAt       DateTime?
+  /// 반려 사유.
+  decisionNote    String?
+
+  // ── 취소 (승인 후 무르기 / 학생 철회)
+  cancelledByUserId String?
+  cancelledBy       User?     @relation("PassCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: SetNull)
+  cancelledByName   String?
+  cancelledAt       DateTime?
+  cancelReason      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// 학생 한 명의 내역 — 최신순.
+  @@index([studentProfileId, startAt(sort: Desc)])
+  /// 교사의 결재 대기 목록 / 지금 유효한 것 훑기.
+  @@index([status, endAt])
 }
