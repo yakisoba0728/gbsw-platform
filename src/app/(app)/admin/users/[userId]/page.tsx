@@ -11,6 +11,7 @@ import { requirePermission } from "@/core/auth/session";
 import { honorificName, isRole, ROLE_LABELS } from "@/core/authz/roles";
 import { formatDate, formatDateInput, formatDateTime } from "@/lib/datetime";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
+import { formatSeat } from "@/lib/student-number";
 import {
   AdminUserError,
   getUserDetail,
@@ -140,11 +141,12 @@ export default async function UserDetailPage({
                     .map((link) => {
                       const e = link.student.enrollments[0];
                       const c = e?.schoolClass;
-                      const where = c
-                        ? `${c.grade}-${c.classNo}${
-                            e?.number == null ? "" : ` ${e.number}번`
-                          }`
-                        : "미배정";
+                      const where =
+                        formatSeat({
+                          grade: c?.grade ?? null,
+                          classNo: c?.classNo ?? null,
+                          number: e?.number ?? null,
+                        }) ?? "미배정";
                       return `${link.student.user.name} (${where})`;
                     })
                     .join(", ")}

@@ -21,6 +21,7 @@ import { TruncatedText } from "@/components/ui/truncated-text";
 import { formatDate, formatMonthDayTime, isSameKstDate } from "@/lib/datetime";
 import { hrefWith, type SearchParamsInput } from "@/lib/search-params";
 import { listRecentAwards } from "@/modules/merit/award.service";
+import { formatSeat } from "@/lib/student-number";
 import {
   RECENT_AWARD_STATUSES,
   recentAwardsQuerySchema,
@@ -231,16 +232,11 @@ function StudentLink({ row, track }: { row: RecentRow; track: string }) {
   );
 }
 
-/** 학급·번호. 같은 이름이 두 반에 있을 때 유일한 구분이다. */
+/** 학번. 같은 이름이 두 반에 있을 때 유일한 구분이다. */
 function ClassNumber({ row }: { row: RecentRow }) {
   return (
-    <span className="flex items-baseline gap-1.5 text-xs text-mut2">
-      <span>
-        {row.grade === null || row.classNo === null
-          ? "미배정"
-          : `${row.grade}-${row.classNo}`}
-      </span>
-      <span className="tabular-nums">{row.number ?? "—"}</span>
+    <span className="text-xs tabular-nums text-mut2">
+      {formatSeat(row) ?? "미배정"}
     </span>
   );
 }

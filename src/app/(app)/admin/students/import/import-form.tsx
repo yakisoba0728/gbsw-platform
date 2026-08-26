@@ -23,6 +23,7 @@ import {
 import type { RosterRow } from "@/modules/enrollment/roster.parse";
 import type { RosterPlan } from "@/modules/enrollment/roster.plan";
 import { ROSTER_FILE_MAX_BYTES } from "@/modules/enrollment/roster.schema";
+import { formatSeat } from "@/lib/student-number";
 import { APPLY_INITIAL, PREVIEW_INITIAL } from "./action-state";
 import { applyRosterAction, exportRosterAction, previewRosterAction } from "./actions";
 import { previewFingerprintFor } from "./preview-fingerprint";
@@ -73,8 +74,7 @@ function seatLabel(row: {
   classNo: number | null;
   number: number | null;
 }): string {
-  if (row.grade === null || row.classNo === null || row.number === null) return "—";
-  return `${row.grade}학년 ${row.classNo}반 ${row.number}번`;
+  return formatSeat(row) ?? "—";
 }
 
 function statusLabel(status: string | null): string {

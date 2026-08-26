@@ -4,6 +4,7 @@ import { isRole, ROLE_LABELS } from "@/core/authz/roles";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import { listUsers } from "@/modules/admin-users/admin-user.service";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
+import { formatSeat } from "@/lib/student-number";
 import { UserTable, type UserRow } from "./user-table";
 
 /**
@@ -36,11 +37,11 @@ export async function AccountsPanel() {
       roleLabel: isRole(u.role) ? ROLE_LABELS[u.role] : "역할 미지정",
       active: u.status === "ACTIVE",
       mustChangePassword: u.mustChangePassword ?? false,
-      classLabel: cls
-        ? `${cls.grade}학년 ${cls.classNo}반${
-            enrollment?.number == null ? "" : ` ${enrollment.number}번`
-          }`
-        : null,
+      classLabel: formatSeat({
+        grade: cls?.grade ?? null,
+        classNo: cls?.classNo ?? null,
+        number: enrollment?.number ?? null,
+      }),
       createdAt: formatDate(u.createdAt),
       isSelf: u.id === actor.id,
     };

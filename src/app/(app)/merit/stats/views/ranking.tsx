@@ -12,6 +12,7 @@ import { SectionCard } from "@/components/ui/section-card";
 import { SkeletonTable } from "@/components/ui/skeleton";
 import { DataTable, type Column } from "@/components/ui/table";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
+import { formatSeat } from "@/lib/student-number";
 import {
   getRankingStats,
   type RankedStudent,
@@ -121,10 +122,9 @@ function netCell(row: RankedStudent | { net: number }) {
   );
 }
 
-/** 소속 표기. 반이 없는 학생도 순위에 남으므로 빈칸을 설명해야 한다. */
+/** 학번. 반이 없는 학생도 순위에 남으므로 빈칸을 설명해야 한다. */
 function classLabel(row: RankedStudent): string {
-  if (row.grade === null || row.classNo === null) return "반 미배정";
-  return `${row.grade}학년 ${row.classNo}반${row.number !== null ? ` ${row.number}번` : ""}`;
+  return formatSeat(row) ?? "반 미배정";
 }
 
 /** 전교 학생 순위 — 순점수 순. 동점은 같은 등수다. */

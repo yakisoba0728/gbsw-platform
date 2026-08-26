@@ -11,6 +11,7 @@ import {
 } from "@/modules/invites/invite.service";
 import { cardClass } from "@/components/ui/card";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
+import { formatSeat } from "@/lib/student-number";
 import {
   Skeleton,
   SkeletonField,
@@ -27,8 +28,11 @@ function classLabel(
   classNo: number | null | undefined,
   number: number | null | undefined,
 ): string | null {
-  if (grade == null || classNo == null) return null;
-  return `${grade}학년 ${classNo}반${number == null ? "" : ` ${number}번`}`;
+  return formatSeat({
+    grade: grade ?? null,
+    classNo: classNo ?? null,
+    number: number ?? null,
+  });
 }
 
 /** DB 행을 화면이 쓸 형태로 눕힌다. metadata 원본은 클라이언트로 내보내지 않는다. */

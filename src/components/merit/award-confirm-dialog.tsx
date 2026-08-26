@@ -11,6 +11,7 @@ import {
   signedPoints,
 } from "@/components/merit/kind-badge";
 import type { RuleOption } from "@/components/merit/rule-filter";
+import { formatSeat } from "@/lib/student-number";
 
 /** 확인 화면에 세울 학생 한 줄. 명단이 가진 것을 그대로 받는다. */
 export type ConfirmStudent = {
@@ -135,16 +136,15 @@ export function AwardConfirmDialog({
                 {/* 학급과 번호는 한 덩어리다 — 사이를 벌리면 번호가 이름 쪽으로
                     떠서 어느 학생의 것인지 한눈에 안 붙는다. */}
                 <span className="flex shrink-0 items-baseline gap-2 text-xs text-mut2">
-                  {showClass && (
-                    <span className="w-10">
-                      {student.grade === null || student.classNo === null
-                        ? "미배정"
-                        : `${student.grade}-${student.classNo}`}
+                  {showClass ? (
+                    <span className="w-10 tabular-nums">
+                      {formatSeat(student) ?? "미배정"}
+                    </span>
+                  ) : (
+                    <span className="w-5 text-right tabular-nums">
+                      {student.number ?? "—"}
                     </span>
                   )}
-                  <span className="w-5 text-right tabular-nums">
-                    {student.number ?? "—"}
-                  </span>
                 </span>
                 <span className="min-w-0 truncate text-caption font-medium text-ink">
                   {student.name}

@@ -22,6 +22,7 @@ import {
   StudentNetChart,
 } from "@/components/merit/charts";
 import { getMeritStats, type MeritStats } from "@/modules/merit/stats.service";
+import { formatSeat } from "@/lib/student-number";
 
 export type OverviewPromise = Promise<MeritStats | null>;
 
@@ -211,11 +212,9 @@ function WatchList({
       card: "meta",
       cardLabel: false,
       cell: (row) => (
-        <span className="text-mut">
+        <span className="tabular-nums text-mut">
           {/* 소속이 없어도 명단에서 빼지 않는다 — 반 미배정 학생이 놓치기 쉽다. */}
-          {row.grade !== null && row.classNo !== null
-            ? `${row.grade}학년 ${row.classNo}반${row.number !== null ? ` ${row.number}번` : ""}`
-            : "소속 미배정"}
+          {formatSeat(row) ?? "소속 미배정"}
         </span>
       ),
     },

@@ -22,6 +22,7 @@ import {
 } from "@/components/merit/award-success-dialog";
 import { AwardConfirmDialog } from "@/components/merit/award-confirm-dialog";
 import { DemeritCell } from "@/components/merit/demerit-level";
+import { formatSeat } from "@/lib/student-number";
 import { EMPTY_MERIT_STATE } from "./action-state";
 import { bulkAwardAction } from "./actions";
 import { ExportButton } from "./export-button";
@@ -466,14 +467,17 @@ function ChosenList({
           className="flex items-center gap-2.5 px-4 py-2 text-caption"
         >
           <span className="flex shrink-0 items-baseline gap-2 text-xs text-mut2">
-            {showClass && (
-              <span className="w-10">
-                {student.grade === null || student.classNo === null
-                  ? "미배정"
-                  : `${student.grade}-${student.classNo}`}
+            {/* 학년을 가로지르는 목록에서는 학번이 그대로 신원이다. 반이 이미
+                고정된 목록에서는 번호만으로 갈리므로 학번까지 적지 않는다. */}
+            {showClass ? (
+              <span className="w-10 tabular-nums">
+                {formatSeat(student) ?? "미배정"}
+              </span>
+            ) : (
+              <span className="w-5 text-right tabular-nums">
+                {student.number ?? "—"}
               </span>
             )}
-            <span className="w-5 text-right tabular-nums">{student.number ?? "—"}</span>
           </span>
           <span className="min-w-0 truncate font-medium text-ink">{student.name}</span>
         </li>

@@ -5,6 +5,7 @@ import { SectionCard } from "@/components/ui/section-card";
 import { DataTable, type Column } from "@/components/ui/table";
 import { EnrollmentTag } from "@/components/merit/enrollment-tag";
 import { formatDate } from "@/lib/datetime";
+import { formatSeat } from "@/lib/student-number";
 
 export type StudentSearchRow = {
   studentProfileId: string;
@@ -67,8 +68,8 @@ export function StudentSearchResults({
           </span>
         ) : (
           <span className="inline-flex flex-wrap items-center gap-1.5 text-mut">
-            {row.grade !== null && row.classNo !== null && row.number !== null
-              ? `${row.grade}학년 ${row.classNo}반 ${row.number}번`
+            {formatSeat(row) !== null
+              ? formatSeat(row)
               : "—"}
             {/* 졸업·자퇴 학생도 검색에 걸린다 — 안 보이면 동명이인을 고를 때 못 알아챈다. */}
             <EnrollmentTag status={row.status} />
