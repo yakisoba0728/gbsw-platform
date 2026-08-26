@@ -112,7 +112,7 @@ export default async function RulesPage({
 
         {/* 건수는 조회 결과에서 나온다 — 검색칸·필터를 붙잡아 두려면 여기만 따로 기다린다. */}
         <Suspense
-          key={boundaryKey}
+          key={`count:${boundaryKey}`}
           fallback={<Skeleton className="mt-3 h-4 w-16 rounded-btn" />}
         >
           <RuleCount
@@ -125,7 +125,7 @@ export default async function RulesPage({
         </Suspense>
       </SectionCard>
 
-      <Suspense key={boundaryKey} fallback={<SkeletonTable rows={10} />}>
+      <Suspense key={`rows:${boundaryKey}`} fallback={<SkeletonTable rows={10} />}>
         <RulesResult
           promise={rulesPromise}
           q={q}

@@ -80,7 +80,7 @@ export function OwnMeritView({
       {yearsPromise && (
         // 고르는 자리지만 선택지도 "지금 보는 해"도 조회에서 나온다 — 결과와 같은
         // 약속을 나눠 기다리는 작은 경계를 그 자리에 둔다. 대개 비어 있어 뼈대는 없다.
-        <Suspense key={boundaryKey} fallback={null}>
+        <Suspense key={`years:${boundaryKey}`} fallback={null}>
           <YearChips
             yearsPromise={yearsPromise}
             viewPromise={viewPromise}
@@ -90,7 +90,7 @@ export function OwnMeritView({
       )}
 
       <Suspense
-        key={boundaryKey}
+        key={`body:${boundaryKey}`}
         fallback={
           <SkeletonScreen className="space-y-4">
             <SkeletonStats count={3} />
