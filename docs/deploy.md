@@ -115,18 +115,31 @@ docker compose logs app       # 앱이 뜨다 죽었나
 
 ```
 gbsw.example.hs.kr {
-    reverse_proxy 127.0.0.1:3000
+	reverse_proxy 127.0.0.1:3000 {
+		# **이 두 줄을 빠뜨리면 안 된다.** Caddy는 X-Forwarded-For를 덮어쓰지 않고
+		# 클라이언트가 보낸 값 **뒤에 덧붙인다.** 앱은 그 헤더의 첫 항목을 접속 IP로
+		# 믿으므로(src/core/audit/request-context.ts), 그대로 두면 헤더를 지어 보내는
+		# 사람이 감사로그에 아무 IP나 심을 수 있다. {remote_host}는 실제 TCP 상대다.
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Real-IP {remote_host}
+	}
 }
 ```
 
-Caddy는 `X-Forwarded-For`·`X-Forwarded-Proto`를 알아서 덮어쓰고 인증서도 자동으로
-받는다. 교내망이 외부 인터넷을 막고 있으면 Let's Encrypt 발급이 안 되므로, 학교에서
-쓰는 인증서를 직접 지정한다:
+> 이 문서는 한동안 「Caddy는 알아서 덮어쓴다」고 적고 있었다. **틀린 말이었고**,
+> 2026-08-27 테스트 배포에서 실제로 확인해 고쳤다 — 위조 헤더를 실어 보내
+> 앱이 무엇을 받는지 눈으로 봤다(덧붙임이면 `1.2.3.4`가 첫 항목으로 온다).
+
+인증서는 Caddy가 자동으로 받는다. 교내망이 외부 인터넷을 막고 있으면 Let's Encrypt
+발급이 안 되므로, 학교에서 쓰는 인증서를 직접 지정한다:
 
 ```
 gbsw.example.hs.kr {
-    tls /경로/인증서.crt /경로/개인키.key
-    reverse_proxy 127.0.0.1:3000
+	tls /경로/인증서.crt /경로/개인키.key
+	reverse_proxy 127.0.0.1:3000 {
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Real-IP {remote_host}
+	}
 }
 ```
 
