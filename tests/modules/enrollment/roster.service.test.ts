@@ -7,6 +7,24 @@ const applyRoster = vi.fn();
 const findCurrentYearForUpdate = vi.fn();
 const findCurrentYear = vi.fn();
 const recordAudit = vi.fn();
+const recordAuditMany = vi.fn();
+
+/**
+ * 남은 감사로그 줄 전부. 명단 반영은 요약 한 줄은 `recordAudit`으로, 학생 수만큼
+ * 늘어나는 줄(삭제·코드 폐기·계정 활성)은 `recordAuditMany`로 한 번에 남긴다 —
+ * 잠금을 쥔 채 왕복하지 않으려는 것이라, 어느 쪽으로 남았는지는 검사할 것이 아니다.
+ */
+function auditEntries(): { action: string; [key: string]: unknown }[] {
+  return [
+    ...recordAudit.mock.calls.map((c) => c[0]),
+    ...recordAuditMany.mock.calls.flatMap((c) => c[0] as { action: string }[]),
+  ];
+}
+
+/** 감사로그가 하나도 안 남았는가. 두 경로를 함께 본다. */
+function noAudit(): boolean {
+  return auditEntries().length === 0;
+}
 const generateUniqueCode = vi.fn();
 const toExpiresAt = vi.fn();
 const withTransaction = vi.fn();
@@ -24,7 +42,7 @@ vi.mock("@/modules/enrollment/roster.repo", () => ({
   InviteCodeCollisionError,
   NumberTakenError,
 }));
-vi.mock("@/core/audit/audit", () => ({ recordAudit }));
+vi.mock("@/core/audit/audit", () => ({ recordAudit, recordAuditMany }));
 vi.mock("@/core/db/client", () => ({ withTransaction }));
 vi.mock("@/modules/academic-year/academic-year.service", () => ({
   getCurrentYear: vi.fn().mockResolvedValue(2026),
@@ -108,6 +126,7 @@ beforeEach(() => {
   findCurrentYearForUpdate.mockReset().mockResolvedValue(2026);
   findCurrentYear.mockReset().mockResolvedValue(2026);
   recordAudit.mockReset();
+  recordAuditMany.mockReset();
   withTransaction.mockReset().mockImplementation(async (fn: (tx: typeof txClient) => unknown) =>
     fn(txClient),
   );
@@ -130,7 +149,7 @@ describe("applyRosterPlan()", () => {
   it("빈 행이면 서비스가 거부한다", async () => {
     await expect(applyRosterPlan(admin, 2026, [], fingerprint(), [], null)).rejects.toThrow("EMPTY_ROWS");
     expect(applyRoster).not.toHaveBeenCalled();
-    expect(recordAudit).not.toHaveBeenCalled();
+    expect(noAudit()).toBe(true);
   });
 
   it("확정을 막아야 하는 명단이면 아무것도 쓰지 않는다", async () => {
@@ -138,7 +157,7 @@ describe("applyRosterPlan()", () => {
 
     await expect(applyRosterPlan(admin, 2026, [bad], fingerprint(), [], null)).rejects.toThrow("BLOCKED");
     expect(applyRoster).not.toHaveBeenCalled();
-    expect(recordAudit).not.toHaveBeenCalled();
+    expect(noAudit()).toBe(true);
   });
 
   it("클라이언트가 보낸 행을 다시 분류한다 — 미리보기 결과를 믿지 않는다", async () => {
@@ -173,7 +192,7 @@ describe("applyRosterPlan()", () => {
     await expect(applyRosterPlan(admin, 2026, [row], fingerprint(), [], null)).rejects.toThrow("YEAR_CHANGED");
 
     expect(applyRoster).not.toHaveBeenCalled();
-    expect(recordAudit).not.toHaveBeenCalled();
+    expect(noAudit()).toBe(true);
   });
 
   it("Serializable 학년도 전환 충돌은 YEAR_CHANGED로 돌려준다", async () => {
@@ -279,8 +298,7 @@ describe("applyRosterPlan()", () => {
       "로그는 남는다", async () => {
       await applyRosterPlan(admin, 2026, 신규줄들(), fingerprint([]), [], null);
 
-      const summary = recordAudit.mock.calls
-        .map((c) => c[0])
+      const summary = auditEntries()
         .find((a) => a.action === "enrollment:import");
       expect(summary!.metadata).toMatchObject({ newStudents: 2, excludedNew: 1 });
       // 이름은 여전히 안 남긴다 — 감사로그가 명단 사본이 되면 안 된다.
@@ -388,7 +406,7 @@ describe("applyRosterPlan()", () => {
 
     await applyRosterPlan(admin, 2026, [재입학], fingerprint(existing), [], null);
 
-    const calls = recordAudit.mock.calls.map((c) => c[0]);
+    const calls = auditEntries();
     const flip = calls.find((c) => c.action === "user:activate");
     expect(flip).toMatchObject({ targetType: "User", targetId: "u-1" });
     // actorName을 미리 넘긴다 (M8) — 이 루프도 이름을 다시 조회하지 않는다.
@@ -402,7 +420,7 @@ describe("applyRosterPlan()", () => {
 
     await applyRosterPlan(admin, 2026, [자퇴그대로], fingerprint(existing), [], null);
 
-    const calls = recordAudit.mock.calls.map((c) => c[0]);
+    const calls = auditEntries();
     expect(calls.some((c) => c.action === "user:activate" || c.action === "user:deactivate")).toBe(
       false,
     );
@@ -445,7 +463,7 @@ describe("applyRosterPlan()", () => {
       applyRosterPlan(admin, 2026, [row], fingerprint(), [], null),
     ).rejects.toThrow("ROSTER_CHANGED");
     expect(applyRoster).not.toHaveBeenCalled();
-    expect(recordAudit).not.toHaveBeenCalled();
+    expect(noAudit()).toBe(true);
   });
 });
 
@@ -475,7 +493,7 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
       "DELETION_SET_CHANGED",
     );
     expect(applyRoster).not.toHaveBeenCalled();
-    expect(recordAudit).not.toHaveBeenCalled();
+    expect(noAudit()).toBe(true);
   });
 
   it("확인한 id 집합이 서비스가 다시 세운 삭제 대상과 정확히 같으면 repo에 넘긴다", async () => {
@@ -551,7 +569,7 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
       applyRosterPlan(admin, 2026, [row], fingerprint(existing), [], null),
     ).rejects.toThrow("BLOCKED");
     expect(applyRoster).not.toHaveBeenCalled();
-    expect(recordAudit).not.toHaveBeenCalled();
+    expect(noAudit()).toBe(true);
   });
 
   it("삭제 대상이 없으면 빈 배열로도 막지 않는다", async () => {
@@ -565,8 +583,7 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
   it("삭제 로그마다 actorName을 미리 넘겨 이름 재조회를 없앤다", async () => {
     await applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(), ["sp-1"], 1);
 
-    const deleteLog = recordAudit.mock.calls
-      .map((c) => c[0])
+    const deleteLog = auditEntries()
       .find((c) => c.action === "user:delete");
     expect(deleteLog?.actorName).toBe(admin.name);
   });
@@ -574,8 +591,7 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
   it("명단에서 빠진 학생마다 user:delete를 남기고 이름은 넣지 않는다", async () => {
     await applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(), ["sp-1"], 1);
 
-    const deleteLogs = recordAudit.mock.calls
-      .map((c) => c[0])
+    const deleteLogs = auditEntries()
       .filter((c) => c.action === "user:delete");
     expect(deleteLogs).toHaveLength(1);
     expect(deleteLogs[0]).toMatchObject({ targetType: "User", targetId: "u-1" });
@@ -585,19 +601,17 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
   it("배치 요약의 metadata에 deleted 건수를 남긴다", async () => {
     await applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(), ["sp-1"], 1);
 
-    const summary = recordAudit.mock.calls
-      .map((c) => c[0])
+    const summary = auditEntries()
       .find((c) => c.action === "enrollment:import");
-    expect(summary.metadata).toMatchObject({ deleted: 1 });
+    expect(summary!.metadata).toMatchObject({ deleted: 1 });
   });
 
   it("정상 반영 요약에 restored 건수를 남기지 않는다", async () => {
     await applyRosterPlan(admin, 2026, [row], fingerprint(), [], null);
 
-    const summary = recordAudit.mock.calls
-      .map((c) => c[0])
+    const summary = auditEntries()
       .find((c) => c.action === "enrollment:import");
-    expect(summary.metadata).not.toHaveProperty("restored");
+    expect(summary!.metadata).not.toHaveProperty("restored");
   });
 
   it("결과에 삭제 건수를 함께 돌려준다", async () => {
@@ -622,7 +636,7 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
         applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(), ["sp-다른학생"], null),
       ).rejects.toThrow("DELETION_SET_CHANGED");
       expect(applyRoster).not.toHaveBeenCalled();
-      expect(recordAudit).not.toHaveBeenCalled();
+      expect(noAudit()).toBe(true);
     });
 
     it("확인한 집합에 삭제 대상이 아닌 id가 섞여 있어도 거부한다", async () => {
@@ -643,7 +657,7 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
         applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(bulk), ids, null),
       ).rejects.toThrow("DELETION_COUNT_MISMATCH");
       expect(applyRoster).not.toHaveBeenCalled();
-      expect(recordAudit).not.toHaveBeenCalled();
+      expect(noAudit()).toBe(true);
     });
 
     it("여러 명이 빠지는데 건수를 틀리게 넣으면 거부한다", async () => {
@@ -672,7 +686,7 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
         applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(), ["sp-1"], null),
       ).rejects.toThrow("DELETION_COUNT_MISMATCH");
       expect(applyRoster).not.toHaveBeenCalled();
-      expect(recordAudit).not.toHaveBeenCalled();
+      expect(noAudit()).toBe(true);
     });
 
     it("1명만 빠질 때 건수를 틀리게 넣어도 거부한다", async () => {
@@ -708,8 +722,7 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
 
       await applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(), ["sp-1"], 1);
 
-      const revokeLogs = recordAudit.mock.calls
-        .map((c) => c[0])
+      const revokeLogs = auditEntries()
         .filter((a) => a.action === "invite:revoke:roster");
       expect(revokeLogs).toHaveLength(2);
       expect(revokeLogs[0]).toMatchObject({
@@ -720,14 +733,18 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
         metadata: { role: "PARENT" },
       });
       expect(revokeLogs[1]!.targetId).toBe("inv-2");
-      expect(recordAudit.mock.calls.every((c) => c[1] === txClient)).toBe(true);
+      expect(
+        [...recordAudit.mock.calls, ...recordAuditMany.mock.calls].every(
+          (c) => c[1] === txClient,
+        ),
+      ).toBe(true);
     });
 
     it("폐기된 코드가 없으면 아무 줄도 남기지 않는다", async () => {
       await applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(), ["sp-1"], 1);
 
       expect(
-        recordAudit.mock.calls.some((c) => c[0].action === "invite:revoke:roster"),
+        auditEntries().some((c) => c.action === "invite:revoke:roster"),
       ).toBe(false);
     });
   });
@@ -751,6 +768,6 @@ describe("exportRoster()", () => {
 
   it("읽기만 한다 — 감사로그를 남기지 않는다 (생성·수정·삭제만 기록한다)", async () => {
     await exportRoster(admin);
-    expect(recordAudit).not.toHaveBeenCalled();
+    expect(noAudit()).toBe(true);
   });
 });

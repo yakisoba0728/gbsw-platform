@@ -1,5 +1,9 @@
 import { createHash } from "node:crypto";
-import { recordAudit } from "@/core/audit/audit";
+import {
+  recordAudit,
+  recordAuditMany,
+  type RecordAuditInput,
+} from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
 import { assertCan } from "@/core/authz/errors";
 import { withTransaction } from "@/core/db/client";
@@ -266,37 +270,36 @@ export async function applyRosterPlan(
           tx,
         );
 
-        // 명단에서 빠진 학생마다 한 줄씩. userId만 담는다 — 이름을 넣으면 감사로그가
-        // 개인정보 사본이 된다. actorName을 넘겨 학생 수만큼의 이름 재조회를 없앤다.
+        // 아래 세 갈래는 한 번에 남긴다. 이 트랜잭션이 AcademicYear 잠금을 쥐고
+        // 있는 동안 전교의 상벌점 부여가 멈추므로, 왕복 수를 줄이는 것이 곧
+        // 정지 구간을 줄이는 일이다. actorName을 넘겨 이름 재조회도 없앤다.
+        const entries: RecordAuditInput[] = [];
+
+        // 명단에서 빠진 학생마다 한 줄. userId만 담는다 — 이름을 넣으면 감사로그가
+        // 개인정보 사본이 된다.
         for (const m of plan.missingFromFile) {
-          await recordAudit(
-            {
-              actorUserId: actor.id,
-              actorName: actor.name,
-              action: "user:delete",
-              targetType: "User",
-              targetId: m.userId,
-            },
-            tx,
-          );
+          entries.push({
+            actorUserId: actor.id,
+            actorName: actor.name,
+            action: "user:delete",
+            targetType: "User",
+            targetId: m.userId,
+          });
         }
 
-        // 함께 폐기된 미사용 초대코드마다 한 줄씩. 코드 값 자체는 남기지 않는다.
+        // 함께 폐기된 미사용 초대코드마다 한 줄. 코드 값 자체는 남기지 않는다.
         for (const invite of revokedInvites) {
-          await recordAudit(
-            {
-              actorUserId: actor.id,
-              actorName: actor.name,
-              action: "invite:revoke:roster",
-              targetType: "Invite",
-              targetId: invite.id,
-              metadata: { role: invite.role },
-            },
-            tx,
-          );
+          entries.push({
+            actorUserId: actor.id,
+            actorName: actor.name,
+            action: "invite:revoke:roster",
+            targetType: "Invite",
+            targetId: invite.id,
+            metadata: { role: invite.role },
+          });
         }
 
-        // 계정 상태가 실제로 뒤집힐 때만 한 줄 더 남긴다. targetId는 userId여야
+        // 계정 상태가 실제로 뒤집힐 때만 한 줄 더. targetId는 userId여야
         // 계정 상세의 활동 기록(findRelatedAudit)이 이 줄을 찾는다.
         for (const a of assignments) {
           if (!a.statusChanged) continue;
@@ -304,17 +307,16 @@ export async function applyRosterPlan(
           const active = a.status === "ENROLLED";
           if (before === undefined || before === active) continue;
 
-          await recordAudit(
-            {
-              actorUserId: actor.id,
-              actorName: actor.name,
-              action: active ? "user:activate" : "user:deactivate",
-              targetType: "User",
-              targetId: userIdByProfile.get(a.studentProfileId!)!,
-            },
-            tx,
-          );
+          entries.push({
+            actorUserId: actor.id,
+            actorName: actor.name,
+            action: active ? "user:activate" : "user:deactivate",
+            targetType: "User",
+            targetId: userIdByProfile.get(a.studentProfileId!)!,
+          });
         }
+
+        await recordAuditMany(entries, tx);
 
         return result;
       },

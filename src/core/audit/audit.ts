@@ -54,6 +54,48 @@ export async function recordAudit(
 }
 
 /**
+ * 여러 줄을 한 번에 남긴다. **왕복 수가 곧 잠금을 쥐고 있는 시간인 자리**에서 쓴다 —
+ * 명단 반영은 `AcademicYear`에 FOR UPDATE를 걸고 끝까지 쥐는데, 그 잠금은 상벌점
+ * 부여도 잡는다. 학생 수만큼 왕복하면 그동안 전교의 부여가 한 건도 안 나간다.
+ *
+ * 한 줄씩 남기는 것과 결과는 같다. 이름은 행위자별로 한 번만 묻고(대개 한 명이다),
+ * 요청 맥락(ip·userAgent)은 어차피 호출 하나에 하나뿐이다.
+ *
+ * 빈 배열이면 아무것도 하지 않는다 — 부르는 쪽에서 길이를 먼저 재지 않아도 되게.
+ */
+export async function recordAuditMany(
+  inputs: RecordAuditInput[],
+  db: DbClient = prisma,
+): Promise<void> {
+  if (inputs.length === 0) return;
+
+  const { ip, userAgent } = await readRequestContext();
+
+  // 이름을 안 넘긴 행위자만, 중복 없이 한 번씩 묻는다.
+  const names = new Map<string, string>();
+  for (const input of inputs) {
+    const id = input.actorUserId;
+    if (input.actorName || id === null || names.has(id)) continue;
+    names.set(id, await lookupActorName(id, db));
+  }
+
+  await db.auditLog.createMany({
+    data: inputs.map((input) => ({
+      actorUserId: input.actorUserId,
+      actorName:
+        input.actorName ??
+        (input.actorUserId ? names.get(input.actorUserId)! : UNKNOWN_ACTOR_NAME),
+      action: input.action,
+      targetType: input.targetType,
+      targetId: input.targetId ?? null,
+      metadata: input.metadata,
+      ip,
+      userAgent,
+    })),
+  });
+}
+
+/**
  * 기록 시점의 행위자 이름. 계정이 지워져도 남는 스냅샷이다.
  * "이름을 못 찾았다"는 삼키고 (알 수 없음)으로 떨어진다 — 감사 기록 자체가
  * 그것 때문에 실패하면 안 된다. 다만 **트랜잭션이 죽은 오류는 삼키지 않는다**:

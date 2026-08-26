@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const enrollmentDeleteMany = vi.fn();
-const enrollmentCreate = vi.fn();
+const enrollmentCreateMany = vi.fn();
 const schoolClassUpsert = vi.fn();
 const studentProfileFindMany = vi.fn();
 const userUpdateMany = vi.fn();
@@ -14,7 +14,7 @@ const inviteFindMany = vi.fn();
 const withTransaction = vi.fn();
 
 const tx = {
-  enrollment: { deleteMany: enrollmentDeleteMany, create: enrollmentCreate },
+  enrollment: { deleteMany: enrollmentDeleteMany, createMany: enrollmentCreateMany },
   schoolClass: { upsert: schoolClassUpsert },
   studentProfile: { findMany: studentProfileFindMany },
   user: { updateMany: userUpdateMany, deleteMany: userDeleteMany },
@@ -117,7 +117,7 @@ function input(overrides: Partial<ApplyInput> = {}): ApplyInput {
 
 beforeEach(() => {
   enrollmentDeleteMany.mockReset().mockResolvedValue({ count: 0 });
-  enrollmentCreate.mockReset().mockResolvedValue(undefined);
+  enrollmentCreateMany.mockReset().mockResolvedValue({ count: 0 });
   schoolClassUpsert.mockReset().mockResolvedValue({ id: "class-1" });
   studentProfileFindMany.mockReset().mockResolvedValue([]);
   userUpdateMany.mockReset().mockResolvedValue({ count: 0 });
@@ -225,7 +225,7 @@ describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
     await applyRoster(2026, input({ deleteStudentProfileIds: ["sp-del-1"] }));
 
     const deleteOrder = userDeleteMany.mock.invocationCallOrder[0]!;
-    for (const call of enrollmentCreate.mock.invocationCallOrder) {
+    for (const call of enrollmentCreateMany.mock.invocationCallOrder) {
       expect(call).toBeGreaterThan(deleteOrder);
     }
   });
@@ -314,9 +314,13 @@ describe("applyRoster()", () => {
       }),
     );
 
-    expect(enrollmentCreate).toHaveBeenCalledTimes(2);
+    // 학생이 둘이어도 왕복은 한 번이다 — 이 트랜잭션은 AcademicYear 잠금을 쥐고
+    // 있고, 왕복 수가 곧 전교의 상벌점 부여가 멈춰 있는 시간이다.
+    expect(enrollmentCreateMany).toHaveBeenCalledTimes(1);
+    expect(enrollmentCreateMany.mock.calls[0]![0].data).toHaveLength(2);
+
     const deleteOrder = enrollmentDeleteMany.mock.invocationCallOrder[0]!;
-    for (const call of enrollmentCreate.mock.invocationCallOrder) {
+    for (const call of enrollmentCreateMany.mock.invocationCallOrder) {
       expect(call).toBeGreaterThan(deleteOrder);
     }
   });
@@ -469,14 +473,14 @@ describe("applyRoster()", () => {
   it("명단 밖 계정이 붙들고 있는 (반, 번호)에 걸리면 NumberTakenError로 옮긴다", async () => {
     // 관리자로 승격된 계정의 그 학년도 배정은 managedStudentProfileIds 범위 밖이라
     // 위에서 안 지워진다 — 그 자리에 다른 학생을 넣으면 날것의 P2002가 올라갔다.
-    enrollmentCreate.mockRejectedValue(realWorldNumberP2002());
+    enrollmentCreateMany.mockRejectedValue(realWorldNumberP2002());
 
     await expect(applyRoster(2026, input())).rejects.toBeInstanceOf(NumberTakenError);
   });
 
   it("유일 제약과 무관한 오류는 삼키지 않는다", async () => {
     const boom = new Error("연결이 끊겼습니다");
-    enrollmentCreate.mockRejectedValue(boom);
+    enrollmentCreateMany.mockRejectedValue(boom);
 
     await expect(applyRoster(2026, input())).rejects.toBe(boom);
   });
@@ -492,8 +496,8 @@ describe("applyRoster()", () => {
     );
 
     expect(schoolClassUpsert).not.toHaveBeenCalled();
-    expect(enrollmentCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({ classId: null, number: null, status: "GRADUATED" }),
+    expect(enrollmentCreateMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ classId: null, number: null, status: "GRADUATED" })],
     });
   });
 });

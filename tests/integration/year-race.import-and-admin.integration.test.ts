@@ -4,6 +4,7 @@ import { Client } from "pg";
 import { prisma } from "@/core/db/client";
 import type { SessionUser } from "@/core/auth/session";
 import { updateUser } from "@/modules/admin-users/admin-user.service";
+import { saveEnrollments } from "@/modules/enrollment/enrollment.service";
 import {
   applyRosterPlan,
   createRosterFingerprint,
@@ -18,6 +19,8 @@ const ADMIN_RACE_FROM_YEAR = 8132;
 const ADMIN_RACE_TO_YEAR = 8133;
 const ROSTER_RACE_FROM_YEAR = 8134;
 const ROSTER_RACE_TO_YEAR = 8135;
+const SAVE_RACE_FROM_YEAR = 8136;
+const SAVE_RACE_TO_YEAR = 8137;
 
 const created = {
   userIds: [] as string[],
@@ -304,6 +307,67 @@ describe("현재 학년도 전환과 확정 저장 경합", () => {
           action: "enrollment:import",
           targetId: String(ROSTER_RACE_FROM_YEAR),
         },
+      }),
+    ).toBe(0);
+  });
+
+  /**
+   * 세 번째 쓰기 경로. 앞의 둘과 달리 이 경로는 학년도를 **잠그지 않고** 읽고
+   * 있었다 — Serializable로 감싸도 학년도를 바꾸는 쪽이 기본 격리수준이라
+   * 직렬화 검사가 돌지 않아, 둘 다 성공하고 저장이 지나간 학년도에 커밋됐다.
+   */
+  it("학생 표 저장은 전환이 먼저 커밋되면 구년도 Enrollment를 수정하지 않는다", async () => {
+    created.academicYears.push(SAVE_RACE_FROM_YEAR, SAVE_RACE_TO_YEAR);
+    const adminId = randomUUID();
+    await createAdmin(adminId);
+    const { studentProfileId } = await createStudent(SAVE_RACE_FROM_YEAR, "SAV");
+
+    const before = await prisma.enrollment.findUniqueOrThrow({
+      where: {
+        studentProfileId_year: { studentProfileId, year: SAVE_RACE_FROM_YEAR },
+      },
+      select: { updatedAt: true },
+    });
+
+    const switcher = await switchYearWhileHoldingLock(
+      SAVE_RACE_FROM_YEAR,
+      SAVE_RACE_TO_YEAR,
+    );
+    const save = saveEnrollments(
+      adminUser(adminId),
+      [
+        {
+          studentProfileId,
+          expectedUpdatedAt: before.updatedAt,
+          grade: 1,
+          classNo: 1,
+          number: 9,
+          status: "ENROLLED",
+        },
+      ],
+      SAVE_RACE_FROM_YEAR,
+    ).then(
+      () => null,
+      (error: unknown) => error,
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await switcher.commit();
+    expect(await save).toMatchObject({ message: "YEAR_MISMATCH" });
+    await switcher.cleanup();
+
+    // 번호가 그대로여야 한다. 잠금이 없으면 여기서 9가 나온다 — 오류 없이.
+    const enrollment = await prisma.enrollment.findUniqueOrThrow({
+      where: {
+        studentProfileId_year: { studentProfileId, year: SAVE_RACE_FROM_YEAR },
+      },
+      select: { number: true },
+    });
+    expect(enrollment.number).toBe(1);
+
+    expect(
+      await prisma.auditLog.count({
+        where: { actorUserId: adminId, action: "enrollment:update" },
       }),
     ).toBe(0);
   });

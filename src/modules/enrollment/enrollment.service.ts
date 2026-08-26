@@ -4,6 +4,7 @@ import type { SessionUser } from "@/core/auth/session";
 import { keepsAccountActive } from "@/core/authz/enrollment-status";
 import { assertCan } from "@/core/authz/errors";
 import { withTransaction } from "@/core/db/client";
+import { isSerializationConflict } from "@/core/db/transaction-conflict";
 import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
 import * as repo from "./enrollment.repo";
 import type { EnrollmentChange } from "./enrollment.schema";
@@ -62,7 +63,9 @@ export async function saveEnrollments(
       async (tx) => {
         // 학년도 대조, 현재값 읽기, 변경 계획, 쓰기와 감사로그를 한 Serializable
         // 트랜잭션에 둔다. 그래야 두 교사가 같은 행을 보고 모두 성공하지 않는다.
-        const year = await repo.findCurrentYear(tx);
+        // 잠그고 읽는다. 잠금 없이 읽으면 학년도를 바꾸는 트랜잭션과 서로를
+        // 못 보고 둘 다 성공해, 이 저장이 지나간 학년도에 커밋된다.
+        const year = await repo.findCurrentYearForUpdate(tx);
         if (year !== expectedYear) throw new EnrollmentError("YEAR_MISMATCH");
 
         const currentRows = await repo.listByYear(year, tx);
@@ -197,13 +200,17 @@ export async function saveEnrollments(
     if (error instanceof repo.NumberTakenError) {
       throw new EnrollmentError("NUMBER_TAKEN");
     }
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      error.code === "P2034"
-    ) {
-      throw new EnrollmentError("ENROLLMENT_CHANGED");
+    // 드라이버 어댑터를 거친 40001은 P2010 안에 싸여 온다 — 판정은 공용 헬퍼가
+    // 갖는다. 여기서 P2034만 보면 그 모양이 정체불명 실패로 새어 나간다.
+    //
+    // 무엇과 부딪쳤는지는 지금 학년도를 다시 읽어 가른다. 학년도 전환과 부딪친
+    // 것을 「다른 교사가 학생 정보를 바꿨습니다」라고 하면 틀린 말이고, 교사는
+    // 학생 표를 새로고침해 봐야 같은 자리에서 또 막힌다. updateUser와 같은 방식이다.
+    if (isSerializationConflict(error)) {
+      const currentYear = await repo.findCurrentYear();
+      throw new EnrollmentError(
+        currentYear === expectedYear ? "ENROLLMENT_CHANGED" : "YEAR_MISMATCH",
+      );
     }
     throw error;
   }

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionUser } from "@/core/auth/session";
 
 const listByYear = vi.fn();
+const findCurrentYearForUpdate = vi.fn();
 const findCurrentYear = vi.fn();
 const applyAll = vi.fn();
 const recordAudit = vi.fn();
@@ -12,6 +13,7 @@ class NumberTakenError extends Error {}
 
 vi.mock("@/modules/enrollment/enrollment.repo", () => ({
   NumberTakenError,
+  findCurrentYearForUpdate,
   findCurrentYear,
   listByYear,
   applyAll,
@@ -73,6 +75,7 @@ function save(actor: SessionUser, changes: Parameters<typeof saveEnrollments>[1]
 }
 
 beforeEach(() => {
+  findCurrentYearForUpdate.mockReset().mockResolvedValue(YEAR);
   findCurrentYear.mockReset().mockResolvedValue(YEAR);
   listByYear.mockReset().mockResolvedValue([current()]);
   applyAll.mockReset().mockResolvedValue(undefined);
@@ -120,6 +123,38 @@ describe("saveEnrollments()", () => {
 
     await expect(save(admin, [{ ...unchanged, number: 9 }])).rejects.toThrow(
       "ENROLLMENT_CHANGED",
+    );
+  });
+
+  /**
+   * 드라이버 어댑터를 거친 40001은 P2010 안에 싸여 온다. P2034만 보던 시절에는
+   * 이 모양이 그대로 위로 던져져 화면에 「저장하지 못했습니다」만 떴다.
+   */
+  it("어댑터가 P2010으로 싸서 준 40001도 같은 업무 충돌로 옮긴다", async () => {
+    withTransaction.mockRejectedValue(
+      Object.assign(new Error("adapter"), {
+        code: "P2010",
+        meta: { driverAdapterError: { cause: { originalCode: "40001" } } },
+      }),
+    );
+
+    await expect(save(admin, [{ ...unchanged, number: 9 }])).rejects.toThrow(
+      "ENROLLMENT_CHANGED",
+    );
+  });
+
+  /**
+   * 무엇과 부딪쳤는지로 문구가 갈린다. 학년도 전환과 부딪친 것을 「다른 교사가
+   * 학생 정보를 바꿨습니다」라고 하면 틀린 말이고, 새로고침해도 같은 자리에서 막힌다.
+   */
+  it("학년도 전환과 부딪친 충돌은 YEAR_MISMATCH로 옮긴다", async () => {
+    withTransaction.mockRejectedValue(Object.assign(new Error("write conflict"), {
+      code: "P2034",
+    }));
+    findCurrentYear.mockResolvedValue(YEAR + 1);
+
+    await expect(save(admin, [{ ...unchanged, number: 9 }])).rejects.toThrow(
+      "YEAR_MISMATCH",
     );
   });
 

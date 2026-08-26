@@ -7,8 +7,35 @@ import type { EnrollmentChange } from "./enrollment.schema";
 /** 기존 import 경로를 깨지 않기 위해 re-export한다. 실물은 core/db에 하나뿐이다. */
 export { NumberTakenError };
 
-/** 저장 트랜잭션 안에서 현재 학년도를 다시 대조하기 위한 가벼운 조회. */
+/** 트랜잭션 밖에서 쓰는 가벼운 조회. 쓰기 경로는 아래 ForUpdate 쪽을 쓴다. */
 export async function findCurrentYear(db: DbClient = prisma): Promise<number | null> {
+  const current = await db.academicYear.findFirst({
+    where: { isCurrent: true },
+    select: { year: true },
+  });
+  return current?.year ?? null;
+}
+
+/**
+ * 현재 학년도를 **잠그고** 읽는다. 쓰기 트랜잭션은 예외 없이 이쪽을 쓴다
+ * (merit·roster·admin-user·registration이 모두 같은 함수를 갖는다).
+ *
+ * Serializable로 감싸는 것만으로는 부족하다 — Postgres의 직렬화 검사는 양쪽이
+ * 다 SERIALIZABLE일 때만 도는데, 학년도를 바꾸는 `setCurrentYear`는 기본
+ * 격리수준으로 돈다. 잠금 없이 읽으면 두 트랜잭션이 서로를 못 보고 둘 다
+ * 성공해, 저장은 방금 지나간 학년도에 조용히 커밋된다.
+ *
+ * 전 행을 `year` 순서로 잠근다. isCurrent 행만 잡으면 "현재를 옮기는" 쪽과
+ * 잠그는 행이 어긋나 지나칠 수 있고, 순서를 고정해야 교착이 안 생긴다.
+ */
+export async function findCurrentYearForUpdate(db: DbClient): Promise<number | null> {
+  await db.$queryRaw<Array<{ year: number }>>`
+    SELECT "year"
+    FROM "AcademicYear"
+    ORDER BY "year"
+    FOR UPDATE
+  `;
+
   const current = await db.academicYear.findFirst({
     where: { isCurrent: true },
     select: { year: true },

@@ -218,22 +218,21 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
       classIdByKey.set(`${grade}-${classNo}`, cls.id);
     }
 
-    for (const row of input.assignments) {
-      const classId =
-        row.grade !== null && row.classNo !== null
-          ? (classIdByKey.get(`${row.grade}-${row.classNo}`) ?? null)
-          : null;
-
-      await tx.enrollment.create({
-        data: {
-          studentProfileId: row.studentProfileId!,
-          year,
-          classId,
-          number: row.number,
-          status: row.status!,
-        },
-      });
-    }
+    // 한 줄씩 넣지 않는다. 이 트랜잭션은 AcademicYear에 FOR UPDATE를 걸고 끝까지
+    // 쥐는데 상벌점 부여도 같은 잠금을 잡으므로, 왕복 수가 곧 전교의 부여가 멈춰
+    // 있는 시간이다. 300명이면 왕복 300번 → 1번. 돌려받는 id는 아무도 안 쓴다.
+    await tx.enrollment.createMany({
+      data: input.assignments.map((row) => ({
+        studentProfileId: row.studentProfileId!,
+        year,
+        classId:
+          row.grade !== null && row.classNo !== null
+            ? (classIdByKey.get(`${row.grade}-${row.classNo}`) ?? null)
+            : null,
+        number: row.number,
+        status: row.status!,
+      })),
+    });
 
     // 계정 상태를 학적에 맞춘다. statusChanged가 true인 학생만 건드린다.
     // 두 분기 모두 legacy deletedAt 표시를 지운다 — 명단에 줄이 있다는 것 자체가

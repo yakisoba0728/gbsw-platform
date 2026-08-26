@@ -244,21 +244,29 @@ export async function deleteUserPermanently(
 
   if (userId === actor.id) throw new AdminUserError("CANNOT_DELETE_SELF");
 
-  await withTransaction(async (tx) => {
-    const target = await repo.findById(userId, tx);
-    if (!target) throw new AdminUserError("NOT_FOUND");
-    if (target.role !== "STUDENT") throw new AdminUserError("DELETE_STUDENT_ONLY");
-    if (target.name !== confirmName) throw new AdminUserError("NAME_MISMATCH");
+  try {
+    await withTransaction(async (tx) => {
+      const target = await repo.findById(userId, tx);
+      if (!target) throw new AdminUserError("NOT_FOUND");
+      if (target.role !== "STUDENT") throw new AdminUserError("DELETE_STUDENT_ONLY");
+      if (target.name !== confirmName) throw new AdminUserError("NAME_MISMATCH");
 
-    const deleted = await repo.deletePermanently(userId, confirmName, tx);
-    if (!deleted) throw new AdminUserError("NAME_MISMATCH");
+      const deleted = await repo.deletePermanently(userId, confirmName, tx);
+      if (!deleted) throw new AdminUserError("NAME_MISMATCH");
 
-    await recordAudit({
-      actorUserId: actor.id,
-      action: "user:delete",
-      targetType: "User",
-      targetId: userId,
-      // 이름은 남기지 않는다 — 삭제된 사람의 개인정보가 감사로그에 남으면 안 된다.
-    }, tx);
-  }, { isolationLevel: "Serializable" });
+      await recordAudit({
+        actorUserId: actor.id,
+        action: "user:delete",
+        targetType: "User",
+        targetId: userId,
+        // 이름은 남기지 않는다 — 삭제된 사람의 개인정보가 감사로그에 남으면 안 된다.
+      }, tx);
+    }, { isolationLevel: "Serializable" });
+  } catch (error) {
+    // Serializable로 돌면서 충돌 판정이 없으면, 되돌릴 수 없는 삭제가 정체불명
+    // 실패로 끝난다 — 교사는 지워졌는지 아닌지 모른 채 다시 누르게 된다.
+    // updateUser와 같은 판정을 쓴다.
+    if (isSerializationConflict(error)) throw new AdminUserError("USER_CHANGED");
+    throw error;
+  }
 }
