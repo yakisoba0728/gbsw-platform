@@ -122,7 +122,9 @@ export function TeacherChart({ rows }: { rows: readonly TeacherChartRow[] }) {
                   ]}
                 />
                 {/* 축 라벨만 맨이름이다 — 폭이 76px로 고정이라 호칭을 붙이면
-                    이름이 잘린다. 말풍선과 aria-label은 호칭을 붙여 읽어 준다. */}
+                    이름이 잘린다. 말풍선과 aria-label은 호칭을 붙여 읽어 준다.
+                    그래서 TruncatedText도 달지 않는다: 이 줄을 덮는 Tooltip이
+                    이미 전문을 띄워 말풍선이 둘 뜨게 된다. */}
                 <span className="w-[76px] shrink-0 truncate text-xs font-medium text-ink">
                   {row.name}
                 </span>

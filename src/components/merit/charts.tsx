@@ -343,6 +343,9 @@ export function StudentNetChart({
                   },
                 ]}
               />
+              {/* TruncatedText를 달지 않는다 — 이 줄 전체를 덮는 Tooltip이 위에서
+                  이미 전문(`n번 이름`)을 띄운다. 겹쳐 달면 한 번 가리킬 때
+                  말풍선이 둘 뜬다. tests/components/ui/truncation.test.ts 참고. */}
               <span className="w-[92px] shrink-0 truncate text-xs font-medium text-ink">
                 {row.name}
                 <DemeritFlag thresholds={thresholds} demerit={row.demerit} />
@@ -429,6 +432,7 @@ export function CategoryChart({
                 { label: "합계", value: `${slice.points}점` },
               ]}
             />
+            {/* 위와 같다 — 분류 전문은 이 줄의 Tooltip 제목이 이미 띄운다. */}
             <span className="w-[132px] shrink-0 truncate text-xs text-ink">
               {slice.category}
             </span>

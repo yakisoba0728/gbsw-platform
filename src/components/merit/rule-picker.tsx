@@ -169,7 +169,9 @@ export function RulePicker({
         />
 
         {/* 닫혀 있고 고른 것이 있으면 종류·점수를 칸 위에 겹쳐 보인다.
-            pointer-events-none이라 누르면 그대로 아래 칸이 잡힌다. */}
+            pointer-events-none이라 누르면 그대로 아래 칸이 잡힌다.
+            그래서 TruncatedText를 달아도 마우스가 닿지 않는다 — 긴 항목의 전문은
+            칸을 눌러 목록을 열면 잘리지 않은 채로 선다. */}
         {!open && selected && (
           <div className="pointer-events-none absolute inset-0 flex items-center gap-2 rounded-field pr-9 pl-3">
             <KindBadge kind={selected.kind} />
