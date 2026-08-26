@@ -223,10 +223,15 @@ function importSummary(metadata: Record<string, unknown>): string | null {
   return filled.length > 0 ? filled.join(" · ") : null;
 }
 
-/** authz:denied — 어떤 권한 액션을 시도하다 막혔는지. */
+/**
+ * authz:denied — 어떤 일을 하려다 막혔는지. 저장된 값은 `merit:award` 같은
+ * 코드라 그대로 띄우면 교사가 읽을 수 없다. 이미 있는 라벨 표를 거쳐 보낸다 —
+ * 표에 없는 값(권한 액션과 감사로그 액션은 이름이 겹치지 않을 수 있다)은
+ * 지금까지처럼 원본 문자열로 떨어진다.
+ */
 function authzDeniedSummary(metadata: Record<string, unknown>): string | null {
   const action = metadata.action;
-  return typeof action === "string" ? `시도: ${action}` : null;
+  return typeof action === "string" ? `시도: ${auditActionLabel(action)}` : null;
 }
 
 /** 상벌점 기록의 공통 앞부분 — "김민준 · 기숙사 · 벌점 3점 · 점호 지각". */

@@ -78,7 +78,7 @@ export const ADMIN_NAV_ITEMS: NavItem[] = [
   },
   {
     href: "/admin/logs",
-    label: "로그",
+    label: "감사로그",
     icon: LogIcon,
     roles: ["ADMIN"],
   },

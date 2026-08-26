@@ -177,12 +177,14 @@ export default async function UserDetailPage({
                       )}
                     </div>
                     <p className="mt-0.5 text-xs text-mut">
+                      {/* 무엇을 했는지는 위의 배지가 말한다. 이 줄은 누구인지만 —
+                          「실행」을 붙이면 사람이 아니라 기계가 쓴 줄로 읽힌다. */}
                       {entry.actorUserId === user.id
-                        ? "본인이 실행"
-                        : `${honorificName(
+                        ? "본인"
+                        : honorificName(
                             entry.actorName,
                             isRole(entry.actor?.role) ? entry.actor.role : null,
-                          )} 실행`}
+                          )}
                       {formatAuditMetadata(entry.action, entry.metadata) && (
                         <span className="block">
                           {formatAuditMetadata(entry.action, entry.metadata)}

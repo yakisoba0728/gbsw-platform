@@ -190,7 +190,7 @@ export function ResetPasswordForm({ user }: { user: EditableUser }) {
     <form action={formAction}>
       <input type="hidden" name="userId" value={user.id} />
       <Button type="submit" variant="secondary" full disabled={pending}>
-        {pending ? "처리 중…" : "비밀번호 초기화"}
+        {pending ? "초기화 중…" : "비밀번호 초기화"}
       </Button>
 
       {state.error && <Note tone="error" className="mt-3">{state.error}</Note>}
@@ -225,7 +225,13 @@ export function ToggleActiveForm({ user }: { user: EditableUser }) {
         full
         disabled={pending || blocked}
       >
-        {pending ? "처리 중…" : user.active ? "계정 비활성화" : "계정 활성화"}
+        {pending
+          ? user.active
+            ? "비활성화 중…"
+            : "활성화 중…"
+          : user.active
+            ? "계정 비활성화"
+            : "계정 활성화"}
       </Button>
 
       {blocked && (
