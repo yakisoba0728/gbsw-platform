@@ -124,9 +124,21 @@ export function visibleChildren(item: NavItem, role: Role | null): NavChild[] {
   );
 }
 
+/**
+ * 메뉴에 없는 화면의 상단바 제목.
+ *
+ * 학생 상세(`/students/<id>`)는 상벌점·출입증·학생 정보를 한 자리에 모은 화면이라
+ * 어느 메뉴 한 줄에도 매달 수 없다 — 그렇다고 제목이 시스템 이름으로 떨어지면
+ * 그 화면만 이름 없는 화면이 된다. 메뉴가 아니므로 `NAV_ITEMS`에 넣지 않는다
+ * (넣으면 사이드바에 눌러도 404가 나는 줄이 생긴다).
+ */
+const EXTRA_TITLES: { href: string; label: string }[] = [
+  { href: "/students", label: "학생" },
+];
+
 /** 모든 메뉴(하위 포함)를 한 줄로 편다. 상단바 제목 찾기에 쓴다. */
 function flatten(): { href: string; label: string }[] {
-  const all: { href: string; label: string }[] = [];
+  const all: { href: string; label: string }[] = [...EXTRA_TITLES];
   for (const item of [...NAV_ITEMS, ...ADMIN_NAV_ITEMS]) {
     all.push({ href: item.href, label: item.label });
     for (const child of item.children ?? []) {

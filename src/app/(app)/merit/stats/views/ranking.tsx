@@ -107,7 +107,7 @@ export function RankingSkeleton({ scoped }: { scoped: boolean }) {
 function StudentLink({ row, track }: { row: RankedStudent; track: MeritTrack }) {
   return (
     <Link
-      href={`/merit/students/${row.studentProfileId}?track=${track}`}
+      href={`/students/${row.studentProfileId}?track=${track}`}
       className="inline-flex min-h-9 items-center font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink lg:min-h-0"
     >
       {row.name}

@@ -261,7 +261,7 @@ async function SearchResults({
   return (
     <StudentSearchResults
       rows={rows ?? []}
-      hrefFor={(row) => `/merit/students/${row.studentProfileId}?track=${track}`}
+      hrefFor={(row) => `/students/${row.studentProfileId}?track=${track}`}
     />
   );
 }

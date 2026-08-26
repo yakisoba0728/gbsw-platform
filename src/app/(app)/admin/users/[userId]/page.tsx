@@ -5,6 +5,7 @@ import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
 import { cardClass } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Field } from "@/components/ui/field";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { SectionCard } from "@/components/ui/section-card";
 import { requirePermission } from "@/core/auth/session";
@@ -126,7 +127,7 @@ export default async function UserDetailPage({
                       이 링크로만 갈 수 있다. */}
                   <Field label="상벌점">
                     <Link
-                      href={`/merit/students/${profile.id}`}
+                      href={`/students/${profile.id}`}
                       className="font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
                     >
                       내역 보기
@@ -257,21 +258,6 @@ export default async function UserDetailPage({
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <dt className="text-xs font-medium text-mut">{label}</dt>
-      <dd className="mt-0.5 text-ink">{children}</dd>
     </div>
   );
 }

@@ -116,7 +116,7 @@ export async function OverviewBody({
         <StudentNetChart
           rows={stats.students}
           thresholds={stats.thresholds}
-          hrefFor={(id) => `/merit/students/${id}?track=${track}`}
+          hrefFor={(id) => `/students/${id}?track=${track}`}
         />
       ) : (
         <ClassNetChart
@@ -198,7 +198,7 @@ function WatchList({
       card: "title",
       cell: (row) => (
         <Link
-          href={`/merit/students/${row.studentProfileId}?track=${track}`}
+          href={`/students/${row.studentProfileId}?track=${track}`}
           className="inline-flex min-h-9 items-center font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink lg:min-h-0"
         >
           {row.name}

@@ -222,7 +222,7 @@ function AwardLabelCell({ row }: { row: RecentRow }) {
 function StudentLink({ row, track }: { row: RecentRow; track: string }) {
   return (
     <Link
-      href={`/merit/students/${row.studentProfileId}?track=${track}`}
+      href={`/students/${row.studentProfileId}?track=${track}`}
       className={`inline-flex min-h-9 items-center font-medium underline decoration-line-strong underline-offset-2 hover:decoration-ink lg:min-h-0 ${
         row.status === "CANCELLED" ? "text-mut" : "text-ink"
       }`}

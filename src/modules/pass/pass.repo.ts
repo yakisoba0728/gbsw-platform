@@ -250,19 +250,34 @@ export type PassHistoryFilter = {
   status?: PassStatus;
   q?: string;
   studentNumber?: { grade: number; classNo: number; number: number };
-  /** 조회 창의 하한 (이상). 화면이 비워 두면 최근 30일이 들어온다. */
-  since: Date;
+  /** 한 학생으로 좁힌 조회. 학생 상세의 출입증 탭이 경로에서 받아 넘긴다. */
+  studentProfileId?: string;
+  /**
+   * 조회 창의 하한 (이상). 화면이 비워 두면 최근 30일이 들어온다.
+   * **undefined면 하한이 없다** — 한 학생의 누적을 보는 자리가 그렇다.
+   */
+  since?: Date;
   /** 상한 (미만). null이면 위쪽이 열려 있어 앞으로 잡힌 신청도 함께 나온다. */
   until: Date | null;
 };
 
 function historyWhere(filter: PassHistoryFilter, year: number): Prisma.PassWhereInput {
+  // 목록의 정렬키와 같은 열로 자른다. 「8월 20일에 나간 것」을 찾는 사람이
+  // 보는 날짜가 startAt이라, 여기만 endAt으로 자르면 화면과 조건이 어긋난다.
+  const startAt: Prisma.DateTimeFilter = {
+    ...(filter.since ? { gte: filter.since } : {}),
+    ...(filter.until ? { lt: filter.until } : {}),
+  };
+
   return {
     ...(filter.type ? { type: filter.type } : {}),
     ...(filter.status ? { status: filter.status } : {}),
-    // 목록의 정렬키와 같은 열로 자른다. 「8월 20일에 나간 것」을 찾는 사람이
-    // 보는 날짜가 startAt이라, 여기만 endAt으로 자르면 화면과 조건이 어긋난다.
-    startAt: { gte: filter.since, ...(filter.until ? { lt: filter.until } : {}) },
+    ...(filter.studentProfileId
+      ? { studentProfileId: filter.studentProfileId }
+      : {}),
+    // 양끝이 다 열려 있으면 조건 자체를 걸지 않는다 — 빈 객체를 넘기면 질의에
+    // 뜻 없는 절이 하나 남는다.
+    ...(filter.since || filter.until ? { startAt } : {}),
     ...(filter.q
       ? {
           OR: [
@@ -325,4 +340,21 @@ export async function listHistory(
   ]);
 
   return { entries, total };
+}
+
+/**
+ * 한 학생의 상태별 건수. **기간을 보지 않는다** — 학생 상세의 「누적」한 줄이라,
+ * 목록에 건 조회 창이나 상태 필터가 이 숫자를 흔들면 안 된다.
+ */
+export async function countStatusesForStudent(
+  studentProfileId: string,
+  db: DbClient = prisma,
+): Promise<{ status: string; count: number }[]> {
+  const rows = await db.pass.groupBy({
+    by: ["status"],
+    where: { studentProfileId },
+    _count: { _all: true },
+  });
+
+  return rows.map((row) => ({ status: row.status, count: row._count._all }));
 }

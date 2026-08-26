@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { recordAudit } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
 import { keepsAccountActive } from "@/core/authz/enrollment-status";
-import { assertCan } from "@/core/authz/errors";
+import { can, type Action } from "@/core/authz/can";
+import { assertCan, ForbiddenError } from "@/core/authz/errors";
 import { withTransaction } from "@/core/db/client";
 import { isSerializationConflict } from "@/core/db/transaction-conflict";
 import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
@@ -22,6 +23,78 @@ export class EnrollmentError extends Error {
 export async function listStudents(actor: SessionUser) {
   await assertCan(actor, "student:manage");
   return repo.listByYear(await getCurrentYear());
+}
+
+/**
+ * 학생 상세(`/students/<id>`)의 세 탭이 각자 다른 권한으로 열린다 — 상벌점은
+ * `merit:read:any`, 출입증은 `pass:read:any`, 학생 정보는 `student:manage`.
+ * 머리글은 그중 하나만 있어도 서야 한다: 이름·학급까지 막으면 볼 수 있는 탭이
+ * 있는데도 화면이 통째로 닫힌다.
+ */
+const STUDENT_VIEW_ACTIONS: Action[] = [
+  "merit:read:any",
+  "pass:read:any",
+  "student:manage",
+];
+
+/**
+ * 셋 중 하나라도 있으면 통과. `can()` 하나로는 못 가르는 거부라 `ForbiddenError`를
+ * 직접 던지고 거부 감사로그는 `assertCan`과 같은 방식으로 남긴다
+ * (`invite.service`의 `revokeInvite`와 같은 규약).
+ */
+async function assertCanViewStudent(actor: SessionUser): Promise<void> {
+  if (STUDENT_VIEW_ACTIONS.some((action) => can(actor, action))) return;
+
+  try {
+    await recordAudit({
+      actorUserId: actor.id,
+      actorName: actor.name,
+      action: "authz:denied",
+      targetType: "StudentProfile",
+      metadata: { action: "student:view" },
+    });
+  } catch {
+    // 감사 기록 실패가 거부 자체를 막지 않는다.
+  }
+  throw new ForbiddenError("student:view");
+}
+
+/**
+ * 학생 상세의 머리글 — 이름·학생코드·소속·학적. **생년월일과 이메일은 뺀다**:
+ * 그 둘은 「학생 정보」 탭의 내용이고 `student:manage`가 있어야 볼 수 있다.
+ */
+export async function getStudentIdentity(
+  actor: SessionUser,
+  studentProfileId: string,
+) {
+  await assertCanViewStudent(actor);
+
+  const detail = await repo.findStudentDetail(
+    studentProfileId,
+    await getCurrentYear(),
+  );
+  if (!detail) return null;
+
+  return {
+    studentProfileId: detail.studentProfileId,
+    studentCode: detail.studentCode,
+    name: detail.name,
+    role: detail.role,
+    grade: detail.grade,
+    classNo: detail.classNo,
+    number: detail.number,
+    status: detail.status,
+    removedAt: detail.removedAt,
+  };
+}
+
+/** 「학생 정보」 탭. 생년월일·이메일·계정까지 나가므로 `student:manage`로 막는다. */
+export async function getStudentProfile(
+  actor: SessionUser,
+  studentProfileId: string,
+) {
+  await assertCan(actor, "student:manage");
+  return repo.findStudentDetail(studentProfileId, await getCurrentYear());
 }
 
 /** 감사로그에 이름을 남길 항목들. 순서가 곧 표시 순서다. */

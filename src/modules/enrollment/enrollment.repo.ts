@@ -87,6 +87,57 @@ export async function listByYear(year: number, db: DbClient = prisma) {
   });
 }
 
+/**
+ * 학생 한 사람. 학급·번호·학적은 그 학년도 재적 기준이고, 명단에서 빠진 학생도
+ * 돌려준다 — `removedAt`이 그 날짜를 싣고 화면이 「삭제됨」을 알린다.
+ *
+ * 학생 상세 화면(`/students/<id>`)의 머리글과 「학생 정보」 탭이 함께 쓴다.
+ * 무엇을 내보낼지는 서비스가 권한에 따라 가른다.
+ */
+export async function findStudentDetail(
+  studentProfileId: string,
+  year: number,
+  db: DbClient = prisma,
+) {
+  const profile = await db.studentProfile.findUnique({
+    where: { id: studentProfileId },
+    select: {
+      id: true,
+      studentCode: true,
+      birthDate: true,
+      user: {
+        select: { id: true, name: true, email: true, role: true, deletedAt: true },
+      },
+      enrollments: {
+        where: { year },
+        take: 1,
+        select: {
+          number: true,
+          status: true,
+          schoolClass: { select: { grade: true, classNo: true } },
+        },
+      },
+    },
+  });
+  if (!profile) return null;
+
+  const enrollment = profile.enrollments[0];
+  return {
+    studentProfileId: profile.id,
+    userId: profile.user.id,
+    studentCode: profile.studentCode,
+    name: profile.user.name,
+    email: profile.user.email,
+    role: profile.user.role,
+    birthDate: profile.birthDate,
+    grade: enrollment?.schoolClass?.grade ?? null,
+    classNo: enrollment?.schoolClass?.classNo ?? null,
+    number: enrollment?.number ?? null,
+    status: enrollment?.status ?? null,
+    removedAt: profile.user.deletedAt,
+  };
+}
+
 /** applyAll에 넘기는 한 학생분의 반영 내용. 검증·정리는 서비스가 이미 끝낸 상태다. */
 export type PlannedEnrollment = Omit<EnrollmentChange, "expectedUpdatedAt"> & {
   userId: string;

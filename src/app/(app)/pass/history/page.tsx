@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Form from "next/form";
 import Link from "next/link";
 import { Suspense } from "react";
+import { PassDetailCell } from "@/components/pass/pass-detail-cell";
 import { Badge } from "@/components/ui/badge";
 import { BackLink } from "@/components/ui/back-link";
 import { Button } from "@/components/ui/button";
@@ -15,7 +16,6 @@ import { SearchForm } from "@/components/ui/search-form";
 import { SectionCard } from "@/components/ui/section-card";
 import { Skeleton, SkeletonRows } from "@/components/ui/skeleton";
 import { DataTable, type Column } from "@/components/ui/table";
-import { TruncatedText } from "@/components/ui/truncated-text";
 import { requirePermission } from "@/core/auth/session";
 import {
   PASS_STATUS_LABELS,
@@ -197,44 +197,6 @@ function StudentLink({ row }: { row: HistoryRow }) {
   );
 }
 
-/**
- * 행선지 · 사유 · 반려/취소 사유 — **각각 제 줄에 선다.** 한 줄로 이어 붙이면
- * 잘린 자리가 어디까지 행선지고 어디부터 사유인지 알 수 없다 (최근 부여에서
- * 같은 실수를 한 번 했다).
- */
-function DetailCell({ row }: { row: HistoryRow }) {
-  return (
-    <div className="min-w-0">
-      <TruncatedText full={row.destination} className="text-caption text-ink">
-        {row.destination}
-      </TruncatedText>
-
-      <TruncatedText full={`사유 · ${row.reason}`} className="mt-0.5 text-xs text-mut2">
-        <span className="text-mut">사유</span> · {row.reason}
-      </TruncatedText>
-
-      {row.decisionNote && (
-        <TruncatedText
-          full={`반려 사유 · ${row.decisionNote}`}
-          className="mt-0.5 text-xs text-mut2"
-        >
-          {/* 라벨만 반려 계열로 — 이 줄이 「막힌 건」이라는 표시다. */}
-          <span className="text-rose">반려 사유</span> · {row.decisionNote}
-        </TruncatedText>
-      )}
-
-      {row.cancelReason && (
-        <TruncatedText
-          full={`취소 사유 · ${row.cancelReason}`}
-          className="mt-0.5 text-xs text-mut2"
-        >
-          <span className="text-rose">취소 사유</span> · {row.cancelReason}
-        </TruncatedText>
-      )}
-    </div>
-  );
-}
-
 const COLUMNS: readonly Column<HistoryRow>[] = [
   {
     key: "type",
@@ -298,7 +260,7 @@ const COLUMNS: readonly Column<HistoryRow>[] = [
     // 이 칸은 행선지만 담지 않는다 — 사유와 반려·취소 사유가 아래에 이어 선다.
     header: "행선지 · 사유",
     card: "title",
-    cell: (row) => <DetailCell row={row} />,
+    cell: (row) => <PassDetailCell pass={row} />,
   },
   {
     key: "decided",

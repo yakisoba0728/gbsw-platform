@@ -108,6 +108,9 @@ export async function awardAction(
     return toState(error, note);
   }
 
+  // 학생 상세는 `/students/<id>`로 옮겼고 옛 주소는 308 리다이렉트로 남아 있다.
+  // 리다이렉트도 캐시되므로 둘 다 무르지 않으면 한쪽이 옛 화면을 계속 낸다.
+  revalidatePath(`/students/${parsed.data.studentProfileId}`);
   revalidatePath(`/merit/students/${parsed.data.studentProfileId}`);
   return { error: null, ok: true, count: 1 };
 }
@@ -160,7 +163,11 @@ export async function cancelAction(
 
   // 어느 학생인지는 폼이 함께 보낸다 — 취소 후 그 학생 화면을 다시 그린다.
   const studentProfileId = String(formData.get("studentProfileId") ?? "");
-  if (studentProfileId) revalidatePath(`/merit/students/${studentProfileId}`);
+  if (studentProfileId) {
+    // 옛 주소(308 리다이렉트)까지 함께 무른다 — awardAction과 같은 이유.
+    revalidatePath(`/students/${studentProfileId}`);
+    revalidatePath(`/merit/students/${studentProfileId}`);
+  }
   // 최근 부여의 상태 필터·건수도 즉시 바뀌어야 한다.
   revalidatePath("/merit/recent");
   return { error: null, ok: true, count: null };

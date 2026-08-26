@@ -22,7 +22,7 @@ export function YearPicker({
   years: number[];
   selected: number | null;
   params: Params;
-  /** 학생 상세(`/merit/students/<id>`)에서도 쓰므로 경로를 받는다. */
+  /** 학생 상세(`/students/<id>`)에서도 쓰므로 경로를 받는다. */
   basePath?: string;
 }) {
   if (years.length === 0) return null;

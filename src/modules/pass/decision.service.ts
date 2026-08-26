@@ -3,6 +3,8 @@ import type { SessionUser } from "@/core/auth/session";
 import { assertCan } from "@/core/authz/errors";
 import {
   DECIDABLE_STATUSES,
+  isPassStatus,
+  PASS_STATUSES,
   requiresConsent,
   type PassStatus,
 } from "@/core/authz/pass-type";
@@ -273,7 +275,7 @@ export async function listStudentsForIssue(actor: SessionUser) {
  * 학번 대조에 쓸 학년도는 repo를 부를 때 함께 넘긴다.
  */
 function historyFilter(
-  query: PassHistoryExportInput,
+  query: PassHistoryExportInput & { studentProfileId?: string },
   range: { since: Date; until: Date | null },
 ): PassHistoryFilter {
   return {
@@ -283,7 +285,12 @@ function historyFilter(
     // 4자리 숫자면 학번으로도 읽는다. 아니면 undefined가 되어 이름만 본다 —
     // 어느 쪽이든 한 번의 질의로 끝난다 (merit의 searchStudents와 같은 규칙).
     studentNumber: query.q ? (parseStudentNumber(query.q) ?? undefined) : undefined,
-    since: range.since,
+    studentProfileId: query.studentProfileId,
+    // **한 학생으로 좁혔고 시작일을 안 골랐으면 하한을 걷는다.** 기본 30일 창은
+    // 전교를 훑지 않으려는 장치이지 한 사람의 누적을 자르라는 규칙이 아니다 —
+    // 그대로 두면 학생 상세의 출입증 탭이 9월에 나간 기록을 12월에 못 보여준다.
+    // 사람이 고른 시작일은 좁힌 조회에서도 그대로 지킨다.
+    since: query.studentProfileId && !query.from ? undefined : range.since,
     until: range.until,
   };
 }
@@ -307,6 +314,30 @@ export async function listPassHistory(actor: SessionUser, query: PassHistoryQuer
     page: query.page,
     pageCount: Math.max(1, Math.ceil(total / PASS_HISTORY_PAGE_SIZE)),
   };
+}
+
+/**
+ * 한 학생의 상태별 건수. 학생 상세의 출입증 탭이 목록 위에 세우는 줄이다 —
+ * 목록은 상태 필터와 쪽에 따라 바뀌지만 이 숫자는 언제나 누적 전체를 답한다.
+ */
+export async function countStudentPasses(
+  actor: SessionUser,
+  studentProfileId: string,
+): Promise<{ byStatus: Record<PassStatus, number>; total: number }> {
+  await assertCan(actor, "pass:read:any");
+
+  const byStatus = Object.fromEntries(
+    PASS_STATUSES.map((status) => [status, 0]),
+  ) as Record<PassStatus, number>;
+
+  let total = 0;
+  for (const row of await repo.countStatusesForStudent(studentProfileId)) {
+    total += row.count;
+    // 모르는 상태는 합계에만 든다 — 없는 칸을 만들지 않는다.
+    if (isPassStatus(row.status)) byStatus[row.status] = row.count;
+  }
+
+  return { byStatus, total };
 }
 
 /**

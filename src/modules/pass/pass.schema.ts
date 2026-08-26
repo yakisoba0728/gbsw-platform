@@ -169,20 +169,34 @@ const historyDate = z.preprocess(
   z.string().trim().refine(isCanonicalDateInput, "날짜를 골라 주세요.").optional(),
 );
 
-/** URL에 실리는 전체 내역 필터와 페이지. 잘못된 값은 화면 경계에서 기본값으로 되돌린다. */
+/**
+ * URL에 실리는 전체 내역 필터와 페이지. 잘못된 값은 화면 경계에서 기본값으로 되돌린다.
+ *
+ * `studentProfileId`는 주소창이 아니라 경로에서 온다 — 학생 상세의 출입증 탭
+ * (`/students/<id>?tab=pass`)이 이 조회를 한 사람으로 좁혀 쓴다. 좁힌 조회에는
+ * 기본 30일 창이 걸리지 않는다(`decision.service`의 `historyFilter`).
+ */
 export const passHistoryQuerySchema = z.object({
   type: z.enum(PASS_TYPES).optional(),
   status: z.enum(PASS_STATUSES).optional(),
   q: passHistorySearch,
   from: historyDate,
   to: historyDate,
+  studentProfileId: id.optional(),
   page: z.coerce.number().int().min(1).max(1000).default(1),
 });
 
 export type PassHistoryQuery = z.infer<typeof passHistoryQuerySchema>;
 
-/** 내보내기는 현재 페이지가 아니라 같은 조건의 전체 결과를 대상으로 한다. */
-export const passHistoryExportSchema = passHistoryQuerySchema.omit({ page: true });
+/**
+ * 내보내기는 현재 페이지가 아니라 같은 조건의 전체 결과를 대상으로 한다.
+ * 학생 좁히기도 뺀다 — 시트 첫 줄에 적는 조회 창(`passHistoryRange`)이 30일인데
+ * 실제 질의만 열려 있으면, 파일에 적힌 기간과 파일에 든 기록이 어긋난다.
+ */
+export const passHistoryExportSchema = passHistoryQuerySchema.omit({
+  page: true,
+  studentProfileId: true,
+});
 export type PassHistoryExportInput = z.infer<typeof passHistoryExportSchema>;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
