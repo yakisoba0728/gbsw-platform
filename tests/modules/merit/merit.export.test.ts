@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  HISTORY_SHEET_WIDTHS,
+  HISTORY_SHEET_WRAP,
+  RECENT_SHEET_WIDTHS,
+  RECENT_SHEET_WRAP,
+  ROSTER_SHEET_WIDTHS,
   toHistorySheet,
   toRecentAwardsSheet,
   toRosterSheet,
@@ -94,10 +99,22 @@ describe("toHistorySheet", () => {
     ]);
   });
 
-  it("발생일과 입력일을 둘 다 낸다", () => {
+  it("발생일과 입력일을 둘 다 낸다 — 글자순이 곧 날짜순인 형태로", () => {
     const sheet = toHistorySheet(awards, { track: "SCHOOL", studentName: "김민준" });
-    expect(sheet[2][1]).toBe("2026. 6. 12.");
-    expect(sheet[2][2]).toBe("2026. 6. 15.");
+    expect(sheet[2][1]).toBe("2026-06-12");
+    expect(sheet[2][2]).toBe("2026-06-15");
+  });
+
+  it("벌점은 음수로 낸다 — 열을 그대로 더할 수 있어야 한다", () => {
+    const sheet = toHistorySheet(awards, { track: "SCHOOL", studentName: "김민준" });
+    expect(sheet[2][5]).toBe(5); // 상점
+    expect(sheet[3][5]).toBe(-3); // 벌점
+  });
+
+  it("모르는 종류는 점수를 그대로 둔다 — 0으로 접으면 그 줄이 사라진다", () => {
+    const odd = [{ ...awards[0]!, kind: "MYSTERY", points: 7 }];
+    const sheet = toHistorySheet(odd, { track: "SCHOOL", studentName: "김민준" });
+    expect(sheet[2][5]).toBe(7);
   });
 
   it("상점·벌점을 한글로 옮긴다", () => {
@@ -156,6 +173,15 @@ describe("toRecentAwardsSheet", () => {
     expect(sheet[1]).toContain("취소 사유");
   });
 
+  it("벌점은 음수, 시각은 글자순이 곧 시각순인 형태다", () => {
+    const sheet = toRecentAwardsSheet(awards, { track: "DORM" });
+
+    expect(sheet[2][1]).toBe("2026-08-19 10:00:00"); // 입력 시각 (KST)
+    expect(sheet[2][2]).toBe("2026-08-19"); // 발생일 (KST 자정)
+    expect(sheet[2][6]).toBe(-3);
+    expect(sheet[2][11]).toBe("2026-08-19 12:00:00"); // 취소 시각
+  });
+
   it("학생·메모·취소 정보를 빠뜨리지 않는다", () => {
     const sheet = toRecentAwardsSheet(awards, { track: "DORM" });
 
@@ -163,5 +189,28 @@ describe("toRecentAwardsSheet", () => {
     expect(sheet[2]).toContain("22시 점호");
     expect(sheet[2]).toContain("박서연");
     expect(sheet[2]).toContain("오기입");
+  });
+});
+
+describe("열 너비표", () => {
+  /**
+   * 너비를 빠뜨린 열은 엑셀 기본 너비(8.43자)로 열려 한글이 옆 칸을 덮어쓴다.
+   * 머리글이 늘었는데 표를 안 고치면 여기서 먼저 깨진다.
+   */
+  it.each([
+    ["반별 목록", ROSTER_SHEET_WIDTHS, toRosterSheet([], { track: "SCHOOL", year: 2026, grade: 1, classNo: 1 })],
+    ["학생 내역", HISTORY_SHEET_WIDTHS, toHistorySheet([], { track: "SCHOOL", studentName: "김민준" })],
+    ["최근 부여", RECENT_SHEET_WIDTHS, toRecentAwardsSheet([], { track: "SCHOOL" })],
+  ])("%s의 너비 수가 머리글 수와 같다", (_name, widths, sheet) => {
+    expect(widths).toHaveLength(sheet[1]!.length);
+    expect(widths.every((w) => w > 0)).toBe(true);
+  });
+
+  /** 접을 열을 잘못 짚으면 엉뚱한 열이 두 줄이 된다 — 「항목」을 가리키는지 본다. */
+  it("접는 열은 두 시트 모두 「항목」이다", () => {
+    const history = toHistorySheet([], { track: "SCHOOL", studentName: "김민준" });
+    const recent = toRecentAwardsSheet([], { track: "SCHOOL" });
+    expect(HISTORY_SHEET_WRAP.map((i) => history[1]![i])).toEqual(["항목"]);
+    expect(RECENT_SHEET_WRAP.map((i) => recent[1]![i])).toEqual(["항목"]);
   });
 });

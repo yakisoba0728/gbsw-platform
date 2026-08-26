@@ -4,6 +4,14 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Note } from "@/components/ui/note";
 import type { MeritTrack } from "@/core/authz/merit-track";
+import { toStyledSheetData } from "@/lib/xlsx-sheet";
+import {
+  HISTORY_SHEET_WIDTHS,
+  HISTORY_SHEET_WRAP,
+  RECENT_SHEET_WIDTHS,
+  RECENT_SHEET_WRAP,
+  ROSTER_SHEET_WIDTHS,
+} from "@/modules/merit/merit.export";
 import type { RecentAwardsExportInput } from "@/modules/merit/merit.schema";
 import {
   exportClassRosterAction,
@@ -17,8 +25,22 @@ type SheetResult = {
   filename: string;
 };
 
-/** 서버가 돌려준 행렬을 xlsx로 저장한다. 반별 목록과 학생 내역이 공유한다. */
-function useSheetDownload(fetchSheet: () => Promise<SheetResult>) {
+/**
+ * 서버가 돌려준 행렬을 xlsx로 저장한다. 세 내보내기가 공유한다.
+ *
+ * 서버 액션은 값만 넘길 수 있어 셀 서식(`type: String` 같은 생성자)을 실어 보내지
+ * 못한다 — 그래서 행렬만 받아 여기서 서식을 입힌다. 명단 내보내기
+ * (`admin/students/import`)도 같은 방식이다.
+ *
+ * `widths`를 빠뜨리면 엑셀 기본 너비로 열려 한글이 옆 칸을 덮어쓴다. 첫 줄은
+ * 조회 범위라 머리글은 둘째 줄이고(titleRowCount), 점수는 더할 수 있어야 하므로
+ * 수 셀로 남긴다(keepNumbers).
+ */
+function useSheetDownload(
+  fetchSheet: () => Promise<SheetResult>,
+  widths: number[],
+  wrapColumns: number[] = [],
+) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -33,7 +55,16 @@ function useSheetDownload(fetchSheet: () => Promise<SheetResult>) {
       // 브라우저 전용 진입점이라 동적 import로 가져온다 — 서버 번들에 들어가면 터진다.
       // 이 버전(4.1.1)은 fileName 옵션을 받지 않는다. 반환값의 .toFile()이 저장을 맡는다.
       const { default: writeXlsxFile } = await import("write-excel-file/browser");
-      await writeXlsxFile(result.rows).toFile(result.filename);
+      const sheetData = toStyledSheetData(result.rows, {
+        titleRowCount: 1,
+        keepNumbers: true,
+        wrapColumns,
+      });
+      await writeXlsxFile(sheetData, {
+        columns: widths.map((width) => ({ width })),
+        // 제목 줄 + 머리글 줄. 스크롤해도 어느 열인지 보인다.
+        stickyRowsCount: 2,
+      }).toFile(result.filename);
     });
   }
 
@@ -73,8 +104,9 @@ export function ExportButton(props: {
   track: MeritTrack;
   year?: number;
 }) {
-  const { pending, error, download } = useSheetDownload(() =>
-    exportClassRosterAction(props),
+  const { pending, error, download } = useSheetDownload(
+    () => exportClassRosterAction(props),
+    ROSTER_SHEET_WIDTHS,
   );
 
   return (
@@ -93,8 +125,10 @@ export function ExportHistoryButton(props: {
   track: MeritTrack;
   year?: number;
 }) {
-  const { pending, error, download } = useSheetDownload(() =>
-    exportStudentHistoryAction(props),
+  const { pending, error, download } = useSheetDownload(
+    () => exportStudentHistoryAction(props),
+    HISTORY_SHEET_WIDTHS,
+    HISTORY_SHEET_WRAP,
   );
 
   return (
@@ -109,8 +143,10 @@ export function ExportHistoryButton(props: {
 
 /** 최근 부여의 현재 필터 전체를 내려받는다. 페이지 번호는 일부러 받지 않는다. */
 export function ExportRecentAwardsButton(props: RecentAwardsExportInput) {
-  const { pending, error, download } = useSheetDownload(() =>
-    exportRecentAwardsAction(props),
+  const { pending, error, download } = useSheetDownload(
+    () => exportRecentAwardsAction(props),
+    RECENT_SHEET_WIDTHS,
+    RECENT_SHEET_WRAP,
   );
 
   return (

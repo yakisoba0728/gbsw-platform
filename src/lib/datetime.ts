@@ -78,8 +78,24 @@ export function formatKstDay(value: Date): string {
   return dayLabel.format(value);
 }
 
+const sheetDateTime = new Intl.DateTimeFormat("sv-SE", {
+  dateStyle: "short",
+  timeStyle: "medium",
+  timeZone: KST,
+});
+
 /**
- * `<input type="date">`에 넣을 `YYYY-MM-DD`.
+ * 2026-08-26 09:03:41 — 엑셀 시트용. 시트는 정렬해 보라고 내보내는 것인데
+ * 화면용 `formatDateTime`(26. 8. 26. 오전 9:03:41)을 그대로 적으면 글자로 정렬돼
+ * 12월이 8월보다 앞에 선다. 이 형태는 글자순이 곧 시각순이다.
+ */
+export function formatDateTimeSheet(value: Date): string {
+  return sheetDateTime.format(value);
+}
+
+/**
+ * `<input type="date">`에 넣을 `YYYY-MM-DD`. 엑셀 시트의 날짜 열도 이것을 쓴다 —
+ * 같은 이유로 글자순이 곧 날짜순이어야 한다.
  * 생년월일은 KST 기준 날짜여야 한다 — UTC로 자르면 하루 밀린다.
  */
 export function formatDateInput(value: Date): string {

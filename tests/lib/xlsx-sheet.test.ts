@@ -43,4 +43,36 @@ describe("toStyledSheetData()", () => {
   it("행이 없으면 빈 SheetData를 돌려준다", () => {
     expect(toStyledSheetData([])).toEqual([]);
   });
+
+  it("제목 줄이 있으면 머리글 띠는 그 다음 줄에 간다", () => {
+    const [title, header, row] = toStyledSheetData(
+      [["2026학년도 · 교내"], ["이름", "점수"], ["김민준", 5]],
+      { titleRowCount: 1 },
+    );
+    // 제목은 굵게만 — 배경까지 주면 머리글 띠가 둘로 보인다.
+    expect(title).toEqual([
+      { value: "2026학년도 · 교내", type: String, fontWeight: "bold" },
+    ]);
+    expect(header?.[0]).toMatchObject({ value: "이름", backgroundColor: "#dfdfdf" });
+    expect(row?.[0]).toMatchObject({ value: "김민준" });
+  });
+
+  it("keepNumbers면 수를 수 셀로 낸다 — 열을 더할 수 있어야 한다", () => {
+    const [, row] = toStyledSheetData([["점수"], [-3]], { keepNumbers: true });
+    expect(row?.[0]).toEqual({ value: -3, type: Number });
+  });
+
+  it("keepNumbers가 없으면 지금까지처럼 글자로 낸다", () => {
+    const [, row] = toStyledSheetData([["번호"], [7]]);
+    expect(row?.[0]).toEqual({ value: "7", type: String });
+  });
+
+  it("wrapColumns로 지정한 열만 접는다", () => {
+    const [, row] = toStyledSheetData(
+      [["항목", "점수"], ["아주 긴 규정 이름", "2"]],
+      { wrapColumns: [0] },
+    );
+    expect(row?.[0]).toMatchObject({ wrap: true, alignVertical: "top" });
+    expect(row?.[1]).not.toHaveProperty("wrap");
+  });
 });
