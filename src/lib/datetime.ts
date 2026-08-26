@@ -48,6 +48,27 @@ export function formatTimeShort(value: Date): string {
   return timeShort.format(value);
 }
 
+const clock = new Intl.DateTimeFormat("ko-KR", {
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: true,
+  timeZone: KST,
+});
+
+/**
+ * 오후 05:17:23 — 1초마다 다시 그리는 시계용(상단바).
+ *
+ * `timeStyle: "medium"`(오후 5:17:23)을 쓰지 않고 `hour: "2-digit"`을 직접 주는
+ * 것이 이 포맷터의 전부다. 시가 9→10, 12→1로 넘어갈 때 글자 수가 바뀌면 그때마다
+ * 옆에 선 이름과 로그아웃 단추가 한 글자만큼 밀린다 — 가만히 있어야 할 줄이
+ * 하루에 네 번 흔들린다. 자릿수를 고정하면 문자열 폭이 종일 같다.
+ * (초·분 자리가 바뀔 때의 폭은 화면 쪽 `tabular-nums`가 맡는다.)
+ */
+export function formatClock(value: Date): string {
+  return clock.format(value);
+}
+
 const monthDayTime = new Intl.DateTimeFormat("ko-KR", {
   month: "numeric",
   day: "numeric",
@@ -170,8 +191,9 @@ export function formatTimeInput(value: Date): string {
 }
 
 /**
- * 그 KST 날짜의 **끝** = 다음 날 자정. 외박의 endAt이 이 눈금이다
- * (종료일 하루를 통째로 포함해야 그날 아침 복귀까지 유효하다).
+ * 그 KST 날짜의 **끝** = 다음 날 자정. **조회 창의 열린 상한**을 만드는 데 쓴다
+ * (`pass.schema.ts`의 `passHistoryRange`) — 「8월 26일까지」로 고른 사람은 그날을
+ * 통째로 보겠다는 뜻이라 상한은 다음 날 자정 **미만**이 된다.
  * 한국은 서머타임이 없어 24시간이 정확하다.
  */
 export function kstNextDayStart(dateInput: string): Date {
