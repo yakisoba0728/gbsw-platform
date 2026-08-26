@@ -1,4 +1,9 @@
 import type { BadgeTone } from "@/components/ui/badge";
+import {
+  formatDateTimeShort,
+  formatMonthDay,
+  formatTimeShort,
+} from "@/lib/datetime";
 import type { PassStatus } from "@/core/authz/pass-type";
 import type { Verdict } from "./verify.service";
 
@@ -46,3 +51,32 @@ export const VERDICT_TONES: Record<Verdict, BadgeTone> = {
   STALE: "pending",
   UNKNOWN: "rejected",
 };
+
+/**
+ * 화면에 적을 마지막 순간. **외박의 `endAt`은 종료일 다음 날 자정이라** 그대로
+ * 그리면 「오전 12:00」이 되고 날짜도 하루 밀린다. 1밀리초를 빼서 그 전날로 되돌린다.
+ */
+function lastMomentOf(pass: { endAt: Date }): Date {
+  return new Date(pass.endAt.getTime() - 1);
+}
+
+/**
+ * 유효 창 한 줄. 외출은 시각이 알맹이라 시각을, 외박은 그날 밤을 통째로 쓰므로
+ * 날짜를 적는다.
+ *
+ * **`(app)` 밖의 판독 화면도 이 규칙을 쓴다** — 화면마다 손으로 그리면 한 곳이
+ * 하루 밀린 채 굳는다(실제로 그랬다).
+ */
+export function passPeriod(pass: { type: string; startAt: Date; endAt: Date }): string {
+  if (pass.type === "OVERNIGHT") {
+    return `${formatMonthDay(pass.startAt)} ~ ${formatMonthDay(lastMomentOf(pass))}`;
+  }
+  return `${formatDateTimeShort(pass.startAt)} ~ ${formatDateTimeShort(pass.endAt)}`;
+}
+
+/** 「언제까지인가」 한 조각. `passPeriod`와 같은 눈금이다. */
+export function passEndLabel(pass: { type: string; endAt: Date }): string {
+  return pass.type === "OVERNIGHT"
+    ? formatMonthDay(lastMomentOf(pass))
+    : formatTimeShort(pass.endAt);
+}

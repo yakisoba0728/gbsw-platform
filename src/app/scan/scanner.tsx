@@ -94,7 +94,9 @@ export function Scanner({ origin }: { origin: string }) {
 
   return (
     <div className="space-y-4">
-      {supported && (
+      {/* 카메라를 못 열면 상자를 걷는다 — 남겨 두면 오류 배너 위에 검은 사각형이
+          그대로 서서, 잠깐 로딩 중인 것처럼 읽힌다. */}
+      {supported && !cameraError && (
         <div className="overflow-hidden rounded-card border border-line bg-ink">
           {/* muted·playsInline이 없으면 iOS가 전체화면으로 띄운다. */}
           <video

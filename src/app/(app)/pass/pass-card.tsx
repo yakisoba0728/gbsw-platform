@@ -7,12 +7,15 @@ import {
   PASS_TYPE_LABELS,
 } from "@/core/authz/pass-type";
 import {
-  formatDateTimeShort,
-  formatMonthDay,
-  formatTimeShort,
-} from "@/lib/datetime";
-import { PASS_STATUS_TONES } from "@/modules/pass/pass.labels";
+  passEndLabel,
+  passPeriod,
+  PASS_STATUS_TONES,
+} from "@/modules/pass/pass.labels";
 import type { PassWithStudent } from "@/modules/pass/pass.repo";
+
+// 화면 셋이 이 파일에서 가져다 쓰던 것이라 그대로 다시 내보낸다. 규칙 자체는
+// pass.labels가 소유한다 — (app) 밖의 판독 화면도 같은 눈금을 써야 해서다.
+export { passEndLabel, passPeriod };
 
 /** 세 역할 화면이 함께 쓰는 한 장. 손대는 버튼은 호출부가 children으로 넣는다. */
 export function PassCard({
@@ -72,27 +75,3 @@ export function PassCard({
  * 이므로 화면에는 하루를 빼서 적어야 한다 — 안 그러면 8/29까지 신청한 학생이
  * 8/30까지로 읽는다.
  */
-export function passPeriod(pass: { type: string; startAt: Date; endAt: Date }): string {
-  if (pass.type === "OVERNIGHT") {
-    return `${formatMonthDay(pass.startAt)} ~ ${formatMonthDay(lastDayOf(pass))}`;
-  }
-  return `${formatDateTimeShort(pass.startAt)} ~ ${formatDateTimeShort(pass.endAt)}`;
-}
-
-/**
- * 화면에 적을 마지막 순간. 외박의 `endAt`은 종료일 **다음 날** 자정이라
- * 그대로 그리면 「오전 12:00」이 되고 날짜도 하루 밀린다.
- */
-function lastDayOf(pass: { endAt: Date }): Date {
-  return new Date(pass.endAt.getTime() - 1);
-}
-
-/**
- * 「언제까지인가」 한 조각. 외출은 시각이 알맹이라 시각을, 외박은 그날 밤을
- * 통째로 쓰므로 날짜를 적는다 — `passPeriod`와 같은 눈금을 쓴다.
- */
-export function passEndLabel(pass: { type: string; endAt: Date }): string {
-  return pass.type === "OVERNIGHT"
-    ? formatMonthDay(lastDayOf(pass))
-    : formatTimeShort(pass.endAt);
-}
