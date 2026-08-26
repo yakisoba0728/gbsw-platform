@@ -4,11 +4,11 @@
 
 경북소프트웨어마이스터고등학교 통합관리시스템. 자체 호스팅, 초대 기반 계정, 역할 기반 접근제어.
 
-**현재 상태:** 인증·권한·감사로그·앱 셸에 더해 **학년도·명단·상벌점**까지 있다.
-상벌점이 첫 업무 모듈이다. 새 모듈의 본보기는 둘로 나뉜다 — **파일 구성과 계층 경계는
-`src/modules/account/`**(schema·repo·service 셋), **권한·오류 코드·서비스 분할까지 갖춘
-업무 모듈의 모습은 `src/modules/merit/`**(repo는 하나, 서비스는 책임별로 나눈다).
-자세한 것은 아래 「폴더 구조」에 적었다.
+**현재 상태:** 인증·권한·감사로그·앱 셸에 더해 **학년도·명단·상벌점·전자출입증**까지 있다.
+상벌점이 첫 업무 모듈이고, 전자출입증이 둘째다. 새 모듈의 본보기는 둘로 나뉜다 — **파일
+구성과 계층 경계는 `src/modules/account/`**(schema·repo·service 셋), **권한·오류 코드·
+서비스 분할까지 갖춘 업무 모듈의 모습은 `src/modules/merit/`**(repo는 하나, 서비스는
+책임별로 나눈다). 자세한 것은 아래 「폴더 구조」에 적었다.
 
 ## 명령어
 
@@ -87,9 +87,16 @@ src/
                           stats.service.ts) — 화면도 같은 경계를 따른다
                           (app/(app)/admin/merit/rules · app/(app)/merit ·
                           app/(app)/merit/stats).
+    pass/                전자출입증(외출·외박). merit과 같은 모양이되 순수 함수 조각이
+                          더 있다 — pass.token.ts(HMAC 토큰, 시계를 인자로 받는다)·
+                          pass.qr.ts(uqr → SVG path, 서버 전용)·pass.url.ts·
+                          pass.window.ts(유형별 유효 창). 서비스는 request·decision·
+                          verify 셋이다.
   app/
     (auth)/             비로그인 — login
     (app)/              로그인 필수 — layout.tsx가 세션 가드 + mustChangePassword 가로채기
+    scan/               **앱 셸 밖**의 출입증 판독 화면. (app)의 layout이 자기 경로를
+                          몰라 로그인 후 돌아올 주소를 못 들고 가서 여기 둔다.
     api/auth/[...all]/  Better Auth 핸들러
     api/health/         컨테이너 헬스체크
   components/           ui/ (Button·Badge·Input) · app-shell/ · icons.tsx
@@ -218,6 +225,9 @@ account에서 시작해 모듈이 커지면 merit의 모양으로 간다.
 - **앱·DB는 `127.0.0.1`에만 묶는다.** 리버스 프록시가 같은 호스트에서 받아 넘긴다.
   0.0.0.0에 열면 세션 쿠키가 평문으로 흐르고 `x-forwarded-for`(감사로그의 접속 IP)를
   누구나 위조할 수 있다. 배포 절차는 `docs/deploy.md`.
+- **출입증 QR은 `BETTER_AUTH_URL`을 가리킨다.** 앱은 `127.0.0.1`에만 묶여 공개 주소를
+  요청 헤더로 알 수 없다. 서명 키도 `BETTER_AUTH_SECRET`에서 HKDF로 파생하므로, 그 값을
+  바꾸면 **그 순간 살아 있던 QR이 전부 무효가 된다** (학생이 화면을 새로 고치면 된다).
 - **부분 유니크 인덱스는 마이그레이션 SQL에만 있다.** `AcademicYear_single_current`
   (현재 학년도는 하나뿐)가 그렇다 — Prisma가 표현하지 못해 `schema.prisma`에 선언이 없고,
   그래서 다음 `migrate dev`가 이것을 군더더기로 보고 `DROP INDEX`를 만들 수 있다. 드롭돼도
