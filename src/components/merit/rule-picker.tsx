@@ -192,7 +192,17 @@ export function RulePicker({
       {open && rules.length > 0 && (
         <div className="absolute inset-x-0 top-full z-20 mt-1 max-h-[280px] overflow-y-auto rounded-field border border-line bg-surface shadow-float">
           {filtered.length === 0 ? (
-            <p className="px-3 py-4 text-center text-xs text-mut">
+            /*
+              결과가 없어도 목록 자체는 그린다. 없애면 aria-controls가 없는 id를
+              가리키는데 aria-expanded는 true라, 낭독기에는 「목록이 열렸다」까지만
+              들리고 결과가 없다는 사실은 전달되지 않는다. role="status"로 걸러낸
+              순간 읽히게 한다.
+            */
+            <p
+              id={`${baseId}-list`}
+              role="status"
+              className="px-3 py-4 text-center text-xs text-mut"
+            >
               맞는 항목이 없습니다.
             </p>
           ) : (

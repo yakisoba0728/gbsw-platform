@@ -2,6 +2,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SectionCard } from "@/components/ui/section-card";
 import { signedNet } from "@/core/authz/merit-track";
 import { scaleToPercent } from "@/modules/merit/merit.chart";
+import { honorificName } from "@/core/authz/roles";
 
 /**
  * 서버에서 그리는 CSS 막대. 이 화면에만 쓰므로 여기 둔다 —
@@ -91,13 +92,15 @@ export function TeacherChart({ rows }: { rows: readonly TeacherChartRow[] }) {
                 key={row.key}
                 tabIndex={0}
                 role="group"
-                aria-label={`${row.name}${row.removed ? " 삭제된 계정" : ""} 상점 ${
+                aria-label={`${honorificName(row.name, "ADMIN")}${
+                  row.removed ? " 삭제된 계정" : ""
+                } 상점 ${
                   row.totals.merit
                 } 벌점 ${row.totals.demerit} ${row.awardCount}건 전체의 ${row.share}`}
                 className="group relative flex items-center gap-2 rounded-btn px-1 py-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ink"
               >
                 <Tooltip
-                  title={`${row.name}${row.removed ? " · 삭제된 계정" : ""}`}
+                  title={`${honorificName(row.name, "ADMIN")}${row.removed ? " · 삭제된 계정" : ""}`}
                   rows={[
                     { label: "상점", value: String(row.totals.merit), className: "text-blue" },
                     ...(row.totals.offset
@@ -118,6 +121,8 @@ export function TeacherChart({ rows }: { rows: readonly TeacherChartRow[] }) {
                     { label: "전체 대비", value: row.share },
                   ]}
                 />
+                {/* 축 라벨만 맨이름이다 — 폭이 76px로 고정이라 호칭을 붙이면
+                    이름이 잘린다. 말풍선과 aria-label은 호칭을 붙여 읽어 준다. */}
                 <span className="w-[76px] shrink-0 truncate text-xs font-medium text-ink">
                   {row.name}
                 </span>

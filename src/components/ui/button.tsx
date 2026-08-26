@@ -1,4 +1,4 @@
-import type { ComponentPropsWithoutRef } from "react";
+import type { ComponentPropsWithRef } from "react";
 import { cn } from "@/lib/cn";
 
 export type ButtonVariant =
@@ -81,7 +81,12 @@ export function buttonClass({
   );
 }
 
-type ButtonProps = ComponentPropsWithoutRef<"button"> & {
+/**
+ * React 19에서는 함수 컴포넌트도 ref를 평범한 prop으로 받는다 — 아래 `{...props}`가
+ * 그대로 `<button>`에 넘긴다. 초점을 손으로 옮겨야 하는 화면(규정 인라인 편집)이
+ * 그것을 쓴다.
+ */
+type ButtonProps = ComponentPropsWithRef<"button"> & {
   variant?: ButtonVariant;
   size?: ButtonSize;
   full?: boolean;

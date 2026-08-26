@@ -13,6 +13,7 @@ import { StatTile } from "@/components/ui/stat-tile";
 import { DataTable, type Column } from "@/components/ui/table";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import { getTeacherStats, type TeacherStats } from "@/modules/merit/stats.service";
+import { honorificName } from "@/core/authz/roles";
 import { TeacherChart } from "./teacher-chart";
 
 /** 표와 그래프가 함께 쓰는 한 줄. 비중은 화면에서만 계산한다. */
@@ -112,7 +113,11 @@ function TeacherTable({ rows }: { rows: Row[] }) {
       card: "title",
       cell: (row) => (
         <span className="flex flex-wrap items-center gap-2">
-          <span className="font-medium text-ink">{row.name}</span>
+          <span className="font-medium text-ink">
+            {/* 부여자는 언제나 교사다. 최근 부여·내역 화면과 같은 호칭을 쓴다 —
+                같은 사람이 화면마다 다르게 불리면 안 된다. */}
+            {honorificName(row.name, "ADMIN")}
+          </span>
           {/* 계정이 사라져도 부여 기록은 남는다 — 이름만 남았다는 사실을 적는다. */}
           {row.removed && <Badge tone="cancelled">삭제된 계정</Badge>}
         </span>

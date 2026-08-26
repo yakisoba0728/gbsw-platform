@@ -16,6 +16,11 @@ import { cn } from "@/lib/cn";
  *
  * 실제로 잘렸을 때만 띄운다. 다 보이는 글에 말풍선이 뜨면 손이 지나갈 때마다
  * 화면이 깜빡인다.
+ *
+ * **마우스만으로는 안 된다.** 최근 부여의 항목·메모·사유는 각각 500자까지
+ * 들어오는데 표에서는 한 줄로 잘린다 — 마우스를 못 쓰면 전문을 볼 방법이
+ * 사라진다. 그래서 잘린 글에는 초점이 닿게 하고(`tabIndex`) 초점만으로도
+ * 열리며, Esc로 닫힌다. 화면 낭독기는 아래 `sr-only` 전문으로 이미 듣는다.
  */
 export function TruncatedText({
   full,
@@ -45,6 +50,19 @@ export function TruncatedText({
     };
   }, [at]);
 
+  /** 잘린 글에만 초점을 준다 — 다 보이는 글에 Tab이 멈추면 이동만 길어진다. */
+  const [clipped, setClipped] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setClipped(el.scrollWidth > el.clientWidth);
+    measure();
+    // 열 폭은 창 크기와 옆 칸 내용에 따라 바뀐다.
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [children]);
+
   function open() {
     const el = ref.current;
     if (!el || el.scrollWidth <= el.clientWidth) return;
@@ -64,19 +82,42 @@ export function TruncatedText({
 
   return (
     <>
+      {/*
+        초점은 바깥이 받는다. 잘린 글 자체는 aria-hidden인데(아래 sr-only와 두 번
+        읽히지 않게), aria-hidden인 요소에 초점을 두면 낭독기에서 이름 없는 정거장이
+        생긴다 — 초점과 숨김은 같은 요소에 함께 둘 수 없다.
+      */}
       <span
-        ref={ref}
         onMouseEnter={open}
         onMouseLeave={() => setAt(null)}
-        // 읽어 주는 것은 아래 sr-only 전문이다 — 잘린 글까지 읽으면 두 번 읽는다.
-        aria-hidden
-        // nowrap이 빠지면 글이 접혀 버려 잘리지 않는다 — 줄이 늘어나고,
-        // scrollWidth가 clientWidth를 넘지 않아 말풍선도 안 뜬다.
-        className={cn("block overflow-hidden text-ellipsis whitespace-nowrap", className)}
+        onFocus={open}
+        onBlur={() => setAt(null)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") setAt(null);
+        }}
+        tabIndex={clipped ? 0 : undefined}
+        className={cn(
+          "block min-w-0",
+          // 초점이 어디에 있는지 보여야 한다. 잘리지 않은 글에는 tabIndex가 없어
+          // 이 테두리가 나올 일이 없다.
+          "focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
+        )}
       >
-        {children}
+        <span
+          ref={ref}
+          // 읽어 주는 것은 아래 sr-only 전문이다 — 잘린 글까지 읽으면 두 번 읽는다.
+          aria-hidden
+          // nowrap이 빠지면 글이 접혀 버려 잘리지 않는다 — 줄이 늘어나고,
+          // scrollWidth가 clientWidth를 넘지 않아 말풍선도 안 뜬다.
+          className={cn(
+            "block overflow-hidden text-ellipsis whitespace-nowrap",
+            className,
+          )}
+        >
+          {children}
+        </span>
+        <span className="sr-only">{full}</span>
       </span>
-      <span className="sr-only">{full}</span>
 
       {at && (
         <span

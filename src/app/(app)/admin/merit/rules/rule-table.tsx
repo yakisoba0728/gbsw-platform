@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
@@ -40,6 +40,31 @@ export type RuleRow = {
  */
 export function RuleTable({ rules }: { rules: RuleRow[] }) {
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  /**
+   * 편집을 켜고 끌 때 초점을 옮긴다.
+   *
+   * 켜고 끄는 두 모양이 같은 자리에 **다른 태그**를 그린다(「수정」 버튼 ↔ 숨은
+   * input). React가 그 자리를 언마운트하므로, 방금 누른 버튼이 사라지면서 초점이
+   * `<body>`로 떨어진다 — 키보드로 「수정」을 누른 사람은 페이지 맨 위에서 Tab을
+   * 다시 밟아야 방금 연 입력칸에 닿는다.
+   */
+  const firstFieldRef = useRef<HTMLInputElement>(null);
+  const editButtonsRef = useRef(new Map<string, HTMLButtonElement>());
+  const lastEditingId = useRef<string | null>(null);
+
+  useEffect(() => {
+    const previous = lastEditingId.current;
+    lastEditingId.current = editingId;
+    if (previous === editingId) return;
+
+    if (editingId) {
+      firstFieldRef.current?.focus();
+      return;
+    }
+    // 편집에서 나오면 그 줄의 「수정」으로 돌려보낸다 — 눌렀던 자리다.
+    if (previous) editButtonsRef.current.get(previous)?.focus();
+  }, [editingId]);
   const [updateState, updateAction, updating] = useActionState(
     updateRuleAction,
     EMPTY_RULE_FORM_STATE,
@@ -95,6 +120,7 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
                 <td className={`${cell(1)} text-mut`}>
                   {editing ? (
                     <Input
+                      ref={firstFieldRef}
                       size="sm"
                       name="category"
                       form="rule-edit-form"
@@ -190,6 +216,11 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
                   ) : (
                     <div className="flex gap-2">
                       <Button
+                        ref={(node) => {
+                          const map = editButtonsRef.current;
+                          if (node) map.set(rule.id, node);
+                          else map.delete(rule.id);
+                        }}
                         type="button"
                         variant="secondary"
                         size="sm"

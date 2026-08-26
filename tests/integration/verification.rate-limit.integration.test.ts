@@ -69,7 +69,19 @@ describe("createTemporaryVerifiedProof() — rate limits", () => {
     ).resolves.toBe(5);
   });
 
-  it("allows only twenty concurrent immediate proofs per request IP per hour", async () => {
+  /**
+   * IP 버킷은 20건이다. **21개를 한꺼번에 던져 「정확히 20개 성공」을 세지 않는다** —
+   * 21개가 동시에 트랜잭션을 열면 연결 풀이 그만큼 없어서, 늦게 줄 선 몇 개가
+   * 제한이 아니라 `maxWait`에 걸려 밀린다. 그 수는 기계 사정에 따라 바뀌므로
+   * 세면 테스트가 불안정해진다 (실제로 서너 번에 한 번 16으로 떨어졌다).
+   *
+   * 붙들 규칙은 두 가지고 둘 다 개수 세기와 무관하다.
+   * 1. **넘치지 않는다** — 무슨 일이 있어도 20건을 넘겨 만들지 않는다.
+   *    잠금이 풀리면 21건이 되고, 그때 이 단언이 깨진다.
+   * 2. **한도에 닿으면 그 이유로 거부한다** — 채운 뒤 한 번 더 부르면
+   *    VerificationError이고 문구가 「너무 많이」다.
+   */
+  it("allows only twenty immediate proofs per request IP per hour", async () => {
     const requestIp = `2001:db8::${randomUUID().replaceAll("-", "").slice(0, 4)}`;
     const batchTargets = Array.from(
       { length: 21 },
@@ -83,15 +95,34 @@ describe("createTemporaryVerifiedProof() — rate limits", () => {
       batchTargets.map((target) => createTemporaryVerifiedProof("EMAIL", target)),
     );
 
-    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(20);
+    // 거부된 것이 있다면 이유는 언제나 한도다 — 다른 이유로 죽고 있으면 잡는다.
+    for (const result of results) {
+      if (result.status === "rejected") {
+        expect(result.reason).toBeInstanceOf(VerificationError);
+        expect(result.reason.message).toContain("너무 많이");
+      }
+    }
 
-    const rejected = results.filter(
-      (result): result is PromiseRejectedResult => result.status === "rejected",
+    // 1. 넘치지 않는다.
+    const made = await prisma.verificationCode.count({ where: { requestIp } });
+    expect(made).toBeLessThanOrEqual(20);
+
+    // 남은 자리를 하나씩 채운다. 순차라 풀 경합이 없다.
+    for (let i = made; i < 20; i += 1) {
+      const target = `itest-ip-fill-${randomUUID()}@example.invalid`;
+      targets.push(target);
+      await createTemporaryVerifiedProof("EMAIL", target);
+    }
+    await expect(
+      prisma.verificationCode.count({ where: { requestIp } }),
+    ).resolves.toBe(20);
+
+    // 2. 스물한 번째는 한도로 거부된다.
+    const overflow = `itest-ip-over-${randomUUID()}@example.invalid`;
+    targets.push(overflow);
+    await expect(createTemporaryVerifiedProof("EMAIL", overflow)).rejects.toThrow(
+      "너무 많이",
     );
-    expect(rejected).toHaveLength(1);
-    expect(rejected[0]!.reason).toBeInstanceOf(VerificationError);
-    expect(rejected[0]!.reason.message).toContain("너무 많이");
-
     await expect(
       prisma.verificationCode.count({ where: { requestIp } }),
     ).resolves.toBe(20);
