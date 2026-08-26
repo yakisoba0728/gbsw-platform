@@ -23,8 +23,8 @@
 - 외출·외박 두 유형의 출입증
 - 학생 신청 → (외박이면) 학부모 동의 → 교사 승인 흐름
 - 교사가 신청 없이 바로 부여하는 경로
-- 20초마다 바뀌는 QR + 같은 주기로 바뀌는 6자리 숫자
-- 검증 경로 셋 — 폰 기본 카메라 · 사이트 안의 스캐너 · 6자리 손입력
+- 20초마다 바뀌는 QR
+- 검증 경로 둘 — 폰 기본 카메라 · 사이트 안의 스캐너. **둘 다 QR을 읽는 길이다**
 
 **만들지 않는 것 (그리고 그래서 잃는 것)**
 
@@ -46,7 +46,6 @@
 | 어제 찍은 스크린샷을 오늘 보여준다 | 토큰이 20초마다 바뀐다. 허용 창은 20~40초 |
 | 남의 화면을 사진 찍어 두었다 같은 시간에 쓴다 | 창 안이면 통과한다. **막지 않는다** — 검증자가 눈앞의 학생을 보고 찍기 때문에 이득이 없다 |
 | QR 토큰을 손으로 만들어 낸다 | 96비트 HMAC 서명. 비밀은 서버에만 있다 |
-| 6자리를 마구 찍어 남의 출입증을 연다 | 검증자당 분당 10회 제한. 다만 **맞혀도 얻는 게 거의 없다** — 아래 「6자리의 안전성」 |
 | 학생이 남의 사유·행선지를 읽는다 | 검증 화면은 이름·학번·유형·유효 시각까지. 사유·행선지는 `pass:read:any`(교사)에게만 |
 | 승인 없이 스스로 출입증을 만든다 | 생성은 서비스가 하고 상태는 항상 서버가 정한다. 클라이언트가 `status`를 주장할 수 없다 |
 | 검증 주소를 열기만 해도 기록이 바뀐다 | **GET은 아무것도 쓰지 않는다.** 방문기록 재방문·프리페치가 행을 만들면 안 된다 |
@@ -61,7 +60,6 @@ step   = floor(epochSeconds / 20)
 mac    = HMAC-SHA256(비밀, `${passId}:${step}`)          // 32바이트
 
 QR 내용 = https://<호스트>/scan?c=<passId>.<base64url(mac[0..12])>
-6자리   = (mac 뒤 4바이트를 부호 없는 정수로 읽어) mod 1_000_000, 앞자리 0 채움
 ```
 
 검증은 `step ∈ {지금, 지금−1}` 둘로 시도한다. 즉 **화면에 뜬 값은 20~40초 유효**하다.
@@ -75,8 +73,13 @@ QR 내용 = https://<호스트>/scan?c=<passId>.<base64url(mac[0..12])>
 
 **QR이 가리키는 곳은 판독 화면 자신이다.** 폰 카메라로 찍으면 `/scan?c=<토큰>`이 열리고
 그 화면이 `c`를 보고 **그 자리에서 판정을 낸다** — 중간에 다른 주소를 거치지 않는다.
-`c`가 없이 들어오면 같은 화면이 카메라 스캐너와 6자리 입력칸을 띄운다. **검증 경로 셋이
-화면 하나로 모인다**(§12).
+`c`가 없이 들어오면 같은 화면이 카메라 스캐너를 켠다. **검증 경로 둘이 화면 하나로
+모인다**(§11).
+
+**손으로 칠 수 있는 짧은 코드는 두지 않는다.** 검증은 QR을 읽는 길 하나뿐이다 —
+카메라 스캔이 안 되는 브라우저에서는 폰 기본 카메라로 찍으면 되고 그쪽은 어디서나
+된다. 짧은 코드를 두면 그것을 지키느라 대조 범위·충돌 처리·횟수 제한이 따라붙는데,
+**얻는 것은 이미 있는 경로의 중복이다.**
 
 **비밀**은 새 환경변수를 만들지 않고 `BETTER_AUTH_SECRET`에서 파생한다.
 
@@ -92,9 +95,8 @@ hkdfSync("sha256", BETTER_AUTH_SECRET, "", "gbsw-pass-qr-v1", 32)
 **모듈:** `src/modules/pass/pass.token.ts` — DB를 모르는 순수 함수 셋이다.
 
 ```ts
-export function issueToken(passId: string, at: Date): { token: string; code: string; validUntil: Date }
+export function issueToken(passId: string, at: Date): { token: string; validUntil: Date }
 export function verifyToken(token: string, at: Date): { passId: string } | "STALE" | "MALFORMED"
-export function codesFor(passIds: string[], at: Date): Map<string, string[]>  // step 2개분
 ```
 
 `verifyToken`이 세 갈래인 이유는 화면 문구가 갈리기 때문이다 — 아래 §5.
@@ -227,7 +229,7 @@ export function formatTimeInput(value: Date): string
 
 ### 5. 판정
 
-검증 세 경로가 모두 같은 함수로 떨어진다.
+검증 두 경로가 모두 같은 함수로 떨어진다 — 둘 다 손에 쥔 것은 토큰 하나다.
 
 ```ts
 // src/modules/pass/verify.service.ts
@@ -242,7 +244,7 @@ export type Verdict =
   | "UNKNOWN";      // 알 수 없는 코드
 ```
 
-토큰이 오는 경로에서 `verifyToken`의 세 결과가 이렇게 옮겨진다.
+`verifyToken`의 세 결과가 이렇게 옮겨진다.
 
 | `verifyToken` | 그다음 | `Verdict` |
 |---|---|---|
@@ -255,40 +257,7 @@ export type Verdict =
 않으면 정문에서 **가장 흔한 상황**(학생 화면이 20초 지나 굳었다)에 「알 수 없는
 코드」가 떠서, 교사가 위조를 의심하게 된다. 안내 품질이 훨씬 크다.
 
-6자리 손입력은 `passId`를 모르므로 `STALE`을 낼 수 없다 — 안 맞으면 `UNKNOWN`이고,
-문구가 「맞는 출입증이 없습니다. 화면을 새로 고쳐 다시 보여 달라고 하세요」로
-같은 자리를 메운다.
-
-**6자리 대조 범위:** `status = APPROVED` 이고 `endAt >= 지금` 이고
-`startAt <= 지금 + 24시간` 인 것만 본다. step 2개분을 계산하므로 HMAC은 그 두 배다
-(수십~수백 회 — 무시할 비용). 미래 신청까지 훑을 이유가 없어 24시간으로 자른다.
-
-**숫자 충돌:** 같은 창에서 두 학생의 6자리가 같으면(활성 50건 기준 창당 약 0.1%)
-**아무 쪽도 고르지 않고** 「숫자가 여럿과 맞습니다. QR로 확인하세요」로 떨어진다.
-가장 그럴듯한 하나를 고르는 것이 이 자리에서 할 수 있는 가장 나쁜 일이다.
-
-### 6. 6자리의 안전성
-
-6자리는 100만 가지라, 로그인한 사람이 마구 찍어 볼 수 있는 값이다. 그럼에도
-**표를 새로 만들 만한 위험이 아니라고 판단했고, 근거를 적어 둔다.**
-
-- **맞혀도 나오는 것이 없다.** 이름·학번·유형·유효 시각뿐이고, 같은 학교 학생이
-  이미 아는 것들이다. 사유·행선지는 `pass:read:any`가 있어야 보인다.
-- **정문 통과에 쓸 수 없다.** 검증자는 눈앞의 학생 화면을 보고 찍는다. 남의 코드를
-  맞히는 것은 자기가 나가는 데 아무 도움이 안 된다.
-- 실제 위험은 「출입증이 있는 학생이 누구인지 훑어보는 것」 정도이고, 그건 정문에
-  서 있으면 그냥 보인다.
-
-**그래서 위생 수준의 제한만 건다: 검증자 한 명당 분당 10회.** 앱 컨테이너가 하나뿐
-이므로(`docs/deploy.md`) 모듈 수준 `Map`으로 센다. **프로세스가 재시작하면
-초기화된다** — 이 값이 그 정도로 지켜야 할 것이 아니기 때문에 받아들이는 손해다.
-`VerificationCode`처럼 DB에 세는 방식은, 저쪽은 막지 못하면 실제로 문자가 나가고
-돈이 드는 반면 이쪽은 그렇지 않아서 값을 치를 이유가 없다.
-
-한계에 닿으면 `PASS_VERIFY_RATE_LIMIT` 오류로 떨어진다. QR 경로는 제한하지 않는다 —
-서명이 96비트라 찍어서 맞힐 수 없다.
-
-### 7. 상태 기계
+### 6. 상태 기계
 
 ```
 외출  학생 신청 ─→ REQUESTED ─교사 승인→ APPROVED ─취소→ CANCELLED
@@ -328,14 +297,14 @@ export type Verdict =
 
 **겹침:** 같은 학생에게 기간이 겹치는 `REQUESTED`/`CONSENTED`/`APPROVED` 출입증이
 이미 있으면 `OVERLAPPING_PASS`로 거부한다. **학생 신청과 교사 직접 부여 둘 다에
-건다** — 한 학생에게 같은 시각 유효한 출입증이 둘이면 6자리 대조가 갈피를 못 잡는다. 애플리케이션 검사이므로 **동시 신청 두
-건이 둘 다 통과할 수 있다.** Postgres `EXCLUDE USING gist`로 DB가 막을 수 있지만,
+건다** — 한 학생에게 같은 시각 유효한 출입증이 둘이면 어느 쪽을 보인 것인지 알 수 없다.
+애플리케이션 검사이므로 **동시 신청 두 건이 둘 다 통과할 수 있다.** Postgres `EXCLUDE USING gist`로 DB가 막을 수 있지만,
 Prisma가 표현하지 못해 마이그레이션 SQL에만 남는다 — 이 저장소에는 그렇게 남은
 인덱스(`AcademicYear_single_current`)가 이미 하나 있고 CLAUDE.md가 그 위험을 길게
 적어 두었다. **같은 함정을 하나 더 파지 않는다.** 겹친 두 건이 실제로 생기면
-6자리 대조에서 「여럿과 맞습니다」로 떨어지고, 교사가 하나를 취소하면 된다.
+학생 화면과 교사 목록에 둘 다 보이므로, 교사가 하나를 취소하면 된다.
 
-### 8. 권한
+### 7. 권한
 
 `core/authz/can.ts`의 `Action`과 `RULES`에 일곱 줄을 더한다.
 
@@ -349,7 +318,7 @@ Prisma가 표현하지 못해 마이그레이션 SQL에만 남는다 — 이 저
 "pass:read:any"  → []            // 교사 전용 — 남의 출입증과 사유·행선지
 ```
 
-`pass:verify`를 역할로 가르지 않는 근거: **판정을 내려면 살아 있는 QR이나 6자리가
+`pass:verify`를 역할로 가르지 않는 근거: **판정을 내려면 살아 있는 QR이
 필요하고, 그건 학생 화면 앞에 서 있다는 뜻이다.** 그 자리에 선 사람이 교사인지 자치위원
 학생인지 데리러 온 학부모인지 시스템이 구분해 봐야 얻는 것이 없다. 나오는 것도
 이름·학번·유형·유효 시각뿐이다 — **사유와 행선지는 여전히 `pass:read:any`(교사)에게만.**
@@ -371,7 +340,7 @@ Prisma가 표현하지 못해 마이그레이션 SQL에만 남는다 — 이 저
 `tests/core/authz/can.test.ts`의 `EXPECTED`에 일곱 줄을 함께 넣는다. 빠뜨리면
 테스트가 깨진다.
 
-### 9. 감사로그
+### 8. 감사로그
 
 여섯 동작 전부 `recordAudit`을 남긴다. **예외를 만들지 않는다** —
 `verification` 모듈의 예외는 「임시 데이터의 생명주기 잡음」이라는 근거가 있었지만,
@@ -394,7 +363,7 @@ Prisma가 표현하지 못해 마이그레이션 SQL에만 남는다 — 이 저
 **검증(GET)은 읽기라 감사로그를 남기지 않는다.** 「모든 생성/수정/삭제」 규칙에
 어긋나지 않으므로 예외 문서가 필요 없다.
 
-### 10. 오류
+### 9. 오류
 
 `PassError` 하나에 코드를 담고, 화면 문구는 액션의 `MESSAGES` 사전이 옮긴다
 (merit과 같다).
@@ -413,10 +382,9 @@ PERIOD_TOO_LONG       외박은 한 번에 7일까지입니다.
 OUTING_SPANS_DAYS     외출은 같은 날 안에서만 됩니다. 날짜를 넘기면 외박입니다.
 START_IN_PAST         시작 시각이 지났습니다.
 OVERLAPPING_PASS      같은 기간에 이미 신청한 출입증이 있습니다.
-PASS_VERIFY_RATE_LIMIT  확인 요청이 너무 잦습니다. 잠시 뒤 다시 시도하세요.
 ```
 
-### 11. 모듈 구성
+### 10. 모듈 구성
 
 `src/modules/merit/`의 모양을 따른다 — repo·schema·error는 하나, 서비스는 책임별로.
 
@@ -425,22 +393,22 @@ src/modules/pass/
   pass.schema.ts        zod. 경계에서 한 번만 검증한다
   pass.error.ts         PassError
   pass.repo.ts          Prisma 호출만
-  pass.token.ts         HMAC·6자리. DB를 모르는 순수 함수 (테스트하기 쉬운 자리다)
+  pass.token.ts         HMAC 토큰. DB를 모르는 순수 함수 (테스트하기 쉬운 자리다)
   pass.qr.ts            uqr → SVG path. 서버 전용
   request.service.ts    학생 신청·철회 · 학부모 동의
   decision.service.ts   교사 승인·반려·직접 부여·취소
-  verify.service.ts     토큰/숫자 → Verdict. 분당 제한도 여기
+  verify.service.ts     토큰 → Verdict
 src/core/authz/pass-type.ts   PassType · PassStatus · 라벨 (merit-track.ts와 같은 자리)
 ```
 
-### 12. 화면
+### 11. 화면
 
 | 경로 | 그룹 | 내용 |
 |---|---|---|
-| `/pass` | `(app)` | 역할로 갈린다 — **학생**: 지금 유효한 QR + 6자리 + 신청 버튼 + 내 내역 / **교사**: 결재 대기 + 직접 부여 + 오늘 유효한 출입증 / **학부모**: 자녀 동의 대기 + 내역 |
+| `/pass` | `(app)` | 역할로 갈린다 — **학생**: 지금 유효한 QR + 신청 버튼 + 내 내역 / **교사**: 결재 대기 + 직접 부여 + 오늘 유효한 출입증 / **학부모**: 자녀 동의 대기 + 내역 |
 | `/pass/new` | `(app)` | 학생 신청 폼 |
 | `/pass/[passId]` | `(app)` | 상세. 본인 QR도 여기서 크게 본다 |
-| `/scan` | **`(app)` 밖** | **판독 화면 하나.** `?c=<토큰>`이 붙어 오면 그 자리에서 판정, 없으면 카메라 스캐너 + 6자리 입력칸 |
+| `/scan` | **`(app)` 밖** | **판독 화면 하나.** `?c=<토큰>`이 붙어 오면 그 자리에서 판정, 없으면 카메라 스캐너 |
 
 **`/scan`을 `(app)` 밖에 두는 이유는 로그인 후 돌아오기 때문이다.**
 `(app)/layout.tsx`의 `requireAuth()`는 `/login`으로 보내면서 원래 주소를 안 들고
@@ -471,12 +439,12 @@ src/core/authz/pass-type.ts   PassType · PassStatus · 라벨 (merit-track.ts�
 
 **스캐너**는 브라우저의 `BarcodeDetector`를 런타임에 확인해서 쓴다
 (`"BarcodeDetector" in window`). 없으면 스캐너 자리에
-「이 브라우저는 카메라 스캔을 지원하지 않습니다 — 폰 카메라로 찍거나 아래에 6자리를
-입력하세요」가 뜬다. **이 폴백이 곧 6자리 경로라, QR 디코딩 라이브러리를 따로 넣지
-않는다.** 새 의존성은 `uqr` 하나뿐이다.
+「이 브라우저는 카메라 스캔을 지원하지 않습니다 — 폰 기본 카메라로 QR을 찍으세요」가
+뜬다. **폴백이 폰 기본 카메라 자체다** — 그쪽은 `/scan?c=`를 열어 주므로 어디서나
+되고, 그래서 QR 디코딩 라이브러리를 따로 넣지 않는다. 새 의존성은 `uqr` 하나뿐이다.
 
 **QR 갱신:** `GET /api/pass/[passId]/token`이
-`{ qr: { size, d }, code, validUntil }`을 준다(`qr`은 §2 `toQrPath`가 낸 그대로다).
+`{ qr: { size, d }, validUntil }`을 준다(`qr`은 §2 `toQrPath`가 낸 그대로다).
 클라이언트는 `validUntil`에 맞춰 타이머를 한 번 걸어 **20초에 요청 하나**를
 보내고, 남은 시간을 고리로 그린다. 라우트는 `requireAuth()` + 소유권(본인 또는
 `pass:read:any`)을 검사한다.
@@ -504,20 +472,19 @@ src/core/authz/pass-type.ts   PassType · PassStatus · 라벨 (merit-track.ts�
 아이콘은 `components/icons.tsx`에 QR 모양으로 하나 추가한다. 「스캔하기」는 메뉴가
 아니라 `/pass` 화면의 버튼이다 — 메뉴는 이미 길다.
 
-### 13. 테스트
+### 12. 테스트
 
 | 자리 | 무엇을 |
 |---|---|
-| `tests/modules/pass/pass.token.test.ts` | 서명 위조 거부 · step 경계(현재/직전은 통과, 그 앞은 `STALE`) · 6자리가 20초마다 바뀐다 · `MALFORMED` |
+| `tests/modules/pass/pass.token.test.ts` | 서명 위조 거부 · step 경계(현재/직전은 통과, 그 앞은 `STALE`) · `MALFORMED` |
 | `tests/modules/pass/request.service.test.ts` | 권한 거부/허용 · 소유권(남의 신청 철회 불가) · 감사로그 · 기간 검증 전부 |
 | `tests/modules/pass/decision.service.test.ts` | 상태 전이 · 외박의 `CONSENT_REQUIRED` · 대행 승인 · 이미 처리된 것 재처리 거부 · 감사로그 |
-| `tests/modules/pass/verify.service.test.ts` | 판정 여덟 갈래 · 6자리 충돌 시 「여럿」 · 분당 제한 |
+| `tests/modules/pass/verify.service.test.ts` | 판정 여덟 갈래 |
 | `tests/core/authz/can.test.ts` | `EXPECTED`에 일곱 줄 |
-| `tests/integration/pass.*.integration.test.ts` | 신청→동의→승인 왕복 · 겹침 거부 · 6자리 대조가 실제 DB의 활성 건만 훑는다 |
+| `tests/integration/pass.*.integration.test.ts` | 신청→동의→승인 왕복 · 겹침 거부 |
 
-repo와 audit은 단위 테스트에서 목으로 둔다(기존 모듈과 같다).
-`verify.service`의 분당 제한은 모듈 `Map`이므로 테스트마다 초기화할 수 있어야 한다 —
-`__resetRateLimit()`을 테스트 전용으로 내보낸다.
+repo와 audit은 단위 테스트에서 목으로 둔다(기존 모듈과 같다). 토큰은 시각의 함수이므로
+테스트가 `at`을 인자로 넘긴다 — `pass.token.ts`가 시계를 직접 읽지 않는 이유가 이것이다.
 
 종료 조건은 `npm run verify` 통과다.
 
@@ -530,5 +497,6 @@ repo와 audit은 단위 테스트에서 목으로 둔다(기존 모듈과 같다
   외박 동의를 아예 교사 확인란으로 바꾸는 편이 정직하다.
 - **발송을 켜는 날.** 동의 요청이 학부모에게 문자로 가면 이 흐름이 실제로 굴러간다.
   CLAUDE.md의 「지금 인증은 실제로 발송하지 않는다」와 함께 재검토한다.
-- **`BarcodeDetector`가 어디까지 깔리는가.** 폴백이 6자리라 지금은 아쉬울 뿐이지만,
-  정문에 줄이 길어지고 폴백 비중이 높으면 그때 QR 디코딩 라이브러리를 검토한다.
+- **`BarcodeDetector`가 어디까지 깔리는가.** 안 깔린 브라우저에서는 사이트 안 스캐너가
+  없는 것과 같고, 그 사람은 폰 기본 카메라로 찍는다 — 판정은 되지만 연속 스캔이 안 된다.
+  정문에서 그 비중이 높아 줄이 밀리면 그때 QR 디코딩 라이브러리를 검토한다.
