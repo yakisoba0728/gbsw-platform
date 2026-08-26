@@ -15,9 +15,12 @@ const PASSWORD_CHANGED_MESSAGE = "비밀번호가 변경되었습니다. 다시 
 export function LoginForm({
   disabled = false,
   passwordChanged = false,
+  next = null,
 }: {
   disabled?: boolean;
   passwordChanged?: boolean;
+  /** 로그인 뒤 돌아갈 경로. 이미 safeNext를 통과한 값이다. */
+  next?: string | null;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(
@@ -52,7 +55,9 @@ export function LoginForm({
     }
 
     // 세션 쿠키가 붙은 상태로 서버 컴포넌트를 다시 그리게 한다.
-    router.replace("/");
+    // next는 정문에서 QR을 찍고 로그인한 사람을 판정 화면으로 되돌린다 —
+    // 없으면 대시보드로 떨어져 다시 스캔해야 한다.
+    router.replace(next ?? "/");
     router.refresh();
   }
 
