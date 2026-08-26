@@ -149,13 +149,18 @@ export async function findOverlapping(
 
 /**
  * 상태 전이. **읽고 나서 쓰지 않는다** — 조건부 갱신 하나로 하고 건수를 돌려준다.
+ *
+ * data 타입이 `Unchecked…`인 것은 실수가 아니다. 체크드 쪽
+ * (`PassUpdateManyMutationInput`)은 관계로 이어진 외래키 스칼라
+ * (`decidedByUserId` 등)를 빼 버려서, 결재자를 적을 방법이 없어진다 —
+ * updateMany는 관계를 연결할 수 없기 때문이다.
  * 0이면 그 사이 누군가 먼저 처리한 것이다 (동시 결재 두 건이 둘 다 통과하면
  * 감사로그가 두 줄 남는다).
  */
 export async function transition(
   passId: string,
   from: readonly PassStatus[],
-  data: Prisma.PassUpdateManyMutationInput,
+  data: Prisma.PassUncheckedUpdateManyInput,
   db: DbClient = prisma,
 ): Promise<number> {
   const { count } = await db.pass.updateMany({
