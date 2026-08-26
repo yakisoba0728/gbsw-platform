@@ -232,6 +232,30 @@
   }
 }
 
+/*
+ * 출입증 QR이 다음 코드로 바뀔 때까지. 지속시간은 화면이 `--pass-qr-tick`으로
+ * 넘긴다 — 서버가 준 validUntil에서 나오므로 첫 주기가 20초보다 짧아도 맞는다
+ * (토큰은 스텝 중간에 발급돼도 그 스텝의 끝을 만료로 준다).
+ */
+@keyframes pass-qr-tick {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+@utility animate-pass-qr-tick {
+  animation: pass-qr-tick var(--pass-qr-tick, 20s) linear forwards;
+
+  /* 움직임을 줄이라는 설정이면 막대를 채운 채로 둔다 — 비우면 「이미 끝났다」로
+     읽힌다. 남은 시간은 어차피 장식이고(aria-hidden) 코드 자체는 계속 바뀐다. */
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
 @utility scroll-x-hint {
   background:
     linear-gradient(to right, var(--color-surface) 30%, transparent) 0 0 / 32px 100%
