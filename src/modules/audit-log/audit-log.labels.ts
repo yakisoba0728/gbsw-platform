@@ -5,8 +5,9 @@ import {
   MERIT_KIND_LABELS,
   MERIT_TRACK_LABELS,
 } from "@/core/authz/merit-track";
+import { isPassType, PASS_TYPE_LABELS } from "@/core/authz/pass-type";
 import { isRole, ROLE_LABELS } from "@/core/authz/roles";
-import { formatDate } from "@/lib/datetime";
+import { formatDate, formatMonthDay } from "@/lib/datetime";
 
 /**
  * 감사로그 화면 전용 라벨. 저장값은 영문 그대로 두고 표기만 한글로 바꾼다.
@@ -47,6 +48,12 @@ export const AUDIT_ACTIONS = [
   "merit:threshold:update",
   "merit:award",
   "merit:cancel",
+  "pass:request",
+  "pass:consent",
+  "pass:approve",
+  "pass:reject",
+  "pass:issue",
+  "pass:cancel",
   // 서비스가 can() 검사로 거부했을 때. 페이지를 건너뛴 요청만 여기 닿는다.
   "authz:denied",
 ] as const;
@@ -83,6 +90,12 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   "merit:threshold:update": "벌점 기준 변경",
   "merit:award": "상벌점 부여",
   "merit:cancel": "상벌점 취소",
+  "pass:request": "출입증 신청",
+  "pass:consent": "보호자 확인",
+  "pass:approve": "출입증 승인",
+  "pass:reject": "출입증 반려",
+  "pass:issue": "출입증 부여",
+  "pass:cancel": "출입증 취소",
   "authz:denied": "권한 거부",
 };
 
@@ -113,6 +126,13 @@ const ACTION_TONES: Record<AuditAction, BadgeTone> = {
   // 상점·벌점 양쪽에서 나오는 액션이라 종류 색(merit/demerit)을 쓰지 않는다.
   "merit:award": "info",
   "merit:cancel": "cancelled",
+  "pass:request": "pending",
+  "pass:consent": "info",
+  "pass:approve": "approved",
+  "pass:reject": "rejected",
+  // 신청 없이 바로 나가는 길이라 승인과 같은 색이다.
+  "pass:issue": "approved",
+  "pass:cancel": "cancelled",
   "authz:denied": "rejected",
 };
 
@@ -134,6 +154,7 @@ const TARGET_LABELS: Record<string, string> = {
   MeritRule: "상벌점 규정",
   MeritThreshold: "벌점 기준",
   MeritAward: "상벌점",
+  Pass: "출입증",
 };
 
 export function auditTargetLabel(targetType: string): string {
@@ -343,6 +364,45 @@ function meritThresholdSummary(metadata: Record<string, unknown>): string | null
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
+/** metadata의 ISO 문자열을 Date로. 못 읽으면 null이다 (옛 행·손상된 값). */
+function dateFrom(value: unknown): Date | null {
+  if (typeof value !== "string") return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+/**
+ * pass:* 여섯 갈래가 함께 쓰는 문장. 없는 키는 그냥 빠지므로 액션마다
+ * 다른 조각을 실어도 같은 함수가 받는다.
+ *
+ * **`reason`은 반려·취소 사유 전용이다.** 신청·부여의 사유(학생이 적은
+ * 「정기 검진」)는 metadata에 싣지 않고 `destination`만 남긴다 — 같은 키에
+ * 두 가지 뜻이 들어오면 감사로그의 「사유: …」가 무엇을 가리키는지 갈린다.
+ * 신청 사유는 출입증 상세에 그대로 있다.
+ *
+ * 기간은 `startAt`·`endAt`이 **둘 다** 있을 때만 찍는다. 반쪽 범위는
+ * 「8. 28. ~ 」처럼 읽혀 없느니만 못하다.
+ */
+function passSummary(metadata: Record<string, unknown>): string | null {
+  const parts: string[] = [];
+
+  const type = metadata.type;
+  if (isPassType(type)) parts.push(PASS_TYPE_LABELS[type]);
+
+  const from = dateFrom(metadata.startAt);
+  const to = dateFrom(metadata.endAt);
+  if (from && to) parts.push(`${formatMonthDay(from)} ~ ${formatMonthDay(to)}`);
+
+  if (typeof metadata.destination === "string") parts.push(metadata.destination);
+  if (metadata.byProxy === true) parts.push("보호자 확인 대행");
+  if (metadata.byOwner === true) parts.push("본인 철회");
+
+  const reason = reasonPart(metadata);
+  if (reason) parts.push(reason);
+
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
 const METADATA_FORMATTERS: Partial<
   Record<AuditAction, (metadata: Record<string, unknown>) => string | null>
 > = {
@@ -361,6 +421,12 @@ const METADATA_FORMATTERS: Partial<
   "merit:cancel": meritCancelSummary,
   "merit:rule:update": meritRuleUpdateSummary,
   "merit:threshold:update": meritThresholdSummary,
+  "pass:request": passSummary,
+  "pass:consent": passSummary,
+  "pass:approve": passSummary,
+  "pass:reject": passSummary,
+  "pass:issue": passSummary,
+  "pass:cancel": passSummary,
 };
 
 /**

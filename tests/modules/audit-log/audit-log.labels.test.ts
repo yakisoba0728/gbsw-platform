@@ -290,3 +290,53 @@ describe("formatAuditMetadata()", () => {
     ).toBe("기숙사 · 위험 30→25");
   });
 });
+
+describe("출입증 감사로그", () => {
+  it("액션 여섯 개에 한글 이름이 있다", () => {
+    expect(auditActionLabel("pass:request")).toBe("출입증 신청");
+    expect(auditActionLabel("pass:consent")).toBe("보호자 확인");
+    expect(auditActionLabel("pass:approve")).toBe("출입증 승인");
+    expect(auditActionLabel("pass:reject")).toBe("출입증 반려");
+    expect(auditActionLabel("pass:issue")).toBe("출입증 부여");
+    expect(auditActionLabel("pass:cancel")).toBe("출입증 취소");
+  });
+
+  it("대상 Pass에 이름이 있다", () => {
+    expect(auditTargetLabel("Pass")).toBe("출입증");
+  });
+
+  it("색조가 중립으로 떨어지지 않는다", () => {
+    expect(auditActionTone("pass:approve")).toBe("approved");
+    expect(auditActionTone("pass:reject")).toBe("rejected");
+    expect(auditActionTone("pass:cancel")).toBe("cancelled");
+  });
+
+  it("metadata가 한 문장이 된다", () => {
+    expect(
+      formatAuditMetadata("pass:request", {
+        type: "OVERNIGHT",
+        startAt: "2026-08-27T15:00:00.000Z",
+        endAt: "2026-08-29T15:00:00.000Z",
+        destination: "본가",
+      }),
+    ).toBe("외박 · 8. 28. ~ 8. 30. · 본가");
+  });
+
+  it("보호자 확인 대행이 문장에 드러난다", () => {
+    expect(
+      formatAuditMetadata("pass:approve", { type: "OVERNIGHT", byProxy: true }),
+    ).toBe("외박 · 보호자 확인 대행");
+  });
+
+  it("반려·취소는 사유를 싣는다", () => {
+    expect(
+      formatAuditMetadata("pass:reject", { type: "OUTING", reason: "기간이 너무 깁니다" }),
+    ).toBe("외출 · 사유: 기간이 너무 깁니다");
+  });
+
+  it("학생이 스스로 무른 것이 드러난다", () => {
+    expect(formatAuditMetadata("pass:cancel", { type: "OUTING", byOwner: true })).toBe(
+      "외출 · 본인 철회",
+    );
+  });
+});
