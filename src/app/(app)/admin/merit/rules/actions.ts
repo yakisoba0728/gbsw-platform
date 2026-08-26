@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAuth } from "@/core/auth/session";
+import { ForbiddenError } from "@/core/authz/errors";
 import { MeritError } from "@/modules/merit/merit.error";
 import {
   createRuleSchema,
@@ -30,6 +31,9 @@ function text(formData: FormData, name: string): string {
 }
 
 function toMessage(error: unknown): string {
+  // 권한 거부를 일반 폴백에 섞지 않는다 — 화면이 「처리하지 못했습니다」라고 하면
+  // 권한이 없어서 막힌 사람이 일시적 장애로 알고 계속 다시 누른다.
+  if (error instanceof ForbiddenError) return "이 작업을 할 권한이 없습니다.";
   if (error instanceof MeritError) {
     return MESSAGES[error.message] ?? "처리하지 못했습니다.";
   }

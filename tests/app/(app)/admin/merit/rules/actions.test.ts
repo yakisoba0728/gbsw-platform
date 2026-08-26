@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ForbiddenError } from "@/core/authz/errors";
 import { MeritError } from "@/modules/merit/merit.error";
 
 /**
@@ -297,5 +298,17 @@ describe("모든 액션이 requireAuth로 시작한다", () => {
     await createRuleAction(INITIAL, createForm({ label: "" }));
 
     expect(requireAuth).toHaveBeenCalledOnce();
+  });
+});
+
+/** 위와 같은 이유. 「처리하지 못했습니다」로 떨어지면 안 된다. */
+describe("권한 거부 문구", () => {
+  it("일반 폴백과 다른 문구를 낸다", async () => {
+    createRule.mockRejectedValue(new ForbiddenError("merit:rule:manage"));
+
+    const state = await createRuleAction(INITIAL, createForm());
+
+    expect(state.error).toBe("이 작업을 할 권한이 없습니다.");
+    expect(state.error).not.toBe("처리하지 못했습니다.");
   });
 });

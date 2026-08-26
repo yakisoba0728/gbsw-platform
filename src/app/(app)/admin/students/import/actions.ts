@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAuth } from "@/core/auth/session";
+import { ForbiddenError } from "@/core/authz/errors";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import { yearFormSchema } from "@/modules/academic-year/academic-year.schema";
 import {
@@ -95,6 +96,9 @@ export async function previewRosterAction(
     });
     return { error: null, year, rows, plan, notices, rosterFingerprint, previewToken };
   } catch (error) {
+    // 권한 거부를 「파일을 읽지 못했습니다」에 섞지 않는다 — 권한이 없어서 막힌
+    // 사람이 파일 문제로 알고 엉뚱한 곳을 고치게 된다.
+    if (error instanceof ForbiddenError) return emptyPreview("이 작업을 할 권한이 없습니다.");
     if (error instanceof AcademicYearError) {
       return emptyPreview(NO_CURRENT_YEAR_MESSAGE);
     }
@@ -120,6 +124,9 @@ export async function exportRosterAction(): Promise<{
     const { year, rows } = await exportRoster(actor);
     return { error: null, year, rows };
   } catch (error) {
+    if (error instanceof ForbiddenError) {
+      return { error: "이 작업을 할 권한이 없습니다.", year: null, rows: [] };
+    }
     if (error instanceof AcademicYearError) {
       return { error: NO_CURRENT_YEAR_MESSAGE, year: null, rows: [] };
     }
@@ -223,6 +230,7 @@ export async function applyRosterAction(
       invites,
     };
   } catch (error) {
+    if (error instanceof ForbiddenError) return applyError("이 작업을 할 권한이 없습니다.");
     if (error instanceof AcademicYearError) {
       return applyError(NO_CURRENT_YEAR_MESSAGE);
     }

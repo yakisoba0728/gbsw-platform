@@ -1,7 +1,8 @@
 import { cache } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { can, type Action } from "@/core/authz/can";
+import { type Action } from "@/core/authz/can";
+import { assertCan, ForbiddenError } from "@/core/authz/errors";
 import { isRole, type Role } from "@/core/authz/roles";
 import { auth } from "./auth";
 
@@ -59,9 +60,23 @@ export async function requireAuth(
   return user;
 }
 
-/** 단일 액션 권한 게이트. 서비스 계층에서 can()으로 한 번 더 검사한다. */
+/**
+ * 단일 액션 권한 게이트. 서비스 계층에서 can()으로 한 번 더 검사한다.
+ *
+ * 거부는 `assertCan`을 거쳐 감사로그에 남긴다. 페이지가 먼저 막기 때문에
+ * 학생이 교사 화면 주소를 눌러 본 흔적이 서비스 쪽 `authz:denied`에는 한 줄도
+ * 안 남고 있었다 — 서비스에 닿기 전에 리다이렉트가 먼저 일어나서다.
+ * 판정과 기록을 한곳에 둔다는 규칙이 이 경로에도 적용된다.
+ */
 export async function requirePermission(action: Action): Promise<SessionUser> {
   const user = await requireAuth();
-  if (!can(user, action)) redirect("/forbidden");
+
+  try {
+    await assertCan(user, action);
+  } catch (error) {
+    if (error instanceof ForbiddenError) redirect("/forbidden");
+    throw error;
+  }
+
   return user;
 }

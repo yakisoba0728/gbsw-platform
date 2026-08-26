@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ForbiddenError } from "@/core/authz/errors";
 import { MeritError } from "@/modules/merit/merit.error";
 
 const requireAuth = vi.fn(async () => ({ id: "admin-1", role: "ADMIN" }));
@@ -92,5 +93,21 @@ describe("saveThresholdAction — 경계 검증", () => {
     const state = await saveThresholdAction(INITIAL, form());
 
     expect(state.values).toBeNull();
+  });
+});
+
+/**
+ * 권한 거부가 일반 폴백에 섞이면 안 된다 — 화면이 「저장하지 못했습니다」라고 하면
+ * 권한이 없어서 막힌 사람이 일시적 장애로 알고 계속 다시 누른다. 규칙이 주석에만
+ * 있으면 새 액션마다 같은 자리에서 갈리므로 여기서 붙든다.
+ */
+describe("권한 거부 문구", () => {
+  it("일반 폴백과 다른 문구를 낸다", async () => {
+    setDemeritThresholds.mockRejectedValue(new ForbiddenError("merit:threshold:manage"));
+
+    const state = await saveThresholdAction(INITIAL, form());
+
+    expect(state.error).toBe("이 작업을 할 권한이 없습니다.");
+    expect(state.error).not.toBe("저장하지 못했습니다.");
   });
 });
