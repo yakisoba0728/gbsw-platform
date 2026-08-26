@@ -7,13 +7,21 @@ import {
   type PassStatus,
 } from "@/core/authz/pass-type";
 import { withTransaction } from "@/core/db/client";
+import { formatDateInput } from "@/lib/datetime";
+import { parseStudentNumber } from "@/lib/student-number";
 import { PassError } from "./pass.error";
+import { toPassHistorySheet, type PassHistoryExportRow } from "./pass.export";
 import * as repo from "./pass.repo";
-import type {
-  ApprovePassInput,
-  CancelPassInput,
-  IssuePassInput,
-  RejectPassInput,
+import type { PassHistoryFilter, PassWithStudent } from "./pass.repo";
+import {
+  PASS_HISTORY_PAGE_SIZE,
+  passHistoryRange,
+  type ApprovePassInput,
+  type CancelPassInput,
+  type IssuePassInput,
+  type PassHistoryExportInput,
+  type PassHistoryQuery,
+  type RejectPassInput,
 } from "./pass.schema";
 import { issueWindow } from "./pass.window";
 
@@ -249,4 +257,117 @@ export async function listActivePasses(actor: SessionUser, now: Date = new Date(
 export async function listStudentsForIssue(actor: SessionUser) {
   await assertCan(actor, "pass:issue");
   return repo.listEnrolledStudents(await repo.displayYear());
+}
+
+// ── 전체 내역 ──────────────────────────────────────────────────
+//
+// 「결재 대기」와 「지금 나가 있는 학생」은 지금 이 순간만 답한다 — 어제 나간
+// 것을 되짚을 자리가 여기다. 읽기만 하므로 recordAudit을 남기지 않는다.
+
+/**
+ * 화면의 조회 조건을 repo가 읽는 필터로 옮긴다.
+ *
+ * **조회 창을 인자로 받는다.** 안에서 다시 구하면 시트 첫 줄에 적는 범위와
+ * 실제 질의가 서로 다른 시계를 보게 되고, 자정을 걸친 요청에서 「30일」이 적힌
+ * 파일에 29일치가 들어간다. 학년도가 여기 없는 것도 같은 이유는 아니다 —
+ * 학번 대조에 쓸 학년도는 repo를 부를 때 함께 넘긴다.
+ */
+function historyFilter(
+  query: PassHistoryExportInput,
+  range: { since: Date; until: Date | null },
+): PassHistoryFilter {
+  return {
+    type: query.type,
+    status: query.status,
+    q: query.q,
+    // 4자리 숫자면 학번으로도 읽는다. 아니면 undefined가 되어 이름만 본다 —
+    // 어느 쪽이든 한 번의 질의로 끝난다 (merit의 searchStudents와 같은 규칙).
+    studentNumber: query.q ? (parseStudentNumber(query.q) ?? undefined) : undefined,
+    since: range.since,
+    until: range.until,
+  };
+}
+
+export async function listPassHistory(actor: SessionUser, query: PassHistoryQuery) {
+  await assertCan(actor, "pass:read:any");
+
+  const year = await repo.displayYear();
+  const { entries, total } = await repo.listHistory(
+    {
+      ...historyFilter(query, passHistoryRange(query)),
+      skip: (query.page - 1) * PASS_HISTORY_PAGE_SIZE,
+      take: PASS_HISTORY_PAGE_SIZE,
+    },
+    year,
+  );
+
+  return {
+    entries,
+    total,
+    page: query.page,
+    pageCount: Math.max(1, Math.ceil(total / PASS_HISTORY_PAGE_SIZE)),
+  };
+}
+
+/**
+ * 같은 조건의 전체를 한 파일로. 시트 조립과 파일명은 서비스가 만든다 —
+ * 서버는 파일이 아니라 행렬만 돌려주고 클라이언트가 xlsx로 만든다
+ * (`merit.export`와 같은 방식).
+ */
+export async function exportPassHistory(
+  actor: SessionUser,
+  input: PassHistoryExportInput,
+): Promise<{ rows: (string | number)[][]; filename: string }> {
+  await assertCan(actor, "pass:read:any");
+
+  const year = await repo.displayYear();
+  const range = passHistoryRange(input);
+  const { entries } = await repo.listHistory(
+    // 쪽을 나누지 않는다. 조회 창이 기본 30일로 이미 막혀 있어 한 파일이
+    // 감당 못 할 만큼 커지지 않는다.
+    { ...historyFilter(input, range), skip: 0, take: null },
+    year,
+  );
+
+  return {
+    rows: toPassHistorySheet(entries.map(toExportRow), input, range),
+    filename: historyFilename(range),
+  };
+}
+
+/** 파일 이름이 곧 기간이다 — 조건을 바꿔 두 번 받아도 서로 덮어쓰지 않는다. */
+function historyFilename(range: { since: Date; until: Date | null }): string {
+  const from = formatDateInput(range.since);
+  return range.until
+    ? `출입증내역_${from}~${formatDateInput(new Date(range.until.getTime() - 1))}.xlsx`
+    : `출입증내역_${from}부터.xlsx`;
+}
+
+/** 조회 결과 한 줄 → 시트 한 줄. 학급·번호는 그 학년도 재적에서 나온다. */
+function toExportRow(pass: PassWithStudent): PassHistoryExportRow {
+  const enrollment = pass.studentProfile.enrollments[0];
+
+  return {
+    type: pass.type,
+    status: pass.status,
+    grade: enrollment?.schoolClass?.grade ?? null,
+    classNo: enrollment?.schoolClass?.classNo ?? null,
+    number: enrollment?.number ?? null,
+    studentName: pass.studentProfile.user.name,
+    startAt: pass.startAt,
+    endAt: pass.endAt,
+    destination: pass.destination,
+    reason: pass.reason,
+    requestedByName: pass.requestedByName,
+    consentedByName: pass.consentedByName,
+    consentedAt: pass.consentedAt,
+    consentByProxy: pass.consentByProxy,
+    consentNote: pass.consentNote,
+    decidedByName: pass.decidedByName,
+    decidedAt: pass.decidedAt,
+    decisionNote: pass.decisionNote,
+    cancelledByName: pass.cancelledByName,
+    cancelledAt: pass.cancelledAt,
+    cancelReason: pass.cancelReason,
+  };
 }

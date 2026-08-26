@@ -10,9 +10,11 @@ import {
   cancelPassSchema,
   consentPassSchema,
   issuePassSchema,
+  passHistoryExportSchema,
   rejectPassSchema,
   requestPassSchema,
   withdrawPassSchema,
+  type PassHistoryExportInput,
 } from "@/modules/pass/pass.schema";
 import { MAX_OVERNIGHT_DAYS } from "@/modules/pass/pass.window";
 import * as request from "@/modules/pass/request.service";
@@ -240,4 +242,44 @@ export async function cancelAction(
 
   revalidatePass(parsed.data.passId);
   return { error: null, ok: true };
+}
+
+/**
+ * 내보내기 결과. 서버는 행렬만 돌려주고 클라이언트(history/export-button.tsx)가
+ * write-excel-file/browser로 xlsx를 만든다 — 서버 액션은 값만 넘길 수 있어
+ * 셀 서식(생성자)을 실어 보내지 못한다.
+ */
+type ExportState = {
+  error: string | null;
+  rows: (string | number)[][];
+  filename: string;
+};
+
+const EXPORT_FAILED = "내보내지 못했습니다.";
+
+/** 전체 내역의 현재 조건 전체를 내보낸다. 페이지 번호는 일부러 받지 않는다. */
+export async function exportPassHistoryAction(
+  input: PassHistoryExportInput,
+): Promise<ExportState> {
+  const actor = await requireAuth();
+
+  const parsed = passHistoryExportSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: "조회 조건을 확인해 주세요.", rows: [], filename: "" };
+  }
+
+  try {
+    return { error: null, ...(await decision.exportPassHistory(actor, parsed.data)) };
+  } catch (error) {
+    // 권한 거부를 폴백에 섞지 않는다 — 「내보내지 못했습니다」로 떨어지면
+    // 권한이 없어서 막힌 사람이 일시적 장애로 알고 계속 다시 누른다.
+    if (error instanceof ForbiddenError) {
+      return { error: FORBIDDEN_MESSAGE, rows: [], filename: "" };
+    }
+    if (error instanceof PassError) {
+      return { error: MESSAGES[error.message] ?? EXPORT_FAILED, rows: [], filename: "" };
+    }
+    console.error("출입증 내역 내보내기 실패:", error);
+    return { error: EXPORT_FAILED, rows: [], filename: "" };
+  }
 }

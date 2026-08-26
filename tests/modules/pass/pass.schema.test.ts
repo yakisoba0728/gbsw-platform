@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { formatDateInput } from "@/lib/datetime";
 import {
   approvePassSchema,
   cancelPassSchema,
   issuePassSchema,
+  passHistoryExportSchema,
+  passHistoryQuerySchema,
+  passHistoryRange,
   rejectPassSchema,
   requestPassSchema,
 } from "@/modules/pass/pass.schema";
@@ -113,5 +117,80 @@ describe("approve/reject/cancel", () => {
       approvePassSchema.safeParse({ passId: "p-1", byProxy: "on", consentNote: "전화 확인" })
         .success,
     ).toBe(true);
+  });
+});
+
+describe("passHistoryQuerySchema", () => {
+  it("아무것도 안 주면 1쪽에 조건 없음이다", () => {
+    const parsed = passHistoryQuerySchema.parse({});
+    expect(parsed).toEqual({
+      type: undefined,
+      status: undefined,
+      q: undefined,
+      from: undefined,
+      to: undefined,
+      page: 1,
+    });
+  });
+
+  it("빈 문자열은 「안 고름」이다 — 빈 값과 갈리지 않는다", () => {
+    const parsed = passHistoryQuerySchema.parse({ q: "   ", from: "", to: "" });
+    expect(parsed.q).toBeUndefined();
+    expect(parsed.from).toBeUndefined();
+    expect(parsed.to).toBeUndefined();
+  });
+
+  it.each([
+    ["자릿수가 모자란 날짜", { from: "2026-8-2" }],
+    ["없는 날짜", { from: "2026-02-30" }],
+    ["끝 날짜도 같은 잣대", { to: "2026-13-01" }],
+    ["0쪽", { page: "0" }],
+    ["1000쪽 초과", { page: "1001" }],
+    ["숫자가 아닌 쪽", { page: "둘" }],
+    ["모르는 유형", { type: "LEAVE" }],
+    ["모르는 상태", { status: "EXPIRED" }],
+    ["61자 검색어", { q: "가".repeat(61) }],
+  ])("%s는 거부한다 — 화면은 기본 조건으로 되돌린다", (_label, input) => {
+    expect(passHistoryQuerySchema.safeParse(input).success).toBe(false);
+  });
+
+  it("쪽 번호는 문자열로 와도 수가 된다", () => {
+    expect(passHistoryQuerySchema.parse({ page: "3" }).page).toBe(3);
+  });
+
+  it("내보내기 조건에는 쪽 번호가 없다", () => {
+    const parsed = passHistoryExportSchema.parse({ page: "5", type: "OUTING" });
+    expect("page" in parsed).toBe(false);
+    expect(parsed.type).toBe("OUTING");
+  });
+});
+
+describe("passHistoryRange", () => {
+  /** 2026-08-26 09:00 KST. 서버가 UTC로 돌아도 눈금은 KST 자정이어야 한다. */
+  const NOW = new Date("2026-08-26T00:00:00.000Z");
+
+  it("기간을 비우면 오늘을 포함한 최근 30일이다", () => {
+    const { since, until } = passHistoryRange({}, NOW);
+
+    expect(formatDateInput(since)).toBe("2026-07-28"); // 7/28 ~ 8/26 = 30일
+    expect(since.toISOString()).toBe("2026-07-27T15:00:00.000Z"); // KST 자정
+    // 상한이 없다 — 다음 주 외박 신청도 「전체 내역」에 들어 있어야 한다.
+    expect(until).toBeNull();
+  });
+
+  it("KST로 날이 바뀐 뒤에는 새 날을 기준으로 센다", () => {
+    // 2026-08-26 20:00 UTC = 8/27 05:00 KST. UTC로 자르면 하루 밀린다.
+    const { since } = passHistoryRange({}, new Date("2026-08-26T20:00:00.000Z"));
+    expect(formatDateInput(since)).toBe("2026-07-29");
+  });
+
+  it("시작을 고르면 그날 KST 자정부터다", () => {
+    const { since } = passHistoryRange({ from: "2026-03-02" }, NOW);
+    expect(since.toISOString()).toBe("2026-03-01T15:00:00.000Z");
+  });
+
+  it("끝을 고르면 그날을 통째로 포함한다 — 다음 날 자정 미만", () => {
+    const { until } = passHistoryRange({ to: "2026-08-20" }, NOW);
+    expect(until?.toISOString()).toBe("2026-08-20T15:00:00.000Z"); // 8/21 00:00 KST
   });
 });

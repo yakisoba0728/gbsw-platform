@@ -39,12 +39,22 @@ export async function AdminView({ actor }: { actor: SessionUser }) {
           <SectionCard
             title="결재 대기"
             aside={
-              <Link
-                href="/scan"
-                className={buttonClass({ variant: "secondary", size: "sm" })}
-              >
-                QR 스캔하기
-              </Link>
+              // 이 카드도 아래 카드도 「지금」만 답한다 — 어제 나간 것을 되짚을
+              // 길은 전체 내역뿐이라 결재 대기 옆에 세운다.
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href="/pass/history"
+                  className={buttonClass({ variant: "secondary", size: "sm" })}
+                >
+                  전체 내역
+                </Link>
+                <Link
+                  href="/scan"
+                  className={buttonClass({ variant: "secondary", size: "sm" })}
+                >
+                  QR 스캔하기
+                </Link>
+              </div>
             }
             flush
           >

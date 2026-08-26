@@ -80,3 +80,14 @@ export function passEndLabel(pass: { type: string; endAt: Date }): string {
     ? formatMonthDay(lastMomentOf(pass))
     : formatTimeShort(pass.endAt);
 }
+
+/**
+ * 유효 창의 마지막 순간을 **Date 그대로** 낸다. `passEndLabel`과 같은 눈금이되
+ * 포맷은 부르는 쪽이 고른다 — 엑셀 시트는 「오후 6:00」이 아니라 글자순이 곧
+ * 시각순인 형태로 적어야 해서, 화면용 문자열을 되받아 쓸 수 없다.
+ *
+ * 외박의 하루 밀림을 막는 규칙은 `lastMomentOf` 한 곳에만 있다.
+ */
+export function passEndMoment(pass: { type: string; endAt: Date }): Date {
+  return pass.type === "OVERNIGHT" ? lastMomentOf(pass) : pass.endAt;
+}

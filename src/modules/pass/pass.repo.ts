@@ -240,3 +240,89 @@ export async function isParentOf(
   });
   return link !== null;
 }
+
+/**
+ * 전체 내역의 조회 조건. 학번은 검색어를 4자리로 읽어낸 경우에만 온다 —
+ * 파싱은 서비스가 한다(`merit.repo.searchStudents`와 같은 규약).
+ */
+export type PassHistoryFilter = {
+  type?: PassType;
+  status?: PassStatus;
+  q?: string;
+  studentNumber?: { grade: number; classNo: number; number: number };
+  /** 조회 창의 하한 (이상). 화면이 비워 두면 최근 30일이 들어온다. */
+  since: Date;
+  /** 상한 (미만). null이면 위쪽이 열려 있어 앞으로 잡힌 신청도 함께 나온다. */
+  until: Date | null;
+};
+
+function historyWhere(filter: PassHistoryFilter, year: number): Prisma.PassWhereInput {
+  return {
+    ...(filter.type ? { type: filter.type } : {}),
+    ...(filter.status ? { status: filter.status } : {}),
+    // 목록의 정렬키와 같은 열로 자른다. 「8월 20일에 나간 것」을 찾는 사람이
+    // 보는 날짜가 startAt이라, 여기만 endAt으로 자르면 화면과 조건이 어긋난다.
+    startAt: { gte: filter.since, ...(filter.until ? { lt: filter.until } : {}) },
+    ...(filter.q
+      ? {
+          OR: [
+            {
+              studentProfile: {
+                user: { name: { contains: filter.q, mode: "insensitive" } },
+              },
+            },
+            // 학번은 그 학년도 재적에만 있다. 여기서 year를 빼면 작년 번호로
+            // 남의 학생이 나온다.
+            ...(filter.studentNumber
+              ? [
+                  {
+                    studentProfile: {
+                      enrollments: {
+                        some: {
+                          year,
+                          number: filter.studentNumber.number,
+                          schoolClass: {
+                            grade: filter.studentNumber.grade,
+                            classNo: filter.studentNumber.classNo,
+                          },
+                        },
+                      },
+                    },
+                  },
+                ]
+              : []),
+          ],
+        }
+      : {}),
+  };
+}
+
+/**
+ * 조건에 맞는 내역 한 페이지와 전체 건수. `take`가 null이면 자르지 않는다
+ * (내보내기 — 같은 조건의 전부를 한 파일에 담는다).
+ *
+ * 보조 정렬키 `id`가 없으면 쪽 경계가 흔들린다. **외박은 startAt이 KST 자정이라**
+ * 같은 날 나간 학생 전부가 밀리초까지 같은 값을 갖는데, SQL은 정렬키가 같은 행
+ * 사이의 순서를 보장하지 않는다 — OFFSET이 달라지면 어느 쪽에도 안 나오는 줄이나
+ * 두 번 나오는 줄이 생긴다. cuid는 시간순은 아니지만 유일하고 결정적이다.
+ */
+export async function listHistory(
+  filter: PassHistoryFilter & { skip: number; take: number | null },
+  year: number,
+  db: DbClient = prisma,
+): Promise<{ entries: PassWithStudent[]; total: number }> {
+  const where = historyWhere(filter, year);
+
+  const [entries, total] = await Promise.all([
+    db.pass.findMany({
+      where,
+      include: { studentProfile: studentInclude(year) },
+      orderBy: [{ startAt: "desc" }, { id: "desc" }],
+      skip: filter.skip,
+      ...(filter.take === null ? {} : { take: filter.take }),
+    }),
+    db.pass.count({ where }),
+  ]);
+
+  return { entries, total };
+}

@@ -7,6 +7,7 @@ const findPassForVerify = vi.fn();
 const listForStudent = vi.fn();
 const listPendingForAdmin = vi.fn();
 const listActiveNow = vi.fn();
+const listHistory = vi.fn();
 const listForParent = vi.fn();
 const findOverlapping = vi.fn();
 const transition = vi.fn();
@@ -26,6 +27,7 @@ vi.mock("@/modules/pass/pass.repo", () => ({
   listForStudent,
   listPendingForAdmin,
   listActiveNow,
+  listHistory,
   listForParent,
   findOverlapping,
   transition,
@@ -71,6 +73,7 @@ beforeEach(() => {
   listForStudent.mockReset().mockResolvedValue([]);
   listPendingForAdmin.mockReset().mockResolvedValue([]);
   listActiveNow.mockReset().mockResolvedValue([]);
+  listHistory.mockReset().mockResolvedValue({ entries: [], total: 0 });
   listForParent.mockReset().mockResolvedValue([]);
   findOverlapping.mockReset().mockResolvedValue(null);
   transition.mockReset().mockResolvedValue(1);
@@ -311,5 +314,84 @@ describe("목록", () => {
   it("지금 유효한 목록도 교사만 본다", async () => {
     await service.listActivePasses(admin, NOW);
     expect(listActiveNow).toHaveBeenCalledWith(NOW, 2026);
+  });
+});
+
+describe("전체 내역", () => {
+  const query = {
+    type: undefined,
+    status: undefined,
+    q: undefined,
+    from: "2026-08-01",
+    to: "2026-08-26",
+    page: 1,
+  };
+
+  it("학생은 볼 수 없다 — 남의 외출까지 통째로 읽히는 자리다", async () => {
+    await expect(service.listPassHistory(student, query)).rejects.toThrow(ForbiddenError);
+    expect(listHistory).not.toHaveBeenCalled();
+  });
+
+  /** 내보내기 조건은 쪽 번호만 빠진 같은 모양이다. */
+  const exportInput = {
+    type: undefined,
+    status: undefined,
+    q: undefined,
+    from: "2026-08-01",
+    to: "2026-08-26",
+  };
+
+  it("학생은 내보낼 수도 없다", async () => {
+    await expect(service.exportPassHistory(student, exportInput)).rejects.toThrow(
+      ForbiddenError,
+    );
+    expect(listHistory).not.toHaveBeenCalled();
+  });
+
+  it("교사는 고른 기간과 쪽으로 조회한다", async () => {
+    listHistory.mockResolvedValue({ entries: [], total: 45 });
+    const result = await service.listPassHistory(admin, { ...query, page: 3 });
+
+    expect(listHistory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        // 8/1 00:00 KST ~ 8/27 00:00 KST (끝날을 통째로 포함한다)
+        since: new Date("2026-07-31T15:00:00.000Z"),
+        until: new Date("2026-08-26T15:00:00.000Z"),
+        skip: 40,
+        take: 20,
+      }),
+      2026,
+    );
+    expect(result.pageCount).toBe(3); // 45건 / 20
+  });
+
+  it("검색어가 4자리면 학번으로도 읽는다", async () => {
+    await service.listPassHistory(admin, { ...query, q: "2305" });
+    expect(listHistory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        q: "2305",
+        studentNumber: { grade: 2, classNo: 3, number: 5 },
+      }),
+      2026,
+    );
+  });
+
+  it("이름 검색에는 학번 조건이 붙지 않는다", async () => {
+    await service.listPassHistory(admin, { ...query, q: "김민준" });
+    expect(listHistory).toHaveBeenCalledWith(
+      expect.objectContaining({ q: "김민준", studentNumber: undefined }),
+      2026,
+    );
+  });
+
+  it("내보내기는 쪽을 나누지 않는다 — 조건에 맞는 전부가 한 파일이다", async () => {
+    const { filename } = await service.exportPassHistory(admin, exportInput);
+
+    expect(listHistory).toHaveBeenCalledWith(
+      expect.objectContaining({ skip: 0, take: null }),
+      2026,
+    );
+    // 파일 이름이 곧 기간이다 — 조건을 바꿔 두 번 받아도 서로 덮어쓰지 않는다.
+    expect(filename).toBe("출입증내역_2026-08-01~2026-08-26.xlsx");
   });
 });
