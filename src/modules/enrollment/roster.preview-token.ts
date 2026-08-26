@@ -1,7 +1,21 @@
 import "server-only";
 
 import { createHmac, timingSafeEqual } from "node:crypto";
-import type { RosterRow } from "@/modules/enrollment/roster.parse";
+import { canonicalJson } from "@/lib/canonical-json";
+import type { RosterRow } from "./roster.parse";
+
+/**
+ * 「미리보기에서 본 그 내용만 반영한다」를 지키는 봉인.
+ *
+ * 확정 반영은 클라이언트가 돌려보낸 행을 다시 분류하고 학년도·명단 지문·삭제
+ * 대상까지 다시 검사하지만, **넘어온 행 자체가 미리보기 때 보여준 그 행인지는
+ * 그 검사들로 덮이지 않는다** — 지문은 DB 쪽 명단이 안 변했는지를 볼 뿐이다.
+ * 그 마지막 한 칸을 이 HMAC이 맡는다.
+ *
+ * 그래서 서비스 계층에 둔다. 서버 액션에 두면 진입점을 옮기거나 같은 서비스를
+ * 부르는 두 번째 진입점이 생길 때 이 보증만 조용히 사라지고, 서비스만 읽어서는
+ * 빠진 줄을 알 수 없다.
+ */
 
 const TOKEN_VERSION = "v1";
 const SHA256_BASE64URL = /^[A-Za-z0-9_-]{43}$/u;
@@ -13,22 +27,6 @@ type PreviewTokenInput = {
   rosterFingerprint: string;
 };
 
-function canonicalize(value: unknown): string {
-  if (value === null || typeof value === "number" || typeof value === "boolean") {
-    return JSON.stringify(value);
-  }
-  if (typeof value === "string") return JSON.stringify(value.normalize("NFC"));
-  if (Array.isArray(value)) return `[${value.map(canonicalize).join(",")}]`;
-  if (typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    return `{${Object.keys(record)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${canonicalize(record[key])}`)
-      .join(",")}}`;
-  }
-  return JSON.stringify(null);
-}
-
 function previewTokenSecret(): string {
   const secret =
     process.env.ROSTER_IMPORT_PREVIEW_SECRET ?? process.env.BETTER_AUTH_SECRET;
@@ -38,7 +36,7 @@ function previewTokenSecret(): string {
 }
 
 function tokenPayload(input: PreviewTokenInput): string {
-  return canonicalize({
+  return canonicalJson({
     year: input.year,
     rows: input.rows,
     deletionIds: [...input.deletionIds].sort(),

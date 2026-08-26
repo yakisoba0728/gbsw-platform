@@ -3,6 +3,12 @@ import { Suspense } from "react";
 import { requirePermission } from "@/core/auth/session";
 import { isMeritTrack, type MeritTrack } from "@/core/authz/merit-track";
 import { hrefWith, type SearchParamsInput } from "@/lib/search-params";
+import {
+  MAX_CLASS_NO,
+  MAX_GRADE,
+  MIN_CLASS_NO,
+  MIN_GRADE,
+} from "@/modules/enrollment/enrollment.schema";
 import { HintSkeleton, StatsShell } from "./stats-shell";
 import { parseStatsView, STATS_VIEW_SCOPED, type StatsView } from "./stats-view";
 import { loadOverview, OverviewBody, OverviewHint, OverviewSkeleton } from "./views/overview";
@@ -63,8 +69,8 @@ export default async function MeritStatsPage({
 
   // 반을 골랐으면 그 반만 본다. 둘 다 유효할 때만 적용한다 —
   // 하나만 있는 중간 상태는 전교로 떨어진다.
-  const grade = numberParam(raw.grade, 1, 3);
-  const classNo = numberParam(raw.classNo, 1, 20);
+  const grade = numberParam(raw.grade, MIN_GRADE, MAX_GRADE);
+  const classNo = numberParam(raw.classNo, MIN_CLASS_NO, MAX_CLASS_NO);
   const scope =
     STATS_VIEW_SCOPED[view] && grade !== null && classNo !== null
       ? { grade, classNo }

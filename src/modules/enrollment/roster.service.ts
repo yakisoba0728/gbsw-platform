@@ -13,6 +13,10 @@ import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
 import { buildExportRows } from "./roster.export";
 import { parseRoster, type RosterRow } from "./roster.parse";
 import { planRoster, type RosterPlan } from "./roster.plan";
+import {
+  issuePreviewToken,
+  verifyPreviewToken,
+} from "./roster.preview-token";
 import * as repo from "./roster.repo";
 
 export class RosterError extends Error {}
@@ -70,6 +74,8 @@ export async function previewRoster(
   plan: RosterPlan;
   notices: string[];
   rosterFingerprint: string;
+  /** 이 미리보기를 봉인한 값. 확정은 이걸 그대로 되돌려 보내야 한다. */
+  previewToken: string;
 }> {
   await assertMayImport(actor);
 
@@ -79,7 +85,18 @@ export async function previewRoster(
 
   const existing = await repo.listExisting(year);
   const plan = planRoster(rows, existing);
-  return { year, rows, plan, notices, rosterFingerprint: createRosterFingerprint(existing) };
+  const rosterFingerprint = createRosterFingerprint(existing);
+
+  // 봉인은 여기서 찍는다 — 확정 쪽 검증과 짝이므로 둘이 같은 계층에 있어야
+  // 진입점이 바뀌어도 함께 따라간다.
+  const previewToken = issuePreviewToken({
+    year,
+    rows,
+    deletionIds: plan.missingFromFile.map((s) => s.studentProfileId),
+    rosterFingerprint,
+  });
+
+  return { year, rows, plan, notices, rosterFingerprint, previewToken };
 }
 
 /** 전체 명단 내보내기. 읽기만 하므로 감사로그를 남기지 않는다. */
@@ -108,6 +125,8 @@ export async function applyRosterPlan(
   expectedRosterFingerprint: string,
   confirmedDeletionIds: string[],
   deletionCountConfirmation: number | null,
+  /** previewRoster가 준 봉인. 이것이 곧 「미리보기에서 본 그 행인가」의 답이다. */
+  previewToken: string,
 ): Promise<{
   saved: number;
   deleted: number;
@@ -119,6 +138,19 @@ export async function applyRosterPlan(
 
   // 경계 zod를 건너뛴 진입점이 생겨도 rows: []로 전교생이 삭제 대상이 되면 안 된다.
   if (rows.length === 0) throw new RosterError("EMPTY_ROWS");
+
+  // 아래 검사들은 「DB 쪽 명단이 그대로인가」를 본다. 넘어온 행 자체가 교사가
+  // 화면에서 확인한 그 행인지는 이 봉인만 답할 수 있다.
+  if (
+    !verifyPreviewToken(previewToken, {
+      year: expectedYear,
+      rows,
+      deletionIds: confirmedDeletionIds,
+      rosterFingerprint: expectedRosterFingerprint,
+    })
+  ) {
+    throw new RosterError("PREVIEW_TOKEN_INVALID");
+  }
 
   const year = await getCurrentYear();
   if (year !== expectedYear) throw new RosterError("YEAR_CHANGED");

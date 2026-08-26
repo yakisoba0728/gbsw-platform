@@ -19,7 +19,6 @@ import {
   rosterRowsSchema,
 } from "@/modules/enrollment/roster.schema";
 import type { ApplyState, PreviewState } from "./action-state";
-import { issuePreviewToken, verifyPreviewToken } from "./preview-token";
 
 const MESSAGES: Record<string, string> = {
   EMPTY: "읽을 수 있는 줄이 없습니다. 서식 파일을 받아 확인해 주세요.",
@@ -84,16 +83,8 @@ export async function previewRosterAction(
 
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
-    const { year, rows, plan, notices, rosterFingerprint } = await previewRoster(actor, {
-      filename: file.name,
-      buffer,
-    });
-    const previewToken = issuePreviewToken({
-      year,
-      rows,
-      deletionIds: sortedDeletionIds(plan.missingFromFile.map((s) => s.studentProfileId)),
-      rosterFingerprint,
-    });
+    const { year, rows, plan, notices, rosterFingerprint, previewToken } =
+      await previewRoster(actor, { filename: file.name, buffer });
     return { error: null, year, rows, plan, notices, rosterFingerprint, previewToken };
   } catch (error) {
     // 권한 거부를 「파일을 읽지 못했습니다」에 섞지 않는다 — 권한이 없어서 막힌
@@ -200,19 +191,9 @@ export async function applyRosterAction(
   }
 
   const confirmedDeletionIds = sortedDeletionIds(confirmedDeletionIdsParsed.data);
-  const previewToken = String(formData.get("previewToken") ?? "");
-  if (
-    !verifyPreviewToken(previewToken, {
-      year: yearParsed.data.year,
-      rows: rowsParsed.data,
-      deletionIds: confirmedDeletionIds,
-      rosterFingerprint: rosterFingerprintParsed.data,
-    })
-  ) {
-    return applyError(MESSAGES.PREVIEW_TOKEN_INVALID);
-  }
 
   try {
+    // 봉인 검증은 서비스가 한다 — 액션에 두면 진입점이 바뀔 때 이 보증만 사라진다.
     const { saved, deleted, invites, excludedNewStudents } = await applyRosterPlan(
       actor,
       yearParsed.data.year,
@@ -220,6 +201,7 @@ export async function applyRosterAction(
       rosterFingerprintParsed.data,
       confirmedDeletionIds,
       deletionCountParsed.data,
+      String(formData.get("previewToken") ?? ""),
     );
     revalidatePath("/admin/students");
     return {

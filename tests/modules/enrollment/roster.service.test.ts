@@ -42,6 +42,7 @@ vi.mock("@/modules/enrollment/roster.repo", () => ({
   InviteCodeCollisionError,
   NumberTakenError,
 }));
+vi.mock("server-only", () => ({}));
 vi.mock("@/core/audit/audit", () => ({ recordAudit, recordAuditMany }));
 vi.mock("@/core/db/client", () => ({ withTransaction }));
 vi.mock("@/modules/academic-year/academic-year.service", () => ({
@@ -50,9 +51,44 @@ vi.mock("@/modules/academic-year/academic-year.service", () => ({
 vi.mock("@/modules/invites/invite.service", () => ({ generateUniqueCode, toExpiresAt }));
 
 // RosterError는 이 테스트에서 쓰지 않는다 — 던지는 메시지는 toThrow()로 문자열째 확인한다.
-const { applyRosterPlan, createRosterFingerprint, exportRoster } = await import(
-  "@/modules/enrollment/roster.service"
+const {
+  applyRosterPlan: applyWithToken,
+  createRosterFingerprint,
+  exportRoster,
+} = await import("@/modules/enrollment/roster.service");
+const { issuePreviewToken } = await import(
+  "@/modules/enrollment/roster.preview-token"
 );
+
+/**
+ * 봉인은 `previewRoster`가 찍고 확정이 검증한다. 아래 테스트들은 확정 쪽 규칙을
+ * 보는 것이라, 그 미리보기에서 왔을 봉인을 기본값으로 만들어 붙인다. 봉인 자체가
+ * 무엇을 막는지는 「미리보기 봉인」 describe가 따로 본다.
+ */
+function applyRosterPlan(
+  actor: SessionUser,
+  expectedYear: number,
+  rows: Parameters<typeof applyWithToken>[2],
+  rosterFingerprint: string,
+  deletionIds: string[],
+  deletionCount: number | null,
+  token = issuePreviewToken({
+    year: expectedYear,
+    rows,
+    deletionIds,
+    rosterFingerprint,
+  }),
+) {
+  return applyWithToken(
+    actor,
+    expectedYear,
+    rows,
+    rosterFingerprint,
+    deletionIds,
+    deletionCount,
+    token,
+  );
+}
 
 function user(role: SessionUser["role"], id = "admin-1"): SessionUser {
   return {
@@ -769,5 +805,55 @@ describe("exportRoster()", () => {
   it("읽기만 한다 — 감사로그를 남기지 않는다 (생성·수정·삭제만 기록한다)", async () => {
     await exportRoster(admin);
     expect(noAudit()).toBe(true);
+  });
+});
+
+/**
+ * 「미리보기에서 본 그 내용만 반영한다」 — 학년도·명단 지문·삭제 대상 검사는
+ * DB 쪽 명단이 그대로인지를 볼 뿐이라, 클라이언트가 되돌려 보낸 행 자체는 이
+ * 봉인만 붙든다. 검증이 액션에 있던 동안에는 서비스만 읽어서는 이 규칙이
+ * 있는지조차 알 수 없었다.
+ */
+describe("미리보기 봉인", () => {
+  it("봉인이 없으면 반영하지 않는다", async () => {
+    await expect(
+      applyRosterPlan(admin, 2026, [row], fingerprint(), [], null, ""),
+    ).rejects.toThrow("PREVIEW_TOKEN_INVALID");
+    expect(applyRoster).not.toHaveBeenCalled();
+  });
+
+  it("미리보기와 다른 행을 보내면 반영하지 않는다", async () => {
+    const 봉인 = issuePreviewToken({
+      year: 2026,
+      rows: [row],
+      deletionIds: [],
+      rosterFingerprint: fingerprint(),
+    });
+    const 바꿔치기 = { ...row, number: 99 };
+
+    await expect(
+      applyRosterPlan(admin, 2026, [바꿔치기], fingerprint(), [], null, 봉인),
+    ).rejects.toThrow("PREVIEW_TOKEN_INVALID");
+    expect(applyRoster).not.toHaveBeenCalled();
+  });
+
+  it("미리보기와 다른 삭제 대상을 보내면 반영하지 않는다", async () => {
+    const 봉인 = issuePreviewToken({
+      year: 2026,
+      rows: [row],
+      deletionIds: [],
+      rosterFingerprint: fingerprint(),
+    });
+
+    await expect(
+      applyRosterPlan(admin, 2026, [row], fingerprint(), ["sp-1"], 1, 봉인),
+    ).rejects.toThrow("PREVIEW_TOKEN_INVALID");
+    expect(applyRoster).not.toHaveBeenCalled();
+  });
+
+  it("권한 검사가 봉인 검사보다 먼저다 — 남의 파일 내용을 봉인으로 떠보지 못한다", async () => {
+    await expect(
+      applyRosterPlan(student, 2026, [row], fingerprint(), [], null, ""),
+    ).rejects.toThrow("FORBIDDEN");
   });
 });

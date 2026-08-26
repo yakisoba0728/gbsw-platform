@@ -37,8 +37,8 @@ const { RosterError } = await import("@/modules/enrollment/roster.service");
 const { AcademicYearError } = await import(
   "@/modules/academic-year/academic-year.service"
 );
-const { issuePreviewToken, verifyPreviewToken } = await import(
-  "@/app/(app)/admin/students/import/preview-token"
+const { issuePreviewToken } = await import(
+  "@/modules/enrollment/roster.preview-token"
 );
 const { rosterRowsSchema } = await import("@/modules/enrollment/roster.schema");
 const { previewRosterAction, applyRosterAction, exportRosterAction } =
@@ -158,6 +158,8 @@ beforeEach(() => {
     plan: PLAN,
     notices: [],
     rosterFingerprint: "roster-v1",
+    // 봉인은 서비스가 찍는다. 액션이 할 일은 그걸 화면까지 그대로 나르는 것뿐이다.
+    previewToken: "sealed-by-service",
   });
   applyRosterPlan.mockResolvedValue({
     saved: 2,
@@ -180,15 +182,8 @@ describe("previewRosterAction — 경계 검증", () => {
     expect(state.error).toBeNull();
     expect(state.year).toBe(2026);
     expect(state.rosterFingerprint).toBe("roster-v1");
-    expect(state.previewToken).toEqual(expect.any(String));
-    expect(
-      verifyPreviewToken(state.previewToken!, {
-        year: 2026,
-        rows: [ROW],
-        deletionIds: [],
-        rosterFingerprint: "roster-v1",
-      }),
-    ).toBe(true);
+    // 서비스가 찍은 봉인을 그대로 화면까지 나른다 — 액션이 다시 만들지 않는다.
+    expect(state.previewToken).toBe("sealed-by-service");
   });
 
   it("파일을 안 고르면 서비스를 부르지 않는다", async () => {
@@ -253,33 +248,6 @@ describe("previewRosterAction — 경계 검증", () => {
   });
 });
 
-describe("preview-token — HMAC 정규형", () => {
-  const input = {
-    year: 2026,
-    rows: [ROW],
-    deletionIds: [],
-    rosterFingerprint: "roster-v1",
-  };
-
-  it("정상 토큰만 통과한다", () => {
-    const token = issuePreviewToken(input);
-
-    expect(verifyPreviewToken(token, input)).toBe(true);
-  });
-
-  it("base64url 문자가 아닌 MAC은 decode 전에 거부한다", () => {
-    const token = issuePreviewToken(input).replace(/.$/u, "!");
-
-    expect(verifyPreviewToken(token, input)).toBe(false);
-  });
-
-  it("패딩이 붙은 대체 base64url 표기도 거부한다", () => {
-    const token = `${issuePreviewToken(input)}=`;
-
-    expect(verifyPreviewToken(token, input)).toBe(false);
-  });
-});
-
 describe("applyRosterAction — 경계 검증", () => {
   it("확정 폼이 보내는 네 필드 그대로면 서비스까지 도달한다", async () => {
     const state = await applyRosterAction(APPLY_INITIAL, applyForm());
@@ -291,6 +259,7 @@ describe("applyRosterAction — 경계 검증", () => {
       "roster-v1",
       [],
       null, // 빈 deletionCount는 "입력 안 함"이라 null로 접힌다
+      expect.any(String), // 미리보기 봉인
     );
     expect(state).toEqual({
       error: null,
@@ -369,42 +338,22 @@ describe("applyRosterAction — 경계 검증", () => {
     expect(applyRosterPlan.mock.calls[0]?.[5]).toBe(1);
   });
 
-  it("미리보기 토큰이 없으면 서비스를 부르지 않는다", async () => {
-    const state = await applyRosterAction(
-      APPLY_INITIAL,
-      applyForm({ previewToken: "" }),
-    );
+  /**
+   * 봉인 대조는 서비스가 한다 (roster.service.test.ts의 「미리보기 봉인」).
+   * 액션의 몫은 폼이 보낸 값을 손대지 않고 그대로 넘기는 것뿐이다.
+   */
+  it("폼이 보낸 봉인을 그대로 서비스에 넘긴다", async () => {
+    const previewToken = tokenFor();
 
-    expect(applyRosterPlan).not.toHaveBeenCalled();
-    expect(state.error).toBe("미리보기 정보가 바뀌었습니다. 파일을 다시 읽어 주세요.");
+    await applyRosterAction(APPLY_INITIAL, applyForm({ previewToken }));
+
+    expect(applyRosterPlan.mock.calls[0]?.[6]).toBe(previewToken);
   });
 
-  it("미리보기 이후 행을 조작하면 HMAC 대조에서 거부한다", async () => {
-    const previewToken = tokenFor();
-    const state = await applyRosterAction(
-      APPLY_INITIAL,
-      applyForm({
-        rows: JSON.stringify([{ ...ROW, number: 14 }]),
-        previewToken,
-      }),
-    );
+  it("봉인 칸이 비어 있어도 서비스가 판정하도록 그대로 넘긴다", async () => {
+    await applyRosterAction(APPLY_INITIAL, applyForm({ previewToken: "" }));
 
-    expect(applyRosterPlan).not.toHaveBeenCalled();
-    expect(state.error).toBe("미리보기 정보가 바뀌었습니다. 파일을 다시 읽어 주세요.");
-  });
-
-  it("미리보기 이후 명단 지문을 조작하면 HMAC 대조에서 거부한다", async () => {
-    const previewToken = tokenFor();
-    const state = await applyRosterAction(
-      APPLY_INITIAL,
-      applyForm({
-        rosterFingerprint: "roster-v2",
-        previewToken,
-      }),
-    );
-
-    expect(applyRosterPlan).not.toHaveBeenCalled();
-    expect(state.error).toBe("미리보기 정보가 바뀌었습니다. 파일을 다시 읽어 주세요.");
+    expect(applyRosterPlan.mock.calls[0]?.[6]).toBe("");
   });
 
   it("건수 칸에 숫자가 아닌 값이 오면 서비스를 부르지 않는다", async () => {

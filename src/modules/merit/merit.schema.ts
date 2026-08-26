@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { MERIT_KINDS, MERIT_TRACKS } from "@/core/authz/merit-track";
 import { MAX_YEAR, MIN_YEAR } from "@/modules/academic-year/academic-year.schema";
+import {
+  MAX_CLASS_NO,
+  MAX_GRADE,
+  MIN_CLASS_NO,
+  MIN_GRADE,
+} from "@/modules/enrollment/enrollment.schema";
 
 /**
  * 서버 액션 경계에서만 쓴다. 서비스는 여기를 통과한 타입을 신뢰한다.
@@ -178,8 +184,11 @@ const yearQuery = z.coerce.number().int().min(MIN_YEAR).max(MAX_YEAR).optional()
  * 고르지 않은 것을 "없음"이 아니라 "좁히지 않음"으로 읽는다.
  */
 const classRosterBase = z.object({
-  grade: z.coerce.number().int().min(1).max(3).optional(),
-  classNo: z.coerce.number().int().min(1).max(20).optional(),
+  // 범위는 학년도와 마찬가지로 소유자 모듈의 상수를 그대로 쓴다. 여기에 날 숫자를
+  // 적으면 학교가 반을 늘렸을 때 명단은 21반을 받아들이는데 이 화면만 조용히
+  // 전교로 되돌아가, 교사가 한 반을 보고 있다고 믿으면서 전교 숫자를 보게 된다.
+  grade: z.coerce.number().int().min(MIN_GRADE).max(MAX_GRADE).optional(),
+  classNo: z.coerce.number().int().min(MIN_CLASS_NO).max(MAX_CLASS_NO).optional(),
   track: trackSchema,
   year: yearQuery,
 });
@@ -202,8 +211,8 @@ export const classRosterSchema = classRosterBase.transform(
  * 전교 명단 내보내기는 별개의 일이라 이 경로에 섞지 않는다.
  */
 export const classRosterExportSchema = classRosterBase.extend({
-  grade: z.coerce.number().int().min(1).max(3),
-  classNo: z.coerce.number().int().min(1).max(20),
+  grade: z.coerce.number().int().min(MIN_GRADE).max(MAX_GRADE),
+  classNo: z.coerce.number().int().min(MIN_CLASS_NO).max(MAX_CLASS_NO),
 });
 
 export type ClassRosterExportInput = z.infer<typeof classRosterExportSchema>;

@@ -9,6 +9,7 @@ import {
   applyRosterPlan,
   createRosterFingerprint,
 } from "@/modules/enrollment/roster.service";
+import { issuePreviewToken } from "@/modules/enrollment/roster.preview-token";
 import { listExisting } from "@/modules/enrollment/roster.repo";
 import type { RosterRow } from "@/modules/enrollment/roster.parse";
 
@@ -267,13 +268,20 @@ describe("현재 학년도 전환과 확정 저장 경합", () => {
       ROSTER_RACE_FROM_YEAR,
       ROSTER_RACE_TO_YEAR,
     );
+    const fingerprint = createRosterFingerprint(existing);
     const apply = applyRosterPlan(
       adminUser(adminId),
       ROSTER_RACE_FROM_YEAR,
       rows,
-      createRosterFingerprint(existing),
+      fingerprint,
       [studentProfileId],
       1,
+      issuePreviewToken({
+        year: ROSTER_RACE_FROM_YEAR,
+        rows,
+        deletionIds: [studentProfileId],
+        rosterFingerprint: fingerprint,
+      }),
     ).then(
       () => null,
       (error: unknown) => error,
