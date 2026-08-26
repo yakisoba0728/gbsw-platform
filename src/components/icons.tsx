@@ -50,6 +50,24 @@ export function QrIcon(props: IconProps) {
   );
 }
 
+/**
+ * QR 스캔 메뉴. 출입증(QrIcon)의 그림을 다시 쓰지 않는다 — 둘은 최상위 메뉴에서
+ * 나란히 서므로 같은 그림이면 목록을 훑을 때 두 줄을 구분하지 못한다.
+ * 코드 자체가 아니라 **조준틀**을 그린다: 여기서 하는 일은 코드를 보여주는 것이
+ * 아니라 남의 코드를 카메라에 맞추는 것이다.
+ */
+export function ScanIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={1.7} {...props}>
+      <path d="M3.5 8.5V5.5a2 2 0 0 1 2-2h3" />
+      <path d="M15.5 3.5h3a2 2 0 0 1 2 2v3" />
+      <path d="M20.5 15.5v3a2 2 0 0 1-2 2h-3" />
+      <path d="M8.5 20.5h-3a2 2 0 0 1-2-2v-3" />
+      <path d="M3.5 12h17" />
+    </Icon>
+  );
+}
+
 export function InviteIcon(props: IconProps) {
   return (
     <Icon strokeWidth={1.7} {...props}>

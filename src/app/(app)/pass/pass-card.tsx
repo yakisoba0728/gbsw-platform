@@ -29,16 +29,27 @@ export function PassCard({
   const status = isPassStatus(pass.status) ? pass.status : null;
 
   return (
-    <li className="border-b border-line px-5 py-4 last:border-b-0">
+    // relative — 아래 링크가 이 줄 전체를 덮는다. 유형 글자에만 걸면 표적이
+    // 20px밖에 안 돼 폰에서 눌리지 않는다(최소 36px).
+    <li className="group relative border-b border-line px-5 py-4 last:border-b-0">
+      {/*
+        줄 전체를 덮는 링크. **children(버튼)보다 먼저 그린다** — 뒤에 그리면
+        버튼 위를 덮어 취소·QR 보기가 안 눌린다. children 쪽에 z-10을 주어
+        이 겹침 위로 올린다.
+
+        글자가 아니라 빈 상자라 낭독기에 이름이 없다 — aria-label로 붙인다.
+      */}
+      <Link
+        href={`/pass/${pass.id}`}
+        aria-label={`${type} 상세`}
+        className="absolute inset-0 rounded-btn focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ink"
+      />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="flex items-center gap-2 text-ink">
-            <Link
-              href={`/pass/${pass.id}`}
-              className="font-medium underline decoration-line-strong underline-offset-2 hover:decoration-ink"
-            >
+            <span className="font-medium underline decoration-line-strong underline-offset-2 group-hover:decoration-ink">
               {type}
-            </Link>
+            </span>
             {status && (
               <Badge tone={PASS_STATUS_TONES[status]}>
                 {PASS_STATUS_LABELS[status]}
@@ -64,14 +75,10 @@ export function PassCard({
             </p>
           )}
         </div>
-        {children}
+        {/* 겹침 링크 위로. 이게 없으면 버튼이 링크에 먹혀 안 눌린다. */}
+        {children != null && <div className="relative z-10">{children}</div>}
       </div>
     </li>
   );
 }
 
-/**
- * 외출은 시각까지, 외박은 날짜만 적는다. 외박의 endAt은 종료일 **다음 날** 자정
- * 이므로 화면에는 하루를 빼서 적어야 한다 — 안 그러면 8/29까지 신청한 학생이
- * 8/30까지로 읽는다.
- */

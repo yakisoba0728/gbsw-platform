@@ -7,6 +7,7 @@ import {
   NAV_ITEMS,
   titleForPath,
   visibleChildren,
+  visibleItems,
   type NavItem,
 } from "@/components/app-shell/nav";
 
@@ -83,6 +84,63 @@ describe("설정 메뉴", () => {
   it("사용자 관리와 아이콘이 다르다 — 같은 섹션에서 같은 그림이 둘이면 못 가른다", () => {
     const users = ADMIN_NAV_ITEMS.find((i) => i.href === "/admin/users") as NavItem;
     expect(settings.icon).not.toBe(users.icon);
+  });
+});
+
+describe("QR 스캔 메뉴", () => {
+  const scan = NAV_ITEMS.find((item) => item.href === "/scan") as NavItem;
+  const pass = NAV_ITEMS.find((item) => item.href === "/pass") as NavItem;
+
+  it("최상위 한 줄이다 — 출입증 하위에서 나왔다", () => {
+    expect(scan).toBeDefined();
+    expect(scan.label).toBe("QR 스캔");
+    expect(pass.children?.some((child) => child.href === "/scan")).toBe(false);
+  });
+
+  // pass:verify가 ADMIN·STUDENT·PARENT 모두에게 열려 있다. 메뉴가 그보다
+  // 좁으면 권한이 있는데 길이 없는 화면이 된다.
+  it("세 역할 모두 본다", () => {
+    expect(scan.roles).toBeUndefined();
+    for (const role of ["ADMIN", "STUDENT", "PARENT"] as const) {
+      expect(visibleItems(NAV_ITEMS, role)).toContain(scan);
+    }
+  });
+
+  it("출입증과 아이콘이 다르다 — 나란히 서므로 같은 그림이면 못 가른다", () => {
+    expect(scan.icon).not.toBe(pass.icon);
+  });
+
+  it("상단바 제목이 기본값으로 떨어지지 않는다", () => {
+    expect(titleForPath("/scan")).toBe("QR 스캔");
+    // /pass와 경로가 안 겹친다 — 겹치면 제목이 뒤바뀐다.
+    expect(titleForPath("/pass")).toBe("출입증");
+  });
+});
+
+describe("바텀탭 — 다섯 칸이 상한이다", () => {
+  it("교사는 다섯 칸이다 — 최상위 넷에 「최근 부여」 하나", () => {
+    expect(bottomTabItems("ADMIN").map((item) => item.href)).toEqual([
+      "/",
+      "/merit",
+      "/pass",
+      "/scan",
+      "/merit/recent",
+    ]);
+  });
+
+  it("학생도 다섯, 학부모는 넷이다", () => {
+    expect(bottomTabItems("STUDENT")).toHaveLength(5);
+    expect(bottomTabItems("PARENT")).toHaveLength(4);
+  });
+
+  // 320px 폰에서 한 칸이 61px이다. 네 글자(48px)까지가 들어가는 한계라,
+  // 라벨이 길어지면 shortLabel을 붙여야 한다.
+  it("탭 라벨은 네 글자를 넘지 않는다", () => {
+    for (const role of ["ADMIN", "STUDENT", "PARENT"] as const) {
+      for (const item of bottomTabItems(role)) {
+        expect((item.shortLabel ?? item.label).length).toBeLessThanOrEqual(4);
+      }
+    }
   });
 });
 
