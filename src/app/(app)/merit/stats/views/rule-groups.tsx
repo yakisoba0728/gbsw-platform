@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionCard } from "@/components/ui/section-card";
 import { DataTable, type Column } from "@/components/ui/table";
+import { TruncatedText } from "@/components/ui/truncated-text";
 import {
   MERIT_KINDS,
   MERIT_KIND_LABELS,
@@ -73,9 +74,16 @@ export function RuleCategoryCard({ stats }: { stats: RuleStats }) {
                   size={16}
                   className="shrink-0 text-mut transition-transform group-open:rotate-180"
                 />
-                <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">
+                <TruncatedText
+                  full={group.category}
+                  // summary가 이미 초점을 받는다 — 안에 하나 더 두면 탭이 같은 줄에
+                  // 두 번 멈춘다.
+                  focusable={false}
+                  outerClassName="flex-1"
+                  className="text-sm font-medium text-ink"
+                >
                   {group.category}
-                </span>
+                </TruncatedText>
                 <span className="hidden shrink-0 text-xs text-mut @sm:inline">
                   항목 {group.rows.length}개
                 </span>

@@ -11,6 +11,7 @@ import {
 import { ChevronDownIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { fieldClass, Input } from "@/components/ui/input";
+import { TruncatedText } from "@/components/ui/truncated-text";
 import { cn } from "@/lib/cn";
 import { formatSeat, formatStudentNumber } from "@/lib/student-number";
 
@@ -221,7 +222,15 @@ export function StudentPicker({
         {empty ? (
           <span className="text-mut">명단에 학생이 없습니다</span>
         ) : selectedText ? (
-          <span className="min-w-0 truncate tabular-nums">{selectedText}</span>
+          <TruncatedText
+            full={selectedText}
+            // 버튼 안이다. 초점을 두면 버튼과 그 안이 탭에서 두 번 멈춘다 —
+            // 전문은 버튼의 aria-label이 이미 읽어 준다.
+            focusable={false}
+            className="tabular-nums"
+          >
+            {selectedText}
+          </TruncatedText>
         ) : (
           <span className="text-mut">{label}</span>
         )}
@@ -309,9 +318,16 @@ export function StudentPicker({
                           <span className="w-12 shrink-0 text-xs text-mut2 tabular-nums">
                             {formatSeat(student) ?? "미배정"}
                           </span>
-                          <span className="min-w-0 flex-1 truncate text-caption font-medium text-ink">
+                          <TruncatedText
+                            full={student.name}
+                            // 초점은 검색칸에 머문다(aria-activedescendant) — 목록에
+                            // 초점을 두면 탭이 검색칸과 닫기 사이에서 멈춘다.
+                            focusable={false}
+                            outerClassName="flex-1"
+                            className="text-caption font-medium text-ink"
+                          >
                             {student.name}
-                          </span>
+                          </TruncatedText>
                           {student.id === selectedId && <CheckMark />}
                         </li>
                       ))}

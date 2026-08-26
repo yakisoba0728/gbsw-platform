@@ -25,11 +25,26 @@ import { cn } from "@/lib/cn";
 export function TruncatedText({
   full,
   className,
+  outerClassName,
+  focusable = true,
   children,
 }: {
   /** 말풍선에 띄울 전문. 줄바꿈을 담을 수 있다. */
   full: string;
+  /** 잘리는 글에 붙는다 — 글자 크기와 색. */
   className?: string;
+  /**
+   * 바깥 상자에 붙는다. **flex 자식으로 설 때 폭을 정하는 것은 바깥이다** —
+   * `flex-1`·`shrink-0`·`w-[92px]`를 안쪽 글에 주면 상자가 내용만큼 벌어져
+   * 잘릴 폭이 정해지지 않는다.
+   */
+  outerClassName?: string;
+  /**
+   * 초점을 받을지. **버튼·summary·option 안에 들어가는 자리는 끈다** — 그 자리는
+   * 이미 제 초점을 가지고 있어서, 안에 초점이 하나 더 생기면 탭이 같은 것에 두 번
+   * 멈춘다. 마우스 말풍선과 아래 낭독기 전문은 껐을 때도 그대로다.
+   */
+  focusable?: boolean;
   /** 화면에 세울 잘린 내용. 색이 섞인 조각이라 문자열이 아니라 노드로 받는다. */
   children: ReactNode;
 }) {
@@ -95,12 +110,13 @@ export function TruncatedText({
         onKeyDown={(event) => {
           if (event.key === "Escape") setAt(null);
         }}
-        tabIndex={clipped ? 0 : undefined}
+        tabIndex={clipped && focusable ? 0 : undefined}
         className={cn(
           "block min-w-0",
           // 초점이 어디에 있는지 보여야 한다. 잘리지 않은 글에는 tabIndex가 없어
           // 이 테두리가 나올 일이 없다.
           "focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
+          outerClassName,
         )}
       >
         <span

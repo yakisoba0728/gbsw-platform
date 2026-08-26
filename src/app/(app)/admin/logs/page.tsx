@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/skeleton";
 import { Pagination } from "@/components/ui/pagination";
 import { DataTable, type Column } from "@/components/ui/table";
+import { TruncatedText } from "@/components/ui/truncated-text";
 import { hrefWith } from "@/lib/search-params";
 import {
   auditActionLabel,
@@ -31,6 +32,31 @@ import { LogFilters } from "./log-filters";
 export const metadata: Metadata = { title: "감사로그" };
 
 type LogEntry = Awaited<ReturnType<typeof readAuditLog>>["entries"][number];
+
+/**
+ * 행위자 한 칸 — 이름 아래에 역할(없으면 이메일)이 선다. 열 폭이 164px로 고정이라
+ * 긴 이메일은 언제나 잘린다. 잘린 자리는 마우스·초점이 편다.
+ */
+function ActorCell({ entry }: { entry: LogEntry }) {
+  const role = isRole(entry.actor?.role) ? entry.actor.role : null;
+  const name = honorificName(entry.actorName, role);
+  const under = entry.actor
+    ? role
+      ? ROLE_LABELS[role]
+      : entry.actor.email
+    : "삭제된 계정";
+
+  return (
+    <>
+      <TruncatedText full={name} className="text-ink">
+        {name}
+      </TruncatedText>
+      <TruncatedText full={under} className="text-xs text-mut">
+        {under}
+      </TruncatedText>
+    </>
+  );
+}
 
 /**
  * `fixed`가 상세 열을 지킨다 — auto 배치에서는 시각 열이 남는 폭을 먼저 가져가
@@ -53,23 +79,7 @@ const COLUMNS: readonly Column<LogEntry>[] = [
     header: "행위자",
     card: "title",
     width: "w-[164px]",
-    cell: (entry) => (
-      <>
-        <span className="block truncate text-ink">
-          {honorificName(
-            entry.actorName,
-            isRole(entry.actor?.role) ? entry.actor.role : null,
-          )}
-        </span>
-        <span className="block truncate text-xs text-mut">
-          {entry.actor
-            ? isRole(entry.actor.role)
-              ? ROLE_LABELS[entry.actor.role]
-              : entry.actor.email
-            : "삭제된 계정"}
-        </span>
-      </>
-    ),
+    cell: (entry) => <ActorCell entry={entry} />,
   },
   {
     key: "action",
@@ -144,7 +154,7 @@ export default async function LogsPage({
       title="감사로그"
       aside={
         // 건수는 조회 결과다 — 조건이 바뀌면 표와 함께 뼈대가 된다.
-        <Suspense key={boundaryKey} fallback={<Skeleton className="h-4 w-10" />}>
+        <Suspense key={`total:${boundaryKey}`} fallback={<Skeleton className="h-4 w-10" />}>
           <LogTotal promise={resultPromise} />
         </Suspense>
       }
@@ -160,7 +170,7 @@ export default async function LogsPage({
       flush
       className="mx-auto max-w-6xl"
     >
-      <Suspense key={boundaryKey} fallback={<SkeletonRows rows={10} />}>
+      <Suspense key={`rows:${boundaryKey}`} fallback={<SkeletonRows rows={10} />}>
         <LogRows promise={resultPromise} params={raw} />
       </Suspense>
     </SectionCard>

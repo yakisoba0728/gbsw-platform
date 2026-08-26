@@ -10,6 +10,7 @@ import { FilterRow } from "@/components/ui/filter-row";
 import { Pagination } from "@/components/ui/pagination";
 import { SkeletonRows, SkeletonTabs } from "@/components/ui/skeleton";
 import { DataTable, type Column } from "@/components/ui/table";
+import { TruncatedText } from "@/components/ui/truncated-text";
 import type { SessionUser } from "@/core/auth/session";
 import {
   PASS_STATUS_LABELS,
@@ -80,19 +81,19 @@ export function PassTab({
     <div className="space-y-4">
       {/* 건수는 결과라 경계 안이다. 켜진 칩도 함께 바뀌므로 같은 key를 쓴다. */}
       <Suspense
-        key={boundaryKey}
+        key={`filter:${boundaryKey}`}
         fallback={<SkeletonTabs count={6} size="sm" className="flex-wrap" />}
       >
         <StatusFilter promise={countsPromise} current={query.status} href={href} />
       </Suspense>
 
       <div className={cardClass("flush")}>
-        <Suspense key={boundaryKey} fallback={<SkeletonRows rows={8} />}>
+        <Suspense key={`rows:${boundaryKey}`} fallback={<SkeletonRows rows={8} />}>
           <PassRows promise={resultPromise} status={query.status} />
         </Suspense>
 
         {/* 쪽 넘기기는 다 읽은 뒤에 쓴다 — 위에 두면 목록보다 먼저 눈에 든다. */}
-        <Suspense key={boundaryKey} fallback={null}>
+        <Suspense key={`pagination:${boundaryKey}`} fallback={null}>
           <PassPagination promise={resultPromise} page={query.page} href={href} />
         </Suspense>
       </div>
@@ -211,12 +212,17 @@ const COLUMNS: readonly Column<PassRow>[] = [
     width: "w-[112px]",
     card: "meta",
     cardLabel: "결재",
-    cell: (row) => (
+    cell: (row) => {
       // 결재는 교사 전용이라(can.ts) 이름 스냅샷에 역할이 없어도 호칭이 정해진다.
-      <span className="block truncate text-xs text-mut">
-        {row.decidedByName ? honorificName(row.decidedByName, "ADMIN") : "—"}
-      </span>
-    ),
+      const name = row.decidedByName
+        ? honorificName(row.decidedByName, "ADMIN")
+        : "—";
+      return (
+        <TruncatedText full={name} className="text-xs text-mut">
+          {name}
+        </TruncatedText>
+      );
+    },
   },
   {
     key: "open",

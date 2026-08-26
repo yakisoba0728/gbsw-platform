@@ -5,9 +5,10 @@ import { usePathname } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { LogoutIcon } from "@/components/icons";
+import { TruncatedText } from "@/components/ui/truncated-text";
 import { authClient } from "@/core/auth/auth-client";
 import type { Role } from "@/core/authz/roles";
-import { honorificSuffix } from "@/core/authz/roles";
+import { honorificName, honorificSuffix } from "@/core/authz/roles";
 import { formatClock } from "@/lib/datetime";
 import { MobileNav } from "./mobile-nav";
 import { titleForPath } from "./nav";
@@ -127,8 +128,13 @@ export function Topbar({ name, role }: { name: string; role: Role | null }) {
       <div className="flex min-w-0 items-center gap-2.5">
         {/* 390px 폭에 로고와 메뉴 버튼을 둘 다 두면 제목이 잘린다. */}
         <MobileNav role={role} />
-        <h1 className="truncate text-base font-semibold tracking-tight text-ink lg:text-lg">
-          {title}
+        {/* 제목은 <h1>로 남기고 자르는 일만 안에 맡긴다 — TruncatedText가 그리는
+            것은 span이라 제목 계층을 대신할 수 없다. `truncate`를 뺀 자리에는
+            `min-w-0`을 넣는다: 지금 제목이 줄어드는 것은 overflow-hidden이 flex
+            최소 폭을 0으로 만들어 준 덕이라, 그냥 빼면 긴 제목이 시계와 이름을
+            오른쪽 밖으로 밀어낸다. */}
+        <h1 className="min-w-0 text-base font-semibold tracking-tight text-ink lg:text-lg">
+          <TruncatedText full={title}>{title}</TruncatedText>
         </h1>
       </div>
 
@@ -145,10 +151,12 @@ export function Topbar({ name, role }: { name: string; role: Role | null }) {
           aria-hidden
         />
 
-        <span className="truncate text-caption">
+        {/* 굵기가 갈린 두 조각이라 말풍선에 띄울 전문은 따로 잇는다 —
+            그 문자열을 정하는 것은 honorificName 하나다. */}
+        <TruncatedText full={honorificName(name, role)} className="text-caption">
           <span className="font-medium text-ink">{name}</span>
           <span className="text-mut">{honorificSuffix(role)}</span>
-        </span>
+        </TruncatedText>
 
         <span className="mx-2 h-4 w-px shrink-0 bg-line" aria-hidden />
 

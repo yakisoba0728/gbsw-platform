@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
 import { SectionCard } from "@/components/ui/section-card";
 import { DataTable, type Column } from "@/components/ui/table";
+import { TruncatedText } from "@/components/ui/truncated-text";
 import {
   signedNet,
   type DemeritThresholds,
@@ -484,7 +485,9 @@ function ChosenList({
               </span>
             )}
           </span>
-          <span className="min-w-0 truncate font-medium text-ink">{student.name}</span>
+          <TruncatedText full={student.name} className="font-medium text-ink">
+            {student.name}
+          </TruncatedText>
         </li>
       ))}
     </ul>

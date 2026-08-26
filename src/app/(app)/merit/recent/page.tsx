@@ -107,7 +107,7 @@ export default async function RecentAwardsPage({
             />
             <div className="flex flex-wrap items-center justify-end gap-3">
               {/* 건수는 결과에서 나온다 — 한 글자짜리 뼈대만 세운다. */}
-              <Suspense key={boundaryKey} fallback={<Skeleton className="h-4 w-10" />}>
+              <Suspense key={`total:${boundaryKey}`} fallback={<Skeleton className="h-4 w-10" />}>
                 <RecentTotal promise={resultPromise} />
               </Suspense>
               <ExportRecentAwardsButton
@@ -122,12 +122,12 @@ export default async function RecentAwardsPage({
       </SectionCard>
 
       <div className={cardClass("flush")}>
-        <Suspense key={boundaryKey} fallback={<SkeletonRows rows={10} />}>
+        <Suspense key={`rows:${boundaryKey}`} fallback={<SkeletonRows rows={10} />}>
           <RecentAwardsRows promise={resultPromise} query={query} />
         </Suspense>
 
         {/* 쪽 넘기기는 다 읽은 뒤에 쓴다 — 위에 두면 목록보다 먼저 눈에 든다. */}
-        <Suspense key={boundaryKey} fallback={null}>
+        <Suspense key={`pagination:${boundaryKey}`} fallback={null}>
           <RecentPagination promise={resultPromise} page={query.page} href={href} />
         </Suspense>
       </div>
@@ -360,12 +360,15 @@ async function RecentAwardsRows({
       key: "awardedBy",
       header: "부여자",
       width: "w-[116px]",
-      cell: (row) => (
+      cell: (row) => {
         // 부여·취소는 교사 전용이라(can.ts) 이름 스냅샷에 역할이 없어도 호칭이 정해진다.
-        <span className="block truncate text-xs text-mut">
-          {honorificName(row.awardedByName, "ADMIN")}
-        </span>
-      ),
+        const name = honorificName(row.awardedByName, "ADMIN");
+        return (
+          <TruncatedText full={name} className="text-xs text-mut">
+            {name}
+          </TruncatedText>
+        );
+      },
     },
     {
       key: "status",
@@ -404,6 +407,12 @@ async function RecentAwardsRows({
  * 누가·얼마 / 무엇을 / 언제·누가 줬나.
  */
 function AwardCard({ row, track }: { row: RecentRow; track: string }) {
+  // 시각·발생일·부여자를 한 줄로 잇는다. 좁은 폰에서는 이 줄이 먼저 잘린다.
+  const occurred = isSameKstDate(row.occurredOn, row.createdAt)
+    ? ""
+    : ` (발생 ${formatDate(row.occurredOn)})`;
+  const meta = `${formatMonthDayTime(row.createdAt)}${occurred} · ${honorificName(row.awardedByName, "ADMIN")}`;
+
   return (
     <li className="border-b border-line2 px-5 py-3 last:border-0">
       <div className="flex items-baseline justify-between gap-3">
@@ -431,13 +440,9 @@ function AwardCard({ row, track }: { row: RecentRow; track: string }) {
       {/* 여백·색을 `DataTable`의 카드 줄(CardRow)과 맞춘다 — 두 카드 무리가
           한 화면에 서므로 바닥 줄만 한 단계 흐리면 다른 것처럼 읽힌다. */}
       <div className="mt-1.5 flex items-center justify-between gap-3">
-        <span className="min-w-0 truncate text-xs text-mut">
-          {formatMonthDayTime(row.createdAt)}
-          {!isSameKstDate(row.occurredOn, row.createdAt) &&
-            ` (발생 ${formatDate(row.occurredOn)})`}
-          {" · "}
-          {honorificName(row.awardedByName, "ADMIN")}
-        </span>
+        <TruncatedText full={meta} className="text-xs text-mut">
+          {meta}
+        </TruncatedText>
         <span className="shrink-0">
           <AwardStatus row={row} />
         </span>

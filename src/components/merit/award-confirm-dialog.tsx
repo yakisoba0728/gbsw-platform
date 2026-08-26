@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Note } from "@/components/ui/note";
+import { TruncatedText } from "@/components/ui/truncated-text";
 import {
   kindColorClass,
   kindLabel,
@@ -148,9 +149,9 @@ export function AwardConfirmDialog({
                     </span>
                   )}
                 </span>
-                <span className="min-w-0 truncate text-caption font-medium text-ink">
+                <TruncatedText full={student.name} className="text-caption font-medium text-ink">
                   {student.name}
-                </span>
+                </TruncatedText>
               </li>
             ))}
           </ul>

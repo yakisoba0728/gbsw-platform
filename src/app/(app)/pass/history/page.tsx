@@ -16,6 +16,7 @@ import { SearchForm } from "@/components/ui/search-form";
 import { SectionCard } from "@/components/ui/section-card";
 import { Skeleton, SkeletonRows } from "@/components/ui/skeleton";
 import { DataTable, type Column } from "@/components/ui/table";
+import { TruncatedText } from "@/components/ui/truncated-text";
 import { requirePermission } from "@/core/auth/session";
 import {
   PASS_STATUS_LABELS,
@@ -111,7 +112,7 @@ export default async function PassHistoryPage({
             />
             <div className="flex flex-wrap items-center justify-end gap-3">
               {/* 건수는 결과에서 나온다 — 한 글자짜리 뼈대만 세운다. */}
-              <Suspense key={boundaryKey} fallback={<Skeleton className="h-4 w-10" />}>
+              <Suspense key={`total:${boundaryKey}`} fallback={<Skeleton className="h-4 w-10" />}>
                 <HistoryTotal promise={resultPromise} />
               </Suspense>
               <ExportPassHistoryButton
@@ -127,12 +128,12 @@ export default async function PassHistoryPage({
       </SectionCard>
 
       <div className={cardClass("flush")}>
-        <Suspense key={boundaryKey} fallback={<SkeletonRows rows={10} />}>
+        <Suspense key={`rows:${boundaryKey}`} fallback={<SkeletonRows rows={10} />}>
           <HistoryRows promise={resultPromise} query={query} />
         </Suspense>
 
         {/* 쪽 넘기기는 다 읽은 뒤에 쓴다 — 위에 두면 목록보다 먼저 눈에 든다. */}
-        <Suspense key={boundaryKey} fallback={null}>
+        <Suspense key={`pagination:${boundaryKey}`} fallback={null}>
           <HistoryPagination promise={resultPromise} page={query.page} href={href} />
         </Suspense>
       </div>
@@ -268,12 +269,17 @@ const COLUMNS: readonly Column<HistoryRow>[] = [
     width: "w-[112px]",
     card: "meta",
     cardLabel: "결재",
-    cell: (row) => (
+    cell: (row) => {
       // 결재는 교사 전용이라(can.ts) 이름 스냅샷에 역할이 없어도 호칭이 정해진다.
-      <span className="block truncate text-xs text-mut">
-        {row.decidedByName ? honorificName(row.decidedByName, "ADMIN") : "—"}
-      </span>
-    ),
+      const name = row.decidedByName
+        ? honorificName(row.decidedByName, "ADMIN")
+        : "—";
+      return (
+        <TruncatedText full={name} className="text-xs text-mut">
+          {name}
+        </TruncatedText>
+      );
+    },
   },
 ];
 
