@@ -90,6 +90,10 @@ export function RulePicker({
     }
 
     if (event.key === "Enter") {
+      // 한글을 치는 중의 Enter는 낱말을 확정하는 손짓이지 고르는 손짓이 아니다.
+      // 이걸 안 보면 「지각」을 확정하려던 Enter가 그 순간 강조된 규정을 골라 버린다.
+      if (event.nativeEvent.isComposing) return;
+
       // 이 칸은 <form action={서버액션}> 안이다. 목록이 열려 있는 동안의 Enter는
       // "고른다"는 뜻이므로 막지 않으면 고르는 손짓이 그대로 부여가 된다.
       if (!open) return;

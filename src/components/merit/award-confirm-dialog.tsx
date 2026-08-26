@@ -136,8 +136,10 @@ export function AwardConfirmDialog({
                 {/* 학급과 번호는 한 덩어리다 — 사이를 벌리면 번호가 이름 쪽으로
                     떠서 어느 학생의 것인지 한눈에 안 붙는다. */}
                 <span className="flex shrink-0 items-baseline gap-2 text-xs text-mut2">
-                  {showClass ? (
-                    <span className="w-10 tabular-nums">
+                  {/* w-12 — 학번(1307)은 4글자지만 번호가 10번을 넘으면
+                    「1-3 12」꼴 6글자가 온다. w-10이면 그때 넘친다. */}
+                {showClass ? (
+                    <span className="w-12 tabular-nums">
                       {formatSeat(student) ?? "미배정"}
                     </span>
                   ) : (

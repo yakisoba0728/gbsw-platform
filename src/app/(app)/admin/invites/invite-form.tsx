@@ -1,12 +1,12 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { StudentPicker, type PickerStudent } from "@/components/students/student-picker";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
 import { SectionCard } from "@/components/ui/section-card";
 import { SecretPanel } from "@/components/ui/secret-panel";
-import { Select } from "@/components/ui/select";
 import { INVITE_FORM_INITIAL, type InviteFormState } from "./action-state";
 import {
   createAdminInviteAction,
@@ -14,15 +14,9 @@ import {
   createStudentInviteAction,
 } from "./actions";
 
-export type StudentOption = {
-  id: string;
-  label: string;
-  search: string;
-};
-
 type Target = "STUDENT" | "ADMIN" | "PARENT";
 
-export function InviteForm({ students }: { students: StudentOption[] }) {
+export function InviteForm({ students }: { students: PickerStudent[] }) {
   const [target, setTarget] = useState<Target>("STUDENT");
 
   return (
@@ -65,58 +59,36 @@ export function InviteForm({ students }: { students: StudentOption[] }) {
   );
 }
 
-function ParentForm({ students }: { students: StudentOption[] }) {
+function ParentForm({ students }: { students: PickerStudent[] }) {
   const [state, formAction, pending] = useActionState(
     createParentInviteForAction,
     INVITE_FORM_INITIAL,
   );
-  const [query, setQuery] = useState("");
-
-  const matched = students.filter((s) =>
-    s.search.includes(query.trim().toLowerCase()),
-  );
 
   const values = state.values;
-  // 빈 문자열은 "고르지 않았다"이므로 되돌릴 값이 아니다 — 빈 defaultValue를 주면
-  // React가 첫 학생을 대신 골라 버린다.
+  // 빈 문자열은 "고르지 않았다"이므로 되돌릴 값이 아니다.
   const keepStudentId = values?.studentId || undefined;
 
   return (
     <form action={formAction}>
-      <Label htmlFor="p-search">학생 찾기</Label>
-      <Input
-        id="p-search"
-        value={query}
-        onChange={(e) => setQuery(e.currentTarget.value)}
-        placeholder="이름 · 학년 · 반"
-        className="mb-2"
-      />
-
-      {/* 위 검색칸은 목록을 좁히는 자리라 이 목록의 라벨이 아니다. */}
-      {/*
-        select만 다르다 — React는 <option>.defaultSelected를 마운트할 때 한 번만
-        쓰고 갱신 때는 건드리지 않는다. 되돌릴 학생이 바뀌면 key로 새로 마운트해야
-        폼 자동 리셋이 그 학생을 다시 고른다.
-      */}
-      <Select
-        key={keepStudentId ?? "none"}
-        name="studentId"
-        defaultValue={keepStudentId}
-        rows={6}
-        required
-        aria-label="학생 선택"
-        className="mb-4"
-      >
-        {matched.length === 0 ? (
-          <option disabled>조건에 맞는 학생이 없습니다</option>
-        ) : (
-          matched.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.label}
-            </option>
-          ))
-        )}
-      </Select>
+      {/* 고르는 버튼이 자기 이름을 말하므로(「학생 고르기」) htmlFor로 묶을 칸이 없다. */}
+      <Label>학생</Label>
+      <div className="mb-4">
+        {/*
+          key는 남는다 — 이유가 바뀌었다. 예전에는 React가 <option>.defaultSelected를
+          마운트 때 한 번만 쓰기 때문이었고, 지금은 고른 학생이 리액트 상태라
+          폼 자동 리셋도 defaultValue 갱신도 그것을 건드리지 못하기 때문이다.
+          실패해서 되돌아올 때는 defaultValue가 방금 고른 그 학생이라 새로 마운트돼도
+          같은 값이 다시 심기고, 성공해서 되돌릴 값이 사라질 때만 함께 비워진다.
+        */}
+        <StudentPicker
+          key={keepStudentId ?? "none"}
+          students={students}
+          name="studentId"
+          defaultValue={keepStudentId}
+          required
+        />
+      </div>
 
       <Label htmlFor="p-name">학부모 이름</Label>
       <Input

@@ -18,7 +18,8 @@ import {
   SkeletonScreen,
   SkeletonTabs,
 } from "@/components/ui/skeleton";
-import { InviteForm, type StudentOption } from "./invite-form";
+import { type PickerStudent } from "@/components/students/student-picker";
+import { InviteForm } from "./invite-form";
 import { InviteTable, type InviteRow } from "./invite-table";
 
 type Listed = Awaited<ReturnType<typeof listInvites>>[number];
@@ -114,15 +115,16 @@ export async function InvitesPanel() {
     throw error;
   }
 
-  const options: StudentOption[] = students.map((s) => {
+  // 모달이 학년·반으로 묶어 보여주므로 미리 이어 붙인 라벨이 아니라 낱개로 넘긴다.
+  const options: PickerStudent[] = students.map((s) => {
     const enrollment = s.enrollments[0];
-    const where = classLabel(
-      enrollment?.schoolClass?.grade,
-      enrollment?.schoolClass?.classNo,
-      enrollment?.number,
-    );
-    const label = `${where ?? "미배정"} ${s.user.name}`;
-    return { id: s.id, label, search: label.toLowerCase() };
+    return {
+      id: s.id,
+      name: s.user.name,
+      grade: enrollment?.schoolClass?.grade ?? null,
+      classNo: enrollment?.schoolClass?.classNo ?? null,
+      number: enrollment?.number ?? null,
+    };
   });
 
   return (
