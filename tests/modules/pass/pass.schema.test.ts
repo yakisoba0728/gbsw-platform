@@ -27,15 +27,30 @@ describe("requestPassSchema", () => {
     }
   });
 
-  it("외박은 날짜 둘을 받고 시각 칸이 없다", () => {
+  it("외박은 날짜와 시각을 둘씩 받는다", () => {
     const parsed = requestPassSchema.safeParse({
       type: "OVERNIGHT",
       startDate: "2026-08-28",
+      startTime: "18:00",
       endDate: "2026-08-29",
+      endTime: "21:00",
       destination: "본가",
       reason: "가족 행사",
     });
     expect(parsed.success).toBe(true);
+  });
+
+  /** 날짜만 오던 시절의 폼이 남아 있으면 조용히 자정으로 굳는다 — 막는다. */
+  it("외박에 시각이 빠지면 거부한다", () => {
+    expect(
+      requestPassSchema.safeParse({
+        type: "OVERNIGHT",
+        startDate: "2026-08-28",
+        endDate: "2026-08-29",
+        destination: "본가",
+        reason: "가족 행사",
+      }).success,
+    ).toBe(false);
   });
 
   it.each([
@@ -43,6 +58,7 @@ describe("requestPassSchema", () => {
     ["24시", { type: "OUTING", date: "2026-08-27", startTime: "24:00", endTime: "18:00", destination: "치과", reason: "검진" }],
     ["빈 행선지", { type: "OUTING", date: "2026-08-27", startTime: "14:00", endTime: "18:00", destination: "   ", reason: "검진" }],
     ["모르는 유형", { type: "LEAVE", date: "2026-08-27" }],
+    ["외박의 24시", { type: "OVERNIGHT", startDate: "2026-08-28", startTime: "24:00", endDate: "2026-08-29", endTime: "21:00", destination: "본가", reason: "가족 행사" }],
   ])("%s는 거부한다", (_label, input) => {
     expect(requestPassSchema.safeParse(input).success).toBe(false);
   });
@@ -51,7 +67,9 @@ describe("requestPassSchema", () => {
     const parsed = requestPassSchema.safeParse({
       type: "OVERNIGHT",
       startDate: "2026-08-28",
+      startTime: "18:00",
       endDate: "2026-08-29",
+      endTime: "21:00",
       destination: "본가",
       reason: "가".repeat(201),
     });
@@ -65,6 +83,7 @@ describe("issuePassSchema", () => {
       type: "OVERNIGHT",
       studentId: "s-1",
       endDate: "2026-08-29",
+      endTime: "21:00",
       destination: "본가",
       reason: "가족 행사",
     };
@@ -72,6 +91,20 @@ describe("issuePassSchema", () => {
     expect(
       issuePassSchema.safeParse({ ...base, guardianConfirmed: "on" }).success,
     ).toBe(true);
+  });
+
+  /** 부여도 시작은 「지금」이지만 **종료는 시각까지 받는다.** */
+  it("외박의 종료 시각이 빠지면 거부한다", () => {
+    expect(
+      issuePassSchema.safeParse({
+        type: "OVERNIGHT",
+        studentId: "s-1",
+        endDate: "2026-08-29",
+        destination: "본가",
+        reason: "가족 행사",
+        guardianConfirmed: "on",
+      }).success,
+    ).toBe(false);
   });
 
   it("외출에는 보호자 확인 칸이 없다", () => {
@@ -95,6 +128,23 @@ describe("issuePassSchema", () => {
       reason: "검진",
     });
     expect(parsed.success).toBe(true);
+    expect(parsed.success && "startTime" in parsed.data).toBe(false);
+  });
+
+  it("외박도 시작을 받지 않는다 — 「지금 내보낸다」다", () => {
+    const parsed = issuePassSchema.safeParse({
+      type: "OVERNIGHT",
+      studentId: "s-1",
+      startDate: "2026-08-28",
+      startTime: "01:00",
+      endDate: "2026-08-29",
+      endTime: "21:00",
+      destination: "본가",
+      reason: "가족 행사",
+      guardianConfirmed: "on",
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && "startDate" in parsed.data).toBe(false);
     expect(parsed.success && "startTime" in parsed.data).toBe(false);
   });
 });

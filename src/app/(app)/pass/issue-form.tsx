@@ -11,8 +11,9 @@ import { EMPTY_PASS_STATE } from "./action-state";
 import { issueAction } from "./actions";
 
 /**
- * 신청 없이 바로 부여. **시작 시각 칸이 없다** — 「지금 내보낸다」는 상황이라
- * 서비스가 지금부터로 만든다.
+ * 신청 없이 바로 부여. **시작 칸이 없다** — 「지금 내보낸다」는 상황이라
+ * 서비스가 지금부터로 만든다. 받는 것은 언제까지인가뿐이다: 외출은 시각,
+ * 외박은 날짜와 시각. 시각 칸은 기본값을 두지 않는다.
  */
 export function IssueForm({
   students,
@@ -65,6 +66,8 @@ export function IssueForm({
           <Input id="endTime" name="endTime" type="time" required className="mb-4" />
         </>
       ) : (
+        // 이 폼은 사이드 칼럼(20rem)에도 서므로 두 칸을 나란히 두지 않는다 —
+        // 그 폭에서 날짜 입력칸은 「yyyy-mm-dd」가 잘린다.
         <>
           <Label htmlFor="endDate">돌아오는 날짜</Label>
           <Input
@@ -76,6 +79,8 @@ export function IssueForm({
             required
             className="mb-4"
           />
+          <Label htmlFor="endTime">돌아오는 시각</Label>
+          <Input id="endTime" name="endTime" type="time" required className="mb-4" />
         </>
       )}
 

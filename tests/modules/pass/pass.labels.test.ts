@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { passEndLabel, passPeriod } from "@/modules/pass/pass.labels";
 
 /**
- * 외박의 `endAt`은 **종료일 다음 날 자정**이다. 그대로 그리면 「오전 12:00」이
- * 뜨고 날짜도 하루 밀린다 — 실제로 교사 화면과 판독 화면에서 한 번씩 그랬다.
- * 화면마다 손으로 그리지 않도록 규칙을 여기 모았고, 이 파일이 그것을 지킨다.
+ * 외박이 시작·종료에 시각을 받게 되면서 **화면이 저장값을 그대로 그린다** —
+ * 「종료일 다음 날 자정」을 하루 되돌리던 보정이 사라졌다. 이 파일이 지키는 것은
+ * 이제 「하루가 안 밀린다」가 아니라 **「학생이 적은 시각이 그대로 나온다」**다.
  */
 
 /** 2026-08-26 14:00 KST ~ 18:00 KST */
@@ -14,30 +14,40 @@ const outing = {
   endAt: new Date("2026-08-26T09:00:00.000Z"),
 };
 
-/** 8/26 자정 ~ 8/28 자정 = 8월 26·27일 이틀 밤 */
+/** 8/26 18:00 KST ~ 8/28 09:00 KST — 이틀 밤 */
 const overnight = {
   type: "OVERNIGHT",
-  startAt: new Date("2026-08-25T15:00:00.000Z"),
-  endAt: new Date("2026-08-27T15:00:00.000Z"),
+  startAt: new Date("2026-08-26T09:00:00.000Z"),
+  endAt: new Date("2026-08-28T00:00:00.000Z"),
 };
 
 describe("passPeriod", () => {
-  it("외출은 시각까지 적는다", () => {
-    expect(passPeriod(outing)).toBe("26. 8. 26. 오후 2:00 ~ 26. 8. 26. 오후 6:00");
+  it("외출은 종료에 날짜를 되풀이하지 않는다 — 같은 날임이 보장된다", () => {
+    expect(passPeriod(outing)).toBe("26. 8. 26. 오후 2:00 ~ 오후 6:00");
   });
 
-  it("외박은 마지막 밤까지 적는다 — 다음 날 자정이 새어 나오지 않는다", () => {
-    expect(passPeriod(overnight)).toBe("8. 26. ~ 8. 27.");
+  it("외박은 양끝에 날짜와 시각을 적는다 — 적은 시각이 그대로 나온다", () => {
+    expect(passPeriod(overnight)).toBe("26. 8. 26. 오후 6:00 ~ 26. 8. 28. 오전 9:00");
   });
 
-  it("하루짜리 외박은 같은 날이 두 번 나온다", () => {
+  it("종료가 자정이어도 그 자정을 그대로 적는다 — 하루를 되돌리지 않는다", () => {
     expect(
       passPeriod({
         type: "OVERNIGHT",
-        startAt: new Date("2026-08-25T15:00:00.000Z"),
-        endAt: new Date("2026-08-26T15:00:00.000Z"),
+        startAt: new Date("2026-08-26T09:00:00.000Z"), // 8/26 18:00 KST
+        endAt: new Date("2026-08-27T15:00:00.000Z"), // 8/28 00:00 KST
       }),
-    ).toBe("8. 26. ~ 8. 26.");
+    ).toBe("26. 8. 26. 오후 6:00 ~ 26. 8. 28. 오전 12:00");
+  });
+
+  it("같은 날 안에서 끝나는 외박도 날짜를 두 번 적는다 — 유형이 눈금을 정한다", () => {
+    expect(
+      passPeriod({
+        type: "OVERNIGHT",
+        startAt: new Date("2026-08-26T09:00:00.000Z"), // 18:00 KST
+        endAt: new Date("2026-08-26T13:00:00.000Z"), // 22:00 KST
+      }),
+    ).toBe("26. 8. 26. 오후 6:00 ~ 26. 8. 26. 오후 10:00");
   });
 });
 
@@ -46,16 +56,16 @@ describe("passEndLabel", () => {
     expect(passEndLabel(outing)).toBe("오후 6:00");
   });
 
-  it("외박은 날짜다 — 「오전 12:00」이 아니다", () => {
-    expect(passEndLabel(overnight)).toBe("8. 27.");
+  it("외박은 날짜와 시각이다 — 연도는 뺀다", () => {
+    expect(passEndLabel(overnight)).toBe("8. 28. 오전 9:00");
   });
 
-  it("월말을 넘겨도 하루가 밀리지 않는다", () => {
+  it("월말을 넘겨도 적은 날 그대로다", () => {
     expect(
       passEndLabel({
         type: "OVERNIGHT",
-        endAt: new Date("2026-09-01T15:00:00.000Z"), // 9/2 자정 KST
+        endAt: new Date("2026-08-31T12:00:00.000Z"), // 8/31 21:00 KST
       }),
-    ).toBe("9. 1.");
+    ).toBe("8. 31. 오후 9:00");
   });
 });

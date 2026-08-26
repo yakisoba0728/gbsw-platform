@@ -50,8 +50,11 @@ const optionalText = (max: number) =>
 const id = z.string().trim().min(1).max(64);
 
 /**
- * 학생 신청. 유형에 따라 날짜 칸이 통째로 갈리므로 discriminatedUnion으로 나눈다 —
- * 한 객체에 전부 optional로 두면 "외박인데 startTime이 왔다"를 서비스가 걸러야 한다.
+ * 학생 신청. **두 유형 모두 시작·종료에 시각을 받는다.** 갈리는 것은 날짜 칸의
+ * 수뿐이다 — 외출은 같은 날 안이라 날짜가 하나, 외박은 날을 넘으므로 둘이다.
+ *
+ * discriminatedUnion으로 나누는 이유는 그 「하나냐 둘이냐」다. 한 객체에 전부
+ * optional로 두면 "외출인데 endDate가 왔다"를 서비스가 걸러야 한다.
  */
 export const requestPassSchema = z.discriminatedUnion("type", [
   z.object({
@@ -65,7 +68,9 @@ export const requestPassSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("OVERNIGHT"),
     startDate: dateInput,
+    startTime: timeInput,
     endDate: dateInput,
+    endTime: timeInput,
     destination,
     reason,
   }),
@@ -92,6 +97,7 @@ export const issuePassSchema = z.discriminatedUnion("type", [
     type: z.literal("OVERNIGHT"),
     studentId: id,
     endDate: dateInput,
+    endTime: timeInput,
     destination,
     reason,
     guardianConfirmed: z.literal("on", { message: "보호자 확인을 체크해 주세요." }),

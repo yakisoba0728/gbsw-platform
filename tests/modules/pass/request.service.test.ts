@@ -76,7 +76,9 @@ const OUTING = {
 const OVERNIGHT = {
   type: "OVERNIGHT" as const,
   startDate: "2026-08-28",
+  startTime: "18:00",
   endDate: "2026-08-29",
+  endTime: "21:00",
   destination: "본가",
   reason: "가족 행사",
 };

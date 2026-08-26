@@ -245,6 +245,7 @@ describe("issuePass", () => {
         type: "OVERNIGHT",
         studentId: "sp-1",
         endDate: "2026-08-29",
+        endTime: "21:00",
         destination: "본가",
         reason: "가족 행사",
         guardianConfirmed: "on",

@@ -6,7 +6,6 @@ import {
 } from "@/core/authz/pass-type";
 import { formatDateInput, formatDateTimeSheet } from "@/lib/datetime";
 import { formatStudentNumber } from "@/lib/student-number";
-import { passEndMoment } from "./pass.labels";
 import type { PassHistoryExportInput } from "./pass.schema";
 
 /**
@@ -41,29 +40,6 @@ export type PassHistoryExportRow = {
   cancelledAt: Date | null;
   cancelReason: string | null;
 };
-
-/**
- * 시작·종료의 눈금은 유형이 정한다 — 화면의 `passPeriod`와 같은 규칙이다.
- * 외출은 시각이 알맹이라 시각까지, 외박은 그 밤을 통째로 쓰므로 날짜만 적는다.
- * 두 형태가 한 열에 섞여도 글자순은 그대로 날짜순이다 (`2026-08-26` <
- * `2026-08-26 14:00:00`).
- */
-function startCell(row: PassHistoryExportRow): string {
-  return row.type === "OVERNIGHT"
-    ? formatDateInput(row.startAt)
-    : formatDateTimeSheet(row.startAt);
-}
-
-/**
- * **외박의 `endAt`을 그대로 적으면 하루 밀린다** — 종료일 다음 날 자정이기
- * 때문이다. 되돌리는 규칙은 `pass.labels.ts`가 갖고 있다.
- */
-function endCell(row: PassHistoryExportRow): string {
-  const moment = passEndMoment(row);
-  return row.type === "OVERNIGHT"
-    ? formatDateInput(moment)
-    : formatDateTimeSheet(moment);
-}
 
 /** 「누가 확인했나」 한 칸. 대행이면 그 사실이 이름보다 먼저 읽혀야 한다. */
 function consentCell(row: PassHistoryExportRow): string {
@@ -173,8 +149,10 @@ export function toPassHistorySheet(
       // 없어 빈 칸이 되고, 그때는 왼쪽의 학년·반·번호 세 열이 답한다.
       formatStudentNumber(row) ?? "",
       row.studentName,
-      startCell(row),
-      endCell(row),
+      // 두 유형 모두 시각을 받으므로 눈금이 하나다. 이 형태는 글자순이 곧 시각순이라
+      // 시트를 정렬해도 순서가 그대로다 (`formatDateTimeSheet`).
+      formatDateTimeSheet(row.startAt),
+      formatDateTimeSheet(row.endAt),
       row.destination,
       row.reason,
       row.requestedByName,

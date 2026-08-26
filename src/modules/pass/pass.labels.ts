@@ -1,7 +1,7 @@
 import type { BadgeTone } from "@/components/ui/badge";
 import {
   formatDateTimeShort,
-  formatMonthDay,
+  formatMonthDayTime,
   formatTimeShort,
 } from "@/lib/datetime";
 import type { PassStatus } from "@/core/authz/pass-type";
@@ -53,41 +53,31 @@ export const VERDICT_TONES: Record<Verdict, BadgeTone> = {
 };
 
 /**
- * 화면에 적을 마지막 순간. **외박의 `endAt`은 종료일 다음 날 자정이라** 그대로
- * 그리면 「오전 12:00」이 되고 날짜도 하루 밀린다. 1밀리초를 빼서 그 전날로 되돌린다.
- */
-function lastMomentOf(pass: { endAt: Date }): Date {
-  return new Date(pass.endAt.getTime() - 1);
-}
-
-/**
- * 유효 창 한 줄. 외출은 시각이 알맹이라 시각을, 외박은 그날 밤을 통째로 쓰므로
- * 날짜를 적는다.
+ * 유효 창 한 줄. 시작은 두 유형 모두 날짜와 시각을 적고, **종료에 날짜를 다시
+ * 적는 것은 외박뿐이다.**
+ *
+ * 외출을 「26. 8. 26. 오후 2:00 ~ 오후 6:00」으로 줄이는 근거는 둘이다 —
+ * 외출은 스키마가 날짜를 하나만 받아 양끝이 같은 날임이 보장되므로 종료 날짜가
+ * 담는 정보가 없고, 되풀이가 사라지면 **날짜가 두 번 보이는 것 자체가 「날을
+ * 넘긴다」는 신호**가 된다.
  *
  * **`(app)` 밖의 판독 화면도 이 규칙을 쓴다** — 화면마다 손으로 그리면 한 곳이
- * 하루 밀린 채 굳는다(실제로 그랬다).
+ * 어긋난 채 굳는다(실제로 그랬다).
  */
 export function passPeriod(pass: { type: string; startAt: Date; endAt: Date }): string {
-  if (pass.type === "OVERNIGHT") {
-    return `${formatMonthDay(pass.startAt)} ~ ${formatMonthDay(lastMomentOf(pass))}`;
-  }
-  return `${formatDateTimeShort(pass.startAt)} ~ ${formatDateTimeShort(pass.endAt)}`;
-}
-
-/** 「언제까지인가」 한 조각. `passPeriod`와 같은 눈금이다. */
-export function passEndLabel(pass: { type: string; endAt: Date }): string {
-  return pass.type === "OVERNIGHT"
-    ? formatMonthDay(lastMomentOf(pass))
-    : formatTimeShort(pass.endAt);
+  const end =
+    pass.type === "OVERNIGHT"
+      ? formatDateTimeShort(pass.endAt)
+      : formatTimeShort(pass.endAt);
+  return `${formatDateTimeShort(pass.startAt)} ~ ${end}`;
 }
 
 /**
- * 유효 창의 마지막 순간을 **Date 그대로** 낸다. `passEndLabel`과 같은 눈금이되
- * 포맷은 부르는 쪽이 고른다 — 엑셀 시트는 「오후 6:00」이 아니라 글자순이 곧
- * 시각순인 형태로 적어야 해서, 화면용 문자열을 되받아 쓸 수 없다.
- *
- * 외박의 하루 밀림을 막는 규칙은 `lastMomentOf` 한 곳에만 있다.
+ * 「언제까지인가」 한 조각. `passPeriod`와 같은 눈금이되 더 좁다 — 지금 나가 있는
+ * 학생 옆에 오른쪽 정렬로 서는 자리라, 외박도 연도는 빼고 날짜와 시각만 적는다.
  */
-export function passEndMoment(pass: { type: string; endAt: Date }): Date {
-  return pass.type === "OVERNIGHT" ? lastMomentOf(pass) : pass.endAt;
+export function passEndLabel(pass: { type: string; endAt: Date }): string {
+  return pass.type === "OVERNIGHT"
+    ? formatMonthDayTime(pass.endAt)
+    : formatTimeShort(pass.endAt);
 }

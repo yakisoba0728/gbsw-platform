@@ -247,7 +247,7 @@ const COLUMNS: readonly Column<HistoryRow>[] = [
   {
     key: "period",
     header: "기간",
-    // 외출은 「26. 8. 26. 오후 2:00 ~ 26. 8. 26. 오후 6:00」까지 늘어난다.
+    // 외박이 가장 길다 — 「26. 8. 28. 오후 6:00 ~ 26. 8. 30. 오전 9:00」.
     width: "w-[192px]",
     card: "meta",
     cardLabel: false,

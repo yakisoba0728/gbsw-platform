@@ -33,8 +33,8 @@ export function VerdictCard({ result }: { result: VerifyResult }) {
             )}
           </Line>
           <Line label="유형">{PASS_TYPE_LABELS[pass.type]}</Line>
-          {/* 외박은 endAt이 종료일 다음 날 자정이라 그대로 그리면 하루 밀린다.
-              화면 셋이 같은 눈금을 쓰도록 규칙은 pass.labels가 소유한다. */}
+          {/* 유형마다 눈금이 다르다 — 외출은 날짜를 한 번만, 외박은 양끝 모두.
+              화면 셋이 같게 그리도록 규칙은 pass.labels가 소유한다. */}
           <Line label="유효">
             <span className="tabular-nums">{passPeriod(pass)}</span>
           </Line>
