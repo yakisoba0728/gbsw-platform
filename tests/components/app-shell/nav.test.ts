@@ -197,8 +197,16 @@ describe("메뉴 링크가 실제 화면을 가리킨다", () => {
   ];
 
   /** 앱 셸 라우트 그룹 `(app)` 아래에서 이 경로를 그리는 파일. */
-  const pageFile = (path: string) =>
-    path === "/" ? "src/app/(app)/page.tsx" : `src/app/(app)${path}/page.tsx`;
+  /**
+   * 메뉴가 가리키는 라우트 파일의 후보들. 대부분 앱 셸(`(app)`) 안이지만
+   * **전부는 아니다** — 출입증 판독(`/scan`)은 셸 밖에 산다(로그인 후 돌아올 주소를
+   * 들고 가야 해서다). 그래서 셸 밖도 함께 본다: 예외 목록으로 빼면 그 항목의
+   * 오타를 영영 못 잡는다.
+   */
+  const pageFiles = (path: string) =>
+    path === "/"
+      ? ["src/app/(app)/page.tsx"]
+      : [`src/app/(app)${path}/page.tsx`, `src/app${path}/page.tsx`];
 
   it("펴는 코드가 하위 메뉴와 관리자 섹션까지 훑는다", () => {
     // 펴기가 조용히 빈 목록을 내면 아래 it.each가 통째로 사라진다 — 예전에 손으로
@@ -209,6 +217,10 @@ describe("메뉴 링크가 실제 화면을 가리킨다", () => {
         "/merit",
         "/merit/stats",
         "/merit/recent",
+        "/pass",
+        "/pass/history",
+        // 앱 셸 밖의 화면도 메뉴에 선다 — pageFiles가 그것을 알아야 한다.
+        "/scan",
         "/admin/merit/rules",
         "/admin/settings",
       ]),
@@ -218,6 +230,10 @@ describe("메뉴 링크가 실제 화면을 가리킨다", () => {
   it.each(navPaths)("%s → 라우트 파일이 있다", async (path) => {
     const { existsSync } = await import("node:fs");
     const { join } = await import("node:path");
-    expect(existsSync(join(process.cwd(), pageFile(path)))).toBe(true);
+    const found = pageFiles(path).filter((file) =>
+      existsSync(join(process.cwd(), file)),
+    );
+    // 어느 후보에도 없으면 메뉴가 404를 가리킨다.
+    expect(found).not.toHaveLength(0);
   });
 });
