@@ -82,6 +82,11 @@ export function sumTotals(
  * 발생일이 이제 항상 오늘이라 미래 검사는 걸릴 일이 없지만, **학년도 창 검사는
  * 여전히 걸린다** — 현재 학년도를 넘기지 않은 채 3월을 맞으면 오늘이 지난
  * 학년도 창 밖이 된다. 그때 조용히 저장되면 그 기록은 어느 집계에도 안 잡힌다.
+ *
+ * 미래 검사는 지우지 않고 둔다. 발생일이 화면 입력이던 시절의 잔재가 아니라,
+ * 「발생일은 부여 시각보다 뒤일 수 없다」는 불변식이다 — 다시 입력을 받는 날
+ * 이 줄이 없으면 그 사실을 아무도 안 지킨다. 지금 그 줄이 닿지 않는다는 것은
+ * `occurredOn`이 `now`에서 유도된다는 뜻이고, 그 유도를 테스트가 붙든다.
  */
 function assertOccurredOn(occurredOn: Date, year: number, now: Date): void {
   const { start, endExclusive } = schoolYearRange(year);

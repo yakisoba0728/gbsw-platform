@@ -18,6 +18,7 @@ import {
   NUMBER_RANGE_MESSAGE,
 } from "@/modules/enrollment/enrollment.schema";
 import { ROSTER_COLUMNS } from "@/modules/enrollment/roster.export";
+import { ROSTER_FILE_MAX_BYTES } from "./roster.schema";
 
 /**
  * 명단 파일을 정규화된 행으로 옮긴다. 형식별 코드는 `string[][]`까지만 만들고
@@ -55,7 +56,10 @@ const ZIP64_SENTINEL = 0xffffffff;
 const ZIP_DATA_DESCRIPTOR_SIGNATURE = 0x08074b50;
 
 export const XLSX_PREFLIGHT_LIMITS = {
-  maxCompressedBytes: 5 * 1024 * 1024,
+  // 액션의 file.size 검사와 같은 값이어야 한다 (roster.schema의 ROSTER_FILE_MAX_BYTES).
+  // 여기가 더 크면 그 사이 파일이 파서까지 와서 「압축을 풀었을 때 너무 큰」이라는
+  // 엉뚱한 문구로 떨어진다. 짝은 import/actions.test.ts가 붙든다.
+  maxCompressedBytes: ROSTER_FILE_MAX_BYTES,
   maxUncompressedBytes: 25 * 1024 * 1024,
   maxEntryUncompressedBytes: 10 * 1024 * 1024,
   maxEntries: 500,

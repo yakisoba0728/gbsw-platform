@@ -131,6 +131,27 @@ account에서 시작해 모듈이 커지면 merit의 모양으로 간다.
 **다른 모듈이 이 예외를 따라하면 안 된다.** 업무 데이터를 건드리는 쓰기는 예외 없이
 `recordAudit`을 남긴다.
 
+### 지금 인증은 실제로 발송하지 않는다
+
+위 문단은 발송을 전제로 쓰였지만, **현재 코드는 아무것도 보내지 않는다.**
+`requestVerification`이 초대코드만 확인한 뒤 `createTemporaryVerifiedProof`로
+`verifiedAt`이 이미 찍힌 행을 만들고 끝난다 — 실제 발송기(`requestCode`)는
+운영 코드에 호출자가 없다(`tests/`와 `scripts/seed-demo.ts`뿐). 화면
+(`verified-field.tsx`)도 인증번호 입력칸을 띄우지 않는다. 설정은 다시 켤 때를
+위해 보존돼 있다 (`docker-compose.yml`의 `SMS_*`).
+
+**그래서 잃는 것을 분명히 적어 둔다.** `User.email`·`User.phone`은 **아무도
+소유를 증명하지 않은 값**이고, 그 위에 `registration.repo`가 `emailVerified: true`를
+그대로 박는다. 유효한 초대코드와 사전등록 이름(학생은 생년월일까지)을 아는
+사람이면 남의 이메일 주소로 가입해 그 주소를 선점할 수 있고, 그러면 `emailExists`
+검사가 나중에 진짜 소유자를 거부한다. 교사가 연락할 수 없는 번호가 명부에
+들어가는 것도 같은 이유다.
+
+**막는 쪽은 초대코드다** — 코드가 없으면 이 경로에 들어오지 못하고, 발송 횟수
+제한(대상별 5회/시간·IP별 20회/시간)은 이 경로에도 그대로 걸린다. 실제 발송을
+켜는 날 함께 재검토할 것: `emailVerified` 하드코딩, 그리고 위 문단이 말하는
+「발송 사실은 콘솔 로그가 남긴다」가 그때부터 다시 사실이 된다.
+
 ## 새 모듈 추가 체크리스트
 
 1. `prisma/schema.prisma`에 모델 추가 → `npm run db:migrate`

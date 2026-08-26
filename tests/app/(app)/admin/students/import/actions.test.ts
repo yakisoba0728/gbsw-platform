@@ -551,6 +551,21 @@ describe("명단 파일 크기 상한", () => {
     expect(matched, "next.config.ts에서 bodySizeLimit을 찾지 못했다").not.toBeNull();
     expect(ROSTER_FILE_MAX_BYTES).toBeLessThan(Number(matched![1]) * 1024 * 1024);
   });
+
+  /**
+   * 짝의 반대쪽. 액션이 `file.size`를 먼저 보므로 파서의 압축 크기 가드는 지금
+   * 유일한 호출 경로로는 **닿지 않는다** — 두 값이 같아서다. 한쪽만 올리면
+   * 그 사이 크기의 파일이 파서까지 가서 `XLSX_TOO_LARGE`로 떨어지는데, 그 문구는
+   * 「압축을 풀었을 때 너무 큰 엑셀 파일입니다」라 파일 크기 문제로 안 읽힌다.
+   */
+  it("파서의 압축 크기 가드와 같은 값이다", async () => {
+    const { ROSTER_FILE_MAX_BYTES } = await import("@/modules/enrollment/roster.schema");
+    const { XLSX_PREFLIGHT_LIMITS } = await import(
+      "@/modules/enrollment/roster.parse"
+    );
+
+    expect(XLSX_PREFLIGHT_LIMITS.maxCompressedBytes).toBe(ROSTER_FILE_MAX_BYTES);
+  });
 });
 
 describe("모든 액션이 requireAuth로 시작한다", () => {

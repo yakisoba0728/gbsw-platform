@@ -47,6 +47,7 @@ const {
   createParentInviteFor,
   createStudentInvite,
   listInvites,
+  listMyParentInvites,
   listStudentsForInvite,
   MAX_ACTIVE_PARENT_INVITES,
   revokeInvite,
@@ -400,5 +401,34 @@ describe("폐기", () => {
     expect(withTransaction).toHaveBeenCalledTimes(1);
     expect(revokePending).toHaveBeenCalledWith("inv1", txClient);
     expect(recordAudit).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * 이 함수가 돌려주는 것은 **학부모 가입코드 자체**다. 남의 코드를 읽으면 그
+ * 학생의 학부모로 가입할 수 있다. 그래서 studentId를 인자로 받지 않고 세션에서
+ * 유도한다 — 같은 모듈의 `listInvites`가 인자를 받는 모양이라 흉내 내기 쉽고,
+ * 한 번 붙으면 조용히 열린다. `getMyMerit`에는 같은 회귀 테스트가 이미 있다.
+ */
+describe("listMyParentInvites() — 세션에서만 유도한다", () => {
+  it("두 번째 인자로 남의 학생 id를 넣어도 세션 학생만 조회한다", async () => {
+    getStudentProfileByUserId.mockResolvedValue({ id: "sp-mine" });
+
+    // 시그니처가 (sessionUser, studentId)로 바뀌면 이 호출이 남의 것을 준다.
+    await (listMyParentInvites as (...args: unknown[]) => Promise<unknown>)(
+      student,
+      "sp-남의학생",
+    );
+
+    expect(getStudentProfileByUserId).toHaveBeenCalledWith(student.id);
+    expect(listByStudent).toHaveBeenCalledWith("sp-mine");
+    expect(listByStudent).not.toHaveBeenCalledWith("sp-남의학생");
+  });
+
+  it("학생 프로필이 없으면 빈 목록이다 — 코드가 새지 않는다", async () => {
+    getStudentProfileByUserId.mockResolvedValue(null);
+
+    await expect(listMyParentInvites(admin)).resolves.toEqual([]);
+    expect(listByStudent).not.toHaveBeenCalled();
   });
 });

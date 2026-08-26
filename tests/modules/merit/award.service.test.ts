@@ -1382,3 +1382,46 @@ describe("exportStudentHistory", () => {
     ).rejects.toThrow("FORBIDDEN");
   });
 });
+
+/**
+ * 자녀 선택 크롬(`merit/page.tsx`)이 이걸로 그려진다. 실제 조회는 `getChildMerit`의
+ * `assertIsChildOf`가 다시 막지만, 여기서 세션 유도가 깨지면 남의 자녀 **이름**이
+ * 학부모 화면에 뜬다. 이름도 개인정보다.
+ */
+describe("listMyChildren() — 세션에서만 유도한다", () => {
+  const parent = user("PARENT", "p-1");
+
+  it("두 번째 인자로 남의 학부모 id를 넣어도 세션 계정만 조회한다", async () => {
+    listChildren.mockResolvedValue([]);
+
+    await (service.listMyChildren as (...args: unknown[]) => Promise<unknown>)(
+      parent,
+      "u-남의학부모",
+    );
+
+    expect(listChildren).toHaveBeenCalledWith(parent.id);
+    expect(listChildren).not.toHaveBeenCalledWith("u-남의학부모");
+  });
+});
+
+/**
+ * `OCCURRED_IN_FUTURE`는 지금 도달하지 않는다 — 발생일이 화면 입력이 아니라
+ * `kstDayStart(now)`에서 유도되기 때문이다. 그 검사를 지우지 않고 두는 이유가
+ * 「발생일은 부여 시각보다 뒤일 수 없다」는 불변식이라서이므로, 유도 자체를
+ * 여기서 붙든다. 유도가 깨져 발생일이 다시 입력으로 바뀌면 그때는 저 검사가
+ * 실제로 일을 하기 시작한다.
+ */
+describe("발생일은 부여 시각에서 유도된다", () => {
+  it("입력에 발생일을 넣어도 무시되고 오늘(KST 자정)이 들어간다", async () => {
+    await service.awardMerit(
+      admin,
+      // 스키마에 없는 키다 — 서비스까지 새어 들어가지 않는다는 것을 확인한다.
+      { ...awardInput, occurredOn: "2099-01-01" } as typeof awardInput,
+      NOW,
+    );
+
+    const written = createAward.mock.calls[0]![0];
+    expect(written.occurredOn).toEqual(OCCURRED_ON);
+    expect(written.occurredOn.getTime()).toBeLessThanOrEqual(NOW.getTime());
+  });
+});

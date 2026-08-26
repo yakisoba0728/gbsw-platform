@@ -43,6 +43,11 @@ vi.mock("@/modules/enrollment/roster.repo", () => ({
   NumberTakenError,
 }));
 vi.mock("server-only", () => ({}));
+const parseRoster = vi.fn();
+vi.mock("@/modules/enrollment/roster.parse", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  parseRoster,
+}));
 vi.mock("@/core/audit/audit", () => ({ recordAudit, recordAuditMany }));
 vi.mock("@/core/db/client", () => ({ withTransaction }));
 vi.mock("@/modules/academic-year/academic-year.service", () => ({
@@ -55,6 +60,7 @@ const {
   applyRosterPlan: applyWithToken,
   createRosterFingerprint,
   exportRoster,
+  previewRoster,
 } = await import("@/modules/enrollment/roster.service");
 const { issuePreviewToken } = await import(
   "@/modules/enrollment/roster.preview-token"
@@ -855,5 +861,70 @@ describe("미리보기 봉인", () => {
     await expect(
       applyRosterPlan(student, 2026, [row], fingerprint(), [], null, ""),
     ).rejects.toThrow("FORBIDDEN");
+  });
+});
+
+/**
+ * 미리보기는 **아무것도 저장하지 않지만 전교생을 통째로 읽어 돌려준다** —
+ * 이름·생년월일·학년·반·번호·학생코드와 「누가 명단에서 빠지는가」까지.
+ * 그 화면의 서버 액션은 `requireAuth()`만 하므로, 페이지 게이트를 건너뛰고
+ * 액션을 직접 치면 `assertMayImport` 한 줄이 유일한 문이다.
+ *
+ * 그 한 줄을 붙드는 테스트가 없어서, 리팩터링으로 사라져도 전부 통과했다.
+ */
+describe("previewRoster()", () => {
+  const file = { filename: "명단.csv", buffer: Buffer.from("") };
+
+  beforeEach(() => {
+    parseRoster.mockReset().mockResolvedValue({ rows: [row], notices: [] });
+  });
+
+  it("교사가 아니면 파일을 읽지도 않는다", async () => {
+    await expect(previewRoster(student, file)).rejects.toThrow("FORBIDDEN");
+
+    expect(parseRoster).not.toHaveBeenCalled();
+    expect(listExisting).not.toHaveBeenCalled();
+  });
+
+  it("학부모도 막힌다 — 학생만 막고 끝나는 검사가 아니다", async () => {
+    await expect(
+      previewRoster(user("PARENT", "p-1"), file),
+    ).rejects.toThrow("FORBIDDEN");
+    expect(parseRoster).not.toHaveBeenCalled();
+  });
+
+  it("읽을 수 있는 줄이 없으면 EMPTY다", async () => {
+    parseRoster.mockResolvedValue({ rows: [], notices: [] });
+
+    await expect(previewRoster(admin, file)).rejects.toThrow("EMPTY");
+    expect(listExisting).not.toHaveBeenCalled();
+  });
+
+  it("돌려준 지문은 확정이 다시 세우는 것과 같다 — 다르면 정상 흐름이 ROSTER_CHANGED로 막힌다", async () => {
+    const existing = [재학생];
+    listExisting.mockResolvedValue(existing);
+
+    const preview = await previewRoster(admin, file);
+
+    expect(preview.rosterFingerprint).toBe(createRosterFingerprint(existing));
+  });
+
+  it("봉인을 함께 낸다 — 그 봉인으로 곧바로 확정할 수 있다", async () => {
+    const existing = [재학생];
+    listExisting.mockResolvedValue(existing);
+
+    const preview = await previewRoster(admin, file);
+
+    await expect(
+      applyWithToken(
+        admin,
+        preview.year,
+        preview.rows,
+        preview.rosterFingerprint,
+        preview.plan.missingFromFile.map((s: { studentProfileId: string }) => s.studentProfileId),
+        preview.plan.missingFromFile.length || null,
+        preview.previewToken,
+      ),
+    ).resolves.toBeTruthy();
   });
 });

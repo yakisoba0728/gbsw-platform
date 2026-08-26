@@ -51,6 +51,11 @@ export async function checkInvite(rawCode: string): Promise<{ role: Role }> {
 /**
  * 인증코드 발송 — 유효한 초대코드를 함께 요구한다 (I4). 대상별 횟수 제한만으로는
  * 대상을 바꿔 가며 발송 비용을 태우는 것을 막지 못한다.
+ *
+ * **지금은 아무것도 보내지 않는다.** 초대코드를 확인한 뒤 곧바로 확인된 proof를
+ * 만들고 끝낸다 — 실제 발송기(`requestCode`)는 운영 코드에 호출자가 없다.
+ * 그래서 email·phone은 소유가 증명되지 않은 값이며, 그 대가와 다시 켤 때 함께
+ * 볼 것들은 CLAUDE.md의 「지금 인증은 실제로 발송하지 않는다」에 적어 두었다.
  */
 export async function requestVerification(
   code: string,
