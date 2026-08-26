@@ -130,7 +130,7 @@ export async function consentPass(
     throw new ForbiddenError("pass:consent");
   }
 
-  if (!requiresConsent(pass.type as "OUTING" | "OVERNIGHT")) {
+  if (!requiresConsent(pass.type)) {
     throw new PassError("CONSENT_NOT_ALLOWED");
   }
 
@@ -195,6 +195,24 @@ export async function getPassDetail(actor: SessionUser, passId: string) {
   }
 
   return pass;
+}
+
+/**
+ * 이 사람이 그 출입증의 QR을 볼 수 있는가. 본인과 교사뿐이다 — 보호자는 자녀의
+ * 상세를 읽을 수는 있어도 **대신 보여줄 화면**을 갖지는 않는다(출입증은 학생이 낸다).
+ *
+ * **거부 기록을 남기지 않는 판정이라 따로 뗀다.** 화면이 QR 자리를 그릴지 말지
+ * 정하려고 부르는 자리인데, 그때마다 `authz:denied`가 쌓이면 감사로그에서
+ * 「권한 밖 시도」를 세는 일이 잡음에 묻힌다. 실제로 거부해야 하는 호출
+ * (`getPassQr`)은 그대로 기록을 남긴다.
+ */
+export async function canSeePassQr(
+  actor: SessionUser,
+  studentProfileId: string,
+): Promise<boolean> {
+  if (can(actor, "pass:read:any")) return true;
+  const profile = await repo.findStudentProfileByUserId(actor.id);
+  return profile?.id === studentProfileId;
 }
 
 /**

@@ -39,6 +39,17 @@ export function MeritIcon(props: IconProps) {
   );
 }
 
+export function QrIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={1.7} {...props}>
+      <rect x="3.5" y="3.5" width="6" height="6" rx="1" />
+      <rect x="14.5" y="3.5" width="6" height="6" rx="1" />
+      <rect x="3.5" y="14.5" width="6" height="6" rx="1" />
+      <path d="M14.5 14.5h2.5v2.5h-2.5zM20.5 14.5v2.5M14.5 20.5h6" />
+    </Icon>
+  );
+}
+
 export function InviteIcon(props: IconProps) {
   return (
     <Icon strokeWidth={1.7} {...props}>

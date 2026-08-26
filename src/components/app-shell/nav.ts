@@ -3,6 +3,7 @@ import {
   DashboardIcon,
   LogIcon,
   MeritIcon,
+  QrIcon,
   SlidersIcon,
   UsersIcon,
 } from "@/components/icons";
@@ -55,6 +56,14 @@ export const NAV_ITEMS: NavItem[] = [
       { href: "/merit/stats", label: "통계", roles: ["ADMIN"] },
       { href: "/admin/merit/rules", label: "규정 관리", roles: ["ADMIN"] },
     ],
+  },
+  {
+    // 세 역할이 같은 주소를 쓰고 화면이 역할로 갈린다 — 학생은 신청과 내 QR,
+    // 교사는 결재, 학부모는 동의다. 하위 메뉴를 두지 않는다.
+    // 「스캔하기」는 메뉴가 아니라 화면 안의 버튼이다 (메뉴는 이미 길다).
+    href: "/pass",
+    label: "출입증",
+    icon: QrIcon,
   },
   {
     href: "/parent-invite",

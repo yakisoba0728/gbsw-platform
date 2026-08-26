@@ -44,8 +44,14 @@ export function isPassStatus(value: unknown): value is PassStatus {
 /**
  * 보호자 확인이 필요한 유형. 외박만이다 — 외출은 당일 귀교라 보호자 확인이
  * 관행이 아니고, 넣으면 방과 후 병원 한 번에 세 사람이 붙는다.
+ *
+ * 인자가 `string`인 것은 실수가 아니다. 부르는 쪽은 대개 DB에서 온 값
+ * (`Pass.type`)을 쥐고 있어서 `PassType`을 요구하면 호출부마다 캐스트가 생기고,
+ * 그 캐스트는 검증이 아니라 「타입 검사를 조용히 시키는 일」이다.
+ * `merit-track.ts`의 `meritKindDelta`가 같은 이유로 `string`을 받는다.
+ * 모르는 값은 false로 떨어진다 — 확인을 요구하지 않는 쪽이 안전한 기본값이다.
  */
-export function requiresConsent(type: PassType): boolean {
+export function requiresConsent(type: string): boolean {
   return type === "OVERNIGHT";
 }
 

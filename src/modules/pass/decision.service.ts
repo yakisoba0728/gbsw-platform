@@ -5,7 +5,6 @@ import {
   DECIDABLE_STATUSES,
   requiresConsent,
   type PassStatus,
-  type PassType,
 } from "@/core/authz/pass-type";
 import { withTransaction } from "@/core/db/client";
 import { PassError } from "./pass.error";
@@ -36,7 +35,7 @@ export async function approvePass(
   const consented = pass.consentedAt !== null || pass.consentByProxy;
 
   // 외박의 APPROVED 전이는 보호자 확인이 있을 때만. 대행이 그 자리를 대신한다.
-  if (requiresConsent(pass.type as PassType) && !consented && !byProxy) {
+  if (requiresConsent(pass.type) && !consented && !byProxy) {
     throw new PassError("CONSENT_REQUIRED");
   }
 
@@ -241,4 +240,13 @@ export async function listPendingPasses(actor: SessionUser, now: Date = new Date
 export async function listActivePasses(actor: SessionUser, now: Date = new Date()) {
   await assertCan(actor, "pass:read:any");
   return repo.listActiveNow(now, await repo.displayYear());
+}
+
+/**
+ * 직접 부여의 학생 선택지. 그 학년도 재적 학생 전부다 —
+ * 부여와 같은 권한(`pass:issue`)으로 막는다.
+ */
+export async function listStudentsForIssue(actor: SessionUser) {
+  await assertCan(actor, "pass:issue");
+  return repo.listEnrolledStudents(await repo.displayYear());
 }

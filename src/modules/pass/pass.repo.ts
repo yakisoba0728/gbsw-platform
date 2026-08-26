@@ -127,6 +127,38 @@ export async function listForParent(
 }
 
 /**
+ * 직접 부여 선택지. 그 학년도 재적 학생 전부다.
+ * 반별 optgroup으로 묶어 그리므로 학년·반·번호 순으로 준다.
+ */
+export async function listEnrolledStudents(year: number, db: DbClient = prisma) {
+  const enrollments = await db.enrollment.findMany({
+    where: {
+      year,
+      status: "ENROLLED",
+      studentProfile: { user: { deletedAt: null, status: "ACTIVE" } },
+    },
+    select: {
+      number: true,
+      schoolClass: { select: { grade: true, classNo: true } },
+      studentProfile: { select: { id: true, user: { select: { name: true } } } },
+    },
+    orderBy: [
+      { schoolClass: { grade: "asc" } },
+      { schoolClass: { classNo: "asc" } },
+      { number: "asc" },
+    ],
+  });
+
+  return enrollments.map((row) => ({
+    id: row.studentProfile.id,
+    name: row.studentProfile.user.name,
+    grade: row.schoolClass?.grade ?? null,
+    classNo: row.schoolClass?.classNo ?? null,
+    number: row.number,
+  }));
+}
+
+/**
  * 기간이 겹치는 살아 있는 출입증. 두 구간이 겹칠 조건은 `aStart < bEnd && bStart < aEnd`다.
  * 자기 자신은 빼고 본다 (수정 경로가 생길 때를 위해 인자를 둔다).
  */
