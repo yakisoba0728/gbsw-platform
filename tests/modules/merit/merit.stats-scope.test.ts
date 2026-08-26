@@ -193,6 +193,17 @@ describe("getMeritSummary — 대시보드 최근 활동", () => {
     expect(call.until).toEqual(new Date("2026-08-17T00:00:00+09:00"));
   });
 
+  it("화면에 적을 창을 함께 돌려준다 — 끝은 오늘이지 질의 상한이 아니다", async () => {
+    const summary = await service.getMeritSummary(admin, "SCHOOL", NOW);
+
+    // 질의는 17일 00:00까지(제외)지만, 화면이 적을 마지막 날은 16일이다.
+    expect(summary.window).toEqual({
+      from: new Date("2026-08-10T00:00:00+09:00"),
+      to: new Date("2026-08-16T00:00:00+09:00"),
+    });
+    expect(summary.window.from).toEqual(trackTotalsBetween.mock.calls[0][0].since);
+  });
+
   it("KST 자정 눈금에 맞춘다 — 발생일이 그 눈금이라 UTC로 자르면 하루 밀린다", async () => {
     // UTC로는 8월 16일 15:30이지만 KST로는 17일 00:30이다.
     await service.getMeritSummary(admin, "SCHOOL", new Date("2026-08-17T00:30:00+09:00"));

@@ -13,6 +13,7 @@ import { cardClass } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { SectionCard } from "@/components/ui/section-card";
+import { formatMonthDay } from "@/lib/datetime";
 import { greetingFor } from "@/lib/greeting";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import {
@@ -63,10 +64,13 @@ function NoYearCard() {
 
 async function AdminSummary({ user }: { user: SessionUser }) {
   let summaries: MeritSummary[];
+  // 두 카드가 같은 순간을 본다. 각자 new Date()를 만들면 자정을 끼고 창이 하루
+  // 어긋나, 나란히 선 두 카드가 다른 기간을 적는다.
+  const now = new Date();
   try {
     summaries = await Promise.all([
-      getMeritSummary(user, "SCHOOL"),
-      getMeritSummary(user, "DORM"),
+      getMeritSummary(user, "SCHOOL", now),
+      getMeritSummary(user, "DORM", now),
     ]);
   } catch (error) {
     if (!(error instanceof AcademicYearError)) throw error;
@@ -82,19 +86,39 @@ async function AdminSummary({ user }: { user: SessionUser }) {
   );
 }
 
+/**
+ * 교사 카드. **학생 카드와 숫자 모양이 같지만 뜻이 다르다** — 학생 쪽은 그 학생의
+ * 현재 점수(누적)이고, 이쪽은 **최근 이레 동안 학교에서 오간 양**이다. 그 차이를
+ * 큰 숫자보다 먼저 읽히게 하는 것이 이 카드의 일이다.
+ *
+ * 그래서 기간은 제목 바로 아래(hint)에 날짜까지 적고, 어떻게 세는지(발생일 기준·
+ * 상쇄점 제외)는 숫자 아래 잔글씨로 둔다. 상쇄점 제외는 `getMeritSummary`의 주석이
+ * 「화면이 적는다」고 약속해 둔 것인데 실제로는 어디에도 없었다.
+ */
 function AdminTrackCard({ summary }: { summary: MeritSummary }) {
   return (
     <SectionCard
       headingLevel={3}
       title={MERIT_TRACK_TITLES[summary.track]}
+      // 날 수도 날짜도 서비스가 갖고 있다 — 화면에 7을 적으면 창을 바꿀 때 두 곳이 갈린다.
+      hint={
+        <>
+          최근 {SUMMARY_DAYS}일에 오간 점수
+          <span className="mx-1.5 text-mut2" aria-hidden>
+            ·
+          </span>
+          <span className="tabular-nums">
+            {formatMonthDay(summary.window.from)} ~ {formatMonthDay(summary.window.to)}
+          </span>
+        </>
+      }
       // 위는 그 트랙의 부여 화면, 아래는 통계다. 둘 다 통계로 보내면 카드에
       // 같은 곳으로 가는 링크가 두 개 서게 된다.
       aside={<CardLink href={`/merit?track=${summary.track}`}>이동</CardLink>}
     >
       <MeritTotalsCards totals={summary.totals} />
-      {/* 날 수는 서비스가 갖고 있다 — 화면에 7을 적으면 창을 바꿀 때 두 곳이 갈린다. */}
       <p className="mt-3 text-xs text-mut">
-        최근 {SUMMARY_DAYS}일 · {summary.totals.awardCount}건 ·{" "}
+        {summary.totals.awardCount}건 · 발생일 기준 · 상쇄점 제외 ·{" "}
         <Link
           // 이름이 「전체 교사 통계」인데 개요로 보내면 교사 차원이 없는 화면이 나온다.
           href={`/merit/stats?view=teachers&track=${summary.track}`}

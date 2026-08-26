@@ -144,6 +144,14 @@ export type MeritSummary = {
    * 감춘 게 아니라 실제로 세지 않은 값이다.
    */
   totals: MeritTotals & { awardCount: number };
+  /**
+   * 이 숫자들이 덮는 발생일 범위. 화면이 다시 계산하지 않는다 — 날 수를 화면에
+   * 적으면 창을 바꿀 때 두 곳이 갈린다는 것과 같은 이유다.
+   *
+   * `to`는 오늘이다. 질의의 상한(`until`)은 내일 자정이지만 그건 **제외**라,
+   * 그대로 적으면 화면에 내일 날짜가 뜬다.
+   */
+  window: { from: Date; to: Date };
 };
 
 /**
@@ -187,6 +195,7 @@ export async function getMeritSummary(
 
   return {
     track,
+    window: { from: since, to: today },
     totals: {
       ...sumTotals(rows),
       awardCount: rows.reduce((sum, row) => sum + row._count._all, 0),

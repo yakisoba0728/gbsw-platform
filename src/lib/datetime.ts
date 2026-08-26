@@ -66,6 +66,20 @@ export function formatMonthDayTime(value: Date): string {
   return monthDayTime.format(value);
 }
 
+const monthDay = new Intl.DateTimeFormat("ko-KR", {
+  month: "numeric",
+  day: "numeric",
+  timeZone: KST,
+});
+
+/**
+ * 8. 26. — 기간을 「8. 20. ~ 8. 26.」처럼 한 줄에 적을 때 쓴다. 연도를 뺀다:
+ * 창이 이레라 두 끝이 같은 해이고, `formatKstDay`는 요일이 붙어 범위로는 길다.
+ */
+export function formatMonthDay(value: Date): string {
+  return monthDay.format(value);
+}
+
 const dayLabel = new Intl.DateTimeFormat("ko-KR", {
   month: "long",
   day: "numeric",

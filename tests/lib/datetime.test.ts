@@ -8,6 +8,7 @@ import {
   isSameKstDate,
   KST,
   parseDateInputKst,
+  formatMonthDay,
 } from "@/lib/datetime";
 
 /**
@@ -274,5 +275,17 @@ describe("kstHour", () => {
 
   it("UTC 자정이 KST 오전 9시다 — 서버 시간대를 따라가면 안 된다", () => {
     expect(kstHour(new Date("2026-08-18T00:00:00Z"))).toBe(9);
+  });
+});
+
+describe("formatMonthDay()", () => {
+  it("연도를 빼고 월·일만 적는다 — 이레짜리 범위는 두 끝이 같은 해다", () => {
+    expect(formatMonthDay(new Date("2026-08-26T00:00:00+09:00"))).toBe("8. 26.");
+    expect(formatMonthDay(new Date("2026-08-20T00:00:00+09:00"))).toBe("8. 20.");
+  });
+
+  it("KST 기준이다 — UTC로 자르면 하루 밀린다", () => {
+    // UTC로는 8월 25일 15:10이지만 KST로는 26일 00:10이다.
+    expect(formatMonthDay(new Date("2026-08-25T15:10:00Z"))).toBe("8. 26.");
   });
 });
