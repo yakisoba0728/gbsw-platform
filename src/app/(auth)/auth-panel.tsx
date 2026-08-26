@@ -56,9 +56,6 @@ export function AuthPanel({ children }: { children: React.ReactNode }) {
             <br />
             마이스터고등학교
           </h2>
-          <p className="text-[12.5px] leading-relaxed text-white/90 [text-shadow:0_1px_10px_rgba(0,0,0,0.35)]">
-            공지 · 상벌점 · 외출/외박을 한 곳에서
-          </p>
         </div>
 
         {/*
