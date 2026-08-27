@@ -6,7 +6,7 @@ import {
   MERIT_TRACK_LABELS,
 } from "@/core/authz/merit-track";
 import { isPassType, PASS_TYPE_LABELS } from "@/core/authz/pass-type";
-import { isRole, ROLE_LABELS } from "@/core/authz/roles";
+import { honorificName, isRole, ROLE_LABELS } from "@/core/authz/roles";
 import { formatDate, formatMonthDay } from "@/lib/datetime";
 
 /**
@@ -255,11 +255,14 @@ function authzDeniedSummary(metadata: Record<string, unknown>): string | null {
   return typeof action === "string" ? `시도: ${auditActionLabel(action)}` : null;
 }
 
-/** 상벌점 기록의 공통 앞부분 — "김민준 · 기숙사 · 벌점 3점 · 점호 지각". */
+/** 상벌점 기록의 공통 앞부분 — "김민준님 · 기숙사 · 벌점 3점 · 점호 지각". */
 function meritSubject(metadata: Record<string, unknown>): string[] {
   const parts: string[] = [];
 
-  if (typeof metadata.studentName === "string") parts.push(metadata.studentName);
+  // 행위자 칸이 「이정민 선생님」인데 상세만 맨이름이면 한 줄 안에서 말이 갈린다.
+  if (typeof metadata.studentName === "string") {
+    parts.push(honorificName(metadata.studentName, "STUDENT"));
+  }
 
   const track = metadata.track;
   if (isMeritTrack(track)) parts.push(MERIT_TRACK_LABELS[track]);

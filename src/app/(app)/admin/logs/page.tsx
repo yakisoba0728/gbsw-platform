@@ -70,7 +70,7 @@ const COLUMNS: readonly Column<LogEntry>[] = [
     card: "meta",
     cardLabel: false,
     // 초까지 적는다 — 감사로그는 순서를 가려야 하는 자리다.
-    width: 152,
+    width: "w-[152px]",
     cell: (entry) => (
       <span className="tabular-nums text-mut">{formatDateTime(entry.createdAt)}</span>
     ),
@@ -79,14 +79,14 @@ const COLUMNS: readonly Column<LogEntry>[] = [
     key: "actor",
     header: "행위자",
     card: "title",
-    width: 164,
+    width: "w-[164px]",
     cell: (entry) => <ActorCell entry={entry} />,
   },
   {
     key: "action",
     header: "동작",
     card: "trailing",
-    width: 116,
+    width: "w-[116px]",
     cell: (entry) => (
       <Badge tone={auditActionTone(entry.action)}>
         {auditActionLabel(entry.action)}
@@ -97,7 +97,7 @@ const COLUMNS: readonly Column<LogEntry>[] = [
     key: "target",
     header: "대상",
     card: "meta",
-    width: 76,
+    width: "w-[76px]",
     cell: (entry) => (
       <span className="text-mut">{auditTargetLabel(entry.targetType)}</span>
     ),
@@ -107,7 +107,7 @@ const COLUMNS: readonly Column<LogEntry>[] = [
     // IP는 172.18.0.1 꼴이라 108px이면 넉넉하다.
     header: "접속",
     card: "meta",
-    width: 108,
+    width: "w-[108px]",
     cell: (entry) => (
       <span className="font-mono text-mut" title={entry.userAgent ?? undefined}>
         {entry.ip ?? "—"}

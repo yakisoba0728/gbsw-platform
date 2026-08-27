@@ -164,7 +164,7 @@ const COLUMNS: readonly Column<PassRow>[] = [
   {
     key: "type",
     header: "유형",
-    width: 64,
+    width: "w-[64px]",
     card: "meta",
     cardLabel: false,
     cell: (row) => (
@@ -177,7 +177,7 @@ const COLUMNS: readonly Column<PassRow>[] = [
     key: "status",
     header: "상태",
     // 「보호자 확인됨」이 한 줄에 서는 폭이다. 접히면 표 전체가 두꺼워진다.
-    width: 112,
+    width: "w-[112px]",
     card: "trailing",
     cell: (row) =>
       isPassStatus(row.status) ? (
@@ -193,7 +193,7 @@ const COLUMNS: readonly Column<PassRow>[] = [
     header: "기간",
     // 외박이 가장 길다 — 「26. 8. 26. 오전 12:00 ~ 26. 8. 28. 오전 12:00」.
     // 「오전 12:00」이 「오후 6:00」보다 길어 192px에서는 이 문자열이 접혔다.
-    width: 216,
+    width: "w-[216px]",
     card: "meta",
     cardLabel: false,
     cell: (row) => (
@@ -210,7 +210,7 @@ const COLUMNS: readonly Column<PassRow>[] = [
   {
     key: "decided",
     header: "결재자",
-    width: 112,
+    width: "w-[112px]",
     card: "meta",
     cardLabel: "결재",
     cell: (row) => {
@@ -228,7 +228,7 @@ const COLUMNS: readonly Column<PassRow>[] = [
   {
     key: "open",
     header: "상세",
-    width: 72,
+    width: "w-[72px]",
     card: "actions",
     cell: (row) => (
       <Link

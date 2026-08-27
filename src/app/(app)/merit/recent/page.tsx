@@ -311,7 +311,7 @@ async function RecentAwardsRows({
       header: "시각",
       // 한 줄에 담기는 폭이다. 접히면 표 전체가 두 줄짜리로 두꺼워진다 —
       // table-fixed라 nowrap이 다른 열을 밀지 않는다.
-      width: 136,
+      width: "w-[136px]",
       cell: (row) => (
         // 발생일은 제 줄에 세운다. 한 줄에 이어 붙였더니 table-fixed로 폭이 묶인
         // 칸에서 nowrap이 겹쳐, 「(발생 …)」이 옆 칸의 구분 배지를 덮었다.
@@ -328,19 +328,19 @@ async function RecentAwardsRows({
     {
       key: "kind",
       header: "구분",
-      width: 68,
+      width: "w-[68px]",
       cell: (row) => <KindBadge kind={row.kind} />,
     },
     {
       key: "class",
       header: "학급",
-      width: 72,
+      width: "w-[72px]",
       cell: (row) => <ClassNumber row={row} />,
     },
     {
       key: "student",
       header: "학생",
-      width: 92,
+      width: "w-[92px]",
       cell: (row) => <StudentLink row={row} track={track} />,
     },
     {
@@ -353,14 +353,14 @@ async function RecentAwardsRows({
     {
       key: "points",
       header: <span className="block text-right">점수</span>,
-      width: 64,
+      width: "w-[64px]",
       className: "text-right",
       cell: (row) => <AwardPoints row={row} />,
     },
     {
       key: "awardedBy",
       header: "부여자",
-      width: 116,
+      width: "w-[116px]",
       cell: (row) => {
         // 부여·취소는 교사 전용이라(can.ts) 이름 스냅샷에 역할이 없어도 호칭이 정해진다.
         const name = honorificName(row.awardedByName, "ADMIN");
@@ -374,7 +374,7 @@ async function RecentAwardsRows({
     {
       key: "status",
       header: "상태",
-      width: 96,
+      width: "w-[96px]",
       cell: (row) => <AwardStatus row={row} />,
     },
   ];
