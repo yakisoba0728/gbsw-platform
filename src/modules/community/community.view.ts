@@ -96,15 +96,31 @@ export function toPostView(
 
 export type PostListItemView = Omit<PostView, "body"> & { commentCount: number };
 
-/** 목록 항목. 본문은 안 싣는다 — 스무 개의 전문을 목록이 들고 있을 이유가 없다. */
+/**
+ * 목록 항목. 본문은 안 싣는다 — 스무 개의 전문을 목록이 들고 있을 이유가 없다.
+ *
+ * 필드를 하나씩 적는다. 구조분해로 `body`만 버리면 그 변수가 쓰이지 않아
+ * lint가 걸리고, 무엇보다 **무엇을 뺐는지가 코드에서 안 보인다.**
+ */
 export function toPostListItem(
   row: PostRow,
   community: ViewCommunity,
   viewer: SessionUser,
   commentCount: number,
 ): PostListItemView {
-  const { body: _body, ...rest } = toPostView(row, community, viewer);
-  return { ...rest, commentCount };
+  const view = toPostView(row, community, viewer);
+  return {
+    id: view.id,
+    communityId: view.communityId,
+    title: view.title,
+    createdAt: view.createdAt,
+    updatedAt: view.updatedAt,
+    author: view.author,
+    isMine: view.isMine,
+    canEdit: view.canEdit,
+    canDelete: view.canDelete,
+    commentCount,
+  };
 }
 
 export type CommentRow = AuthoredRow & {

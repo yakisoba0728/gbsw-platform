@@ -252,3 +252,108 @@ export function listAttachments(postId: string, db: DbClient = prisma) {
     select: { id: true, filename: true, mimeType: true, size: true },
   });
 }
+
+// ── 댓글 ──────────────────────────────────────────────────────
+
+export function listComments(postId: string, db: DbClient = prisma) {
+  return db.communityComment.findMany({
+    where: { postId, deletedAt: null },
+    // 오래된 것부터 — 댓글은 대화라 위에서 아래로 읽힌다.
+    orderBy: { createdAt: "asc" },
+  });
+}
+
+/** 지워진 댓글도 돌려준다. 서비스가 "없음"과 "이미 지움"을 갈라야 한다. */
+export function findComment(id: string, db: DbClient = prisma) {
+  return db.communityComment.findUnique({
+    where: { id },
+    include: { post: { include: { community: true } } },
+  });
+}
+
+export type NewComment = {
+  postId: string;
+  body: string;
+  authorUserId: string;
+  authorName: string;
+  authorRole: string;
+};
+
+export async function createComment(
+  data: NewComment,
+  db: DbClient = prisma,
+): Promise<{ id: string }> {
+  return db.communityComment.create({ data, select: { id: true } });
+}
+
+export async function markCommentDeleted(
+  id: string,
+  actorUserId: string,
+  reason: string | null,
+  db: DbClient = prisma,
+): Promise<number> {
+  const result = await db.communityComment.updateMany({
+    where: { id, deletedAt: null },
+    data: { deletedAt: new Date(), deletedByUserId: actorUserId, deletedReason: reason },
+  });
+  return result.count;
+}
+
+// ── 첨부 (업로드·정리·내려받기) ───────────────────────────────
+
+/** 아직 글에 안 붙은 내 첨부 수. 계정당 디스크 사용을 묶는 상한이 이 값을 본다. */
+export function countPending(
+  uploaderUserId: string,
+  db: DbClient = prisma,
+): Promise<number> {
+  return db.communityAttachment.count({ where: { uploaderUserId, postId: null } });
+}
+
+/** 내 것 중 오래된 고아. 남의 행은 애초에 조건에 안 걸린다. */
+export function listStalePending(
+  uploaderUserId: string,
+  before: Date,
+  db: DbClient = prisma,
+) {
+  return db.communityAttachment.findMany({
+    where: { uploaderUserId, postId: null, createdAt: { lt: before } },
+    select: { id: true, storageKey: true, createdAt: true },
+  });
+}
+
+export async function deleteAttachments(
+  ids: string[],
+  db: DbClient = prisma,
+): Promise<void> {
+  if (ids.length === 0) return;
+  await db.communityAttachment.deleteMany({ where: { id: { in: ids } } });
+}
+
+export type NewAttachment = {
+  uploaderUserId: string;
+  storageKey: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+};
+
+export async function createAttachment(
+  data: NewAttachment,
+  db: DbClient = prisma,
+): Promise<{ id: string; createdAt: Date }> {
+  return db.communityAttachment.create({
+    data,
+    select: { id: true, createdAt: true },
+  });
+}
+
+/**
+ * 내려받기용. 글과 게시판까지 함께 읽는다 — 권한을 판정하려면 게시판이,
+ * 지워진 글인지 보려면 글이 필요하고, 두 번 왕복할 이유가 없다.
+ */
+export function findAttachmentForDownload(id: string, db: DbClient = prisma) {
+  return db.communityAttachment.findUnique({
+    where: { id },
+    include: { post: { include: { community: true } } },
+  });
+}
