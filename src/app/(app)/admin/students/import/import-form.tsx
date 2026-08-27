@@ -28,6 +28,14 @@ import { APPLY_INITIAL, PREVIEW_INITIAL } from "./action-state";
 import { applyRosterAction, exportRosterAction, previewRosterAction } from "./actions";
 import { previewFingerprintFor } from "./preview-fingerprint";
 
+/**
+ * **이 화면의 이름은 전부 맨이름이다.** 다른 화면은 사람을 부를 때 `honorificName`으로
+ * 호칭을 붙이지만(`core/authz/roles.ts`), 여기 뜨는 이름은 부르는 말이 아니라
+ * 올린 파일과 명단을 줄 단위로 맞춰 보는 **대조 값**이다 — 한쪽에만 「님」이 붙으면
+ * 「등록명: 김민준」과 「김민준님」을 눈으로 맞추는 일이 오히려 어려워진다.
+ * 명단에 실제로 반영된 뒤의 화면(학생 명단·상벌점·출입증)은 호칭을 붙인다.
+ */
+
 /** 빈 서식 예시 두 줄. 학생코드를 비워 둬 그 자체로 "신규"를 보여준다. */
 const TEMPLATE_ROWS: (string | number | null)[][] = [
   [...ROSTER_COLUMNS],

@@ -10,6 +10,7 @@ import {
   SkeletonTable,
 } from "@/components/ui/skeleton";
 import type { MeritTrack } from "@/core/authz/merit-track";
+import { honorificName } from "@/core/authz/roles";
 import { hrefWith, type SearchParamsInput } from "@/lib/search-params";
 import type { StudentMeritView } from "@/modules/merit/award.service";
 import { YearPicker } from "./year-picker";
@@ -160,7 +161,7 @@ function ChildPicker({
           href={href(c.studentProfileId)}
           active={c.studentProfileId === selected}
         >
-          {c.name}
+          {honorificName(c.name, "STUDENT")}
         </ChipLink>
       ))}
     </div>

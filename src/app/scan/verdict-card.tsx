@@ -8,6 +8,7 @@ import {
   VERDICT_TONES,
 } from "@/modules/pass/pass.labels";
 import type { VerifyResult } from "@/modules/pass/verify.service";
+import { honorificName } from "@/core/authz/roles";
 
 /** 정문에서 팔 뻗은 거리로 읽는 화면이라 배지가 크다. */
 export function VerdictCard({ result }: { result: VerifyResult }) {
@@ -25,7 +26,9 @@ export function VerdictCard({ result }: { result: VerifyResult }) {
       {pass && (
         <dl className="mt-6 space-y-3 border-t border-line pt-5">
           <Line label="학생">
-            <span className="text-lg font-medium text-ink">{pass.studentName}</span>
+            <span className="text-lg font-medium text-ink">
+              {honorificName(pass.studentName, "STUDENT")}
+            </span>
             {pass.studentNumber && (
               <span className="ml-2 text-caption text-mut tabular-nums">
                 {pass.studentNumber}

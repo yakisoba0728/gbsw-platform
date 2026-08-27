@@ -5,6 +5,7 @@ import {
   formatTimeShort,
 } from "@/lib/datetime";
 import type { PassStatus } from "@/core/authz/pass-type";
+import type { Role } from "@/core/authz/roles";
 import type { Verdict } from "./verify.service";
 
 /** 화면 전용 표기. 저장값은 영문 그대로 두고 색과 문구만 여기서 정한다. */
@@ -80,4 +81,27 @@ export function passEndLabel(pass: { type: string; endAt: Date }): string {
   return pass.type === "OVERNIGHT"
     ? formatMonthDayTime(pass.endAt)
     : formatTimeShort(pass.endAt);
+}
+
+/**
+ * 신청자의 역할. **Pass 행에 역할 열이 없다** — 신청은 학생 본인이 내거나(신청 흐름)
+ * 교사가 바로 부여한 것(직접 부여) 둘 중 하나뿐이라, 신청자 id가 그 학생의 계정과
+ * 같은지로 가른다. 호칭이 필요한 화면이 셋이라(상세·목록·내보내기) 여기 한 곳에 둔다.
+ */
+export function requesterRole(pass: {
+  requestedByUserId: string | null;
+  studentProfile: { user: { id: string } };
+}): Role | null {
+  // 계정이 지워지면 id가 null이 된다. 그때는 누구였는지 알 길이 없으므로
+  // 「님」으로 떨어뜨린다 — 교사였을 수도 있는 사람에게 억지로 역할을 씌우지 않는다.
+  if (!pass.requestedByUserId) return null;
+  return pass.requestedByUserId === pass.studentProfile.user.id ? "STUDENT" : "ADMIN";
+}
+
+/**
+ * 보호자 확인을 한 사람의 역할. 「대행」 표시가 곧 교사가 대신 눌렀다는 뜻이라
+ * 그 값 하나로 갈린다.
+ */
+export function consenterRole(pass: { consentByProxy: boolean }): Role {
+  return pass.consentByProxy ? "ADMIN" : "PARENT";
 }

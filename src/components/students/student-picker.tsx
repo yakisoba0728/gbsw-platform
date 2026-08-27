@@ -14,6 +14,7 @@ import { fieldClass, Input } from "@/components/ui/input";
 import { TruncatedText } from "@/components/ui/truncated-text";
 import { cn } from "@/lib/cn";
 import { formatSeat, formatStudentNumber } from "@/lib/student-number";
+import { honorificName } from "@/core/authz/roles";
 
 /** 고를 수 있는 학생 한 명. 명단이 가진 것을 그대로 받는다. */
 export type PickerStudent = {
@@ -104,7 +105,7 @@ export function StudentPicker({
   // 그대로 실어 보내고 버튼만 「고르기」로 떨어진다 — 값을 지우면 되돌린 것이 사라진다.
   const selected = byId.get(selectedId) ?? null;
   const selectedText = selected
-    ? `${formatSeat(selected) ?? "미배정"} ${selected.name}`
+    ? `${formatSeat(selected) ?? "미배정"} ${honorificName(selected.name, "STUDENT")}`
     : null;
   const empty = students.length === 0;
 

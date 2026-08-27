@@ -12,6 +12,7 @@ import {
   PASS_STATUS_TONES,
 } from "@/modules/pass/pass.labels";
 import type { PassWithStudent } from "@/modules/pass/pass.repo";
+import { honorificName } from "@/core/authz/roles";
 
 // 화면 셋이 이 파일에서 가져다 쓰던 것이라 그대로 다시 내보낸다. 규칙 자체는
 // pass.labels가 소유한다 — (app) 밖의 판독 화면도 같은 눈금을 써야 해서다.
@@ -71,7 +72,7 @@ export function PassCard({
           )}
           {pass.consentByProxy && pass.consentedByName && (
             <p className="mt-1 text-xs text-mut">
-              보호자 확인 대행 · {pass.consentedByName}
+              보호자 확인 대행 · {honorificName(pass.consentedByName, "ADMIN")}
             </p>
           )}
         </div>

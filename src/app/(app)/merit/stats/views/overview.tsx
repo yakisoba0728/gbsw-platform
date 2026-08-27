@@ -23,6 +23,7 @@ import {
 } from "@/components/merit/charts";
 import { getMeritStats, type MeritStats } from "@/modules/merit/stats.service";
 import { formatSeat } from "@/lib/student-number";
+import { honorificName } from "@/core/authz/roles";
 
 export type OverviewPromise = Promise<MeritStats | null>;
 
@@ -201,7 +202,7 @@ function WatchList({
           href={`/students/${row.studentProfileId}?track=${track}`}
           className="inline-flex min-h-9 items-center font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink lg:min-h-0"
         >
-          {row.name}
+          {honorificName(row.name, "STUDENT")}
         </Link>
       ),
     },

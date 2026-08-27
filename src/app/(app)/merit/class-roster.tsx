@@ -27,6 +27,7 @@ import { formatSeat } from "@/lib/student-number";
 import { EMPTY_MERIT_STATE } from "./action-state";
 import { bulkAwardAction } from "./actions";
 import { ExportButton } from "./export-button";
+import { honorificName } from "@/core/authz/roles";
 
 export type RosterRow = {
   studentProfileId: string;
@@ -194,7 +195,7 @@ export function ClassRoster({
           key={checkboxKey}
           checked={selected.has(row.studentProfileId)}
           onChange={() => toggleOne(row.studentProfileId)}
-          label={`${row.name} 선택`}
+          label={`${honorificName(row.name, "STUDENT")} 선택`}
         />
       ),
     },
@@ -242,7 +243,7 @@ export function ClassRoster({
           href={`/students/${row.studentProfileId}?track=${track}`}
           className="inline-flex min-h-9 items-center font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink lg:min-h-0"
         >
-          {row.name}
+          {honorificName(row.name, "STUDENT")}
         </Link>
       ),
     },
@@ -485,8 +486,11 @@ function ChosenList({
               </span>
             )}
           </span>
-          <TruncatedText full={student.name} className="font-medium text-ink">
-            {student.name}
+          <TruncatedText
+            full={honorificName(student.name, "STUDENT")}
+            className="font-medium text-ink"
+          >
+            {honorificName(student.name, "STUDENT")}
           </TruncatedText>
         </li>
       ))}

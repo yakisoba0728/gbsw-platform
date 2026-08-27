@@ -9,6 +9,7 @@ import { formatInviteCode } from "@/lib/invite-code";
 import { listMyParentInvites } from "@/modules/invites/invite.service";
 import { RevokeButton } from "@/app/(app)/admin/invites/revoke-button";
 import { ParentInviteForm } from "./parent-invite-form";
+import { honorificName } from "@/core/authz/roles";
 
 export const metadata: Metadata = { title: "학부모 초대" };
 
@@ -39,7 +40,9 @@ const COLUMNS: readonly Column<MyInvite>[] = [
     header: "학부모",
     card: "meta",
     cardLabel: false,
-    cell: (row) => <span className="text-mut">{row.name}</span>,
+    cell: (row) => (
+      <span className="text-mut">{honorificName(row.name, "PARENT")}</span>
+    ),
   },
   {
     key: "status",

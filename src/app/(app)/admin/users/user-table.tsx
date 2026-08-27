@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { SectionCard } from "@/components/ui/section-card";
 import { DataTable, type Column } from "@/components/ui/table";
+import { honorificName, isRole } from "@/core/authz/roles";
 
 export type UserRow = {
   id: string;
@@ -62,7 +63,7 @@ const COLUMNS: readonly Column<UserRow>[] = [
         {/* hover는 밑줄을 가진 span이 받는다 — 조상 <a>에 걸면 text-decoration-color가
             상속되지 않아 아무 일도 일어나지 않는다. */}
         <span className="font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink">
-          {row.name}
+          {honorificName(row.name, isRole(row.role) ? row.role : null)}
         </span>
         <span className="block text-xs text-mut">{row.email}</span>
       </Link>

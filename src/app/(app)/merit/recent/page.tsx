@@ -227,7 +227,7 @@ function StudentLink({ row, track }: { row: RecentRow; track: string }) {
         row.status === "CANCELLED" ? "text-mut" : "text-ink"
       }`}
     >
-      {row.studentName}
+      {honorificName(row.studentName, "STUDENT")}
     </Link>
   );
 }

@@ -263,6 +263,9 @@ export function HardDeleteForm({ user }: { user: EditableUser }) {
         되돌릴 수 없습니다. 소속 이력·상벌점·초대코드가 함께 사라집니다.
       </p>
 
+      {/* **여기만 맨이름이다.** 이 괄호 안은 부르는 말이 아니라 아래 칸에 글자
+          그대로 옮겨 적어야 하는 값이다 — 호칭을 붙이면 그대로 따라 적은 사람이
+          검사에 걸린다. */}
       <Label htmlFor="confirmName">
         확인을 위해 이름(<span className="font-medium text-ink">{user.name}</span>)을
         그대로 입력해 주세요

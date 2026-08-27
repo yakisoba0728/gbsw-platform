@@ -88,7 +88,9 @@ export default async function UserDetailPage({
           <section className={cardClass("panel", "@container")}>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               {/* h1은 상단바가 모든 화면에 이미 그린다. */}
-              <h2 className="text-title font-semibold text-ink">{user.name}</h2>
+              <h2 className="text-title font-semibold text-ink">
+                {honorificName(user.name, isRole(user.role) ? user.role : null)}
+              </h2>
               {deleted && <Badge tone="rejected">삭제됨</Badge>}
               <Badge tone={active ? "approved" : "cancelled"}>
                 {active ? "활성" : "비활성"}
@@ -148,7 +150,7 @@ export default async function UserDetailPage({
                           classNo: c?.classNo ?? null,
                           number: e?.number ?? null,
                         }) ?? "미배정";
-                      return `${link.student.user.name} (${where})`;
+                      return `${honorificName(link.student.user.name, "STUDENT")} (${where})`;
                     })
                     .join(", ")}
                 </Field>

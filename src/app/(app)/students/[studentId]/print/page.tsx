@@ -94,6 +94,8 @@ export default async function MeritPrintPage({
         </header>
 
         <dl className="grid grid-cols-2 gap-x-6 gap-y-2 border-b border-line py-4 text-sm">
+          {/* 서식의 「이름」 항목이라 맨이름이다 — 이 줄은 사람을 부르는 자리가
+              아니라 기재란이다. 발급자(아래 footer)는 부르는 자리라 호칭을 붙인다. */}
           <Row label="이름" value={header.name} />
           <Row label="학생코드" value={header.studentCode} mono />
           <Row
@@ -178,7 +180,7 @@ export default async function MeritPrintPage({
 
         <footer className="mt-6 border-t border-line pt-3 text-xs text-mut">
           출력 시각 <span className="tabular-nums">{formatDateTime(new Date())}</span> ·
-          발급 {actor.name}
+          발급 {honorificName(actor.name, "ADMIN")}
         </footer>
       </article>
     </div>

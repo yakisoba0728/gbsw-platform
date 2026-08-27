@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { SectionCard } from "@/components/ui/section-card";
 import { DataTable, type Column } from "@/components/ui/table";
 import { RevokeButton } from "./revoke-button";
+import { honorificName, isRole } from "@/core/authz/roles";
 
 export type InviteRow = {
   id: string;
@@ -84,10 +85,12 @@ const COLUMNS: readonly Column<InviteRow>[] = [
     card: "title",
     cell: (row) => (
       <span className="text-ink">
-        {row.name}
+        {honorificName(row.name, isRole(row.role) ? row.role : null)}
         {(row.childName || row.birthDate) && (
           <span className="block text-xs text-mut">
-            {row.childName ? `${row.childName} 학부모` : row.birthDate}
+            {row.childName
+              ? `${honorificName(row.childName, "STUDENT")} 학부모`
+              : row.birthDate}
           </span>
         )}
       </span>
@@ -114,7 +117,9 @@ const COLUMNS: readonly Column<InviteRow>[] = [
           {STATUS_LABEL[row.status] ?? row.status}
         </Badge>
         {row.usedByName && (
-          <span className="mt-1 block text-xs text-mut">{row.usedByName}</span>
+          <span className="mt-1 block text-xs text-mut">
+            {honorificName(row.usedByName, isRole(row.role) ? row.role : null)}
+          </span>
         )}
       </>
     ),

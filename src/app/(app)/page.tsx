@@ -173,7 +173,9 @@ async function ChildSummary({ user }: { user: SessionUser }) {
 
   return (
     <>
-      <p className="text-caption font-medium text-ink">{first.name}</p>
+      <p className="text-caption font-medium text-ink">
+        {honorificName(first.name, "STUDENT")}
+      </p>
       <TwoUp>
         <TrackCard track="SCHOOL" view={school} />
         <TrackCard track="DORM" view={dorm} />

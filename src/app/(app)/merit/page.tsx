@@ -8,6 +8,7 @@ import {
   MERIT_TRACK_TITLES,
   type MeritTrack,
 } from "@/core/authz/merit-track";
+import { honorificName } from "@/core/authz/roles";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import {
   getChildMerit,
@@ -57,7 +58,10 @@ export default async function MeritPage({
     // 위의 children.some 검사는 편의일 뿐이다 — 조작된 ?child=는 서비스가 막는다.
     return (
       <OwnMeritView
-        title={`${children.find((c) => c.studentProfileId === childId)!.name} ${MERIT_TRACK_TITLES[track]}`}
+        title={`${honorificName(
+          children.find((c) => c.studentProfileId === childId)!.name,
+          "STUDENT",
+        )} ${MERIT_TRACK_TITLES[track]}`}
         track={track}
         // 조회는 시작만 하고 약속을 넘긴다. 여기서 기다리면 제목·탭·자녀 고르기까지
         // 함께 멈춰, 탭을 누른 사람이 자기가 무엇을 눌렀는지 잃는다.

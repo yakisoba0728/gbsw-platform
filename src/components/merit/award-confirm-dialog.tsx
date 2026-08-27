@@ -13,6 +13,7 @@ import {
 } from "@/components/merit/kind-badge";
 import type { RuleOption } from "@/components/merit/rule-filter";
 import { formatSeat } from "@/lib/student-number";
+import { honorificName } from "@/core/authz/roles";
 
 /** 확인 화면에 세울 학생 한 줄. 명단이 가진 것을 그대로 받는다. */
 export type ConfirmStudent = {
@@ -149,8 +150,11 @@ export function AwardConfirmDialog({
                     </span>
                   )}
                 </span>
-                <TruncatedText full={student.name} className="text-caption font-medium text-ink">
-                  {student.name}
+                <TruncatedText
+                  full={honorificName(student.name, "STUDENT")}
+                  className="text-caption font-medium text-ink"
+                >
+                  {honorificName(student.name, "STUDENT")}
                 </TruncatedText>
               </li>
             ))}

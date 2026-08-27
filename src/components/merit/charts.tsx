@@ -11,6 +11,7 @@ import {
 } from "@/core/authz/merit-track";
 import type { CategorySlice, MonthlyPoint } from "@/modules/merit/merit.chart";
 import { scaleToPercent } from "@/modules/merit/merit.chart";
+import { honorificName } from "@/core/authz/roles";
 
 /**
  * 서버에서 그리는 CSS 막대. 차트 라이브러리를 쓰지 않는다.
@@ -329,7 +330,7 @@ export function StudentNetChart({
               className="group relative flex items-center gap-2 rounded-btn px-1 py-0.5 outline-none hover:bg-soft focus-visible:ring-2 focus-visible:ring-ink"
             >
               <Tooltip
-                title={`${row.number ?? "—"}번 ${row.name}`}
+                title={`${row.number ?? "—"}번 ${honorificName(row.name, "STUDENT")}`}
                 rows={[
                   { label: "상점", value: String(row.merit), className: "text-blue" },
                   ...(row.offset

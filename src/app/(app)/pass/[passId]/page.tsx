@@ -15,7 +15,11 @@ import { honorificName } from "@/core/authz/roles";
 import { formatDateTimeShort } from "@/lib/datetime";
 import { formatSeat } from "@/lib/student-number";
 import { PassError } from "@/modules/pass/pass.error";
-import { PASS_STATUS_TONES } from "@/modules/pass/pass.labels";
+import {
+  consenterRole,
+  PASS_STATUS_TONES,
+  requesterRole,
+} from "@/modules/pass/pass.labels";
 import {
   canSeePassQr,
   getPassDetail,
@@ -102,12 +106,16 @@ export default async function PassDetailPage({
           <Row label="사유" value={pass.reason} />
           <Row
             label="신청"
-            value={`${pass.requestedByName} · ${formatDateTimeShort(pass.createdAt)}`}
+            value={`${honorificName(pass.requestedByName, requesterRole(pass))} · ${formatDateTimeShort(pass.createdAt)}`}
           />
           {pass.consentedAt && (
             <Row
               label="보호자 확인"
-              value={`${pass.consentedByName ?? "—"}${pass.consentByProxy ? " (대행)" : ""} · ${formatDateTimeShort(pass.consentedAt)}${pass.consentNote ? ` · ${pass.consentNote}` : ""}`}
+              value={`${
+                pass.consentedByName
+                  ? honorificName(pass.consentedByName, consenterRole(pass))
+                  : "—"
+              }${pass.consentByProxy ? " (대행)" : ""} · ${formatDateTimeShort(pass.consentedAt)}${pass.consentNote ? ` · ${pass.consentNote}` : ""}`}
             />
           )}
           {pass.decidedAt && (

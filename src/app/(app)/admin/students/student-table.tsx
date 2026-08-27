@@ -15,6 +15,7 @@ import {
 } from "@/core/authz/enrollment-status";
 import { SAVE_INITIAL } from "./action-state";
 import { saveEnrollmentsAction } from "./actions";
+import { honorificName } from "@/core/authz/roles";
 import {
   clearUnchangedSubmittedDrafts,
   draftFor,
@@ -210,7 +211,9 @@ export function StudentTable({
                     }
                   >
                     <td className={cell(0)}>
-                      <span className="font-medium text-ink">{row.name}</span>
+                      <span className="font-medium text-ink">
+                        {honorificName(row.name, "STUDENT")}
+                      </span>
                       <span className="block text-xs text-mut">{row.email}</span>
                     </td>
                     {(["grade", "classNo", "number"] as const).map((f, i) => (
@@ -220,7 +223,7 @@ export function StudentTable({
                           <Input
                             size="sm"
                             type="number"
-                            aria-label={`${row.name} ${
+                            aria-label={`${honorificName(row.name, "STUDENT")} ${
                               { grade: "학년", classNo: "반", number: "번호" }[f]
                             }`}
                             value={d[f]}
@@ -236,7 +239,7 @@ export function StudentTable({
                       <div className="w-28">
                         <Select
                           size="sm"
-                          aria-label={`${row.name} 학적`}
+                          aria-label={`${honorificName(row.name, "STUDENT")} 학적`}
                           value={d.status}
                           onChange={(e) =>
                             set(row.studentProfileId, {

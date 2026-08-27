@@ -13,6 +13,7 @@ import { SkeletonTable } from "@/components/ui/skeleton";
 import { DataTable, type Column } from "@/components/ui/table";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import { formatSeat } from "@/lib/student-number";
+import { honorificName } from "@/core/authz/roles";
 import {
   getRankingStats,
   type RankedStudent,
@@ -110,7 +111,7 @@ function StudentLink({ row, track }: { row: RankedStudent; track: MeritTrack }) 
       href={`/students/${row.studentProfileId}?track=${track}`}
       className="inline-flex min-h-9 items-center font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink lg:min-h-0"
     >
-      {row.name}
+      {honorificName(row.name, "STUDENT")}
     </Link>
   );
 }
