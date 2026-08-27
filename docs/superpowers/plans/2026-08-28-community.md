@@ -4582,6 +4582,10 @@ beforeEach(() => {
   getReadableBySlug.mockResolvedValue(board);
   countPending.mockResolvedValue(0);
   listStalePending.mockResolvedValue([]);
+  // 약속을 돌려주게 둔다 — 서비스가 `.catch()`를 붙이는 자리가 있다.
+  deleteAttachments.mockResolvedValue(undefined);
+  writeAttachment.mockResolvedValue(undefined);
+  deleteAttachment.mockResolvedValue(undefined);
   createAttachment.mockResolvedValue({
     id: "a1",
     createdAt: new Date("2026-08-28T00:00:00.000Z"),
@@ -4677,6 +4681,37 @@ describe("uploadAttachment — 감사로그", () => {
       }),
       txClient,
     );
+  });
+});
+
+describe("uploadAttachment — DB와 디스크의 순서", () => {
+  it("**파일은 커밋 뒤에 쓴다** — 트랜잭션 안에서 쓰면 롤백 때 파일이 영구히 샌다", async () => {
+    const order: string[] = [];
+    createAttachment.mockImplementation(async () => {
+      order.push("row");
+      return { id: "a1", createdAt: new Date("2026-08-28T00:00:00.000Z") };
+    });
+    writeAttachment.mockImplementation(async () => {
+      order.push("file");
+    });
+
+    await service.uploadAttachment(student, upload);
+
+    expect(order).toEqual(["row", "file"]);
+  });
+
+  it("디스크 쓰기가 실패하면 행을 지우고 올린다 — 가리킬 것이 없는 행을 안 남긴다", async () => {
+    writeAttachment.mockRejectedValue(new Error("ENOSPC"));
+
+    await expect(service.uploadAttachment(student, upload)).rejects.toThrow("ENOSPC");
+    expect(deleteAttachments).toHaveBeenCalledWith(["a1"]);
+  });
+
+  it("그 정리마저 실패해도 원래 오류를 올린다", async () => {
+    writeAttachment.mockRejectedValue(new Error("ENOSPC"));
+    deleteAttachments.mockRejectedValue(new Error("db down"));
+
+    await expect(service.uploadAttachment(student, upload)).rejects.toThrow("ENOSPC");
   });
 });
 
@@ -4824,8 +4859,16 @@ export async function uploadAttachment(
 
   const storageKey = newStorageKey();
 
-  return withTransaction(async (tx) => {
-    const { id, createdAt } = await repo.createAttachment(
+  // DB 먼저, 디스크는 커밋 뒤. **순서를 뒤집으면 파일이 영구히 샌다** —
+  // 트랜잭션 안에서 파일을 쓰면 감사 기록이나 커밋이 실패했을 때 행은 사라지고
+  // 파일만 남는데, 고아 정리는 `CommunityAttachment` 행을 훑으므로 그 파일을
+  // 영영 못 찾는다.
+  //
+  // 이 순서가 남기는 것은 "행은 있고 파일이 없는" 짧은 창뿐이고, 그건 내려받기
+  // 라우트가 ENOENT → 404로 정직하게 답한다. 5MB 쓰기가 Postgres 커넥션을 쥔
+  // 채 돌지 않는 것은 덤이다.
+  const { id, createdAt } = await withTransaction(async (tx) => {
+    const created = await repo.createAttachment(
       {
         uploaderUserId: actor.id,
         storageKey,
@@ -4836,21 +4879,13 @@ export async function uploadAttachment(
       tx,
     );
 
-    // 행을 먼저 만들고 파일을 쓴다. 순서가 반대면 트랜잭션이 되돌아갔을 때
-    // 아무도 가리키지 않는 파일이 남는다 — 이쪽이면 "행은 있고 파일이 없는"
-    // 상태가 되고, 그건 내려받기가 404로 정직하게 답한다.
-    //
-    // **경로 계산이 createdAt을 쓴다.** 읽을 때도 같은 값을 쓰므로 둘이 어긋날
-    // 수 없다 (지금 시각을 다시 재면 자정 넘기는 순간 못 찾는다).
-    await writeAttachment(storageKey, createdAt, input.bytes);
-
     await recordAudit(
       {
         actorUserId: actor.id,
         actorName: actor.name,
         action: "community:attachment:create",
         targetType: "CommunityAttachment",
-        targetId: id,
+        targetId: created.id,
         metadata: {
           slug: community.slug,
           filename: input.filename,
@@ -4861,8 +4896,26 @@ export async function uploadAttachment(
       tx,
     );
 
-    return { id, filename: input.filename, size: input.bytes.byteLength, mimeType: verdict.mimeType };
+    return created;
   });
+
+  try {
+    // **경로 계산이 행의 createdAt을 쓴다.** 읽을 때도 같은 값을 쓰므로 둘이
+    // 어긋날 수 없다 — 지금 시각을 다시 재면 자정을 넘기는 순간 못 찾는다.
+    await writeAttachment(storageKey, createdAt, input.bytes);
+  } catch (error) {
+    // 쓰기가 실패했으면 가리킬 것이 없는 행이다. 최선을 다해 지우고 올린다 —
+    // 이 정리가 실패해도 남는 것은 행 하나뿐이라 고아 정리가 나중에 걷어 간다.
+    await repo.deleteAttachments([id]).catch(() => {});
+    throw error;
+  }
+
+  return {
+    id,
+    filename: input.filename,
+    size: input.bytes.byteLength,
+    mimeType: verdict.mimeType,
+  };
 }
 
 /**
@@ -4913,8 +4966,9 @@ export async function getDownload(
     await board.getReadableBySlug(actor, attachment.post.community.slug);
   }
 
-  // 저장할 때 정한 타입을 그대로 믿지 않고 확장자로 다시 판정한다 — 목록이
-  // 바뀌면(svg를 실수로 넣었다가 빼면) 이미 올라온 파일도 함께 잠긴다.
+  // 저장할 때 정한 타입을 그대로 믿지 않고 확장자로 다시 판정한다 — 허용
+  // 목록이 좁아지면(svg를 실수로 넣었다가 빼면) 이미 올라온 파일도 함께
+  // octet-stream 내려받기로 떨어진다. 막는 것이 아니라 인라인으로 안 여는 것이다.
   const verdict = classifyUpload(attachment.filename, attachment.mimeType, attachment.size);
   const inline = verdict.ok && verdict.inline;
   const mimeType = verdict.ok ? verdict.mimeType : "application/octet-stream";
@@ -5045,8 +5099,12 @@ const STATUS: Record<string, number> = {
 export async function POST(request: Request) {
   // 리다이렉트가 아니라 401이다 — fetch로 부르는 경로라 로그인 화면 HTML을
   // 돌려받아 봐야 클라이언트가 할 일이 없다.
+  //
+  // **`requireAuth`가 막는 것을 여기서 손으로 다시 세운다** — 중지·삭제된 계정과
+  // **mustChangePassword까지.** 앞의 둘만 보면 비밀번호를 바꾸라고 붙잡아 둔
+  // 계정이 이 경로로만 앱을 쓰게 된다.
   const actor = await getSessionUser();
-  if (!actor || actor.status !== "ACTIVE" || actor.deletedAt) {
+  if (!actor || actor.status !== "ACTIVE" || actor.deletedAt || actor.mustChangePassword) {
     return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
   }
 
@@ -5111,8 +5169,9 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ attachmentId: string }> },
 ) {
+  // 업로드 라우트와 같은 문이다 — mustChangePassword까지 본다.
   const actor = await getSessionUser();
-  if (!actor || actor.status !== "ACTIVE" || actor.deletedAt) {
+  if (!actor || actor.status !== "ACTIVE" || actor.deletedAt || actor.mustChangePassword) {
     return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
   }
 
@@ -5192,11 +5251,12 @@ curl -s -b "$COOKIE" -F slug=free -F file=@/path/to/사진.png \
 curl -s -b "$COOKIE" -F slug=free -F file=@/path/to/icon.svg \
   -w "\n%{http_code}\n" http://localhost:3000/api/community/attachments
 
-# ⑤ 미결 11개째 → 429
+# ⑤ 미결 상한(10). ③에서 이미 하나 올렸으므로 201이 아홉 번, 그 뒤 429다.
 for i in $(seq 1 11); do
   curl -s -o /dev/null -w "%{http_code} " -b "$COOKIE" -F slug=free \
     -F file=@/path/to/사진.png http://localhost:3000/api/community/attachments
 done; echo
+# 기대: 201 201 201 201 201 201 201 201 201 429 429
 
 # ⑥ ③이 준 id로 내려받기 → 200, 헤더 확인
 curl -s -D - -o /dev/null -b "$COOKIE" \
