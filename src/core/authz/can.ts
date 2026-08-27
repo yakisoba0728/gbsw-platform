@@ -11,6 +11,7 @@ export type Action =
   | "invite:create:parent"
   | "audit:read"
   | "merit:rule:manage"
+  | "merit:rule:read"
   | "merit:threshold:manage"
   | "merit:award"
   | "merit:cancel"
@@ -36,9 +37,14 @@ export const RULES: Record<Action, Role[]> = {
   "invite:revoke": [], // 교사 전용
   "audit:read": [], // 교사 전용
 
-  // 상벌점 — 다섯 다 교사 전용. 취소를 "자기가 준 것만"으로 좁히지 않는다:
+  // 상벌점 — 쓰기 다섯은 교사 전용. 취소를 "자기가 준 것만"으로 좁히지 않는다:
   // 교직원 사이에 권한 차등이 없어 소유권 검사의 근거가 없다.
   "merit:rule:manage": [],
+  // **규정 읽기는 세 역할 모두에게 연다.** 무엇을 하면 몇 점인지 모르는 채로
+  // 점수를 받는 것이 이상하고, 규정은 학교가 공표한 기준이라 학생별 자료가 아니다.
+  // 관리(`merit:rule:manage`)와 따로 두는 이유가 이것이다 — 읽기를 열려고
+  // 고치는 권한을 함께 주게 되면 안 된다.
+  "merit:rule:read": ["STUDENT", "PARENT"],
   // 벌점 경고·위험 기준. 읽기는 권한을 걸지 않는다 — 통제하는 것은 바꾸는 일뿐이다.
   "merit:threshold:manage": [],
   "merit:award": [],

@@ -140,6 +140,20 @@ export async function listRules(actor: SessionUser, track: MeritTrack) {
 }
 
 /**
+ * 규정을 **읽기만** 하는 경로. 학생·학부모의 규정 화면이 쓴다.
+ *
+ * 관리용 `listRules`와 자료가 같은데도 함수를 따로 두는 이유는 **게이트가
+ * 달라서다** — 같은 함수에 권한을 둘 붙이면 「읽기를 열었더니 고치기도 열렸다」가
+ * 조용히 가능해진다. `listActiveRules`(부여 선택지)를 따로 둔 것과 같은 판단이다.
+ *
+ * 비활성 규정은 애초에 나오지 않는다 — `repo.listRules`가 `active: true`만 읽는다.
+ */
+export async function listRulesForReading(actor: SessionUser, track: MeritTrack) {
+  await assertCan(actor, "merit:rule:read");
+  return repo.listRules(track);
+}
+
+/**
  * 부여 화면의 선택지. `merit:award`로 막는다 — 규정 관리 권한이 아니다.
  * 나중에 부여만 열 때 이 구분이 없으면 규정 관리 권한을 함께 줘야 한다.
  */

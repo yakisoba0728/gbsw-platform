@@ -14,13 +14,15 @@ import {
 const merit = NAV_ITEMS.find((item) => item.href === "/merit") as NavItem;
 
 describe("상벌점 메뉴 구성", () => {
-  it("하위 메뉴 넷을 갖는다 — 부여가 맨 앞이다", () => {
-    expect(merit.children?.map((c) => c.label)).toEqual([
-      "상벌점 부여",
-      "최근 부여",
-      "통계",
-      "규정 관리",
-    ]);
+  it("역할마다 첫 줄이 제 화면이다", () => {
+    // 세 줄이 같은 경로(/merit)를 가리키고 역할로 갈린다 — 부르는 말이 달라서다.
+    // 묶음이 펼쳐졌을 때 첫 줄이 없으면 "내 점수는 어디로 갔나"가 된다.
+    expect(visibleChildren(merit, "ADMIN")[0].label).toBe("상벌점 부여");
+    expect(visibleChildren(merit, "STUDENT")[0].label).toBe("내 상벌점");
+    expect(visibleChildren(merit, "PARENT")[0].label).toBe("자녀 상벌점");
+    for (const role of ["ADMIN", "STUDENT", "PARENT"] as const) {
+      expect(visibleChildren(merit, role)[0].href).toBe("/merit");
+    }
   });
 
   // 개요·순위·교사별·규정별은 같은 조회 조건을 쓰는 같은 자료의 다른 각도라
@@ -37,8 +39,12 @@ describe("상벌점 메뉴 구성", () => {
   it("트랙은 메뉴로 가르지 않는다", () => {
     const hrefs = merit.children?.map((c) => c.href) ?? [];
     expect(hrefs.some((href) => href.includes("track="))).toBe(false);
-    // 부여 화면은 한 줄뿐이다 — 예전처럼 트랙별로 둘이 되면 안 된다.
-    expect(hrefs.filter((href) => href === "/merit")).toHaveLength(1);
+    // **역할별로** 한 줄뿐이다 — 예전처럼 트랙별로 둘이 되면 안 된다. 표에는 세
+    // 줄이 있지만 셋이 서로 다른 역할의 것이라 한 사람에게는 하나만 보인다.
+    for (const role of ["ADMIN", "STUDENT", "PARENT"] as const) {
+      const mine = visibleChildren(merit, role).map((c) => c.href);
+      expect(mine.filter((href) => href === "/merit")).toHaveLength(1);
+    }
   });
 
   it("어떤 하위 메뉴에도 쿼리가 붙지 않는다", () => {
@@ -50,14 +56,35 @@ describe("상벌점 메뉴 구성", () => {
     expect(merit.roles).toBeUndefined();
   });
 
-  // 하위 메뉴가 전부 교사 전용이라 학생·학부모에게는 하나도 안 보인다.
-  // Sidebar는 그때 그룹이 아니라 평범한 링크(/merit)로 그린다.
-  // 「상벌점 부여」는 교사의 말이다. 학생·학부모에게는 하위 메뉴가 하나도 남지 않아
-  // Sidebar가 그룹이 아니라 평범한 링크(/merit)로 그린다.
-  it("학생·학부모에게는 하위 메뉴가 없다 — 부여 화면 하나로 간다", () => {
-    expect(visibleChildren(merit, "STUDENT")).toEqual([]);
-    expect(visibleChildren(merit, "PARENT")).toEqual([]);
-    expect(visibleChildren(merit, "ADMIN")).toHaveLength(4);
+  // 학생·학부모도 묶음으로 펼쳐진다 — 제 점수와 규정 둘이다. 교사에게는 넷.
+  it("세 역할 모두 하위 메뉴를 갖는다", () => {
+    expect(visibleChildren(merit, "STUDENT").map((c) => c.label)).toEqual([
+      "내 상벌점",
+      "규정",
+    ]);
+    expect(visibleChildren(merit, "PARENT").map((c) => c.label)).toEqual([
+      "자녀 상벌점",
+      "규정",
+    ]);
+    expect(visibleChildren(merit, "ADMIN").map((c) => c.label)).toEqual([
+      "상벌점 부여",
+      "최근 부여",
+      "통계",
+      "규정 관리",
+    ]);
+  });
+
+  // 규정은 두 화면이고 한 사람에게는 하나만 보인다 — 교사는 고칠 수 있는 쪽,
+  // 학생·학부모는 읽는 쪽이다. 둘이 함께 보이면 같은 말이 두 줄로 선다.
+  it("규정 줄은 역할마다 하나뿐이다", () => {
+    for (const role of ["ADMIN", "STUDENT", "PARENT"] as const) {
+      const rules = visibleChildren(merit, role).filter((c) =>
+        c.href.endsWith("/merit/rules"),
+      );
+      expect(rules).toHaveLength(1);
+    }
+    expect(visibleChildren(merit, "ADMIN")[3].href).toBe("/admin/merit/rules");
+    expect(visibleChildren(merit, "STUDENT")[1].href).toBe("/merit/rules");
   });
 
   it("로그인 전(role null)에도 하위 메뉴가 안 보인다", () => {
@@ -197,9 +224,17 @@ describe("activeChild — 하나만 켜진다", () => {
   });
 
   it("역할 때문에 안 보이는 항목은 켜질 수 없다", () => {
-    // 학생 메뉴에는 하위 메뉴가 없다. /merit/stats에 닿을 일도 없지만
-    // (requirePermission이 /forbidden으로 보낸다), 닿더라도 켤 것이 없다.
-    expect(activeChild("/merit/stats", visibleChildren(merit, "STUDENT"))).toBeNull();
+    // 학생은 통계에 닿을 일이 없지만(requirePermission이 /forbidden으로 보낸다),
+    // 닿더라도 「통계」가 켜지지는 않는다 — 그 줄이 학생 메뉴에 없어서다.
+    const mine = visibleChildren(merit, "STUDENT");
+    expect(activeChild("/merit/stats", mine)?.label).not.toBe("통계");
+  });
+
+  it("학생의 규정 화면에서는 규정만 켜진다", () => {
+    // /merit도 startsWith로 걸리지만 경로가 긴 쪽이 이긴다.
+    const mine = visibleChildren(merit, "STUDENT");
+    expect(activeChild("/merit/rules", mine)?.label).toBe("규정");
+    expect(activeChild("/merit", mine)?.label).toBe("내 상벌점");
   });
 
   it("상관없는 경로에서는 아무것도 안 켜진다", () => {
