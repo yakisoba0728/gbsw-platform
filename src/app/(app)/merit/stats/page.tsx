@@ -14,7 +14,6 @@ import { parseStatsView, STATS_VIEW_SCOPED, type StatsView } from "./stats-view"
 import { loadOverview, OverviewBody, OverviewHint, OverviewSkeleton } from "./views/overview";
 import { loadRanking, RankingBody, RankingHint, RankingSkeleton } from "./views/ranking";
 import { loadRules, RulesBody, RulesHint, RulesSkeleton } from "./views/rules";
-import { pageClass } from "@/components/ui/page-shell";
 import {
   loadTeachers,
   TeachersBody,
@@ -170,7 +169,7 @@ type ShellProps = {
 /** 갈래 네 갈래가 같은 껍데기를 쓴다 — 머리글 카드 + 본문. */
 function Layout({ shell, children }: { shell: ShellProps; children: React.ReactNode }) {
   return (
-    <div className={pageClass("page", "space-y-4")}>
+    <div className="mx-auto max-w-5xl space-y-4">
       <StatsShell {...shell} />
       {children}
     </div>

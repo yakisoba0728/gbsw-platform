@@ -1,6 +1,5 @@
 import { SectionCard } from "@/components/ui/section-card";
 import { SkeletonRows, SkeletonScreen } from "@/components/ui/skeleton";
-import { pageClass } from "@/components/ui/page-shell";
 
 /**
  * `/pass`는 역할로 갈리는데(학생은 QR, 교사는 결재 목록, 학부모는 동의 대기)
@@ -10,7 +9,7 @@ import { pageClass } from "@/components/ui/page-shell";
  */
 export default function Loading() {
   return (
-    <SkeletonScreen className={pageClass("page", "space-y-4")}>
+    <SkeletonScreen className="mx-auto max-w-5xl space-y-4">
       <SectionCard title="출입증" flush>
         <SkeletonRows rows={3} />
       </SectionCard>

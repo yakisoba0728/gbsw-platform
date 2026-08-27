@@ -30,7 +30,6 @@ import {
 import { EMPTY_MERIT_STATE } from "../action-state";
 import { cancelAction } from "../actions";
 import { ExportRecentAwardsButton } from "../export-button";
-import { pageClass } from "@/components/ui/page-shell";
 
 export const metadata: Metadata = { title: "최근 부여" };
 
@@ -74,7 +73,7 @@ export default async function RecentAwardsPage({
   const boundaryKey = JSON.stringify(params);
 
   return (
-    <div className={pageClass("wide", "space-y-4")}>
+    <div className="mx-auto max-w-5xl space-y-4">
       <SectionCard
         variant="panel"
         title="최근 부여"

@@ -7,7 +7,6 @@ import { TrackTabs } from "@/components/merit/track-tabs";
 import { ChipLink } from "@/components/ui/chip-link";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterRow } from "@/components/ui/filter-row";
-import { pageClass } from "@/components/ui/page-shell";
 import { SearchForm } from "@/components/ui/search-form";
 import { SectionCard } from "@/components/ui/section-card";
 import { Skeleton, SkeletonTable } from "@/components/ui/skeleton";
@@ -119,7 +118,7 @@ export default async function MeritRulesPage({
   const boundaryKey = JSON.stringify({ track, q, kind });
 
   return (
-    <div className={pageClass("page", "space-y-4")}>
+    <div className="mx-auto max-w-5xl space-y-4">
       <SectionCard
         variant="panel"
         title="상벌점 규정"

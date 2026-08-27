@@ -21,7 +21,6 @@ import {
 } from "@/modules/pass/pass.labels";
 import { getPassDetail } from "@/modules/pass/request.service";
 import { passPeriod } from "../pass-card";
-import { pageClass } from "@/components/ui/page-shell";
 
 export const metadata: Metadata = { title: "출입증" };
 
@@ -53,7 +52,7 @@ export default async function PassDetailPage({
   });
 
   return (
-    <div className={pageClass("form", "@container")}>
+    <div className="@container mx-auto max-w-2xl">
       <BackLink href="/pass">출입증</BackLink>
 
       <SectionCard

@@ -22,14 +22,7 @@ export function TableFrame({
 }: {
   /** 표가 찌그러지지 않는 최소 폭(px). Tailwind는 실행 중 클래스를 못 만든다. */
   minWidth: number;
-  /**
-   * `<colgroup>`의 열별 클래스. `undefined`면 폭을 지정하지 않는 열이다.
-   *
-   * **폭을 지정하지 않는 열이 남는 폭을 전부 가져간다.** 표마다 그 자리는 글이
-   * 가장 긴 열이다(감사로그의 「상세」, 출입증 내역의 「행선지·사유」) — 화면이
-   * 넓어질 때 늘어나야 하는 것이 바로 그 열이라 이 쏠림은 의도한 것이다.
-   * 폭을 적은 열이 좁아 접힌다면 그 열의 값이 틀린 것이지 배분이 틀린 게 아니다.
-   */
+  /** `<colgroup>`의 열별 클래스. `undefined`면 폭을 지정하지 않는 열이다. */
   cols?: readonly (string | undefined)[];
   headers: readonly ReactNode[];
   /**
@@ -61,17 +54,7 @@ export function TableFrame({
     // 눈에 띄지 않으므로, 자리를 따지지 않고 늘 둥글린다.
     <div className={cn("scroll-x-hint overflow-x-auto rounded-b-card", className)}>
       <table
-        className={cn(
-          // **폭을 화면이 아니라 내용이 정한다.** w-full이면 열이 적고 글이 짧은
-          // 표도 1600px까지 늘어나, 한 열만 900px가 되고 나머지는 붙어 선다.
-          // w-auto는 내용만큼만 서고 max-w-full이 상한, minWidth가 하한이다.
-          // 넘치면 바깥 상자가 가로로 스크롤한다.
-          //
-          // fixed 표는 예외다 — table-layout:fixed는 정해진 폭이 있어야 열을
-          // 나눌 수 있어서, 폭이 auto면 폭을 안 적은 열이 0이 된다.
-          fixed ? "w-full table-fixed" : "w-auto max-w-full",
-          "text-left text-sm",
-        )}
+        className={cn("w-full text-left text-sm", fixed && "table-fixed")}
         style={{ minWidth }}
       >
         {cols && (

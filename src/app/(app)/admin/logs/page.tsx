@@ -28,7 +28,6 @@ import {
 } from "@/modules/audit-log/audit-log.schema";
 import { readAuditLog } from "@/modules/audit-log/audit-log.service";
 import { LogFilters } from "./log-filters";
-import { pageClass } from "@/components/ui/page-shell";
 
 export const metadata: Metadata = { title: "감사로그" };
 
@@ -169,7 +168,7 @@ export default async function LogsPage({
         </Suspense>
       }
       flush
-      className={pageClass("wide")}
+      className="mx-auto max-w-6xl"
     >
       <Suspense key={`rows:${boundaryKey}`} fallback={<SkeletonRows rows={10} />}>
         <LogRows promise={resultPromise} params={raw} />

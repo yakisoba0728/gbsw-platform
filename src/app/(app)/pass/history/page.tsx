@@ -37,7 +37,6 @@ import {
   type PassHistoryQuery,
 } from "@/modules/pass/pass.schema";
 import { ExportPassHistoryButton } from "./export-button";
-import { pageClass } from "@/components/ui/page-shell";
 
 export const metadata: Metadata = { title: "전체 내역" };
 
@@ -84,7 +83,7 @@ export default async function PassHistoryPage({
   const boundaryKey = JSON.stringify(params);
 
   return (
-    <div className={pageClass("wide", "space-y-4")}>
+    <div className="mx-auto max-w-6xl space-y-4">
       <SectionCard
         variant="panel"
         title="전체 내역"
@@ -249,10 +248,8 @@ const COLUMNS: readonly Column<HistoryRow>[] = [
   {
     key: "period",
     header: "기간",
-    // 외박이 가장 길다 — 「26. 8. 26. 오전 12:00 ~ 26. 8. 28. 오전 12:00」.
-    // 브라우저에서 재니 글자 237px + 셀 여백 24px = 261px이다. 주석이 예로 들던
-    // 「오후 6:00」보다 「오전 12:00」이 길어, 192px도 216px도 모자랐다.
-    width: "w-[264px]",
+    // 외박이 가장 길다 — 「26. 8. 28. 오후 6:00 ~ 26. 8. 30. 오전 9:00」.
+    width: "w-[192px]",
     card: "meta",
     cardLabel: false,
     cell: (row) => (
@@ -308,7 +305,7 @@ async function HistoryRows({
 
   return (
     <DataTable
-      minWidth={972}
+      minWidth={900}
       narrow="cards"
       // **fixed가 없으면 행선지 열이 안 잘린다.** table-layout이 auto면 셀 폭을
       // 내용이 정하므로 `truncate`가 기댈 확정 폭이 없다 — 긴 사유 한 줄이 표를

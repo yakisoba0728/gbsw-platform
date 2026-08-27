@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { BackLink } from "@/components/ui/back-link";
 import { cardClass } from "@/components/ui/card";
-import { pageClass } from "@/components/ui/page-shell";
 import { requireAuth } from "@/core/auth/session";
 import { ForbiddenError } from "@/core/authz/errors";
 import { honorificName } from "@/core/authz/roles";
@@ -31,7 +30,7 @@ export default async function StudentQrPage() {
   }
 
   return (
-    <div className={pageClass("form")}>
+    <div className="mx-auto max-w-2xl">
       <BackLink href="/pass">출입증</BackLink>
 
       <section className={cardClass("page", "mt-3 text-center")}>

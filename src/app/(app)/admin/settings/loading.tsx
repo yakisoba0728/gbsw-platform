@@ -1,11 +1,10 @@
 import { cardClass } from "@/components/ui/card";
 import { Skeleton, SkeletonScreen } from "@/components/ui/skeleton";
-import { pageClass } from "@/components/ui/page-shell";
 
 /** `/admin/settings`의 뼈대. 트랙이 늘면 여기 반복 횟수도 함께 늘린다. */
 export default function Loading() {
   return (
-    <SkeletonScreen className={pageClass("form", "space-y-4")}>
+    <SkeletonScreen className="mx-auto max-w-3xl space-y-4">
       <div className={cardClass("flush")}>
         <div className="space-y-2 border-b border-line px-5 py-4">
           <Skeleton className="h-5 w-24 rounded-btn" />

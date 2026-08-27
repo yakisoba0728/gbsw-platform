@@ -14,7 +14,6 @@ import { honorificName } from "@/core/authz/roles";
 import { hrefWith, type SearchParamsInput } from "@/lib/search-params";
 import type { StudentMeritView } from "@/modules/merit/award.service";
 import { YearPicker } from "./year-picker";
-import { pageClass } from "@/components/ui/page-shell";
 
 type Params = SearchParamsInput;
 type ChildOption = { studentProfileId: string; name: string };
@@ -53,7 +52,7 @@ export function OwnMeritView({
   ]);
 
   return (
-    <div className={pageClass("page", "space-y-4")}>
+    <div className="mx-auto max-w-3xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         {/* h1은 상단바가 (app)의 모든 화면에 이미 그린다 — 여기는 h2다. */}
         <h2 className="text-title font-semibold text-ink">{title}</h2>

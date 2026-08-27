@@ -1,5 +1,4 @@
 import { cardClass } from "@/components/ui/card";
-import { pageClass } from "@/components/ui/page-shell";
 import {
   Skeleton,
   SkeletonField,
@@ -13,7 +12,7 @@ import {
  */
 export default function Loading() {
   return (
-    <SkeletonScreen className={pageClass("wide")}>
+    <SkeletonScreen className="mx-auto max-w-6xl">
       <div className={cardClass("flush")}>
         <div className="border-b border-line px-5 py-4">
           <Skeleton className="h-5 w-24 rounded-btn" />

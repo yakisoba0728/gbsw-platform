@@ -1,6 +1,5 @@
 import { cardClass } from "@/components/ui/card";
 import { Skeleton, SkeletonScreen, SkeletonTabs } from "@/components/ui/skeleton";
-import { pageClass } from "@/components/ui/page-shell";
 
 /**
  * `/merit/stats`의 로딩 뼈대 — **머리글까지만 그린다.**
@@ -15,7 +14,7 @@ import { pageClass } from "@/components/ui/page-shell";
  */
 export default function Loading() {
   return (
-    <SkeletonScreen className={pageClass("page", "space-y-4")}>
+    <SkeletonScreen>
       <div className={cardClass("panel")}>
         {/* 제목 · 집계 범위 · 트랙 탭 */}
         <div className="flex flex-wrap items-start justify-between gap-3">

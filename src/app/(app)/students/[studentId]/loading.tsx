@@ -1,5 +1,4 @@
 import { cardClass } from "@/components/ui/card";
-import { pageClass } from "@/components/ui/page-shell";
 import {
   Skeleton,
   SkeletonScreen,
@@ -17,7 +16,7 @@ import {
  */
 export default function Loading() {
   return (
-    <SkeletonScreen className={pageClass("wide", "space-y-4")}>
+    <SkeletonScreen className="mx-auto max-w-4xl space-y-4">
       {/* ← 상벌점 */}
       <Skeleton className="h-4 w-20 rounded-btn" />
 

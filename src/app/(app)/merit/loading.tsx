@@ -1,5 +1,4 @@
 import { cardClass } from "@/components/ui/card";
-import { pageClass } from "@/components/ui/page-shell";
 import {
   Skeleton,
   SkeletonField,
@@ -14,7 +13,7 @@ import {
  */
 export default function Loading() {
   return (
-    <SkeletonScreen className={pageClass("page", "space-y-4")}>
+    <SkeletonScreen>
       <SkeletonTabs size="sm" />
 
       {/* 검색 폼 — 입력칸 + 버튼 */}

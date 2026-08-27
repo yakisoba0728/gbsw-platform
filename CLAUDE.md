@@ -195,7 +195,6 @@ account에서 시작해 모듈이 커지면 merit의 모양으로 간다.
 
 | 필요한 것 | 쓸 것 |
 |---|---|
-| 페이지 본문 껍데기 | `pageClass(width, className)` — `form`(폼·단건 상세) · `page`(기본) · `wide`(표가 본문인 화면). `max-w-*`를 손으로 적으면 테스트가 깨진다 |
 | 제목 달린 카드 | `SectionCard` — 머리글 띠가 필요 없으면 `variant="panel"`, 되돌릴 수 없는 동작이면 `tone="danger"` |
 | 제목 앞에 다른 것이 오는 카드 | `cardClass(pad, className)` — 역할 라벨·상태 배지가 `<h2>` 앞에 오면 `SectionCard`로 표현할 수 없다 |
 | 표 | `DataTable` — 폰에서 카드로 바뀌어야 하면 `narrow="cards"`. 열마다 `card` 자리를 고른다 |
@@ -207,15 +206,6 @@ account에서 시작해 모듈이 커지면 merit의 모양으로 간다.
 | 합계 한 칸 | `StatTile` |
 | 결과·오류 배너 | `Note` — `tone="error"`면 `role="alert"`이 자동으로 붙는다 |
 | 빈 상태 | `EmptyState` — 이미 카드 안이면 `variant="inside"` |
-
-**페이지 폭도 세 가지뿐이다** — `form`(48rem) · `page`(64rem) · `wide`(80rem).
-고르는 기준은 **그 화면의 표가 얼마나 넓어질 수 있는가**다: 긴 글이 든 열이 있으면
-`wide`, 아니면 `page`. **넓게 그린다는 뜻이 아니다** — 표는 `w-auto`라 내용만큼만
-서고 이 값은 상한으로만 작동한다. 짧은 표는 `wide`를 골라도 안 늘어난다.
-
-표가 다음 줄로 접히면 폭을 재고 고친다. **눈으로 세지 말 것** — 블록 요소는 줄이
-접혀도 `getClientRects()`가 1을 준다. 텍스트 노드에 `Range`를 걸어야 실제 줄 수가
-나오고, 필요한 폭은 그 노드를 잠깐 `white-space: nowrap`으로 두고 재면 된다.
 
 **카드 안쪽 여백은 세 가지뿐이다.** 표를 담으면 `flush`, 폼·안내는 `panel`(p-5),
 페이지 대표 카드는 `page`(p-8). 그 외 값을 새로 만들지 않는다. 카드 껍데기

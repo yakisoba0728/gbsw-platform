@@ -1,9 +1,8 @@
-import { pageClass } from "@/components/ui/page-shell";
 import { Skeleton, SkeletonScreen, SkeletonTable } from "@/components/ui/skeleton";
 
 export default function Loading() {
   return (
-    <SkeletonScreen className={pageClass("page", "space-y-4")}>
+    <SkeletonScreen className="mx-auto max-w-5xl space-y-4">
       <div className="rounded-card border border-line bg-surface p-5">
         <Skeleton className="h-5 w-28 rounded-btn" />
         <Skeleton className="mt-3 h-9 w-full rounded-field" />

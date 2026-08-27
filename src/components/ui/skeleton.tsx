@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { cardClass } from "./card";
 import type { FieldSize } from "./input";
-import { pageClass } from "./page-shell";
 
 /**
  * 뼈대 한 덩어리. 크기는 화면이 자기 짜임에 맞게 정한다.
@@ -22,7 +21,7 @@ export function Skeleton({
 
 /** 뼈대는 눈으로만 읽히므로 "불러오는 중"을 따로 알린다. */
 export function SkeletonScreen({
-  className = pageClass("page", "space-y-4"),
+  className = "mx-auto max-w-5xl space-y-4",
   children,
 }: {
   className?: string;

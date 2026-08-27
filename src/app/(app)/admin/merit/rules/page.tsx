@@ -22,7 +22,6 @@ import { filterRules } from "@/components/merit/rule-filter";
 import { listRules } from "@/modules/merit/rule.service";
 import { RuleForm } from "./rule-form";
 import { RuleTable } from "./rule-table";
-import { pageClass } from "@/components/ui/page-shell";
 
 export const metadata: Metadata = { title: "상벌점 규정" };
 
@@ -68,7 +67,7 @@ export default async function RulesPage({
   const boundaryKey = JSON.stringify({ track, q, kind });
 
   return (
-    <div className={pageClass("wide", "space-y-4")}>
+    <div className="mx-auto max-w-5xl space-y-4">
       <RuleForm
         track={track}
         trackTabs={

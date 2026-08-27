@@ -7,7 +7,6 @@ import { honorificName } from "@/core/authz/roles";
 import { getMyChildPasses } from "@/modules/pass/request.service";
 import { ConsentButton } from "./consent-button";
 import { PassCard } from "./pass-card";
-import { pageClass } from "@/components/ui/page-shell";
 
 export async function ParentView({ actor }: { actor: SessionUser }) {
   const passes = await getMyChildPasses(actor);
@@ -25,7 +24,7 @@ export async function ParentView({ actor }: { actor: SessionUser }) {
   const rest = passes.filter((pass) => !waitingIds.has(pass.id));
 
   return (
-    <div className={pageClass("page", "@container space-y-4")}>
+    <div className="@container mx-auto max-w-3xl space-y-4">
       <SectionCard title="확인이 필요한 신청" flush>
         {waiting.length === 0 ? (
           <EmptyState variant="inside">확인을 기다리는 신청이 없습니다.</EmptyState>

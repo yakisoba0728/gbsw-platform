@@ -16,7 +16,6 @@ import { SectionCard } from "@/components/ui/section-card";
 import { formatMonthDay } from "@/lib/datetime";
 import { greetingFor } from "@/lib/greeting";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
-import { pageClass } from "@/components/ui/page-shell";
 import {
   getMyMerit,
   listMyChildren,
@@ -37,7 +36,7 @@ export default async function DashboardPage() {
   const user = await requireAuth();
 
   return (
-    <div className={pageClass("page", "space-y-4")}>
+    <div className="mx-auto max-w-5xl space-y-4">
       <section className={cardClass("page")}>
         <p className="text-caption text-mut">
           {user.role ? ROLE_LABELS[user.role] : "역할 없음"}

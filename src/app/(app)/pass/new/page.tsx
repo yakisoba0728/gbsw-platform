@@ -4,7 +4,6 @@ import { SectionCard } from "@/components/ui/section-card";
 import { requirePermission } from "@/core/auth/session";
 import { formatDateInput } from "@/lib/datetime";
 import { RequestForm } from "./request-form";
-import { pageClass } from "@/components/ui/page-shell";
 
 export const metadata: Metadata = { title: "출입증 신청" };
 
@@ -13,7 +12,7 @@ export default async function NewPassPage() {
   await requirePermission("pass:request");
 
   return (
-    <div className={pageClass("form", "@container")}>
+    <div className="@container mx-auto max-w-2xl">
       <BackLink href="/pass">출입증</BackLink>
       <SectionCard title="출입증 신청" variant="panel" className="mt-3">
         {/* 날짜 기본값은 서버가 KST로 집는다 — 클라이언트 시계는 다를 수 있다. */}
