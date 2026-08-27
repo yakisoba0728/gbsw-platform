@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useId } from "react";
-import { Button } from "@/components/ui/button";
+import { ConfirmSubmit } from "@/components/ui/confirm-submit";
 import { Input, Label } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
 import { MERIT_TRACK_LABELS, type MeritTrack } from "@/core/authz/merit-track";
@@ -86,9 +86,17 @@ export function ThresholdForm({
           여기는 트랙마다 한 줄이라 primary로 두면 한 카드에 에메랄드가 둘 선다 —
           그 순간 에메랄드는 「이 화면의 할 일」이라는 뜻을 잃는다.
         */}
-        <Button type="submit" variant="secondary" disabled={pending}>
-          {pending ? "저장 중…" : "저장"}
-        </Button>
+        <ConfirmSubmit
+          label="저장"
+          title="벌점 기준 저장"
+          description="이 트랙의 경고·위험 기준이 바뀝니다."
+          confirmLabel="저장"
+          pendingLabel="저장 중…"
+          pending={pending}
+          variant="secondary"
+          size="md"
+          full={false}
+        />
       </form>
 
       <p id={`${fieldId}-help`} className="mt-2 text-caption text-mut">

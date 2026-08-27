@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useActionState } from "react";
-import { Button } from "@/components/ui/button";
+import { ConfirmSubmit } from "@/components/ui/confirm-submit";
 import { Input, Label } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
 import { SectionCard } from "@/components/ui/section-card";
@@ -108,9 +108,16 @@ export function RuleForm({
           />
         </div>
 
-        <Button type="submit" className="w-full @xl:w-auto" disabled={pending}>
-          {pending ? "저장 중…" : "저장"}
-        </Button>
+        <ConfirmSubmit
+          label="저장"
+          title="규정 추가"
+          description="부여 화면의 선택지에 곧바로 나타납니다."
+          confirmLabel="저장"
+          pendingLabel="저장 중…"
+          pending={pending}
+          size="md"
+          full={false}
+        />
       </form>
 
       {state.error && (

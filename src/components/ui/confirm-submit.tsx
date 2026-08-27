@@ -23,6 +23,8 @@ export function ConfirmSubmit({
   variant = "primary",
   size = "lg",
   full = true,
+  form,
+  onOpen,
 }: {
   label: string;
   title: string;
@@ -33,6 +35,10 @@ export function ConfirmSubmit({
   variant?: ButtonVariant;
   size?: "sm" | "md" | "lg";
   full?: boolean;
+  /** 버튼이 폼 밖에 있을 때의 form 속성. `button.form`이 이 값을 따라간다. */
+  form?: string;
+  /** 모달을 열 때 한 번. 결과 문구에 쓸 값을 붙잡아 두는 자리다. */
+  onOpen?: () => void;
 }) {
   const baseId = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -61,6 +67,7 @@ export function ConfirmSubmit({
       <Button
         ref={triggerRef}
         type="button"
+        form={form}
         variant={variant}
         size={size}
         full={full}
@@ -69,6 +76,7 @@ export function ConfirmSubmit({
           // 빈 칸이 있으면 모달을 열기 전에 브라우저가 먼저 짚어 준다.
           const form = triggerRef.current?.form;
           if (form && !form.reportValidity()) return;
+          onOpen?.();
           setOpen(true);
         }}
       >

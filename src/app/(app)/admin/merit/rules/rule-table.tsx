@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { ConfirmSubmit } from "@/components/ui/confirm-submit";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
@@ -195,15 +196,18 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
                         form="rule-edit-form"
                       />
                       {/* 이 화면을 연 목적은 규정 추가다 — 인라인 편집의 저장은 취소와 짝이다. */}
-                      <Button
-                        type="submit"
-                        form="rule-edit-form"
+                      <ConfirmSubmit
+                        label="저장"
+                        title="규정 수정"
+                        description="이미 부여된 점수는 그대로 두고 앞으로의 부여에만 적용됩니다."
+                        confirmLabel="저장"
+                        pendingLabel="저장 중…"
+                        pending={updating}
                         variant="secondary"
                         size="sm"
-                        disabled={updating}
-                      >
-                        {updating ? "저장 중…" : "저장"}
-                      </Button>
+                        full={false}
+                        form="rule-edit-form"
+                      />
                       <Button
                         type="button"
                         variant="secondary"

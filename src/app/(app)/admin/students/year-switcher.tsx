@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { ConfirmSubmit } from "@/components/ui/confirm-submit";
 import { Input } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
 import { SectionCard } from "@/components/ui/section-card";
@@ -47,14 +47,18 @@ export function YearSwitcher({
               ))}
             </Select>
           </div>
-          <Button
-            type="submit"
-            size="sm"
+          <ConfirmSubmit
+            label="현재로 지정"
+            title="현재 학년도 변경"
+            // 전교 집계의 범위가 바뀐다 — 상벌점 합계와 명단이 함께 따라간다.
+            description={`${selected}학년도를 현재로 지정합니다. 전교 집계와 명단이 이 학년도를 기준으로 바뀝니다.`}
+            confirmLabel="지정"
+            pendingLabel="바꾸는 중…"
+            pending={switching || Number(selected) === current}
             variant="secondary"
-            disabled={switching || Number(selected) === current}
-          >
-            {switching ? "바꾸는 중…" : "현재로 지정"}
-          </Button>
+            size="sm"
+            full={false}
+          />
         </form>
 
         <form action={createAction} className="flex items-end gap-2">
@@ -72,9 +76,17 @@ export function YearSwitcher({
               required
             />
           </div>
-          <Button type="submit" size="sm" variant="secondary" disabled={creating}>
-            {creating ? "만드는 중…" : "추가"}
-          </Button>
+          <ConfirmSubmit
+            label="추가"
+            title="학년도 추가"
+            description="새 학년도를 만듭니다. 현재 학년도는 그대로 둡니다."
+            confirmLabel="추가"
+            pendingLabel="만드는 중…"
+            pending={creating}
+            variant="secondary"
+            size="sm"
+            full={false}
+          />
         </form>
       </div>
 

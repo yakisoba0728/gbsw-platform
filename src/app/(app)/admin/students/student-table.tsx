@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { ConfirmSubmit } from "@/components/ui/confirm-submit";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
@@ -136,13 +137,16 @@ export function StudentTable({
                 {dirtyIds.length}명 고침
               </span>
             )}
-            <Button
-              type="submit"
+            <ConfirmSubmit
+              label="저장"
+              title="학적 저장"
+              description={`고친 ${dirtyIds.length}명의 학년·반·번호와 학적을 저장합니다.`}
+              confirmLabel="저장"
+              pendingLabel="저장 중…"
+              pending={pending || dirtyIds.length === 0}
               size="sm"
-              disabled={pending || dirtyIds.length === 0}
-            >
-              {pending ? "저장 중…" : "저장"}
-            </Button>
+              full={false}
+            />
           </div>
         }
         controls={

@@ -1,7 +1,11 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { ConfirmSubmit } from "@/components/ui/confirm-submit";
+import {
+  MERIT_KIND_LABELS,
+  type MeritKind,
+} from "@/core/authz/merit-track";
 import { Input } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
 import { SectionCard } from "@/components/ui/section-card";
@@ -60,17 +64,26 @@ export function AwardForm({
             />
           </div>
 
-          <Button
-            type="submit"
-            className="w-full @md:w-auto"
-            disabled={pending || rules.length === 0 || !rule}
-            onClick={() => {
+          {/* 반 명단의 여럿 부여(AwardConfirmDialog)와 짝을 맞춘다 — 단건이라고
+              확인 없이 나가면 같은 동작이 화면에 따라 다르게 군다. */}
+          <ConfirmSubmit
+            label="부여"
+            title="상벌점 부여"
+            description={
+              rule
+                ? `${MERIT_KIND_LABELS[rule.kind as MeritKind] ?? rule.kind} ${rule.points}점 · ${rule.label}`
+                : "고른 규정으로 부여합니다."
+            }
+            confirmLabel="부여"
+            pendingLabel="부여하는 중…"
+            pending={pending || rules.length === 0 || !rule}
+            size="md"
+            full={false}
+            onOpen={() => {
               // 단건이라 인원 줄은 없다.
               if (rule) setSubmitted({ ...rule, count: null });
             }}
-          >
-            {pending ? "부여하는 중…" : "부여"}
-          </Button>
+          />
         </div>
       </form>
 
