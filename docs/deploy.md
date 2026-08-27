@@ -157,6 +157,9 @@ gbsw.example.hs.kr {
 }
 ```
 
+> **Caddy는 요청 본문 상한이 없어 손댈 것이 없다.** nginx는 아래처럼 올려야
+> 커뮤니티 첨부(5MB)가 통과한다.
+
 ### nginx
 
 ```nginx
@@ -166,6 +169,10 @@ server {
 
     ssl_certificate     /경로/인증서.crt;
     ssl_certificate_key /경로/개인키.key;
+
+    # 커뮤니티 첨부는 파일당 5MB까지 받는다. nginx 기본값은 1m이라, 이 줄이
+    # 없으면 업로드가 앱에 닿기도 전에 끊기고 **앱 로그에는 아무 흔적도 안 남는다.**
+    client_max_body_size 8m;
 
     location / {
         proxy_pass http://127.0.0.1:3000;
@@ -328,6 +335,20 @@ docker exec gbsw-db psql -U gbsw -d gbsw_before_restore -c '\dt'
 
 cron으로 매일 돌리고 **다른 장비에도 복사해 둔다.** 서버가 통째로 죽으면 같은
 디스크의 백업은 함께 사라진다.
+
+#### 커뮤니티 첨부는 DB 덤프에 없다
+
+첨부 파일은 `gbsw-uploads` 볼륨에 있고 **`pg_dump`에 들어가지 않는다.** DB만
+받아 두면 글은 살아나는데 붙어 있던 파일이 전부 사라진다. 백업이 둘이다.
+
+```bash
+docker run --rm -v gbsw-uploads:/data -v "$PWD:/out" alpine \
+  tar czf /out/uploads-$(date +%F).tar.gz -C /data .
+
+# 되돌리기
+docker run --rm -v gbsw-uploads:/data -v "$PWD:/in" alpine \
+  tar xzf /in/uploads-2026-08-28.tar.gz -C /data
+```
 
 ### 로그
 

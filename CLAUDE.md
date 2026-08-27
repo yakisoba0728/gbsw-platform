@@ -4,8 +4,8 @@
 
 경북소프트웨어마이스터고등학교 통합관리시스템. 자체 호스팅, 초대 기반 계정, 역할 기반 접근제어.
 
-**현재 상태:** 인증·권한·감사로그·앱 셸에 더해 **학년도·명단·상벌점·전자출입증**까지 있다.
-상벌점이 첫 업무 모듈이고, 전자출입증이 둘째다. 새 모듈의 본보기는 둘로 나뉜다 — **파일
+**현재 상태:** 인증·권한·감사로그·앱 셸에 더해 **학년도·명단·상벌점·전자출입증·커뮤니티**까지 있다.
+상벌점이 첫 업무 모듈이고, 전자출입증이 둘째, 커뮤니티가 셋째다. 새 모듈의 본보기는 둘로 나뉜다 — **파일
 구성과 계층 경계는 `src/modules/account/`**(schema·repo·service 셋), **권한·오류 코드·
 서비스 분할까지 갖춘 업무 모듈의 모습은 `src/modules/merit/`**(repo는 하나, 서비스는
 책임별로 나눈다). 자세한 것은 아래 「폴더 구조」에 적었다.
@@ -39,6 +39,11 @@ Route / Server Action  →  Service  →  Repo
 - **모든 생성/수정/삭제는 `recordAudit`을 남긴다.**
 - 권한 판정 경로는 `core/authz/can.ts` 하나뿐. Better Auth admin 플러그인의 접근제어
   (`core/auth/permissions.ts`)는 **계정 관리 API 전용**이며 업무 권한과 섞지 않는다.
+- **커뮤니티의 게시판별 읽기·쓰기만 이 규칙 밖이다.** 게시판마다 다르고 교사가 화면에서
+  바꾸는 값이라 컴파일 시점 표에 담기지 않는다 — 판정은 `modules/community/community.access.ts`
+  의 순수 함수 둘이 하고, 게시판을 다루는 권한(`community:manage`·`community:moderate`)만
+  `can()`에 있다. 거부는 `ForbiddenError` + `authz:denied`를 손으로 남긴다.
+  **다른 모듈이 이것을 따라하면 안 된다** — 역할로 가를 수 있는 권한은 `can()`에 넣는다.
 - 역할 검사만으로 부족한 경우(본인 소유 데이터 등)는 서비스에서 **소유권 검사**를 추가한다.
   세션에서 유도할 수 있는 식별자는 절대 클라이언트 입력으로 받지 않는다.
   (예: `getMyAwards(sessionUser)`는 `studentId`를 인자로 받지 않는다.)
@@ -92,6 +97,13 @@ src/
                           pass.qr.ts(uqr → SVG path, 서버 전용)·pass.url.ts·
                           pass.window.ts(유형별 유효 창). 서비스는 request·decision·
                           verify 셋이다.
+    community/           게시판·글·댓글·첨부. merit과 같은 모양이되 순수 조각이 더
+                          있다 — community.access.ts(역할 판정. DB를 모른다)·
+                          community.view.ts(**익명을 가리는 유일한 자리**)·
+                          community.storage.ts(디스크. DB를 모른다). 서비스는
+                          board·post·comment·attachment 넷이다. **첨부 업로드는
+                          서버 액션이 아니라 라우트 핸들러다** — bodySizeLimit이
+                          액션 전체에 걸려서다.
   app/
     (auth)/             비로그인 — login
     (app)/              로그인 필수 — layout.tsx가 세션 가드 + mustChangePassword 가로채기
@@ -243,6 +255,15 @@ account에서 시작해 모듈이 커지면 merit의 모양으로 간다.
   옛 Prisma 클라이언트를 물고 있어서, 새 필드를 쓰는 화면만 `PrismaClientValidationError`로
   조용히 실패한다. 타입 검사·테스트·빌드는 디스크의 새 클라이언트를 보므로 전부 통과한다 —
   화면에서만 터지고, 서버 액션의 catch가 오류를 삼키면 원인이 어디에도 남지 않는다.
+- **익명 게시판은 화면까지만 익명이다.** 쓰기가 `recordAudit`을 남기므로, 교사가
+  감사로그를 시각으로 대조하면 작성자를 알아낼 수 있다. 감수하고 택한 것이며
+  (욕설·협박 글의 추적 수단이 그것뿐이다) 글쓰기 화면이 학생에게 그 사실을 알린다.
+  화면·API 어디서도 작성자가 안 나오게 하는 일은 `community.view.ts` 한 곳이 맡는다 —
+  **repo 행을 화면으로 직접 넘기지 않는다.**
+- **첨부는 `gbsw-uploads` 볼륨에 있고 DB 덤프에 안 들어간다.** 백업을 따로 뜬다
+  (`docs/deploy.md`). 디스크의 파일 이름은 랜덤 32자이고 올린 사람이 붙인 이름은
+  DB에만 있다 — 경로 탈출과 확장자 위조를 검사로 막는 대신 그 값이 파일 이름에
+  닿을 길을 없앴다. nginx 뒤에 두면 `client_max_body_size`를 올려야 한다.
 - 역할은 `ADMIN / STUDENT / PARENT` 3개. **코드 상수는 `ADMIN`이지만 화면에서는 「교사」**다
   (`ROLE_LABELS`) — 학교에서 그 자리는 교사이고 「관리자」는 시스템 운영자로 읽힌다.
   교직원 사이에 권한 차등이 없고 최상위 계정 개념도 없다 — 교사끼리 서로를 초대한다.

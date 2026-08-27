@@ -49,6 +49,11 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+# 커뮤니티 첨부가 사는 곳. 볼륨이 이 경로에 마운트되면 도커가 여기의 소유권을
+# 물려주므로, **USER를 바꾸기 전에** 만들어야 한다. 안 만들면 볼륨이 root 소유로
+# 생기고, 컨테이너는 cap_drop: ALL이라 나중에 고칠 방법도 없다.
+RUN mkdir -p /app/uploads && chown nextjs:nodejs /app/uploads
+
 USER nextjs
 EXPOSE 3000
 
