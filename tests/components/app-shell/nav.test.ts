@@ -133,22 +133,23 @@ describe("QR 스캔은 메뉴에 없다", () => {
 });
 
 describe("바텀탭 — 다섯 칸이 상한이다", () => {
-  it("교사는 넷이다 — 최상위 셋에 「최근 부여」 하나", () => {
+  it("교사는 다섯이다 — 최상위 넷에 「최근 부여」 하나", () => {
     expect(bottomTabItems("ADMIN").map((item) => item.href)).toEqual([
       "/",
       "/merit",
       "/pass",
+      "/community",
       "/merit/recent",
     ]);
   });
 
-  it("학생도 넷, 학부모는 셋이다", () => {
-    expect(bottomTabItems("STUDENT")).toHaveLength(4);
-    expect(bottomTabItems("PARENT")).toHaveLength(3);
+  it("학생도 다섯, 학부모는 넷이다", () => {
+    expect(bottomTabItems("STUDENT")).toHaveLength(5);
+    expect(bottomTabItems("PARENT")).toHaveLength(4);
   });
 
-  // 판독이 빠져 한 칸이 비었다. 상한은 그대로 다섯이다.
-  it("아직 상한에 닿지 않았다", () => {
+  // 커뮤니티가 마지막 칸을 채웠다. 여섯 번째를 세우려면 무엇을 뺄지 골라야 한다.
+  it("상한에 닿았지만 넘지는 않았다", () => {
     for (const role of ["ADMIN", "STUDENT", "PARENT"] as const) {
       expect(bottomTabItems(role).length).toBeLessThanOrEqual(5);
     }
@@ -308,6 +309,8 @@ describe("메뉴 링크가 실제 화면을 가리킨다", () => {
         "/pass/history",
         "/admin/merit/rules",
         "/admin/settings",
+        "/community",
+        "/admin/community",
       ]),
     );
   });

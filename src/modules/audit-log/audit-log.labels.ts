@@ -54,6 +54,16 @@ export const AUDIT_ACTIONS = [
   "pass:reject",
   "pass:issue",
   "pass:cancel",
+  "community:create",
+  "community:update",
+  "community:delete",
+  "community:post:create",
+  "community:post:update",
+  "community:post:delete",
+  "community:comment:create",
+  "community:comment:delete",
+  "community:attachment:create",
+  "community:attachment:delete",
   // 서비스가 can() 검사로 거부했을 때. 페이지를 건너뛴 요청만 여기 닿는다.
   "authz:denied",
 ] as const;
@@ -96,6 +106,16 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   "pass:reject": "출입증 반려",
   "pass:issue": "출입증 부여",
   "pass:cancel": "출입증 취소",
+  "community:create": "게시판 생성",
+  "community:update": "게시판 수정",
+  "community:delete": "게시판 제거",
+  "community:post:create": "글 작성",
+  "community:post:update": "글 수정",
+  "community:post:delete": "글 삭제",
+  "community:comment:create": "댓글 작성",
+  "community:comment:delete": "댓글 삭제",
+  "community:attachment:create": "첨부 등록",
+  "community:attachment:delete": "첨부 삭제",
   "authz:denied": "권한 거부",
 };
 
@@ -133,6 +153,16 @@ const ACTION_TONES: Record<AuditAction, BadgeTone> = {
   // 신청 없이 바로 나가는 길이라 승인과 같은 색이다.
   "pass:issue": "approved",
   "pass:cancel": "cancelled",
+  "community:create": "approved",
+  "community:update": "info",
+  "community:delete": "rejected",
+  "community:post:create": "approved",
+  "community:post:update": "info",
+  "community:post:delete": "cancelled",
+  "community:comment:create": "approved",
+  "community:comment:delete": "cancelled",
+  "community:attachment:create": "info",
+  "community:attachment:delete": "cancelled",
   "authz:denied": "rejected",
 };
 
@@ -155,6 +185,10 @@ const TARGET_LABELS: Record<string, string> = {
   MeritThreshold: "벌점 기준",
   MeritAward: "상벌점",
   Pass: "출입증",
+  Community: "게시판",
+  CommunityPost: "글",
+  CommunityComment: "댓글",
+  CommunityAttachment: "첨부",
 };
 
 export function auditTargetLabel(targetType: string): string {

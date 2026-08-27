@@ -50,8 +50,9 @@ const input = {
   slug: "notice",
   name: "공지사항",
   description: null,
-  readRoles: ["STUDENT", "PARENT"],
-  writeRoles: [],
+  // 서비스는 zod를 통과한 타입을 받으므로 역할도 좁은 리터럴이다.
+  readRoles: ["STUDENT", "PARENT"] as ("STUDENT" | "PARENT")[],
+  writeRoles: [] as ("STUDENT" | "PARENT")[],
   anonymous: false,
   allowAttachments: true,
   sortOrder: 0,
@@ -123,8 +124,8 @@ describe("updateCommunity", () => {
     updatedAt: new Date("2026-08-28T00:00:00.000Z"),
     name: "공지",
     description: null,
-    readRoles: ["STUDENT"],
-    writeRoles: [],
+    readRoles: ["STUDENT"] as ("STUDENT" | "PARENT")[],
+    writeRoles: [] as ("STUDENT" | "PARENT")[],
     anonymous: false,
     allowAttachments: true,
     sortOrder: 1,
@@ -157,8 +158,8 @@ describe("updateCommunity", () => {
       ...patch,
       name: "공지사항",
       sortOrder: 0,
-      readRoles: ["PARENT", "STUDENT"], // 순서만 다르다
-      writeRoles: ["STUDENT"],
+      readRoles: ["PARENT", "STUDENT"] as ("STUDENT" | "PARENT")[], // 순서만 다르다
+      writeRoles: ["STUDENT"] as ("STUDENT" | "PARENT")[],
     });
 
     expect(updateCommunity).not.toHaveBeenCalled();

@@ -39,6 +39,15 @@ export function MeritIcon(props: IconProps) {
   );
 }
 
+export function BoardIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={1.7} {...props}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M7 9h10M7 13h10M7 17h6" />
+    </Icon>
+  );
+}
+
 export function QrIcon(props: IconProps) {
   return (
     <Icon strokeWidth={1.7} {...props}>
