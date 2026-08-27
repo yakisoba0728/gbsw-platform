@@ -1,6 +1,6 @@
 // GBSW 통합관리시스템 — 데이터 모델
 //
-// 뼈대 단계 범위: 인증 코어 + 신원(프로필/학급) + 감사로그 + 상벌점(교내/기숙사).
+// 뼈대 단계 범위: 인증 코어 + 신원(프로필/학급) + 감사로그 + 상벌점(교내/기숙사) + 커뮤니티.
 
 generator client {
   provider = "prisma-client"
@@ -85,6 +85,11 @@ model User {
   passesConsented Pass[] @relation("PassConsentedBy")
   passesDecided   Pass[] @relation("PassDecidedBy")
   passesCancelled Pass[] @relation("PassCancelledBy")
+
+  /// 커뮤니티. 계정이 완전 삭제돼도 글·댓글은 남는다 (SetNull + 이름 스냅샷).
+  communityPosts       CommunityPost[]       @relation("CommunityPostAuthor")
+  communityComments    CommunityComment[]    @relation("CommunityCommentAuthor")
+  communityAttachments CommunityAttachment[] @relation("CommunityAttachmentUploader")
 
   // 거의 모든 목록 조회가 이 조건(deletedAt: null)으로 거른다.
   // 지금은 전 행이 null이라 인덱스가 좁혀 주는 게 없지만, 위 주석대로 읽기
@@ -591,4 +596,130 @@ model Pass {
   @@index([studentProfileId, startAt(sort: Desc)])
   /// 교사의 결재 대기 목록 / 지금 유효한 것 훑기.
   @@index([status, endAt])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 7. 커뮤니티 — 게시판·글·댓글·첨부
+//    설계: docs/superpowers/specs/2026-08-28-community-design.md
+// ─────────────────────────────────────────────────────────────
+
+/// 게시판 하나. **교사가 화면에서 만든다** — 새 게시판마다 마이그레이션을
+/// 돌리는 구조면 그 자리는 결국 안 쓰인다.
+model Community {
+  id String @id @default(cuid())
+
+  /// 주소에 쓰는 이름(`/community/notice`). 소문자 영숫자와 하이픈, 2~32자.
+  /// **만든 뒤에는 바꿀 수 없다** — 바꾸면 그동안 붙은 링크가 전부 죽는다.
+  slug        String  @unique
+  name        String
+  description String?
+
+  /// 읽기·쓰기 허용 역할. **ADMIN은 늘 통과하므로 여기 넣지 않는다** —
+  /// can()이 ADMIN을 무조건 통과시키는 것과 같은 규칙이다.
+  /// writeRoles ⊆ readRoles를 community.schema.ts가 강제한다.
+  readRoles  String[]
+  writeRoles String[]
+
+  /// 켜면 이 게시판의 모든 글·댓글에서 작성자를 감춘다. 글마다 고르지 않는다 —
+  /// 실명과 익명이 한 목록에 섞이면 "왜 이 글만 감췄나"가 그 자체로 정보가 된다.
+  anonymous        Boolean @default(false)
+  allowAttachments Boolean @default(true)
+
+  /// 목록 순서. 같으면 name 순.
+  sortOrder Int @default(0)
+  /// false면 없앤 게시판. 글이 매달려 있어 행은 지우지 않는다 (MeritRule 규약).
+  active Boolean @default(true)
+
+  posts CommunityPost[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active, sortOrder])
+}
+
+/// 글. 작성자는 SetNull + 이름·역할 스냅샷이다 (MeritThreshold.updatedByName과
+/// 같은 규약) — 과거의 사실이 살아 있는 외래키에 기대면 안 된다.
+model CommunityPost {
+  id          String    @id @default(cuid())
+  communityId String
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+
+  title String
+  body  String @db.Text
+
+  /// 계정이 완전 삭제되면 null이 된다. isMine 판정의 유일한 근거라 남겨 둔다.
+  authorUserId String?
+  authorUser   User?   @relation("CommunityPostAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+  authorName   String
+  /// ADMIN | STUDENT | PARENT — 계정이 지워진 뒤에도 honorificName을 그려야 한다.
+  authorRole String
+
+  /// 삭제는 행을 지우지 않는다. 댓글이 매달려 있다.
+  deletedAt       DateTime?
+  deletedByUserId String?
+  deletedReason   String?
+
+  comments    CommunityComment[]
+  attachments CommunityAttachment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([communityId, deletedAt, createdAt])
+}
+
+/// 댓글. 대댓글은 두지 않는다 — 트리 구조가 화면과 조회를 한 단계 복잡하게
+/// 만드는데 학교 게시판에서 얻는 것이 적다. 수정도 없다(쓰기·삭제뿐).
+model CommunityComment {
+  id     String        @id @default(cuid())
+  postId String
+  post   CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  body String @db.Text
+
+  authorUserId String?
+  authorUser   User?   @relation("CommunityCommentAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+  authorName   String
+  authorRole   String
+
+  deletedAt       DateTime?
+  deletedByUserId String?
+  deletedReason   String?
+
+  createdAt DateTime @default(now())
+
+  @@index([postId, deletedAt, createdAt])
+}
+
+/// 첨부. 글보다 먼저 만들어진다 — 라우트 핸들러가 파일을 받아 postId 없이
+/// 행을 만들고, 폼 제출 때 서버 액션이 글에 붙인다.
+model CommunityAttachment {
+  id String @id @default(cuid())
+
+  /// 글에 붙기 전에는 null. 1시간 넘게 null이면 고아다.
+  postId String?
+  post   CommunityPost? @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  /// 올린 사람. 글에 붙일 때 글쓴이와 같은지 확인하는 데 쓴다.
+  ///
+  /// **Cascade가 아니라 SetNull이다.** 글이 SetNull로 살아남는데 첨부만 계정을
+  /// 따라 사라지면, 남은 글에서 첨부가 조용히 없어지고 디스크 파일은 그것을
+  /// 가리키는 행이 사라져 영영 못 지운다. 붙은 뒤의 첨부는 올린 사람이 아니라
+  /// 글의 것이다.
+  uploaderUserId String?
+  uploaderUser   User?   @relation("CommunityAttachmentUploader", fields: [uploaderUserId], references: [id], onDelete: SetNull)
+
+  /// 디스크의 파일 이름. 랜덤 32자.
+  /// **원래 이름은 절대 디스크에 쓰지 않는다** — 경로 탈출과 확장자 위조를
+  /// 검사로 막는 대신 그 값이 파일 이름에 닿지 않게 한다.
+  storageKey String @unique
+  /// 올린 사람이 붙인 원래 이름. 화면에만 쓴다.
+  filename String
+  mimeType String
+  size     Int
+
+  createdAt DateTime @default(now())
+
+  @@index([uploaderUserId, postId])
 }
