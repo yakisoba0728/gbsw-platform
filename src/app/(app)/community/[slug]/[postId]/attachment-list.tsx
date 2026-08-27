@@ -33,9 +33,13 @@ export function AttachmentList({
 
   return (
     <div className="mt-6 space-y-3 border-t border-line2 pt-4">
+      {/*
+        `next/image`를 쓰지 않는다 — 최적화 서버가 이 주소를 세션 없이 가져오는데
+        첨부 라우트는 로그인과 게시판 읽기 권한을 확인하므로 404로 떨어진다.
+        원본을 그대로 거는 것이 이 자리에서는 유일하게 동작하는 방법이다.
+      */}
       {images.map((image) => (
-        // eslint-disable-next-line @next/next/no-img-element -- 권한이 붙은
-        // 라우트에서 오는 파일이라 next/image의 최적화 경로를 못 태운다.
+        // eslint-disable-next-line @next/next/no-img-element -- 위 주석 참고
         <img
           key={image.id}
           src={`/api/community/attachments/${image.id}`}
