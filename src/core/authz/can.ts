@@ -10,6 +10,8 @@ export type Action =
   | "invite:revoke"
   | "invite:create:parent"
   | "audit:read"
+  | "community:manage"
+  | "community:moderate"
   | "merit:rule:manage"
   | "merit:rule:read"
   | "merit:threshold:manage"
@@ -36,6 +38,12 @@ export const RULES: Record<Action, Role[]> = {
   "invite:list": [], // 교사 전용
   "invite:revoke": [], // 교사 전용
   "audit:read": [], // 교사 전용
+
+  // 커뮤니티 — **게시판을 다루는 권한만 여기 있다.**
+  // 게시판별 읽기·쓰기는 커뮤니티 행에 데이터로 붙어 있어 이 표에 담기지 않는다.
+  // 그쪽 판정은 modules/community/community.access.ts가 한다.
+  "community:manage": [], // 게시판 추가·수정·제거·권한 설정 — 교사 전용
+  "community:moderate": [], // 남의 글·댓글 삭제 — 교사 전용
 
   // 상벌점 — 쓰기 다섯은 교사 전용. 취소를 "자기가 준 것만"으로 좁히지 않는다:
   // 교직원 사이에 권한 차등이 없어 소유권 검사의 근거가 없다.
