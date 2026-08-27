@@ -68,8 +68,25 @@ export type UpdateUserInput = z.infer<typeof updateUserSchema>;
 const NOT_FOUND_MESSAGE = "계정을 찾을 수 없습니다.";
 const userIdField = z.string(NOT_FOUND_MESSAGE).trim().min(1, NOT_FOUND_MESSAGE);
 
-/** 비밀번호 초기화. 폼이 보내는 것은 userId 하나뿐이다. */
-export const userIdOnlySchema = z.object({ userId: userIdField });
+/**
+ * 확인 모달이 받는 사유. **담을 자리가 없어 감사로그 metadata로만 간다** —
+ * 계정 표에는 「왜 껐는지」를 적을 칸이 없고, 만들면 화면 어디에도 안 쓰이는
+ * 열이 하나 는다.
+ */
+const auditReason = z
+  // 칸이 없으면 formData.get이 null을 준다 — optional()은 undefined만 받으므로
+  // 빈 문자열로 눕히고 나서 검사한다. pass.schema의 optionalText와 같은 짜임이다.
+  .preprocess(
+    (v) => (v == null ? "" : v),
+    z.string().trim().max(200, "사유는 200자를 넘을 수 없습니다."),
+  )
+  .transform((v) => (v.length === 0 ? undefined : v));
+
+/** 비밀번호 초기화. 폼이 보내는 것은 userId와 사유뿐이다. */
+export const userIdOnlySchema = z.object({
+  userId: userIdField,
+  reason: auditReason,
+});
 
 /**
  * 계정 활성/비활성 토글. enum으로 받아 셋째 값을 거부한다 — boolean 비교로
@@ -80,6 +97,7 @@ export const setUserActiveSchema = z.object({
   active: z
     .enum(["true", "false"], "계정 상태 값이 올바르지 않습니다.")
     .transform((value) => value === "true"),
+  reason: auditReason,
 });
 
 /** 완전 삭제. 이름 대조는 서비스가 한다 — 여기서는 칸이 채워졌는지만 본다. */
@@ -95,4 +113,7 @@ export const deleteUserSchema = z.object({
 });
 
 /** 정보 수정 폼 = 서비스 입력 + userId. 서비스가 받는 모양은 그대로 둔다. */
-export const updateUserFormSchema = updateUserSchema.extend({ userId: userIdField });
+export const updateUserFormSchema = updateUserSchema.extend({
+  userId: userIdField,
+  reason: auditReason,
+});

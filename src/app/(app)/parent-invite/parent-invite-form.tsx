@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { Button } from "@/components/ui/button";
+import { ConfirmSubmit } from "@/components/ui/confirm-submit";
 import { Input, Label } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
 import { SecretPanel } from "@/components/ui/secret-panel";
@@ -25,9 +25,15 @@ export function ParentInviteForm() {
         </Note>
       )}
 
-      <Button type="submit" full disabled={pending}>
-        {pending ? "만드는 중…" : "만들기"}
-      </Button>
+      <ConfirmSubmit
+        label="만들기"
+        title="학부모 초대코드 만들기"
+        description="이 코드로 가입한 사람이 내 상벌점·출입증을 봅니다."
+        confirmLabel="만들기"
+        pendingLabel="만드는 중…"
+        pending={pending}
+        size="md"
+      />
 
       {state.code && (
         <SecretPanel

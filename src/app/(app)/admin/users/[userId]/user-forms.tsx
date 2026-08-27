@@ -2,6 +2,8 @@
 
 import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ConfirmSubmit } from "@/components/ui/confirm-submit";
 import { Input, Label } from "@/components/ui/input";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { Note } from "@/components/ui/note";
@@ -163,9 +165,24 @@ export function EditUserForm({ user }: { user: EditableUser }) {
         </>
       )}
 
-      <Button type="submit" full disabled={pending}>
-        {pending ? "저장 중…" : "저장"}
-      </Button>
+      <Label htmlFor="update-reason">사유 (선택)</Label>
+      <Input
+        id="update-reason"
+        name="reason"
+        maxLength={200}
+        placeholder="예: 학생 요청으로 연락처 수정"
+        className="mb-3"
+      />
+
+      <ConfirmSubmit
+        label="저장"
+        title="계정 정보 저장"
+        description="바뀐 칸만 저장됩니다."
+        confirmLabel="저장"
+        pendingLabel="저장 중…"
+        pending={pending}
+        size="md"
+      />
 
       {state.error && <Note tone="error" className="mt-3">{state.error}</Note>}
       {state.changed !== null &&
@@ -187,11 +204,32 @@ export function ResetPasswordForm({ user }: { user: EditableUser }) {
   );
 
   return (
-    <form action={formAction}>
-      <input type="hidden" name="userId" value={user.id} />
-      <Button type="submit" variant="secondary" full disabled={pending}>
-        {pending ? "초기화 중…" : "비밀번호 초기화"}
-      </Button>
+    <div>
+      <ConfirmDialog
+        trigger={(open) => (
+          <Button
+            type="button"
+            variant="secondary"
+            full
+            disabled={pending}
+            onClick={open}
+          >
+            비밀번호 초기화
+          </Button>
+        )}
+        title="비밀번호 초기화"
+        description="지금 쓰는 비밀번호가 즉시 막히고 임시 비밀번호가 나옵니다."
+        reasonLabel="사유"
+        reasonPlaceholder="예: 본인이 분실 신고"
+        reasonRequired={false}
+        confirmLabel="초기화"
+        pendingLabel="초기화 중…"
+        action={formAction}
+        pending={pending}
+        state={{ ok: state.tempPassword !== null, error: state.error }}
+      >
+        <input type="hidden" name="userId" value={user.id} />
+      </ConfirmDialog>
 
       {state.error && <Note tone="error" className="mt-3">{state.error}</Note>}
 
@@ -203,7 +241,7 @@ export function ResetPasswordForm({ user }: { user: EditableUser }) {
           className="mt-3"
         />
       )}
-    </form>
+    </div>
   );
 }
 
@@ -216,23 +254,38 @@ export function ToggleActiveForm({ user }: { user: EditableUser }) {
   const blocked = user.active && user.isSelf;
 
   return (
-    <form action={formAction}>
-      <input type="hidden" name="userId" value={user.id} />
-      <input type="hidden" name="active" value={String(!user.active)} />
-      <Button
-        type="submit"
-        variant={user.active ? "danger" : "secondary"}
-        full
-        disabled={pending || blocked}
+    <div>
+      <ConfirmDialog
+        trigger={(open) => (
+          <Button
+            type="button"
+            variant={user.active ? "danger" : "secondary"}
+            full
+            disabled={pending || blocked}
+            onClick={open}
+          >
+            {user.active ? "계정 비활성화" : "계정 활성화"}
+          </Button>
+        )}
+        title={user.active ? "계정 비활성화" : "계정 활성화"}
+        description={
+          user.active
+            ? "로그인이 막힙니다. 기록은 그대로 남습니다."
+            : "다시 로그인할 수 있게 됩니다."
+        }
+        reasonLabel="사유"
+        reasonPlaceholder={user.active ? "예: 전학" : "예: 복학"}
+        reasonRequired={false}
+        confirmLabel={user.active ? "비활성화" : "활성화"}
+        confirmVariant={user.active ? "danger" : "primary"}
+        pendingLabel={user.active ? "비활성화 중…" : "활성화 중…"}
+        action={formAction}
+        pending={pending}
+        state={{ ok: state.error === null, error: state.error }}
       >
-        {pending
-          ? user.active
-            ? "비활성화 중…"
-            : "활성화 중…"
-          : user.active
-            ? "계정 비활성화"
-            : "계정 활성화"}
-      </Button>
+        <input type="hidden" name="userId" value={user.id} />
+        <input type="hidden" name="active" value={String(!user.active)} />
+      </ConfirmDialog>
 
       {blocked && (
         <p className="mt-1.5 text-xs text-mut">
@@ -240,7 +293,7 @@ export function ToggleActiveForm({ user }: { user: EditableUser }) {
         </p>
       )}
       {state.error && <Note tone="error" className="mt-3">{state.error}</Note>}
-    </form>
+    </div>
   );
 }
 

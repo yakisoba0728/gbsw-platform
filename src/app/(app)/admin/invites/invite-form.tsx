@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { StudentPicker, type PickerStudent } from "@/components/students/student-picker";
 import { Button } from "@/components/ui/button";
+import { ConfirmSubmit } from "@/components/ui/confirm-submit";
 import { Input, Label } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
 import { SectionCard } from "@/components/ui/section-card";
@@ -102,9 +103,15 @@ function ParentForm({ students }: { students: PickerStudent[] }) {
 
       <ExpiryField defaultValue={values?.expiresInDays ?? ""} />
 
-      <Button type="submit" full disabled={pending || students.length === 0}>
-        {pending ? "발급 중…" : "학부모 코드 발급"}
-      </Button>
+      <ConfirmSubmit
+        label="학부모 코드 발급"
+        title="학부모 초대코드 발급"
+        description="코드는 이 화면에서 한 번만 보입니다."
+        confirmLabel="발급"
+        pendingLabel="발급 중…"
+        pending={pending || students.length === 0}
+        size="md"
+      />
 
       <Result state={state} />
     </form>
@@ -228,9 +235,15 @@ function StudentForm() {
 
       <ExpiryField defaultValue={values?.expiresInDays ?? ""} />
 
-      <Button type="submit" full disabled={pending}>
-        {pending ? "발급 중…" : "학생 코드 발급"}
-      </Button>
+      <ConfirmSubmit
+        label="학생 코드 발급"
+        title="학생 초대코드 발급"
+        description="코드는 이 화면에서 한 번만 보입니다."
+        confirmLabel="발급"
+        pendingLabel="발급 중…"
+        pending={pending}
+        size="md"
+      />
 
       <Result state={state} />
     </form>
@@ -259,9 +272,15 @@ function AdminForm() {
 
       <ExpiryField defaultValue={values?.expiresInDays ?? ""} />
 
-      <Button type="submit" full disabled={pending}>
-        {pending ? "발급 중…" : "교사 코드 발급"}
-      </Button>
+      <ConfirmSubmit
+        label="교사 코드 발급"
+        title="교사 초대코드 발급"
+        description="받는 사람이 교사 권한으로 가입합니다."
+        confirmLabel="발급"
+        pendingLabel="발급 중…"
+        pending={pending}
+        size="md"
+      />
 
       <Result state={state} />
     </form>

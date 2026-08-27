@@ -39,6 +39,7 @@ export async function updateUser(
   actor: SessionUser,
   userId: string,
   input: UpdateUserInput,
+  reason?: string,
 ): Promise<{ changed: string[] }> {
   await assertCan(actor, "user:manage");
 
@@ -145,7 +146,7 @@ export async function updateUser(
         targetType: "User",
         targetId: userId,
         // 바뀐 값이 아니라 바뀐 항목 이름만 남긴다.
-        metadata: { changed },
+        metadata: { changed, reason },
       }, tx);
     });
   } catch (error) {
@@ -169,6 +170,7 @@ export async function setUserActive(
   actor: SessionUser,
   userId: string,
   active: boolean,
+  reason?: string,
 ): Promise<void> {
   await assertCan(actor, "user:manage");
 
@@ -190,6 +192,7 @@ export async function setUserActive(
       action: active ? "user:activate" : "user:deactivate",
       targetType: "User",
       targetId: userId,
+      metadata: { reason },
     }, tx);
   });
 }
@@ -201,6 +204,7 @@ export async function setUserActive(
 export async function resetPassword(
   actor: SessionUser,
   userId: string,
+  reason?: string,
 ): Promise<{ tempPassword: string }> {
   await assertCan(actor, "user:manage");
 
@@ -224,7 +228,8 @@ export async function resetPassword(
       action: "user:reset-password",
       targetType: "User",
       targetId: userId,
-      // 임시 비밀번호는 감사로그에도 남기지 않는다.
+      // 임시 비밀번호는 감사로그에도 남기지 않는다. 사유는 남긴다.
+      metadata: { reason },
     }, tx);
   });
 

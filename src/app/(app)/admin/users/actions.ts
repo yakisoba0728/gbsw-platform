@@ -76,14 +76,15 @@ export async function setUserActiveAction(
   const parsed = setUserActiveSchema.safeParse({
     userId: formData.get("userId"),
     active: formData.get("active"),
+    reason: formData.get("reason"),
   });
   if (!parsed.success) {
     return fail(firstIssue(parsed.error, "상태를 바꾸지 못했습니다."));
   }
-  const { userId, active } = parsed.data;
+  const { userId, active, reason } = parsed.data;
 
   try {
-    await setUserActive(actor, userId, active);
+    await setUserActive(actor, userId, active, reason);
   } catch (error) {
     return fail(messageFor(error, "상태를 바꾸지 못했습니다."));
   }
@@ -98,14 +99,17 @@ export async function resetPasswordAction(
 ): Promise<UserActionState> {
   const actor = await requireAuth();
 
-  const parsed = userIdOnlySchema.safeParse({ userId: formData.get("userId") });
+  const parsed = userIdOnlySchema.safeParse({
+    userId: formData.get("userId"),
+    reason: formData.get("reason"),
+  });
   if (!parsed.success) {
     return fail(firstIssue(parsed.error, "비밀번호를 초기화하지 못했습니다."));
   }
-  const { userId } = parsed.data;
+  const { userId, reason } = parsed.data;
 
   try {
-    const { tempPassword } = await resetPassword(actor, userId);
+    const { tempPassword } = await resetPassword(actor, userId, reason);
     revalidate(userId);
     return { error: null, tempPassword, targetId: userId };
   } catch (error) {
@@ -181,6 +185,7 @@ export async function updateUserAction(
     grade: formData.get("grade") || undefined,
     classNo: formData.get("classNo") || undefined,
     number: formData.get("number") || undefined,
+    reason: formData.get("reason"),
   });
 
   if (!parsed.success) {
@@ -191,11 +196,11 @@ export async function updateUserAction(
     };
   }
 
-  // userId는 서비스가 따로 받는다. 입력 객체에 섞이면 안 된다.
-  const { userId, ...input } = parsed.data;
+  // userId와 사유는 서비스가 따로 받는다. 입력 객체에 섞이면 안 된다.
+  const { userId, reason, ...input } = parsed.data;
 
   try {
-    const { changed } = await updateUser(actor, userId, input);
+    const { changed } = await updateUser(actor, userId, input, reason);
     revalidate(userId);
     // 성공하면 제출값을 싣지 않는다 — 저장된 서버 값이 보여야 한다.
     return { error: null, changed, values: null };

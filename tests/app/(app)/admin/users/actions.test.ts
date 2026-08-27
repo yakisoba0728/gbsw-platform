@@ -106,7 +106,7 @@ describe("updateUserAction — 경계 검증", () => {
       grade: 1,
       classNo: 2,
       number: 13,
-    });
+    }, undefined);
     expect(state).toEqual({ error: null, changed: ["name"], values: null });
   });
 
@@ -320,13 +320,13 @@ describe("setUserActiveAction — 경계 검증", () => {
   it("ToggleActiveForm이 보내는 두 hidden input을 읽는다", async () => {
     await setUserActiveAction(USER_INITIAL, form({ userId: "u-1", active: "false" }));
 
-    expect(setUserActive).toHaveBeenCalledWith(expect.anything(), "u-1", false);
+    expect(setUserActive).toHaveBeenCalledWith(expect.anything(), "u-1", false, undefined);
   });
 
   it("active=\"true\"만 활성화로 읽는다", async () => {
     await setUserActiveAction(USER_INITIAL, form({ userId: "u-1", active: "true" }));
 
-    expect(setUserActive).toHaveBeenCalledWith(expect.anything(), "u-1", true);
+    expect(setUserActive).toHaveBeenCalledWith(expect.anything(), "u-1", true, undefined);
   });
 
   it("성공하면 목록과 상세를 함께 다시 그린다", async () => {
@@ -402,10 +402,24 @@ describe("resetPasswordAction — 경계 검증", () => {
   it("ResetPasswordForm이 보내는 userId 하나면 서비스까지 도달한다", async () => {
     const state = await resetPasswordAction(USER_INITIAL, form({ userId: "u-1" }));
 
-    expect(resetPassword).toHaveBeenCalledWith(expect.anything(), "u-1");
+    expect(resetPassword).toHaveBeenCalledWith(expect.anything(), "u-1", undefined);
     expect(state.tempPassword).toBe("temp-1234-abcd");
     // 화면이 "누구의 임시 비밀번호인지" 가릴 수 있어야 한다.
     expect(state.targetId).toBe("u-1");
+  });
+
+  // 확인 모달이 받은 사유. 담을 자리가 없어 감사로그 metadata로만 간다.
+  it("사유를 적으면 서비스까지 실려 간다", async () => {
+    await resetPasswordAction(
+      USER_INITIAL,
+      form({ userId: "u-1", reason: "본인이 분실 신고" }),
+    );
+
+    expect(resetPassword).toHaveBeenCalledWith(
+      expect.anything(),
+      "u-1",
+      "본인이 분실 신고",
+    );
   });
 
   it("실패하면 임시 비밀번호를 남기지 않는다", async () => {
