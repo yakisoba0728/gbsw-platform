@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { buttonClass } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Note } from "@/components/ui/note";
 import { SectionCard } from "@/components/ui/section-card";
@@ -25,7 +27,19 @@ export async function ParentView({ actor }: { actor: SessionUser }) {
 
   return (
     <div className="@container mx-auto max-w-3xl space-y-4">
-      <SectionCard title="확인이 필요한 신청" flush>
+      <SectionCard
+        title="확인이 필요한 신청"
+        // 판독은 메뉴에서 빠졌다 — 세 역할 모두 출입증 화면에서 들어간다.
+        aside={
+          <Link
+            href="/scan"
+            className={buttonClass({ variant: "secondary", size: "sm" })}
+          >
+            스캔
+          </Link>
+        }
+        flush
+      >
         {waiting.length === 0 ? (
           <EmptyState variant="inside">확인을 기다리는 신청이 없습니다.</EmptyState>
         ) : (

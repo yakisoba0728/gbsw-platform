@@ -48,13 +48,19 @@ export async function StudentView({ actor }: { actor: SessionUser }) {
         aside={
           <div className="flex flex-wrap items-center gap-2">
             <Link
+              href="/scan"
+              className={buttonClass({ variant: "secondary", size: "sm" })}
+            >
+              스캔
+            </Link>
+            <Link
               href="/pass/qr"
               className={buttonClass({ variant: "secondary", size: "sm" })}
             >
-              학생증 QR
+              학생증
             </Link>
             <Link href="/pass/new" className={buttonClass({ size: "sm" })}>
-              신청하기
+              신청
             </Link>
           </div>
         }

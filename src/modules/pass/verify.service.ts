@@ -21,6 +21,8 @@ export type Verdict =
   | "NOT_APPROVED"
   /** 승인된 것도, 결재를 기다리는 것도 없다. 정문에서 가장 흔한 답이다. */
   | "NO_PASS"
+  /** 형식은 맞는데 서명이 이 창의 것이 아니다 — 화면이 굳었다. */
+  | "STALE"
   | "UNKNOWN";
 
 export type VerifiedStudent = {
@@ -55,14 +57,28 @@ export async function verifyStudentQr(
   await assertCan(actor, "pass:verify");
 
   const detailed = can(actor, "pass:read:any");
-  const parsed = verifyStudentCode(code);
+  const parsed = verifyStudentCode(code, now);
 
-  // 서명조차 아니면 조회하지 않는다.
+  // 형식조차 아니면 조회하지 않는다.
   if (parsed === "MALFORMED") {
     return { verdict: "UNKNOWN", student: null, pass: null, detailed };
   }
 
   const year = await repo.displayYear();
+
+  // **STALE에서는 출입증을 싣지 않는다.** 이 갈래는 서명이 맞지 않은 채로
+  // 들어온 것이라, 프로필 id만 알면 누구나 도달할 수 있다. 이름·학번까지는
+  // 「김민준님, 화면을 새로 고쳐 주세요」를 말하는 데 필요해서 남긴다.
+  if (parsed === "STALE") {
+    const stale = await repo.findStudentForCard(profileIdOf(code), year);
+    return {
+      verdict: stale ? "STALE" : "UNKNOWN",
+      student: stale ? toVerifiedStudent(stale) : null,
+      pass: null,
+      detailed: false,
+    };
+  }
+
   const profile = await repo.findStudentForCard(parsed.studentProfileId, year);
   // 서명은 맞는데 학생이 없다 — 명단에서 빠진 뒤의 옛 코드다.
   if (!profile) {
@@ -81,6 +97,14 @@ export async function verifyStudentQr(
     pass: toVerifiedPass(picked.pass, detailed),
     detailed,
   };
+}
+
+/**
+ * STALE 갈래에서만 쓴다. `verifyStudentCode`가 MALFORMED를 이미 걸러낸 뒤라
+ * 점이 반드시 있고 앞이 비어 있지 않다 — null이 나올 자리가 없다.
+ */
+function profileIdOf(code: string): string {
+  return code.slice(0, code.indexOf("."));
 }
 
 type Picked = { verdict: Verdict; pass: repo.PassWithStudent };

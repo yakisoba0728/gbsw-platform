@@ -7,7 +7,6 @@ import {
   NAV_ITEMS,
   titleForPath,
   visibleChildren,
-  visibleItems,
   type NavItem,
 } from "@/components/app-shell/nav";
 
@@ -114,30 +113,19 @@ describe("설정 메뉴", () => {
   });
 });
 
-describe("QR 스캔 메뉴", () => {
-  const scan = NAV_ITEMS.find((item) => item.href === "/scan") as NavItem;
+describe("QR 스캔은 메뉴에 없다", () => {
   const pass = NAV_ITEMS.find((item) => item.href === "/pass") as NavItem;
 
-  it("최상위 한 줄이다 — 출입증 하위에서 나왔다", () => {
-    expect(scan).toBeDefined();
-    expect(scan.label).toBe("QR 스캔");
+  // 출입증 화면의 「스캔」 버튼으로 들어간다. 최상위에도, 출입증 하위에도 없다 —
+  // 하위에 두면 묶음을 펴야 닿고, 최상위는 하루에 몇 번 안 쓰는 사람에게 한 줄이
+  // 통째로 나간다.
+  it("최상위에도 하위에도 없다", () => {
+    expect(NAV_ITEMS.some((item) => item.href === "/scan")).toBe(false);
     expect(pass.children?.some((child) => child.href === "/scan")).toBe(false);
   });
 
-  // pass:verify가 ADMIN·STUDENT·PARENT 모두에게 열려 있다. 메뉴가 그보다
-  // 좁으면 권한이 있는데 길이 없는 화면이 된다.
-  it("세 역할 모두 본다", () => {
-    expect(scan.roles).toBeUndefined();
-    for (const role of ["ADMIN", "STUDENT", "PARENT"] as const) {
-      expect(visibleItems(NAV_ITEMS, role)).toContain(scan);
-    }
-  });
-
-  it("출입증과 아이콘이 다르다 — 나란히 서므로 같은 그림이면 못 가른다", () => {
-    expect(scan.icon).not.toBe(pass.icon);
-  });
-
-  it("상단바 제목이 기본값으로 떨어지지 않는다", () => {
+  // 메뉴에서 뺐다고 이름까지 없어지면 그 화면만 제목이 시스템 이름으로 떨어진다.
+  it("상단바 제목은 그대로 나온다", () => {
     expect(titleForPath("/scan")).toBe("QR 스캔");
     // /pass와 경로가 안 겹친다 — 겹치면 제목이 뒤바뀐다.
     expect(titleForPath("/pass")).toBe("출입증");
@@ -145,19 +133,25 @@ describe("QR 스캔 메뉴", () => {
 });
 
 describe("바텀탭 — 다섯 칸이 상한이다", () => {
-  it("교사는 다섯 칸이다 — 최상위 넷에 「최근 부여」 하나", () => {
+  it("교사는 넷이다 — 최상위 셋에 「최근 부여」 하나", () => {
     expect(bottomTabItems("ADMIN").map((item) => item.href)).toEqual([
       "/",
       "/merit",
       "/pass",
-      "/scan",
       "/merit/recent",
     ]);
   });
 
-  it("학생도 다섯, 학부모는 넷이다", () => {
-    expect(bottomTabItems("STUDENT")).toHaveLength(5);
-    expect(bottomTabItems("PARENT")).toHaveLength(4);
+  it("학생도 넷, 학부모는 셋이다", () => {
+    expect(bottomTabItems("STUDENT")).toHaveLength(4);
+    expect(bottomTabItems("PARENT")).toHaveLength(3);
+  });
+
+  // 판독이 빠져 한 칸이 비었다. 상한은 그대로 다섯이다.
+  it("아직 상한에 닿지 않았다", () => {
+    for (const role of ["ADMIN", "STUDENT", "PARENT"] as const) {
+      expect(bottomTabItems(role).length).toBeLessThanOrEqual(5);
+    }
   });
 
   // 320px 폰에서 한 칸이 61px이다. 네 글자(48px)까지가 들어가는 한계라,
@@ -312,8 +306,6 @@ describe("메뉴 링크가 실제 화면을 가리킨다", () => {
         "/merit/recent",
         "/pass",
         "/pass/history",
-        // 앱 셸 밖의 화면도 메뉴에 선다 — pageFiles가 그것을 알아야 한다.
-        "/scan",
         "/admin/merit/rules",
         "/admin/settings",
       ]),

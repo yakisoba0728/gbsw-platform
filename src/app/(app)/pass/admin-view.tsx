@@ -52,7 +52,7 @@ export async function AdminView({ actor }: { actor: SessionUser }) {
                   href="/scan"
                   className={buttonClass({ variant: "secondary", size: "sm" })}
                 >
-                  QR 스캔하기
+                  스캔
                 </Link>
               </div>
             }

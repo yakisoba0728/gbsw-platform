@@ -327,7 +327,7 @@ describe("getMyStudentQr", () => {
 
     expect(result.qr.size).toBeGreaterThan(20);
     expect(result.qr.d.startsWith("M")).toBe(true);
-    expect(result.url.startsWith("https://gbsw.example.kr/scan?c=")).toBe(true);
+    expect(typeof result.validUntil).toBe("string");
   });
 
   // **학생증의 성질이다.** 승인된 출입증이 하나도 없어도 나온다 — 학생증은
@@ -338,10 +338,13 @@ describe("getMyStudentQr", () => {
     expect(listForStudent).not.toHaveBeenCalled();
   });
 
-  it("같은 학생에게는 늘 같은 주소가 나온다", async () => {
-    const a = await service.getMyStudentQr(student);
-    const b = await service.getMyStudentQr(student);
-    expect(a.url).toBe(b.url);
+  // 20초마다 갈린다 — 찍어 둔 사진을 못 쓰게 하는 성질이다.
+  it("20초가 지나면 다른 코드가 나온다", async () => {
+    const at = new Date("2026-08-27T05:30:00.000Z");
+    const a = await service.getMyStudentQr(student, at);
+    const b = await service.getMyStudentQr(student, new Date(at.getTime() + 20_000));
+    expect(a.qr.d).not.toBe(b.qr.d);
+    expect(a.validUntil).not.toBe(b.validUntil);
   });
 
   // 교사·보호자에게는 없다. 남이 대신 띄울 수 있으면 학생증이 아니게 된다.

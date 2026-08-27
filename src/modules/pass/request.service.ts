@@ -209,15 +209,19 @@ export async function getPassDetail(actor: SessionUser, passId: string) {
  */
 export async function getMyStudentQr(
   actor: SessionUser,
-): Promise<{ qr: { size: number; d: string }; url: string }> {
+  now: Date = new Date(),
+): Promise<{ qr: { size: number; d: string }; validUntil: string }> {
   const profile = await repo.findStudentProfileByUserId(actor.id);
   if (!profile) {
     await recordDenied(actor, "pass:request", actor.id);
     throw new ForbiddenError("pass:request");
   }
 
-  const url = buildScanUrl(issueStudentCode(profile.id));
-  return { qr: toQrPath(url), url };
+  const { code, validUntil } = issueStudentCode(profile.id, now);
+  return {
+    qr: toQrPath(buildScanUrl(code)),
+    validUntil: validUntil.toISOString(),
+  };
 }
 
 /** can()으로 못 가르는 거부. 거부 기록과 ForbiddenError를 같은 방식으로 맞춘다. */

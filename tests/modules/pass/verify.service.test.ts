@@ -60,7 +60,7 @@ function pass(over: Record<string, unknown> = {}) {
   };
 }
 
-const code = () => issueStudentCode(PROFILE_ID);
+const code = () => issueStudentCode(PROFILE_ID, NOW).code;
 
 beforeEach(() => {
   process.env.BETTER_AUTH_SECRET = "test-secret-for-pass-token-0123456789";
@@ -108,6 +108,22 @@ describe("verifyStudentQr", () => {
 
     expect(result.verdict).toBe("UNKNOWN");
     expect(result.student).toBeNull();
+    expect(listForVerify).not.toHaveBeenCalled();
+  });
+
+  /**
+   * 두 스텝 지난 코드. 학생 화면이 굳었다는 뜻이라 **누구의 화면인지는 말하고**
+   * 출입증은 싣지 않는다 — 이 갈래는 서명이 안 맞은 채로 들어오므로 프로필
+   * id만 알면 누구나 도달할 수 있다.
+   */
+  it("지난 코드는 STALE이고 이름만 나온다", async () => {
+    const later = new Date(NOW.getTime() + 60_000);
+    const result = await service.verifyStudentQr(admin, code(), later);
+
+    expect(result.verdict).toBe("STALE");
+    expect(result.student?.studentName).toBe("김민준");
+    expect(result.pass).toBeNull();
+    expect(result.detailed).toBe(false);
     expect(listForVerify).not.toHaveBeenCalled();
   });
 

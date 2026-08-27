@@ -4,7 +4,6 @@ import {
   LogIcon,
   MeritIcon,
   QrIcon,
-  ScanIcon,
   SlidersIcon,
   UsersIcon,
 } from "@/components/icons";
@@ -79,21 +78,10 @@ export const NAV_ITEMS: NavItem[] = [
       { href: "/pass/history", label: "전체 내역", roles: ["ADMIN"] },
     ],
   },
-  {
-    // 판독 화면은 앱 셸 밖이라 여기서 나가면 사이드바가 사라진다. 그래도
-    // 메뉴에 두는 이유는 정문에서 가장 자주 여는 화면이어서다 — 화면 안의
-    // 버튼으로만 두면 매번 출입증을 거쳐야 한다.
-    //
-    // 「출입증」 하위가 아니라 최상위다: 판정은 출입증을 **읽는** 일이라
-    // 신청·결재와 흐름이 다르고, 하위에 있으면 묶음을 펴야 닿는다.
-    // 역할도 걸지 않는다 — `pass:verify`가 세 역할 모두에게 열려 있고
-    // (나오는 것은 이름·학번·유형·유효 시각뿐이다), 살아 있는 QR을 손에
-    // 쥔 사람은 학생 화면 앞에 서 있는 사람이다.
-    href: "/scan",
-    label: "QR 스캔",
-    shortLabel: "스캔",
-    icon: ScanIcon,
-  },
+  // 판독(`/scan`)은 메뉴에 없다. 출입증 화면의 「스캔」 버튼으로 들어간다 —
+  // 앱 셸 밖에 사는 화면이라 메뉴에서 나가면 사이드바가 사라지고, 최상위 한
+  // 줄을 그것에 내주기에는 하루에 몇 번 쓰지 않는 사람이 더 많다.
+  // 제목은 EXTRA_TITLES가 맡는다.
   {
     href: "/parent-invite",
     label: "학부모 초대",
@@ -129,9 +117,9 @@ export const ADMIN_NAV_ITEMS: NavItem[] = [
 ];
 
 /**
- * 하단 탭에 세울 항목. 교사에게 NAV_ITEMS는 대시보드·상벌점·출입증·QR 스캔
- * 넷이고(학부모 초대는 학생 전용), 여기에 「최근 부여」를 더해 다섯이 된다.
- * 학생도 다섯(넷 + 학부모 초대), 학부모는 넷이다.
+ * 하단 탭에 세울 항목. 교사에게 NAV_ITEMS는 대시보드·상벌점·출입증 셋이고
+ * (학부모 초대는 학생 전용), 여기에 「최근 부여」를 더해 넷이 된다.
+ * 학생도 넷(셋 + 학부모 초대), 학부모는 셋이다.
  *
  * **다섯이 상한이다.** 320px 폰에서 한 칸이 61px이고 가장 긴 라벨이 네 글자
  * (「대시보드」 48px)라 아직 들어간다 — 여섯 번째가 생기면 라벨이 먼저 깨지므로
@@ -170,6 +158,9 @@ export function visibleChildren(item: NavItem, role: Role | null): NavChild[] {
  */
 const EXTRA_TITLES: { href: string; label: string }[] = [
   { href: "/students", label: "학생" },
+  // 판독 화면은 앱 셸 밖이라 상단바를 안 그리지만, 제목 찾기는 여기 한 곳이
+  // 소유한다 — 메뉴에서 뺐다고 이름까지 없어지면 안 된다.
+  { href: "/scan", label: "QR 스캔" },
 ];
 
 /** 모든 메뉴(하위 포함)를 한 줄로 편다. 상단바 제목 찾기에 쓴다. */

@@ -28,6 +28,7 @@ export const VERDICT_LABELS: Record<Verdict, string> = {
   EXPIRED: "기간 지남",
   NOT_APPROVED: "승인 전",
   NO_PASS: "출입증 없음",
+  STALE: "코드가 지났음",
   UNKNOWN: "알 수 없는 코드",
 };
 
@@ -38,6 +39,7 @@ export const VERDICT_HINTS: Record<Verdict, string> = {
   EXPIRED: "유효 기간이 끝났습니다.",
   NOT_APPROVED: "아직 선생님이 승인하지 않았습니다.",
   NO_PASS: "신청된 외출·외박이 없습니다.",
+  STALE: "학생 화면을 새로 고쳐 다시 보여 달라고 하세요.",
   UNKNOWN: "우리 학생증 코드가 아닙니다.",
 };
 
@@ -47,6 +49,7 @@ export const VERDICT_TONES: Record<Verdict, BadgeTone> = {
   EXPIRED: "cancelled",
   NOT_APPROVED: "pending",
   NO_PASS: "rejected",
+  STALE: "pending",
   UNKNOWN: "rejected",
 };
 
