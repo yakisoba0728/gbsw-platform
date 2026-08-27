@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { ConfirmSubmit } from "@/components/ui/confirm-submit";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
 import { PASS_TYPE_LABELS, PASS_TYPES, type PassType } from "@/core/authz/pass-type";
@@ -131,9 +132,14 @@ export function RequestForm({ today }: { today: string }) {
         </Note>
       )}
 
-      <Button type="submit" size="lg" full disabled={pending}>
-        {pending ? "신청하는 중…" : "신청"}
-      </Button>
+      <ConfirmSubmit
+        label="신청"
+        title="출입증 신청"
+        description="적은 내용으로 신청합니다. 승인 전까지는 취소할 수 있습니다."
+        confirmLabel="신청"
+        pendingLabel="신청하는 중…"
+        pending={pending}
+      />
     </form>
   );
 }

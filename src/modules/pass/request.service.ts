@@ -94,7 +94,7 @@ export async function withdrawPass(
         cancelledByUserId: actor.id,
         cancelledByName: actor.name,
         cancelledAt: new Date(),
-        cancelReason: null,
+        cancelReason: input.reason ?? null,
       },
       tx,
     );
@@ -107,7 +107,7 @@ export async function withdrawPass(
         action: "pass:cancel",
         targetType: "Pass",
         targetId: input.passId,
-        metadata: { type: pass.type, byOwner: true },
+        metadata: { type: pass.type, byOwner: true, reason: input.reason },
       },
       tx,
     );
@@ -157,7 +157,7 @@ export async function consentPass(
         action: "pass:consent",
         targetType: "Pass",
         targetId: input.passId,
-        metadata: { type: pass.type },
+        metadata: { type: pass.type, reason: input.consentNote },
       },
       tx,
     );

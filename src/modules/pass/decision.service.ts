@@ -88,6 +88,7 @@ export async function approvePass(
           byProxy,
           startAt: pass.startAt.toISOString(),
           endAt: pass.endAt.toISOString(),
+          reason: input.consentNote,
         },
       },
       tx,

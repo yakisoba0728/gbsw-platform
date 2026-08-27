@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { StudentPicker, type PickerStudent } from "@/components/students/student-picker";
 import { Button } from "@/components/ui/button";
+import { ConfirmSubmit } from "@/components/ui/confirm-submit";
 import { CheckboxField } from "@/components/ui/checkbox";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
@@ -131,9 +132,15 @@ export function IssueForm({
         </Note>
       )}
 
-      <Button type="submit" full disabled={pending}>
-        {pending ? "부여하는 중…" : "바로 부여"}
-      </Button>
+      <ConfirmSubmit
+        label="바로 부여"
+        title="출입증 바로 부여"
+        description="결재 없이 곧바로 승인 상태로 만듭니다."
+        confirmLabel="부여"
+        pendingLabel="부여하는 중…"
+        pending={pending}
+        size="md"
+      />
     </form>
   );
 }

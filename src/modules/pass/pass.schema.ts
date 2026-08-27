@@ -138,7 +138,11 @@ export const consentPassSchema = z.object({
 });
 export type ConsentPassInput = z.infer<typeof consentPassSchema>;
 
-export const withdrawPassSchema = z.object({ passId: id });
+export const withdrawPassSchema = z.object({
+  passId: id,
+  /** 감사로그 metadata로만 간다 — Pass 행에 담을 자리가 없다. */
+  reason: optionalText(200),
+});
 export type WithdrawPassInput = z.infer<typeof withdrawPassSchema>;
 
 /** 판독 화면이 받는 학생증 코드. 길이만 본다 — 모양 판정은 verifyStudentCode가 한다. */

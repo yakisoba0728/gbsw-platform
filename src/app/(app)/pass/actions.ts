@@ -104,7 +104,10 @@ export async function withdrawAction(
 ): Promise<PassActionState> {
   const actor = await requireAuth();
 
-  const parsed = withdrawPassSchema.safeParse({ passId: formData.get("passId") });
+  const parsed = withdrawPassSchema.safeParse({
+    passId: formData.get("passId"),
+    reason: formData.get("reason"),
+  });
   if (!parsed.success) return fail("출입증을 찾을 수 없습니다.");
 
   try {

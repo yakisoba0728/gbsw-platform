@@ -180,7 +180,7 @@ describe("withdrawPass", () => {
   });
 
   it("본인 신청이면 취소하고 감사로그를 남긴다", async () => {
-    await service.withdrawPass(student, { passId: "p-1" });
+    await service.withdrawPass(student, { passId: "p-1", reason: null });
 
     expect(transition).toHaveBeenCalledWith(
       "p-1",
@@ -196,6 +196,25 @@ describe("withdrawPass", () => {
     ]);
   });
 
+  // 확인 모달이 받은 사유가 가는 곳. Pass 행의 취소 사유 칸과 감사로그 둘 다다 —
+  // 앞은 학생 화면이 읽고, 뒤는 나중에 「왜 그랬나」를 되짚는 자료가 된다.
+  it("사유를 적으면 취소 사유와 감사로그에 함께 남는다", async () => {
+    await service.withdrawPass(student, { passId: "p-1", reason: "일정이 바뀜" });
+
+    expect(transition).toHaveBeenCalledWith(
+      "p-1",
+      ["REQUESTED", "CONSENTED"],
+      expect.objectContaining({ cancelReason: "일정이 바뀜" }),
+      txClient,
+    );
+    expect(auditEntries()).toEqual([
+      expect.objectContaining({
+        action: "pass:cancel",
+        metadata: expect.objectContaining({ reason: "일정이 바뀜" }),
+      }),
+    ]);
+  });
+
   it("남의 신청은 ForbiddenError이고 거부가 감사로그에 남는다", async () => {
     findPass.mockResolvedValue({
       id: "p-1",
@@ -204,7 +223,7 @@ describe("withdrawPass", () => {
       status: "REQUESTED",
     });
 
-    await expect(service.withdrawPass(student, { passId: "p-1" })).rejects.toThrow(
+    await expect(service.withdrawPass(student, { passId: "p-1", reason: null })).rejects.toThrow(
       ForbiddenError,
     );
     expect(transition).not.toHaveBeenCalled();
@@ -222,7 +241,7 @@ describe("withdrawPass", () => {
       status: "APPROVED",
     });
 
-    await expect(service.withdrawPass(student, { passId: "p-1" })).rejects.toThrow(
+    await expect(service.withdrawPass(student, { passId: "p-1", reason: null })).rejects.toThrow(
       new PassError("ALREADY_DECIDED"),
     );
     expect(auditEntries()).toEqual([]);
@@ -230,7 +249,7 @@ describe("withdrawPass", () => {
 
   it("없는 출입증은 PASS_NOT_FOUND", async () => {
     findPass.mockResolvedValue(null);
-    await expect(service.withdrawPass(student, { passId: "nope" })).rejects.toThrow(
+    await expect(service.withdrawPass(student, { passId: "nope", reason: null })).rejects.toThrow(
       new PassError("PASS_NOT_FOUND"),
     );
   });
