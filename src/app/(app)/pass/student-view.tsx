@@ -25,8 +25,10 @@ function isUsableNow(pass: MyPass, now: Date): boolean {
 
 /**
  * 학생 화면은 목록 하나다. **QR을 여기에 띄우지 않는다** — 화면을 여는 순간
- * 코드가 뜨면 손에 든 채로 지나가는 눈에 그대로 보이고, 여러 건을 들고 있을 때
- * 어느 것이 뜬 것인지 학생도 모른다. 고른 한 건의 QR은 `/pass/{id}`가 띄운다.
+ * 코드가 뜨면 손에 든 채로 지나가는 눈에 그대로 보인다. 눌러야 뜬다.
+ *
+ * 누를 자리는 이제 목록이 아니라 머리글의 「학생증」 한 곳이다. QR이 출입증
+ * 한 건이 아니라 사람에 붙게 되면서, 줄마다 따로 열 것이 없어졌다.
  */
 export async function StudentView({ actor }: { actor: SessionUser }) {
   const passes = await getMyPasses(actor);
@@ -45,9 +47,17 @@ export async function StudentView({ actor }: { actor: SessionUser }) {
             : "지금 유효한 출입증이 없습니다."
         }
         aside={
-          <Link href="/pass/new" className={buttonClass({ size: "sm" })}>
-            신청하기
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/pass/qr"
+              className={buttonClass({ variant: "secondary", size: "sm" })}
+            >
+              학생증 QR
+            </Link>
+            <Link href="/pass/new" className={buttonClass({ size: "sm" })}>
+              신청하기
+            </Link>
+          </div>
         }
         flush
       >
@@ -64,22 +74,9 @@ export async function StudentView({ actor }: { actor: SessionUser }) {
 
               return (
                 <PassCard key={pass.id} pass={pass}>
-                  {usable && (
-                    <div className="flex items-center gap-2">
-                      <Badge tone="info">지금 유효</Badge>
-                      {/* 줄 전체가 아니라 이 버튼이 폰에서 누를 자리다 —
-                          유형 이름에 걸린 링크는 표적이 글자만 하다. */}
-                      <Link
-                        href={`/pass/${pass.id}`}
-                        className={buttonClass({
-                          variant: "secondary",
-                          size: "sm",
-                        })}
-                      >
-                        QR 보기
-                      </Link>
-                    </div>
-                  )}
+                  {/* 「QR 보기」가 여기 있었다. QR이 출입증마다가 아니라 사람에
+                      붙으면서 줄마다 열 것이 없어졌다 — 배지만 남는다. */}
+                  {usable && <Badge tone="info">지금 유효</Badge>}
                   {withdrawable && <WithdrawButton passId={pass.id} />}
                 </PassCard>
               );

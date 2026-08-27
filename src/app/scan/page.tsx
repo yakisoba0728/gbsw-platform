@@ -6,11 +6,11 @@ import { Note } from "@/components/ui/note";
 import { getSessionUser } from "@/core/auth/session";
 import { ForbiddenError } from "@/core/authz/errors";
 import { scanOrigin } from "@/modules/pass/pass.url";
-import { verifyPassToken, type VerifyResult } from "@/modules/pass/verify.service";
+import { verifyStudentQr, type VerifyResult } from "@/modules/pass/verify.service";
 import { Scanner } from "./scanner";
 import { VerdictCard } from "./verdict-card";
 
-export const metadata: Metadata = { title: "출입증 확인" };
+export const metadata: Metadata = { title: "학생증 확인" };
 
 /**
  * 판독 화면. **`(app)` 밖이다** — 앱 셸의 layout은 자기 경로를 몰라 `/login`으로
@@ -26,12 +26,12 @@ export default async function ScanPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { c } = await searchParams;
-  const token = typeof c === "string" ? c : null;
+  const code = typeof c === "string" ? c : null;
 
   const user = await getSessionUser();
   if (!user || user.status !== "ACTIVE" || user.deletedAt) {
     // 질의 문자열까지 살려야 한다 — 그게 판정할 코드다.
-    const back = token ? `/scan?c=${token}` : "/scan";
+    const back = code ? `/scan?c=${code}` : "/scan";
     redirect(`/login?next=${encodeURIComponent(back)}`);
   }
   // (app) 레이아웃이 하는 가로채기를 여기서도 한다.
@@ -41,9 +41,9 @@ export default async function ScanPage({
   // 행을 만들면 안 된다.
   let result: VerifyResult | null = null;
   let error: string | null = null;
-  if (token) {
+  if (code) {
     try {
-      result = await verifyPassToken(user, token);
+      result = await verifyStudentQr(user, code);
     } catch (caught) {
       if (caught instanceof ForbiddenError) {
         error = "이 계정으로는 확인할 수 없습니다.";
@@ -55,7 +55,7 @@ export default async function ScanPage({
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-4 p-4">
-      <h1 className="text-center text-lg font-semibold text-ink">출입증 확인</h1>
+      <h1 className="text-center text-lg font-semibold text-ink">학생증 확인</h1>
 
       {error && <Note tone="error">{error}</Note>}
       {result && <VerdictCard result={result} />}

@@ -88,7 +88,7 @@ src/
                           (app/(app)/admin/merit/rules · app/(app)/merit ·
                           app/(app)/merit/stats).
     pass/                전자출입증(외출·외박). merit과 같은 모양이되 순수 함수 조각이
-                          더 있다 — pass.token.ts(HMAC 토큰, 시계를 인자로 받는다)·
+                          더 있다 — pass.token.ts(학생증 코드. HMAC 하나, 시계를 모른다)·
                           pass.qr.ts(uqr → SVG path, 서버 전용)·pass.url.ts·
                           pass.window.ts(유형별 유효 창). 서비스는 request·decision·
                           verify 셋이다.
@@ -235,9 +235,16 @@ account에서 시작해 모듈이 커지면 merit의 모양으로 간다.
 - **앱·DB는 `127.0.0.1`에만 묶는다.** 리버스 프록시가 같은 호스트에서 받아 넘긴다.
   0.0.0.0에 열면 세션 쿠키가 평문으로 흐르고 `x-forwarded-for`(감사로그의 접속 IP)를
   누구나 위조할 수 있다. 배포 절차는 `docs/deploy.md`.
-- **출입증 QR은 `BETTER_AUTH_URL`을 가리킨다.** 앱은 `127.0.0.1`에만 묶여 공개 주소를
+- **QR은 출입증이 아니라 학생증이다.** 학생 한 명에 코드 하나가 붙고 **바뀌지 않는다** —
+  정문에서 찍으면 그때 서버가 「이 학생이 지금 나가도 되는가」를 판정한다. 그래서 사진을
+  찍어 둔 학생증은 영원히 통하지만, 그것으로 얻는 것은 남의 이름이 뜨는 화면뿐이다
+  (허가가 아니라 신원이고, 판독 화면 자체가 로그인을 요구한다). **한 명만 재발급할 길은
+  없다** — 코드를 갈려면 `pass.token.ts`의 HKDF info(`gbsw-student-qr-v1`)를 올려야 하고
+  그러면 전교가 한꺼번에 바뀐다.
+- **학생증 QR은 `BETTER_AUTH_URL`을 가리킨다.** 앱은 `127.0.0.1`에만 묶여 공개 주소를
   요청 헤더로 알 수 없다. 서명 키도 `BETTER_AUTH_SECRET`에서 HKDF로 파생하므로, 그 값을
-  바꾸면 **그 순간 살아 있던 QR이 전부 무효가 된다** (학생이 화면을 새로 고치면 된다).
+  바꾸면 **그 순간 모든 학생증이 무효가 된다.** 화면은 새로 고치면 되지만 인쇄해 둔
+  것은 다시 뽑아야 한다.
 - **부분 유니크 인덱스는 마이그레이션 SQL에만 있다.** `AcademicYear_single_current`
   (현재 학년도는 하나뿐)가 그렇다 — Prisma가 표현하지 못해 `schema.prisma`에 선언이 없고,
   그래서 다음 `migrate dev`가 이것을 군더더기로 보고 `DROP INDEX`를 만들 수 있다. 드롭돼도

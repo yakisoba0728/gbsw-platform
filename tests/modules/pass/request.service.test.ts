@@ -316,68 +316,42 @@ describe("getMyPasses", () => {
   });
 });
 
-describe("getPassQr", () => {
+describe("getMyStudentQr", () => {
   beforeEach(() => {
     process.env.BETTER_AUTH_SECRET = "test-secret-for-pass-token-0123456789";
     process.env.BETTER_AUTH_URL = "https://gbsw.example.kr";
-    findPass.mockResolvedValue({
-      id: "p-1",
-      studentProfileId: "sp-1",
-      type: "OUTING",
-      status: "APPROVED",
-      startAt: new Date("2026-08-27T05:00:00.000Z"),
-      endAt: new Date("2026-08-27T09:00:00.000Z"),
-    });
   });
 
-  it("본인의 승인된 출입증이면 QR을 준다", async () => {
-    const result = await service.getPassQr(student, "p-1", new Date("2026-08-27T06:00:00.000Z"));
+  it("학생 본인에게 QR과 주소를 준다", async () => {
+    const result = await service.getMyStudentQr(student);
+
     expect(result.qr.size).toBeGreaterThan(20);
     expect(result.qr.d.startsWith("M")).toBe(true);
-    expect(typeof result.validUntil).toBe("string");
+    expect(result.url.startsWith("https://gbsw.example.kr/scan?c=")).toBe(true);
   });
 
-  it("교사도 볼 수 있다 (학생 폰이 없을 때 대신 보여준다)", async () => {
-    await expect(
-      service.getPassQr(admin, "p-1", new Date("2026-08-27T06:00:00.000Z")),
-    ).resolves.toBeDefined();
+  // **학생증의 성질이다.** 승인된 출입증이 하나도 없어도 나온다 — 학생증은
+  // 승인의 결과물이 아니라 신원이고, 찍었을 때 「출입증 없음」이 정상적인 답이다.
+  it("승인된 출입증이 없어도 준다 — 출입증을 아예 조회하지 않는다", async () => {
+    await expect(service.getMyStudentQr(student)).resolves.toBeDefined();
+    expect(findPass).not.toHaveBeenCalled();
+    expect(listForStudent).not.toHaveBeenCalled();
   });
 
-  it("남의 출입증은 ForbiddenError다", async () => {
-    findPass.mockResolvedValue({
-      id: "p-1",
-      studentProfileId: "sp-other",
-      type: "OUTING",
-      status: "APPROVED",
-      startAt: new Date("2026-08-27T05:00:00.000Z"),
-      endAt: new Date("2026-08-27T09:00:00.000Z"),
-    });
-    await expect(service.getPassQr(student, "p-1")).rejects.toThrow(ForbiddenError);
+  it("같은 학생에게는 늘 같은 주소가 나온다", async () => {
+    const a = await service.getMyStudentQr(student);
+    const b = await service.getMyStudentQr(student);
+    expect(a.url).toBe(b.url);
   });
 
-  it("승인 전이면 QR이 없다", async () => {
-    findPass.mockResolvedValue({
-      id: "p-1",
-      studentProfileId: "sp-1",
-      type: "OUTING",
-      status: "REQUESTED",
-      startAt: new Date("2026-08-27T05:00:00.000Z"),
-      endAt: new Date("2026-08-27T09:00:00.000Z"),
-    });
-    await expect(service.getPassQr(student, "p-1")).rejects.toThrow(
-      new PassError("PASS_NOT_ACTIVE"),
-    );
-  });
-
-  it("기간이 지났으면 QR이 없다", async () => {
-    await expect(
-      service.getPassQr(student, "p-1", new Date("2026-08-28T00:00:00.000Z")),
-    ).rejects.toThrow(new PassError("PASS_NOT_ACTIVE"));
-  });
-
-  it("아직 시작 전이어도 QR은 준다 — 화면이 「14:00부터」라고 적는다", async () => {
-    await expect(
-      service.getPassQr(student, "p-1", new Date("2026-08-27T04:00:00.000Z")),
-    ).resolves.toBeDefined();
+  // 교사·보호자에게는 없다. 남이 대신 띄울 수 있으면 학생증이 아니게 된다.
+  it.each([
+    ["교사", "admin"],
+    ["학부모", "parent"],
+  ])("%s는 학생 프로필이 없어 ForbiddenError다", async (_label, who) => {
+    findStudentProfileByUserId.mockResolvedValue(null);
+    const actor = who === "admin" ? admin : parent;
+    await expect(service.getMyStudentQr(actor)).rejects.toThrow(ForbiddenError);
+    expect(recordAudit).toHaveBeenCalled();
   });
 });

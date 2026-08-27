@@ -18,15 +18,16 @@ export const PASS_STATUS_TONES: Record<PassStatus, BadgeTone> = {
   CANCELLED: "cancelled",
 };
 
-/** 정문에서 팔 뻗은 거리로 읽는 한 마디. */
+/**
+ * 정문에서 팔 뻗은 거리로 읽는 한 마디. **판정의 주어는 학생이다** —
+ * 「이 출입증이 유효한가」가 아니라 「이 학생이 지금 나가도 되는가」다.
+ */
 export const VERDICT_LABELS: Record<Verdict, string> = {
-  VALID: "유효",
+  VALID: "나가도 됨",
   NOT_YET: "아직 시작 전",
   EXPIRED: "기간 지남",
   NOT_APPROVED: "승인 전",
-  REJECTED: "반려됨",
-  CANCELLED: "취소됨",
-  STALE: "코드가 지났음",
+  NO_PASS: "출입증 없음",
   UNKNOWN: "알 수 없는 코드",
 };
 
@@ -36,10 +37,8 @@ export const VERDICT_HINTS: Record<Verdict, string> = {
   NOT_YET: "시작 시각 전입니다.",
   EXPIRED: "유효 기간이 끝났습니다.",
   NOT_APPROVED: "아직 선생님이 승인하지 않았습니다.",
-  REJECTED: "반려된 신청입니다.",
-  CANCELLED: "취소된 출입증입니다.",
-  STALE: "학생 화면을 새로 고쳐 다시 보여 달라고 하세요.",
-  UNKNOWN: "우리 출입증 코드가 아닙니다.",
+  NO_PASS: "신청된 외출·외박이 없습니다.",
+  UNKNOWN: "우리 학생증 코드가 아닙니다.",
 };
 
 export const VERDICT_TONES: Record<Verdict, BadgeTone> = {
@@ -47,9 +46,7 @@ export const VERDICT_TONES: Record<Verdict, BadgeTone> = {
   NOT_YET: "pending",
   EXPIRED: "cancelled",
   NOT_APPROVED: "pending",
-  REJECTED: "rejected",
-  CANCELLED: "cancelled",
-  STALE: "pending",
+  NO_PASS: "rejected",
   UNKNOWN: "rejected",
 };
 

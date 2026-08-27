@@ -1,23 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionUser } from "@/core/auth/session";
 
-const createPass = vi.fn();
-const findPassForVerify = vi.fn();
-const transition = vi.fn();
+const listForVerify = vi.fn();
+const findStudentForCard = vi.fn();
 const displayYear = vi.fn();
 const recordAudit = vi.fn();
 
 vi.mock("@/modules/pass/pass.repo", () => ({
-  createPass,
-  findPassForVerify,
-  transition,
+  listForVerify,
+  findStudentForCard,
   displayYear,
 }));
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
 
 const { ForbiddenError } = await import("@/core/authz/errors");
 const service = await import("@/modules/pass/verify.service");
-const { issueToken } = await import("@/modules/pass/pass.token");
+const { issueStudentCode } = await import("@/modules/pass/pass.token");
 
 function user(role: SessionUser["role"], id: string): SessionUser {
   return {
@@ -35,159 +33,189 @@ const student = user("STUDENT", "u-student");
 const parent = user("PARENT", "u-parent");
 const admin = user("ADMIN", "u-admin");
 
+const PROFILE_ID = "clx0000000000000000000abc";
 const NOW = new Date("2026-08-27T06:00:00.000Z"); // 15:00 KST
 
-function stored(over: Record<string, unknown> = {}) {
+/** 학생증 QR에서 나오는 프로필. 이름·학번은 여기서만 온다. */
+function profile() {
   return {
-    id: "clx0000000000000000000abc",
-    studentProfileId: "sp-1",
+    id: PROFILE_ID,
+    user: { id: "u-1", name: "김민준", role: "STUDENT" },
+    enrollments: [{ number: 7, schoolClass: { grade: 1, classNo: 3 } }],
+  };
+}
+
+function pass(over: Record<string, unknown> = {}) {
+  return {
+    id: "p-1",
+    studentProfileId: PROFILE_ID,
     type: "OUTING",
     status: "APPROVED",
     startAt: new Date("2026-08-27T05:00:00.000Z"), // 14:00
     endAt: new Date("2026-08-27T09:00:00.000Z"), // 18:00
     destination: "치과",
     reason: "정기 검진",
-    studentProfile: {
-      id: "sp-1",
-      user: { id: "u-1", name: "김민준", role: "STUDENT" },
-      enrollments: [{ number: 7, schoolClass: { grade: 1, classNo: 3 } }],
-    },
+    studentProfile: profile(),
     ...over,
   };
 }
 
-function tokenFor(passId = "clx0000000000000000000abc", at = NOW): string {
-  return issueToken(passId, at).token;
-}
+const code = () => issueStudentCode(PROFILE_ID);
 
 beforeEach(() => {
   process.env.BETTER_AUTH_SECRET = "test-secret-for-pass-token-0123456789";
-  createPass.mockReset().mockResolvedValue({ id: "p-1" });
-  findPassForVerify.mockReset().mockResolvedValue(null);
-  transition.mockReset().mockResolvedValue(1);
+  listForVerify.mockReset().mockResolvedValue([]);
+  findStudentForCard.mockReset().mockResolvedValue(profile());
   displayYear.mockReset().mockResolvedValue(2026);
   recordAudit.mockReset().mockResolvedValue(undefined);
 });
 
-describe("verifyPassToken", () => {
-  it("유효한 창 안이면 VALID이고 이름·학번이 나온다", async () => {
-    findPassForVerify.mockResolvedValue(stored());
-    const result = await service.verifyPassToken(admin, tokenFor(), NOW);
+describe("verifyStudentQr", () => {
+  it("지금 시각을 품은 승인 건이 있으면 VALID이고 이름·학번이 나온다", async () => {
+    listForVerify.mockResolvedValue([pass()]);
+    const result = await service.verifyStudentQr(admin, code(), NOW);
 
     expect(result.verdict).toBe("VALID");
-    expect(result.pass?.studentName).toBe("김민준");
-    expect(result.pass?.studentNumber).toBe("1307");
+    expect(result.student).toMatchObject({
+      studentName: "김민준",
+      studentNumber: "1307",
+    });
+    expect(result.pass?.type).toBe("OUTING");
   });
 
-  it.each([
-    ["아직 시작 전", new Date("2026-08-27T04:30:00.000Z"), "NOT_YET"],
-    ["기간이 지남", new Date("2026-08-27T10:00:00.000Z"), "EXPIRED"],
-  ])("%s → %s", async (_label, at, expected) => {
-    findPassForVerify.mockResolvedValue(stored());
-    // 토큰은 그 시각의 것이어야 STALE로 안 떨어진다
-    const result = await service.verifyPassToken(admin, tokenFor(undefined, at), at);
-    expect(result.verdict).toBe(expected);
-  });
+  // **학생증은 먼저 누구인지를 말한다.** 나갈 것이 없어도 이름이 뜬다 —
+  // 정문에서 사람과 화면을 맞춰 보는 일이 이 코드가 하는 일의 절반이다.
+  it("승인된 것도 대기 중인 것도 없으면 NO_PASS인데 학생은 나온다", async () => {
+    listForVerify.mockResolvedValue([]);
+    const result = await service.verifyStudentQr(admin, code(), NOW);
 
-  it.each([
-    ["REQUESTED", "NOT_APPROVED"],
-    ["CONSENTED", "NOT_APPROVED"],
-    ["REJECTED", "REJECTED"],
-    ["CANCELLED", "CANCELLED"],
-  ])("상태 %s → %s", async (status, expected) => {
-    findPassForVerify.mockResolvedValue(stored({ status }));
-    const result = await service.verifyPassToken(admin, tokenFor(), NOW);
-    expect(result.verdict).toBe(expected);
-  });
-
-  it("20초가 두 번 지난 토큰은 STALE이고 이름은 그대로 보인다", async () => {
-    findPassForVerify.mockResolvedValue(stored());
-    const old = tokenFor(undefined, new Date(NOW.getTime() - 60_000));
-    const result = await service.verifyPassToken(admin, old, NOW);
-
-    expect(result.verdict).toBe("STALE");
-    // 「김민준 학생, 화면을 새로 고쳐 주세요」를 말할 수 있어야 한다
-    expect(result.pass?.studentName).toBe("김민준");
-  });
-
-  it("STALE에서는 교사에게도 사유·행선지가 안 나온다 — 서명이 안 맞은 길이다", async () => {
-    findPassForVerify.mockResolvedValue(stored());
-    // passId만 알면 아무 서명이나 붙여 여기까지 올 수 있다. 이름·유형·기간은
-    // 「누구의 화면이 굳었는지」를 말하는 데 필요해 남기고, 그보다 안쪽은 닫는다.
-    const forged = "clx0000000000000000000abc.AAAAAAAAAAAAAAAA";
-    const result = await service.verifyPassToken(admin, forged, NOW);
-
-    expect(result.verdict).toBe("STALE");
-    expect(result.pass?.studentName).toBe("김민준");
-    expect(result.detailed).toBe(false);
-    expect(result.pass?.destination).toBeNull();
-    expect(result.pass?.reason).toBeNull();
-  });
-
-  it("서명은 지났는데 그 출입증이 아예 없으면 UNKNOWN이다", async () => {
-    findPassForVerify.mockResolvedValue(null);
-    const old = tokenFor(undefined, new Date(NOW.getTime() - 60_000));
-    const result = await service.verifyPassToken(admin, old, NOW);
-
-    expect(result.verdict).toBe("UNKNOWN");
+    expect(result.verdict).toBe("NO_PASS");
+    expect(result.student?.studentName).toBe("김민준");
     expect(result.pass).toBeNull();
   });
 
-  it("형식이 아니면 조회조차 하지 않는다", async () => {
-    const result = await service.verifyPassToken(admin, "아무 글자", NOW);
+  it("서명이 안 맞으면 조회조차 하지 않는다", async () => {
+    const result = await service.verifyStudentQr(admin, "아무거나", NOW);
+
     expect(result.verdict).toBe("UNKNOWN");
-    expect(findPassForVerify).not.toHaveBeenCalled();
+    expect(result.student).toBeNull();
+    expect(findStudentForCard).not.toHaveBeenCalled();
   });
 
-  it("사유·행선지는 pass:read:any를 가진 검증자에게만 실린다", async () => {
-    findPassForVerify.mockResolvedValue(stored());
+  it("서명은 맞는데 학생이 없으면 UNKNOWN이다 — 명단에서 빠진 뒤의 옛 코드다", async () => {
+    findStudentForCard.mockResolvedValue(null);
+    const result = await service.verifyStudentQr(admin, code(), NOW);
 
-    const byAdmin = await service.verifyPassToken(admin, tokenFor(), NOW);
-    expect(byAdmin.detailed).toBe(true);
-    expect(byAdmin.pass?.destination).toBe("치과");
-    expect(byAdmin.pass?.reason).toBe("정기 검진");
-
-    const byStudent = await service.verifyPassToken(student, tokenFor(), NOW);
-    expect(byStudent.detailed).toBe(false);
-    expect(byStudent.pass?.destination).toBeNull();
-    expect(byStudent.pass?.reason).toBeNull();
+    expect(result.verdict).toBe("UNKNOWN");
+    expect(result.student).toBeNull();
+    expect(listForVerify).not.toHaveBeenCalled();
   });
 
-  it("학부모도 판정할 수 있다", async () => {
-    findPassForVerify.mockResolvedValue(stored());
-    const result = await service.verifyPassToken(parent, tokenFor(), NOW);
-    expect(result.verdict).toBe("VALID");
-    expect(result.detailed).toBe(false);
+  // pass:verify는 세 역할 모두에게 열려 있다 — 살아 있는 QR을 손에 쥔 사람은
+  // 학생 화면 앞에 서 있는 사람이다. 역할이 아예 없는 계정만 막힌다.
+  it("역할이 없으면 던진다", async () => {
+    await expect(
+      service.verifyStudentQr({ ...admin, role: null }, code(), NOW),
+    ).rejects.toThrow(ForbiddenError);
   });
 
-  it("로그인하지 않았으면 애초에 여기 못 온다 — 권한 없는 역할은 ForbiddenError", async () => {
-    const noRole = { ...student, role: null };
-    await expect(service.verifyPassToken(noRole, tokenFor(), NOW)).rejects.toThrow(
-      ForbiddenError,
-    );
-  });
-
-  it("판정은 아무것도 쓰지 않는다", async () => {
-    findPassForVerify.mockResolvedValue(stored());
-    await service.verifyPassToken(admin, tokenFor(), NOW);
-    expect(transition).not.toHaveBeenCalled();
-    expect(createPass).not.toHaveBeenCalled();
-    // 거부가 아니면 감사로그도 남지 않는다 (판정은 읽기다)
+  it("아무것도 쓰지 않는다", async () => {
+    listForVerify.mockResolvedValue([pass()]);
+    await service.verifyStudentQr(admin, code(), NOW);
     expect(recordAudit).not.toHaveBeenCalled();
   });
+});
 
-  it("재적이 없으면 학번은 null이다 — 판정 자체는 그대로 나온다", async () => {
-    findPassForVerify.mockResolvedValue(
-      stored({
-        studentProfile: {
-          id: "sp-1",
-          user: { id: "u-1", name: "김민준", role: "STUDENT" },
-          enrollments: [],
-        },
+/**
+ * 여러 건을 들고 있는 학생에게 무엇을 말할지. 정문에서 묻는 것은 「지금 나가도
+ * 되는가」 하나이므로, 답이 「된다」인 것이 하나라도 있으면 그것을 말한다.
+ */
+describe("여러 건을 고르는 순서", () => {
+  it("지난 것과 앞으로의 것 사이에 유효한 것이 있으면 그것을 고른다", async () => {
+    listForVerify.mockResolvedValue([
+      pass({ id: "지남", endAt: new Date("2026-08-27T02:00:00.000Z") }),
+      pass({ id: "지금" }),
+      pass({
+        id: "나중",
+        startAt: new Date("2026-08-28T05:00:00.000Z"),
+        endAt: new Date("2026-08-28T09:00:00.000Z"),
       }),
-    );
-    const result = await service.verifyPassToken(admin, tokenFor(), NOW);
+    ]);
+    const result = await service.verifyStudentQr(admin, code(), NOW);
     expect(result.verdict).toBe("VALID");
-    expect(result.pass?.studentNumber).toBeNull();
+    expect(result.pass?.startAt).toEqual(new Date("2026-08-27T05:00:00.000Z"));
+  });
+
+  it("유효한 게 없고 앞으로의 것이 있으면 가장 이른 것으로 NOT_YET", async () => {
+    listForVerify.mockResolvedValue([
+      pass({
+        id: "이른",
+        startAt: new Date("2026-08-27T08:00:00.000Z"),
+        endAt: new Date("2026-08-27T10:00:00.000Z"),
+      }),
+      pass({
+        id: "늦은",
+        startAt: new Date("2026-08-28T08:00:00.000Z"),
+        endAt: new Date("2026-08-28T10:00:00.000Z"),
+      }),
+    ]);
+    const result = await service.verifyStudentQr(admin, code(), NOW);
+    expect(result.verdict).toBe("NOT_YET");
+    expect(result.pass?.startAt).toEqual(new Date("2026-08-27T08:00:00.000Z"));
+  });
+
+  it("오늘 끝난 승인 건만 있으면 EXPIRED", async () => {
+    listForVerify.mockResolvedValue([
+      pass({
+        startAt: new Date("2026-08-27T01:00:00.000Z"),
+        endAt: new Date("2026-08-27T02:00:00.000Z"),
+      }),
+    ]);
+    const result = await service.verifyStudentQr(admin, code(), NOW);
+    expect(result.verdict).toBe("EXPIRED");
+  });
+
+  // 승인 건이 하나라도 있으면 그쪽이 이긴다 — 결재 대기는 정문에서 답이 아니다.
+  it("결재 대기만 있으면 NOT_APPROVED", async () => {
+    listForVerify.mockResolvedValue([pass({ status: "REQUESTED" })]);
+    const result = await service.verifyStudentQr(admin, code(), NOW);
+    expect(result.verdict).toBe("NOT_APPROVED");
+  });
+
+  it("승인 건과 대기 건이 함께 있으면 승인 건을 말한다", async () => {
+    listForVerify.mockResolvedValue([
+      pass({ id: "대기", status: "CONSENTED" }),
+      pass({ id: "승인" }),
+    ]);
+    const result = await service.verifyStudentQr(admin, code(), NOW);
+    expect(result.verdict).toBe("VALID");
+  });
+});
+
+/**
+ * 사유·행선지는 교사에게만. 학생증은 로그인한 누구나 찍을 수 있어서, 같은 학년
+ * 학생이 「병원 진료」를 읽을 수 있으면 안 된다.
+ */
+describe("사유·행선지 가리기", () => {
+  it("교사에게는 보인다", async () => {
+    listForVerify.mockResolvedValue([pass()]);
+    const result = await service.verifyStudentQr(admin, code(), NOW);
+    expect(result.detailed).toBe(true);
+    expect(result.pass?.destination).toBe("치과");
+    expect(result.pass?.reason).toBe("정기 검진");
+  });
+
+  it.each([
+    ["학생", student],
+    ["학부모", parent],
+  ])("%s에게는 null이다", async (_label, actor) => {
+    listForVerify.mockResolvedValue([pass()]);
+    const result = await service.verifyStudentQr(actor, code(), NOW);
+    expect(result.detailed).toBe(false);
+    expect(result.pass?.destination).toBeNull();
+    expect(result.pass?.reason).toBeNull();
+    // 이름·학번·유형·유효 시각까지는 연다 — 정문에서 확인에 필요하다.
+    expect(result.student?.studentName).toBe("김민준");
+    expect(result.pass?.type).toBe("OUTING");
   });
 });

@@ -141,11 +141,11 @@ export type ConsentPassInput = z.infer<typeof consentPassSchema>;
 export const withdrawPassSchema = z.object({ passId: id });
 export type WithdrawPassInput = z.infer<typeof withdrawPassSchema>;
 
-/** 판독 화면이 받는 토큰. 길이만 본다 — 모양 판정은 verifyToken이 한다. */
-export const verifyTokenSchema = z.object({
-  token: z.string().trim().min(1).max(128),
+/** 판독 화면이 받는 학생증 코드. 길이만 본다 — 모양 판정은 verifyStudentCode가 한다. */
+export const verifyCodeSchema = z.object({
+  code: z.string().trim().min(1).max(128),
 });
-export type VerifyTokenInput = z.infer<typeof verifyTokenSchema>;
+export type VerifyCodeInput = z.infer<typeof verifyCodeSchema>;
 
 // ── 전체 내역 조회 ─────────────────────────────────────────────
 //

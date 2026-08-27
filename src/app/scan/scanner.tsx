@@ -25,12 +25,25 @@ type DetectorCtor = new (options: { formats: string[] }) => Detector;
 /** 프레임을 얼마나 자주 보는가. 400ms면 정문에서 체감상 즉시다. */
 const TICK_MS = 400;
 
+/**
+ * 같은 학생증을 다시 보내기까지 기다리는 시간. 정문에서 한 학생이 지나가고
+ * 다음 학생이 오는 데 걸리는 시간보다 짧아야 하고, 카드가 깜빡이지 않을 만큼은
+ * 길어야 한다.
+ */
+const RESEND_MS = 3000;
+
 export function Scanner({ origin }: { origin: string }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
-  const tokenRef = useRef<HTMLInputElement>(null);
-  /** 마지막으로 보낸 토큰. 같은 QR을 들고 서 있으면 20초에 한 번만 보낸다. */
-  const sentRef = useRef<string | null>(null);
+  const codeRef = useRef<HTMLInputElement>(null);
+  /**
+   * 마지막으로 보낸 코드와 그 시각.
+   *
+   * **학생증은 값이 안 바뀐다.** 예전 출입증 QR은 20초마다 갈려서 「같은 값이면
+   * 건너뛴다」로 충분했지만, 지금 그렇게 두면 같은 학생을 두 번째로 찍을 방법이
+   * 화면을 새로 고치는 것뿐이 된다. 그래서 값이 아니라 **시간 창**으로 막는다.
+   */
+  const sentRef = useRef<{ code: string; at: number } | null>(null);
   /** null은 아직 확인 전. 셋으로 갈리는 이유는 안내 문구가 갈리기 때문이다. */
   const [supported, setSupported] = useState<
     "ok" | "unsupported" | "insecure" | null
@@ -49,13 +62,16 @@ export function Scanner({ origin }: { origin: string }) {
       try {
         const [found] = await detector.detect(videoRef.current);
         // **읽은 주소로 이동하지 않는다.** 출처와 경로가 맞을 때만 토큰을 꺼낸다.
-        const token = found ? tokenFromScanUrl(found.rawValue, origin) : null;
-        // 같은 토큰을 400ms마다 다시 보내지 않는다 — 학생이 QR을 들고 가만히 서
-        // 있으면 한 창(20초)에 쉰 번을 보내게 되고 판정 카드가 깜빡인다. 코드가
-        // 바뀌거나 다음 학생이 오면 값이 달라져 곧바로 나간다.
-        if (token && token !== sentRef.current && tokenRef.current && formRef.current) {
-          sentRef.current = token;
-          tokenRef.current.value = token;
+        const code = found ? tokenFromScanUrl(found.rawValue, origin) : null;
+        // 같은 코드를 400ms마다 다시 보내지 않는다 — 학생이 QR을 들고 서 있으면
+        // 초당 두 번씩 보내게 되고 판정 카드가 깜빡인다. 다음 학생이 오면 값이
+        // 달라져 곧바로 나가고, 같은 학생이라도 창을 넘기면 다시 나간다.
+        const last = sentRef.current;
+        const fresh =
+          !last || last.code !== code || Date.now() - last.at > RESEND_MS;
+        if (code && fresh && codeRef.current && formRef.current) {
+          sentRef.current = { code, at: Date.now() };
+          codeRef.current.value = code;
           formRef.current.requestSubmit();
         }
       } catch {
@@ -140,7 +156,7 @@ export function Scanner({ origin }: { origin: string }) {
       {cameraError && <Note tone="error">{cameraError}</Note>}
 
       <form ref={formRef} action={action} className="hidden">
-        <input ref={tokenRef} type="hidden" name="token" />
+        <input ref={codeRef} type="hidden" name="code" />
       </form>
 
       {pending && <p className="text-center text-caption text-mut">확인하는 중…</p>}

@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
-import { Note } from "@/components/ui/note";
 import { SectionCard } from "@/components/ui/section-card";
 import { requireAuth } from "@/core/auth/session";
 import {
@@ -20,13 +19,8 @@ import {
   PASS_STATUS_TONES,
   requesterRole,
 } from "@/modules/pass/pass.labels";
-import {
-  canSeePassQr,
-  getPassDetail,
-  getPassQr,
-} from "@/modules/pass/request.service";
+import { getPassDetail } from "@/modules/pass/request.service";
 import { passPeriod } from "../pass-card";
-import { PassQr, type QrPayload } from "../pass-qr";
 import { pageClass } from "@/components/ui/page-shell";
 
 export const metadata: Metadata = { title: "출입증" };
@@ -49,23 +43,8 @@ export default async function PassDetailPage({
     throw error;
   }
 
-  const now = new Date();
-  let qr: QrPayload | null = null;
-  const active =
-    pass.status === "APPROVED" && pass.endAt.getTime() >= now.getTime();
-
-  // 시작 전에도 QR을 준다(판정이 NOT_YET으로 떨어진다). 다만 **그 사실을 화면이
-  // 말해야 한다** — 이제 QR로 가는 길이 이 화면 하나뿐이라, 아무 말 없이 QR만
-  // 세우면 학생이 그것을 들고 정문에 선다.
-  const notYet = active && pass.startAt.getTime() > now.getTime();
-
-  // 보호자는 자녀 상세를 읽을 수는 있어도 QR은 못 받는다. **먼저 물어보고 부른다** —
-  // 그냥 부르고 실패를 삼키면 보호자가 상세를 열 때마다 authz:denied가 한 줄씩
-  // 쌓여, 감사로그에서 「권한 밖 시도」를 세는 일이 잡음에 묻힌다.
-  if (active && (await canSeePassQr(actor, pass.studentProfileId))) {
-    qr = await getPassQr(actor, passId, now).catch(() => null);
-  }
-
+  // QR은 이 화면에 없다. 학생증 한 장(`/pass/qr`)이 그 일을 하고, 여기는
+  // 「이 신청이 지금 어떤 상태인가」만 답한다.
   const enrollment = pass.studentProfile.enrollments[0];
   const seat = formatSeat({
     grade: enrollment?.schoolClass?.grade ?? null,
@@ -90,17 +69,6 @@ export default async function PassDetailPage({
         variant="panel"
         className="mt-3"
       >
-        {qr && (
-          <div className="mb-5">
-            {notYet && (
-              <Note tone="warn" className="mb-3">
-                {formatDateTimeShort(pass.startAt)}부터 유효합니다.
-              </Note>
-            )}
-            <PassQr passId={pass.id} initial={qr} />
-          </div>
-        )}
-
         <dl className="grid gap-3 @sm:grid-cols-[7rem_1fr]">
           <Row label="기간" value={passPeriod(pass)} numeric />
           <Row label="행선지" value={pass.destination} />

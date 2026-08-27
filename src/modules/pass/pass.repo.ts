@@ -71,6 +71,44 @@ export async function findPassForVerify(
   });
 }
 
+/**
+ * 정문 판정이 읽는 것. **한 학생의 후보 출입증만** 좁게 가져온다 —
+ * 판정은 「지금 나가도 되는가」 하나라, 지난 것까지 다 읽을 이유가 없다.
+ *
+ * 창을 하루로 잡는 이유: 오늘 끝난 외출을 「기간 지남」이라고 말해 주려면
+ * 끝난 것도 한 칸은 필요하고, 그보다 옛것은 정문에서 할 말이 없다.
+ */
+export async function listForVerify(
+  studentProfileId: string,
+  now: Date,
+  year: number,
+  db: DbClient = prisma,
+): Promise<PassWithStudent[]> {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  return db.pass.findMany({
+    where: {
+      studentProfileId,
+      endAt: { gte: new Date(now.getTime() - DAY_MS) },
+      status: { in: ["REQUESTED", "CONSENTED", "APPROVED"] },
+    },
+    include: { studentProfile: studentInclude(year) },
+    orderBy: { startAt: "asc" },
+    take: 20,
+  });
+}
+
+/** 학생증 QR을 그릴 때 필요한 것 — 이름과 그 학년도의 학번. */
+export async function findStudentForCard(
+  studentProfileId: string,
+  year: number,
+  db: DbClient = prisma,
+) {
+  return db.studentProfile.findUnique({
+    where: { id: studentProfileId },
+    ...studentInclude(year),
+  });
+}
+
 export async function listForStudent(
   studentProfileId: string,
   year: number,

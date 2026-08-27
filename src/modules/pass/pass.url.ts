@@ -1,12 +1,12 @@
 /**
- * QR이 가리킬 주소와, 스캔한 글자에서 토큰을 꺼내는 일.
+ * 학생증 QR이 가리킬 주소와, 스캔한 글자에서 코드를 꺼내는 일.
  *
  * 공개 출처는 `BETTER_AUTH_URL`에서 읽는다 — 앱은 127.0.0.1에만 묶이고 공개
  * 주소는 리버스 프록시가 쥐고 있어 요청 헤더로는 알 수 없다. 그 값은 이미
  * 이 시스템의 공개 출처를 정한다(어긋나면 로그아웃이 INVALID_ORIGIN으로 실패한다).
  */
 
-/** 토큰 최대 길이. passId 64 + 점 + 서명 16 + 여유. */
+/** 코드 최대 길이. 프로필 id 64 + 점 + 서명 16 + 여유. */
 const MAX_TOKEN = 128;
 
 export const SCAN_PATH = "/scan";
@@ -19,8 +19,8 @@ export function scanOrigin(): string {
   return new URL(url).origin;
 }
 
-export function buildScanUrl(token: string): string {
-  return `${scanOrigin()}${SCAN_PATH}?c=${token}`;
+export function buildScanUrl(code: string): string {
+  return `${scanOrigin()}${SCAN_PATH}?c=${code}`;
 }
 
 /**

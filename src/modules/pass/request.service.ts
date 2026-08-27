@@ -12,7 +12,7 @@ import type {
   RequestPassInput,
   WithdrawPassInput,
 } from "./pass.schema";
-import { issueToken } from "./pass.token";
+import { issueStudentCode } from "./pass.token";
 import { buildScanUrl } from "./pass.url";
 import { requestWindow } from "./pass.window";
 
@@ -198,46 +198,26 @@ export async function getPassDetail(actor: SessionUser, passId: string) {
 }
 
 /**
- * 이 사람이 그 출입증의 QR을 볼 수 있는가. 본인과 교사뿐이다 — 보호자는 자녀의
- * 상세를 읽을 수는 있어도 **대신 보여줄 화면**을 갖지는 않는다(출입증은 학생이 낸다).
+ * 학생증 한 장. **학생 본인만** 받는다.
  *
- * **거부 기록을 남기지 않는 판정이라 따로 뗀다.** 화면이 QR 자리를 그릴지 말지
- * 정하려고 부르는 자리인데, 그때마다 `authz:denied`가 쌓이면 감사로그에서
- * 「권한 밖 시도」를 세는 일이 잡음에 묻힌다. 실제로 거부해야 하는 호출
- * (`getPassQr`)은 그대로 기록을 남긴다.
+ * 교사·보호자는 못 받는다 — 이 코드는 정문에서 본인임을 말하는 물건이라,
+ * 남이 대신 띄울 수 있으면 학생증이 아니게 된다. 보호자가 자녀의 출입증
+ * **상세**를 읽을 수 있는 것과는 다른 이야기다(그쪽은 그대로다).
+ *
+ * 출입증이 하나도 없어도 준다. 학생증은 승인의 결과물이 아니라 신원이고,
+ * 찍었을 때 「출입증 없음」이 뜨는 것이 이 설계에서 정상적인 답이다.
  */
-export async function canSeePassQr(
+export async function getMyStudentQr(
   actor: SessionUser,
-  studentProfileId: string,
-): Promise<boolean> {
-  if (can(actor, "pass:read:any")) return true;
+): Promise<{ qr: { size: number; d: string }; url: string }> {
   const profile = await repo.findStudentProfileByUserId(actor.id);
-  return profile?.id === studentProfileId;
-}
-
-/**
- * 20초짜리 QR 한 장. **시작 전에도 준다** — 화면이 「14:00부터 유효」를 함께 적고,
- * 그 사이에 찍으면 판정이 NOT_YET으로 떨어진다. 시작 1분 전에 QR이 없는 화면보다
- * 있고 「아직」이라고 말하는 화면이 정문에서 덜 헷갈린다.
- */
-export async function getPassQr(
-  actor: SessionUser,
-  passId: string,
-  now: Date = new Date(),
-): Promise<{ qr: { size: number; d: string }; validUntil: string }> {
-  const pass = await repo.findPass(passId);
-  if (!pass) throw new PassError("PASS_NOT_FOUND");
-
-  if (!can(actor, "pass:read:any")) {
-    await assertOwnStudent(actor, pass.studentProfileId, "pass:read:any", passId);
+  if (!profile) {
+    await recordDenied(actor, "pass:request", actor.id);
+    throw new ForbiddenError("pass:request");
   }
 
-  if (pass.status !== "APPROVED" || now.getTime() > pass.endAt.getTime()) {
-    throw new PassError("PASS_NOT_ACTIVE");
-  }
-
-  const { token, validUntil } = issueToken(pass.id, now);
-  return { qr: toQrPath(buildScanUrl(token)), validUntil: validUntil.toISOString() };
+  const url = buildScanUrl(issueStudentCode(profile.id));
+  return { qr: toQrPath(url), url };
 }
 
 /** can()으로 못 가르는 거부. 거부 기록과 ForbiddenError를 같은 방식으로 맞춘다. */
