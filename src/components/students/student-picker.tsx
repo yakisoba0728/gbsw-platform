@@ -320,14 +320,14 @@ export function StudentPicker({
                             {formatSeat(student) ?? "미배정"}
                           </span>
                           <TruncatedText
-                            full={student.name}
+                            full={honorificName(student.name, "STUDENT")}
                             // 초점은 검색칸에 머문다(aria-activedescendant) — 목록에
                             // 초점을 두면 탭이 검색칸과 닫기 사이에서 멈춘다.
                             focusable={false}
                             outerClassName="flex-1"
                             className="text-caption font-medium text-ink"
                           >
-                            {student.name}
+                            {honorificName(student.name, "STUDENT")}
                           </TruncatedText>
                           {student.id === selectedId && <CheckMark />}
                         </li>

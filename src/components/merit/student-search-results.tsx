@@ -6,6 +6,7 @@ import { DataTable, type Column } from "@/components/ui/table";
 import { EnrollmentTag } from "@/components/merit/enrollment-tag";
 import { formatDate } from "@/lib/datetime";
 import { formatSeat } from "@/lib/student-number";
+import { honorificName } from "@/core/authz/roles";
 
 export type StudentSearchRow = {
   studentProfileId: string;
@@ -43,7 +44,7 @@ export function StudentSearchResults({
           href={hrefFor(row)}
           className="inline-flex min-h-9 flex-wrap items-center gap-2 font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink lg:min-h-0"
         >
-          {row.name}
+          {honorificName(row.name, "STUDENT")}
           {row.removedAt && <Badge tone="rejected">삭제됨</Badge>}
         </Link>
       ),

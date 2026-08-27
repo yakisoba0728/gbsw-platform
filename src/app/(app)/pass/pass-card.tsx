@@ -7,6 +7,7 @@ import {
   PASS_TYPE_LABELS,
 } from "@/core/authz/pass-type";
 import {
+  consenterRole,
   passEndLabel,
   passPeriod,
   PASS_STATUS_TONES,
@@ -72,7 +73,7 @@ export function PassCard({
           )}
           {pass.consentByProxy && pass.consentedByName && (
             <p className="mt-1 text-xs text-mut">
-              보호자 확인 대행 · {honorificName(pass.consentedByName, "ADMIN")}
+              보호자 확인 대행 · {honorificName(pass.consentedByName, consenterRole(pass))}
             </p>
           )}
         </div>

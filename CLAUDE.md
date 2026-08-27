@@ -195,6 +195,7 @@ account에서 시작해 모듈이 커지면 merit의 모양으로 간다.
 
 | 필요한 것 | 쓸 것 |
 |---|---|
+| 페이지 본문 껍데기 | `pageClass(width, className)` — `form`(폼·단건 상세) · `page`(기본) · `wide`(표가 본문인 화면). `max-w-*`를 손으로 적으면 테스트가 깨진다 |
 | 제목 달린 카드 | `SectionCard` — 머리글 띠가 필요 없으면 `variant="panel"`, 되돌릴 수 없는 동작이면 `tone="danger"` |
 | 제목 앞에 다른 것이 오는 카드 | `cardClass(pad, className)` — 역할 라벨·상태 배지가 `<h2>` 앞에 오면 `SectionCard`로 표현할 수 없다 |
 | 표 | `DataTable` — 폰에서 카드로 바뀌어야 하면 `narrow="cards"`. 열마다 `card` 자리를 고른다 |
@@ -206,6 +207,10 @@ account에서 시작해 모듈이 커지면 merit의 모양으로 간다.
 | 합계 한 칸 | `StatTile` |
 | 결과·오류 배너 | `Note` — `tone="error"`면 `role="alert"`이 자동으로 붙는다 |
 | 빈 상태 | `EmptyState` — 이미 카드 안이면 `variant="inside"` |
+
+**페이지 폭도 세 가지뿐이다** — 표가 다음 줄로 접히는 것은 대개 폭이 좁아서가
+아니라 `wide`를 안 골라서다. `table-fixed` 표의 열 폭은 px가 아니라 **숫자**로
+준다 (`width: 216`) — `minWidth` 대비 비율로 들어가 표가 넓어지면 열도 넓어진다.
 
 **카드 안쪽 여백은 세 가지뿐이다.** 표를 담으면 `flush`, 폼·안내는 `panel`(p-5),
 페이지 대표 카드는 `page`(p-8). 그 외 값을 새로 만들지 않는다. 카드 껍데기

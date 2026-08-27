@@ -86,7 +86,7 @@ export function passEndLabel(pass: { type: string; endAt: Date }): string {
 /**
  * 신청자의 역할. **Pass 행에 역할 열이 없다** — 신청은 학생 본인이 내거나(신청 흐름)
  * 교사가 바로 부여한 것(직접 부여) 둘 중 하나뿐이라, 신청자 id가 그 학생의 계정과
- * 같은지로 가른다. 호칭이 필요한 화면이 셋이라(상세·목록·내보내기) 여기 한 곳에 둔다.
+ * 같은지로 가른다. 화면마다 유도하면 규칙이 갈리므로 여기 한 곳에 둔다.
  */
 export function requesterRole(pass: {
   requestedByUserId: string | null;
