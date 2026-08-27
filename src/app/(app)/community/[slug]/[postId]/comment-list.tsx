@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PlainText } from "@/components/ui/plain-text";
 import { formatDateTime } from "@/lib/datetime";
 import type { CommentView } from "@/modules/community/community.view";
 import { DeleteComment } from "./delete-comment";
@@ -42,7 +43,7 @@ export function CommentList({ comments }: { comments: readonly CommentView[] }) 
             )}
           </div>
 
-          <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{comment.body}</p>
+          <PlainText className="mt-1 text-sm text-ink">{comment.body}</PlainText>
         </li>
       ))}
     </ul>

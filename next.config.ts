@@ -50,6 +50,23 @@ const SECURITY_HEADERS = [
   { key: "X-Content-Type-Options", value: "nosniff" },
 ];
 
+/**
+ * 첨부 파일 응답 전용. **사용자가 올린 바이트가 나가는 유일한 경로**라
+ * 페이지용 CSP보다 훨씬 좁게 잠근다.
+ *
+ * `default-src 'none'`은 그 문서가 아무것도 못 불러오게 하고, `sandbox`는
+ * 고유 출처에 가둬 스크립트·폼·팝업을 막는다. 허용 목록(`community.storage.ts`)이
+ * 뚫려 HTML이 흘러도 여기서 아무 일도 못 한다.
+ *
+ * `sandbox`에 아무 `allow-*`도 주지 않는다 — 브라우저 내장 PDF 뷰어는 이
+ * 지시자의 영향을 받지 않는 별도 프로세스로 렌더한다 (직접 확인했다).
+ */
+const ATTACHMENT_HEADERS = [
+  { key: "Content-Security-Policy", value: "default-src 'none'; sandbox" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "no-referrer" },
+];
+
 const nextConfig: NextConfig = {
   // Docker 멀티스테이지 빌드에서 최소 런타임 이미지를 만들기 위해 필요.
   output: "standalone",
@@ -64,7 +81,16 @@ const nextConfig: NextConfig = {
   },
 
   async headers() {
-    return [{ source: "/:path*", headers: SECURITY_HEADERS }];
+    return [
+      { source: "/:path*", headers: SECURITY_HEADERS },
+      // **뒤에 오는 규칙이 같은 이름의 헤더를 덮는다.** 첨부 응답에 라우트
+      // 핸들러가 직접 건 CSP는 위의 전역 규칙에 밀려 사라진다 — 실제로
+      // 확인했다. 그래서 여기서 한 번 더 못 박는다.
+      {
+        source: "/api/community/attachments/:id",
+        headers: ATTACHMENT_HEADERS,
+      },
+    ];
   },
 };
 

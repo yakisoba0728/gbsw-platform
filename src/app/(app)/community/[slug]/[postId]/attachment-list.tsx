@@ -15,10 +15,20 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
 }
 
+function href(id: string): string {
+  return `/api/community/attachments/${id}`;
+}
+
 /**
- * 첨부 목록. 이미지는 그 자리에 보이고 나머지는 링크다.
+ * 첨부 목록. **누르면 내려받는 것이 아니라 보이는 것을 원칙으로 한다.**
  *
- * `download` 속성을 붙이지 않는다 — 라우트가 `Content-Disposition`으로 이미
+ * - 이미지는 글 안에 바로 그린다.
+ * - PDF는 브라우저 내장 뷰어로 새 탭에서 연다 (라우트가 `Content-Disposition:
+ *   inline`을 준다). 글 안에 `<iframe>`으로 박지 않는 이유는 폰에서 세로를
+ *   600px씩 잡아먹고 스크롤이 안쪽과 바깥쪽으로 갈리기 때문이다.
+ * - 나머지(한글 문서 포함)는 내려받는다.
+ *
+ * `download` 속성을 붙이지 않는다 — 라우트의 `Content-Disposition`이 이미
  * 정한다. 둘이 어긋나면 어느 쪽이 이기는지가 브라우저마다 다르다.
  */
 export function AttachmentList({
@@ -29,7 +39,7 @@ export function AttachmentList({
   if (attachments.length === 0) return null;
 
   const images = attachments.filter((a) => a.mimeType.startsWith("image/"));
-  const files = attachments.filter((a) => !a.mimeType.startsWith("image/"));
+  const rest = attachments.filter((a) => !a.mimeType.startsWith("image/"));
 
   return (
     <div className="mt-6 space-y-3 border-t border-line2 pt-4">
@@ -42,27 +52,48 @@ export function AttachmentList({
         // eslint-disable-next-line @next/next/no-img-element -- 위 주석 참고
         <img
           key={image.id}
-          src={`/api/community/attachments/${image.id}`}
+          src={href(image.id)}
           alt={image.filename}
           className="max-w-full rounded-card border border-line"
         />
       ))}
 
-      {files.length > 0 && (
+      {rest.length > 0 && (
         <ul className="flex flex-wrap gap-2">
-          {files.map((file) => (
+          {rest.map((file) => (
             <li key={file.id}>
-              <Link
-                href={`/api/community/attachments/${file.id}`}
-                className={buttonClass({ variant: "secondary", size: "sm" })}
-              >
-                {file.filename}
-                <span className="ml-1 text-mut">{formatSize(file.size)}</span>
-              </Link>
+              <AttachmentLink file={file} />
             </li>
           ))}
         </ul>
       )}
     </div>
+  );
+}
+
+function AttachmentLink({ file }: { file: PostAttachment }) {
+  const size = <span className="ml-1 text-mut">{formatSize(file.size)}</span>;
+  const className = buttonClass({ variant: "secondary", size: "sm" });
+
+  if (file.mimeType === "application/pdf") {
+    // 새 탭에서 연다 — 같은 탭이면 뷰어가 글을 덮어 뒤로가기로만 돌아온다.
+    return (
+      <a
+        href={href(file.id)}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={className}
+      >
+        {file.filename}
+        {size}
+      </a>
+    );
+  }
+
+  return (
+    <Link href={href(file.id)} className={className}>
+      {file.filename}
+      {size}
+    </Link>
   );
 }

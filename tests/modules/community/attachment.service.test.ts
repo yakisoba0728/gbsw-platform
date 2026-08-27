@@ -302,8 +302,8 @@ describe("getDownload", () => {
   it("문서는 inline이 아니다", async () => {
     findAttachmentForDownload.mockResolvedValue({
       ...attachment,
-      filename: "보고서.pdf",
-      mimeType: "application/pdf",
+      filename: "가정통신문.hwp",
+      mimeType: "application/x-hwp",
     });
     expect((await service.getDownload(student, "a1")).inline).toBe(false);
   });

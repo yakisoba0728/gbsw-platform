@@ -39,7 +39,10 @@ const ALLOWED: Record<string, Allowed> = {
   gif: { mime: "image/gif", inline: true },
   webp: { mime: "image/webp", inline: true },
 
-  pdf: { mime: "application/pdf", inline: false },
+  // PDF는 브라우저 내장 뷰어가 연다 — 누르면 내려받지 않고 바로 보인다.
+  // 내장 뷰어는 문서 안의 스크립트를 자기 샌드박스에서 처리하고, 이 응답에는
+  // nosniff와 `default-src 'none'; sandbox` CSP가 함께 붙는다.
+  pdf: { mime: "application/pdf", inline: true },
   hwp: { mime: "application/x-hwp", inline: false },
   hwpx: { mime: "application/hwp+zip", inline: false },
   docx: {

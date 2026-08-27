@@ -17,12 +17,18 @@ describe("classifyUpload", () => {
     });
   });
 
-  it("문서는 내려받기다", () => {
+  it("**PDF는 인라인이다** — 누르면 내려받지 않고 브라우저 뷰어가 연다", () => {
     expect(classifyUpload("보고서.pdf", "application/pdf", 1000)).toEqual({
       ok: true,
       mimeType: "application/pdf",
-      inline: false,
+      inline: true,
     });
+  });
+
+  it("한글·오피스 문서는 내려받기다 — 브라우저가 열 수 없다", () => {
+    for (const name of ["가정통신문.hwp", "표.xlsx", "글.docx", "묶음.zip"]) {
+      expect(classifyUpload(name, "", 1000)).toMatchObject({ inline: false });
+    }
   });
 
   it("한글 문서(hwp·hwpx)를 받는다", () => {
@@ -63,7 +69,7 @@ describe("classifyUpload", () => {
     expect(classifyUpload("보고서.pdf", "text/html", 1000)).toEqual({
       ok: true,
       mimeType: "application/pdf",
-      inline: false,
+      inline: true,
     });
   });
 
