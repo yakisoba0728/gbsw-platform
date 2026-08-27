@@ -138,7 +138,7 @@ describe("changePasswordAction — 경계 검증", () => {
 
     expect(state).toEqual({
       ok: false,
-      error: "비밀번호를 변경하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+      error: "비밀번호를 변경하지 못했습니다.",
     });
     expect(errorSpy).toHaveBeenCalledWith(
       "[account] password change failed",

@@ -36,7 +36,7 @@ const MESSAGES: Record<string, string> = {
 };
 
 const FORBIDDEN_MESSAGE = "권한이 없습니다.";
-const UNKNOWN_MESSAGE = "처리하지 못했습니다. 잠시 뒤 다시 시도해 주세요.";
+const UNKNOWN_MESSAGE = "처리하지 못했습니다.";
 
 function fail(error: string): PassActionState {
   return { error, ok: false };

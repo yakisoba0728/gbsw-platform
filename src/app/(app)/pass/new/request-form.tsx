@@ -114,7 +114,7 @@ export function RequestForm({ today }: { today: string }) {
         name="reason"
         rows={3}
         maxLength={200}
-        placeholder="선생님이 보고 판단할 내용을 적습니다."
+        placeholder="예) 병원 진료"
         required
         className="mb-5"
       />
@@ -132,7 +132,7 @@ export function RequestForm({ today }: { today: string }) {
       )}
 
       <Button type="submit" size="lg" full disabled={pending}>
-        {pending ? "신청하는 중…" : "신청하기"}
+        {pending ? "신청하는 중…" : "신청"}
       </Button>
     </form>
   );

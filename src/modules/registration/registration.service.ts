@@ -213,7 +213,7 @@ export async function completeRegistration(
     }
     if (isSerializationConflict(error)) {
       throw new RegistrationError(
-        "가입 처리 중 충돌이 발생했습니다. 다시 시도해 주세요.",
+        "가입을 마치지 못했습니다. 다시 시도하세요.",
       );
     }
     throw error;

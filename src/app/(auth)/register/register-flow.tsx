@@ -54,8 +54,7 @@ function CodeStep({
 }) {
   return (
     <form action={formAction} className="animate-auth-in">
-      <h1 className="mb-2 text-title font-semibold text-ink">가입</h1>
-      <p className="mb-8 text-caption text-mut">받으신 가입코드를 입력합니다.</p>
+      <h1 className="mb-8 text-title font-semibold text-ink">가입</h1>
 
       <Label htmlFor="code">가입코드</Label>
       <MaskedInput size="lg"

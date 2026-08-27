@@ -157,8 +157,7 @@ export function planRoster(
       plan.needsAttention.push({
         ...planned,
         reason:
-          "학적이 비어 있어 확정하면 이 학생의 이번 학년도 배정이 삭제됩니다. " +
-          "졸업·자퇴 등 학적을 입력했는지, 실수로 지운 건 아닌지 확인해 주세요.",
+          "학적이 비어 있습니다. 배정을 지우지 않으려면 학적을 채우세요.",
       });
       continue;
     }
@@ -209,8 +208,8 @@ export function planRoster(
       studentProfileId: s.studentProfileId,
       beforeName: s.name,
       reason:
-        "졸업 기록이 있는 학생인데 이번 학년도 학적이 졸업이 아니고 명단에도 줄이 " +
-        "없습니다. 이 학생의 줄을 파일에 넣어 학적을 정해 주세요.",
+        "졸업 기록이 있는 학생인데 명단에 줄이 없습니다. " +
+        "이 학생의 줄을 파일에 넣어 학적을 정하세요.",
     });
   }
 
@@ -225,7 +224,7 @@ export function planRoster(
       plan.needsAttention.push({
         ...r,
         beforeName: match.name,
-        reason: `학생코드가 지워진 것 같습니다. (일치하는 기존 학생의 코드: ${match.studentCode})`,
+        reason: `이름·생년월일이 같은 기존 학생이 있습니다. (학생코드: ${match.studentCode})`,
       });
     } else {
       stillNew.push(r);

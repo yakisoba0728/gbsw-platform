@@ -63,8 +63,7 @@ export function LoginForm({
 
   return (
     <form onSubmit={handleSubmit} className="animate-auth-in">
-      <h1 className="mb-2 text-title font-semibold text-ink">로그인</h1>
-      <p className="mb-8 text-caption text-mut">학교 계정으로 로그인합니다.</p>
+      <h1 className="mb-8 text-title font-semibold text-ink">로그인</h1>
 
       <Label htmlFor="email">이메일</Label>
       <Input size="lg"

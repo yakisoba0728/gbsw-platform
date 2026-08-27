@@ -144,13 +144,12 @@ export function Scanner({ origin }: { origin: string }) {
 
       {supported === "insecure" && (
         <Note tone="warn">
-          http로 열려 있어 카메라를 쓸 수 없습니다 — 폰 기본 카메라로 QR을 찍으세요.
-          (주소가 https가 되면 여기서 바로 스캔할 수 있습니다.)
+          http로 열려 있어 카메라를 쓸 수 없습니다. 폰 기본 카메라로 QR을 찍으세요.
         </Note>
       )}
       {supported === "unsupported" && (
         <Note tone="warn">
-          이 브라우저는 카메라 스캔을 지원하지 않습니다 — 폰 기본 카메라로 QR을 찍으세요.
+          이 브라우저는 카메라 스캔을 지원하지 않습니다. 폰 기본 카메라로 QR을 찍으세요.
         </Note>
       )}
       {cameraError && <Note tone="error">{cameraError}</Note>}

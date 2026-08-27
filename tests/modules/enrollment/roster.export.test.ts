@@ -230,7 +230,7 @@ describe("왕복: 내보내기 → xlsx 바이트 → 파서 → 분류", () => 
 
     expect(plan.newStudents).toHaveLength(0);
     expect(plan.needsAttention).toHaveLength(1);
-    expect(plan.needsAttention[0]!.reason).toContain("학생코드가 지워진 것 같습니다");
+    expect(plan.needsAttention[0]!.reason).toContain("이름·생년월일이 같은 기존 학생이 있습니다");
     // 기존 학생은 더 이상 파일에서 이어지지 않으니 "명단에 없는 재학생"으로도 잡힌다 —
     // 둘을 나란히 보여줘야 관리자가 "코드가 지워졌다"로 읽을 수 있다.
     expect(plan.missingFromFile).toHaveLength(1);

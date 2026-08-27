@@ -484,7 +484,7 @@ export function normalizeRows(table: string[][]): RosterRow[] {
 
     const studentCode = cell(raw, "학생코드");
     if (studentCode && !isStudentCode(studentCode)) {
-      errors.push("학생코드 형식이 올바르지 않습니다. 비워 두면 신규 학생으로 처리됩니다.");
+      errors.push("학생코드 형식이 올바르지 않습니다. 새 학생이면 비워 두세요.");
     }
 
     const name = cell(raw, "이름");

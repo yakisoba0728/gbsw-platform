@@ -127,8 +127,8 @@ export function MeritTab({
       {/* 부여 폼이 사라지는 이유를 적어 둔다 — 안 적으면 고장으로 읽힌다. */}
       {removed && removedAt && (
         <Note tone="warn">
-          {formatDate(removedAt)}에 명단에서 빠진 학생입니다. 기록은 볼 수 있지만
-          새 상벌점은 부여할 수 없습니다.
+          {formatDate(removedAt)}에 명단에서 빠진 학생입니다. 새 상벌점은 부여할 수
+          없습니다.
         </Note>
       )}
 

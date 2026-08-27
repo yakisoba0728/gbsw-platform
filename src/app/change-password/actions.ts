@@ -38,7 +38,7 @@ export async function changePasswordAction(
       console.error("[account] password change failed", error);
       return {
         ok: false,
-        error: "비밀번호를 변경하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+        error: "비밀번호를 변경하지 못했습니다.",
       };
     }
     return { ok: false, error: "현재 비밀번호가 맞지 않습니다." };

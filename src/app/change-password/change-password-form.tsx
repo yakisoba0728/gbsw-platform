@@ -20,7 +20,7 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
       <p className="mb-8 text-caption text-mut">
         {forced
           ? "계속하려면 새 비밀번호를 정해야 합니다. 변경 후 다시 로그인합니다."
-          : "새 비밀번호를 정합니다. 변경 후 다시 로그인합니다."}
+          : "변경 후 다시 로그인합니다."}
       </p>
 
       <Label htmlFor="currentPassword">현재 비밀번호</Label>

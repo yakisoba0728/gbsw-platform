@@ -33,7 +33,7 @@ const VERIFIED_TTL_MINUTES = 30;
 /** 임시 가입 우회 proof에는 실제 코드가 없음을 표시하는 해시 자리값. */
 const TEMPORARY_BYPASS_HASH = "temporary-verification-bypass";
 const RATE_LIMIT_MESSAGE =
-  "인증번호를 너무 많이 요청했습니다. 잠시 후 다시 시도해 주세요.";
+  "인증번호를 너무 많이 요청했습니다. 한 시간 뒤에 다시 요청하세요.";
 
 /**
  * 목업 모드 — 발송한 코드를 화면에 채워 준다. 코드를 클라이언트로 돌려주면

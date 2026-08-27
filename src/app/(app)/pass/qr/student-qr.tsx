@@ -108,7 +108,7 @@ export function StudentQr({ initial }: { initial: QrPayload }) {
 
       <p className="mt-2 text-xs text-mut">
         {stale
-          ? "연결이 끊겨 코드가 굳었습니다. 다시 시도하는 중입니다."
+          ? "연결이 끊겨 코드가 굳었습니다."
           : /* 20초는 pass.token.ts의 STEP_SECONDS다. 막대와 달리 이 문장은
                서버 값에서 끌어낼 수 없어 손으로 적는다. */
             "20초마다 새 코드로 바뀝니다."}

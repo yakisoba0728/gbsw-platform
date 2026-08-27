@@ -118,7 +118,7 @@ describe("planRoster()", () => {
       expect(plan.reassign).toHaveLength(0);
       expect(plan.needsAttention).toHaveLength(1);
       expect(plan.needsAttention[0]!.studentProfileId).toBe("sp-1");
-      expect(plan.needsAttention[0]!.reason).toContain("배정이 삭제됩니다");
+      expect(plan.needsAttention[0]!.reason).toContain("학적이 비어 있습니다");
       expect(plan.hasBlockingError).toBe(true);
     });
   });
@@ -398,7 +398,7 @@ describe("planRoster() + normalizeRows() — 회귀: 명단 업로드의 학년�
 
         expect(plan.newStudents).toHaveLength(0);
         expect(plan.needsAttention).toHaveLength(1);
-        expect(plan.needsAttention[0]!.reason).toContain("학생코드가 지워진 것 같습니다");
+        expect(plan.needsAttention[0]!.reason).toContain("이름·생년월일이 같은 기존 학생이 있습니다");
         expect(plan.missingFromFile).toHaveLength(1);
         expect(plan.hasBlockingError).toBe(true);
       });
@@ -413,7 +413,7 @@ describe("planRoster() + normalizeRows() — 회귀: 명단 업로드의 학년�
 
       expect(plan.newStudents).toHaveLength(0);
       expect(plan.needsAttention).toHaveLength(1);
-      expect(plan.needsAttention[0]!.reason).toContain("학생코드가 지워진 것 같습니다");
+      expect(plan.needsAttention[0]!.reason).toContain("이름·생년월일이 같은 기존 학생이 있습니다");
       expect(plan.missingFromFile).toHaveLength(1);
       expect(plan.hasBlockingError).toBe(true);
     });

@@ -52,12 +52,12 @@ export function DeleteRuleButton({
       title="규정 삭제"
       description={
         <>
-          <span className="font-medium text-ink">{label}</span> 규정이 목록과 부여
-          화면에서 사라집니다. 되돌릴 수 없습니다.
+          <span className="font-medium text-ink">{label}</span> 규정을 지웁니다.
+          되돌릴 수 없습니다.
         </>
       }
       reasonLabel="삭제 사유"
-      reasonPlaceholder="예: 규정 개정으로 항목이 없어짐"
+      reasonPlaceholder="예: 규정 개정으로 없어짐"
       confirmLabel="삭제"
       pendingLabel="삭제 중…"
       action={formAction}

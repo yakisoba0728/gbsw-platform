@@ -312,9 +312,8 @@ function PreviewCard({
           </div>
           {/* 이 경로는 되돌릴 수 없는 물리 삭제다. 임시 제외처럼 읽히면 안 된다. */}
           <p className="mt-1.5 text-caption font-medium text-amber-ink">
-            확정하면 계정과 학생 기록이 DB에서 영구히 물리 삭제됩니다. 연결된
-            초대코드·학부모 연결·상벌점 이력도 cascade로 함께 사라지며 복원 기능은
-            없습니다. 자퇴·전출은 줄을 지우지 말고 학적 칸을 바꿔 기록해 주세요.
+            확정하면 이 학생들의 계정과 기록이 영구히 사라집니다. 자퇴·전출은 줄을
+            지우지 말고 학적 칸을 바꾸세요.
           </p>
           <ul className="mt-3 divide-y divide-line2">
             {plan.missingFromFile.map((s) => (
