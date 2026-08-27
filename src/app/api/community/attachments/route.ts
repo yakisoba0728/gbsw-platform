@@ -14,9 +14,9 @@ import { MAX_ATTACHMENT_BYTES } from "@/modules/community/community.schema";
  * 담는다.
  *
  * **그 대가로 이 경로에는 아무 상한도 자동으로 걸리지 않는다.** 그래서 순서가
- * 이 파일의 전부다 — 본문을 만지기 전에 권한을 보고, 본문을 읽는 동안 바이트를
- * 세어 상한을 넘으면 그 자리에서 끊는다. 판정을 뒤에 두면 쓸 수 있는 게시판이
- * 하나도 없는 계정이 400MB를 보내 컨테이너를 죽일 수 있다.
+ * 이 파일의 전부다 — 본문을 만지기 전에 권한을 보고, 본문은 상한까지만 메모리에
+ * 모은다. 판정을 뒤에 두면 쓸 수 있는 게시판이 하나도 없는 계정이 400MB를 보내
+ * 컨테이너를 죽일 수 있다.
  */
 
 /**
@@ -43,42 +43,42 @@ const STATUS: Record<string, number> = {
   ATTACHMENT_PENDING_LIMIT: 429,
 };
 
-/** 본문이 상한을 넘겼다. 스트림을 읽다 말고 던진다. */
-class BodyTooLarge extends Error {}
-
 /**
- * 본문을 세면서 흘려보낸다. 상한을 넘는 순간 스트림을 오류로 끊어, 파싱기가
- * 나머지를 메모리에 담기 전에 멈추게 한다.
+ * 본문을 상한까지만 모은다. 넘으면 `null`.
  *
- * `content-length`만 보고 판단하지 않는다 — chunked 요청에는 그 헤더가 없고,
- * 있어도 보내는 쪽이 적는 값이라 실제 바이트 수와 다를 수 있다. 세는 것은
- * 흘러 들어온 바이트다.
+ * **스트림을 중간에 끊지 않는다.** `controller.error()`나 `reader.cancel()`로
+ * 끊으면 파싱기가 이미 닫힌 스트림에 뒤늦게 쓰려다 잡히지 않는 예외를 던지고,
+ * 그것이 Node 프로세스를 죽인다 — 실제로 재현해서 확인했다. 막으려던 것보다
+ * 나쁜 결과다.
+ *
+ * 그래서 끝까지 읽되 상한을 넘는 순간부터 **모은 것을 버리고 흘려보낸다.**
+ * 바이트는 계속 들어오지만(대역폭은 프록시가 막는다) 메모리는 상한에 묶이고,
+ * 스트림은 정상으로 끝나 아무도 죽지 않는다.
  */
-function capBody(request: Request, max: number): Request {
+async function readCappedBody(request: Request, max: number): Promise<Buffer | null> {
   const body = request.body;
-  if (!body) return request;
+  if (!body) return Buffer.alloc(0);
 
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
   let seen = 0;
-  const capped = body.pipeThrough(
-    new TransformStream<Uint8Array, Uint8Array>({
-      transform(chunk, controller) {
-        seen += chunk.byteLength;
-        if (seen > max) {
-          controller.error(new BodyTooLarge());
-          return;
-        }
-        controller.enqueue(chunk);
-      },
-    }),
-  );
+  let over = false;
 
-  // 스트림을 본문으로 주려면 duplex: "half"가 필요하다. 타입에 아직 없다.
-  return new Request(request.url, {
-    method: request.method,
-    headers: request.headers,
-    body: capped,
-    duplex: "half",
-  } as RequestInit & { duplex: "half" });
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    seen += value.byteLength;
+    if (over) continue;
+    if (seen > max) {
+      over = true;
+      // 이미 모은 것을 놓아 준다 — 여기부터는 읽기만 하고 안 쌓는다.
+      chunks.length = 0;
+      continue;
+    }
+    chunks.push(value);
+  }
+
+  return over ? null : Buffer.concat(chunks);
 }
 
 /** `requireAuth`가 막는 것을 손으로 다시 세운다 — **mustChangePassword까지.** */
@@ -110,8 +110,20 @@ export async function POST(request: Request) {
       throw new CommunityError("ATTACHMENT_NOT_ALLOWED");
     }
 
-    // ② 본문 — 세면서 읽는다. 상한을 넘으면 BodyTooLarge로 끊긴다.
-    const form = await capBody(request, MAX_REQUEST_BYTES).formData();
+    // ② 본문 — 상한까지만 모은다. 넘으면 아무것도 파싱하지 않는다.
+    const raw = await readCappedBody(request, MAX_REQUEST_BYTES);
+    if (raw === null) {
+      return NextResponse.json(
+        { error: "파일은 5MB를 넘을 수 없습니다." },
+        { status: 413 },
+      );
+    }
+
+    // 모아 둔 바이트로 새 요청 본문을 세워 파싱한다. 원래 요청의
+    // `content-type`에 multipart 경계가 들어 있어 그것만 그대로 옮긴다.
+    const form = await new Response(new Uint8Array(raw), {
+      headers: { "content-type": request.headers.get("content-type") ?? "" },
+    }).formData();
 
     const file = form.get("file");
     if (!(file instanceof File) || file.size === 0) {
@@ -131,12 +143,6 @@ export async function POST(request: Request) {
     });
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
-    if (error instanceof BodyTooLarge || isCausedByBodyTooLarge(error)) {
-      return NextResponse.json(
-        { error: "파일은 5MB를 넘을 수 없습니다." },
-        { status: 413 },
-      );
-    }
     if (error instanceof ForbiddenError) {
       return NextResponse.json(
         { error: "이 게시판에 첨부할 권한이 없습니다." },
@@ -151,17 +157,4 @@ export async function POST(request: Request) {
     }
     throw error;
   }
-}
-
-/**
- * `formData()`가 스트림 오류를 자기 오류로 감싸 던지는 런타임이 있다.
- * 원인 사슬을 따라가 우리가 끊은 것인지 본다 — 아니면 500으로 올려 보낸다.
- */
-function isCausedByBodyTooLarge(error: unknown): boolean {
-  let cause: unknown = (error as { cause?: unknown })?.cause;
-  for (let depth = 0; depth < 5 && cause; depth += 1) {
-    if (cause instanceof BodyTooLarge) return true;
-    cause = (cause as { cause?: unknown })?.cause;
-  }
-  return false;
 }
