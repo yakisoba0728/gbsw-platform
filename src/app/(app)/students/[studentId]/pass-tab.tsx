@@ -164,7 +164,7 @@ const COLUMNS: readonly Column<PassRow>[] = [
   {
     key: "type",
     header: "유형",
-    width: "w-[64px]",
+    width: 64,
     card: "meta",
     cardLabel: false,
     cell: (row) => (
@@ -177,7 +177,7 @@ const COLUMNS: readonly Column<PassRow>[] = [
     key: "status",
     header: "상태",
     // 「보호자 확인됨」이 한 줄에 서는 폭이다. 접히면 표 전체가 두꺼워진다.
-    width: "w-[112px]",
+    width: 112,
     card: "trailing",
     cell: (row) =>
       isPassStatus(row.status) ? (
@@ -191,8 +191,9 @@ const COLUMNS: readonly Column<PassRow>[] = [
   {
     key: "period",
     header: "기간",
-    // 외출은 「26. 8. 26. 오후 2:00 ~ 26. 8. 26. 오후 6:00」까지 늘어난다.
-    width: "w-[192px]",
+    // 외박이 가장 길다 — 「26. 8. 26. 오전 12:00 ~ 26. 8. 28. 오전 12:00」.
+    // 「오전 12:00」이 「오후 6:00」보다 길어 192px에서는 이 문자열이 접혔다.
+    width: 216,
     card: "meta",
     cardLabel: false,
     cell: (row) => (
@@ -209,7 +210,7 @@ const COLUMNS: readonly Column<PassRow>[] = [
   {
     key: "decided",
     header: "결재자",
-    width: "w-[112px]",
+    width: 112,
     card: "meta",
     cardLabel: "결재",
     cell: (row) => {
@@ -227,7 +228,7 @@ const COLUMNS: readonly Column<PassRow>[] = [
   {
     key: "open",
     header: "상세",
-    width: "w-[72px]",
+    width: 72,
     card: "actions",
     cell: (row) => (
       <Link
@@ -262,7 +263,7 @@ async function PassRows({
 
   return (
     <DataTable
-      minWidth={780}
+      minWidth={804}
       narrow="cards"
       // **fixed가 없으면 행선지 열이 안 잘린다.** table-layout이 auto면 셀 폭을
       // 내용이 정하므로 `truncate`가 기댈 확정 폭이 없다.

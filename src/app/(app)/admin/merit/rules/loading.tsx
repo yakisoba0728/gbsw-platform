@@ -1,4 +1,5 @@
 import { cardClass } from "@/components/ui/card";
+import { pageClass } from "@/components/ui/page-shell";
 import {
   Skeleton,
   SkeletonField,
@@ -9,7 +10,7 @@ import {
 /** `/admin/merit/rules`의 뼈대 — 규정 추가 폼 · 검색/종류 필터 · 규정 표. */
 export default function Loading() {
   return (
-    <SkeletonScreen className="mx-auto max-w-5xl space-y-4">
+    <SkeletonScreen className={pageClass("wide", "space-y-4")}>
       {/* 규정 추가 — 아래 다섯 칸의 폭은 rule-form.tsx의 @xl: 폭과 같은 값이다.
           어긋나면 내용이 도착할 때 자리가 튄다. 한쪽을 고치면 다른 쪽도 고친다. */}
       <div className={cardClass("panel")}>

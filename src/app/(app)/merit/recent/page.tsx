@@ -30,6 +30,7 @@ import {
 import { EMPTY_MERIT_STATE } from "../action-state";
 import { cancelAction } from "../actions";
 import { ExportRecentAwardsButton } from "../export-button";
+import { pageClass } from "@/components/ui/page-shell";
 
 export const metadata: Metadata = { title: "최근 부여" };
 
@@ -73,7 +74,7 @@ export default async function RecentAwardsPage({
   const boundaryKey = JSON.stringify(params);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-4">
+    <div className={pageClass("wide", "space-y-4")}>
       <SectionCard
         variant="panel"
         title="최근 부여"
@@ -310,7 +311,7 @@ async function RecentAwardsRows({
       header: "시각",
       // 한 줄에 담기는 폭이다. 접히면 표 전체가 두 줄짜리로 두꺼워진다 —
       // table-fixed라 nowrap이 다른 열을 밀지 않는다.
-      width: "w-[136px]",
+      width: 136,
       cell: (row) => (
         // 발생일은 제 줄에 세운다. 한 줄에 이어 붙였더니 table-fixed로 폭이 묶인
         // 칸에서 nowrap이 겹쳐, 「(발생 …)」이 옆 칸의 구분 배지를 덮었다.
@@ -327,19 +328,19 @@ async function RecentAwardsRows({
     {
       key: "kind",
       header: "구분",
-      width: "w-[68px]",
+      width: 68,
       cell: (row) => <KindBadge kind={row.kind} />,
     },
     {
       key: "class",
       header: "학급",
-      width: "w-[72px]",
+      width: 72,
       cell: (row) => <ClassNumber row={row} />,
     },
     {
       key: "student",
       header: "학생",
-      width: "w-[92px]",
+      width: 92,
       cell: (row) => <StudentLink row={row} track={track} />,
     },
     {
@@ -352,14 +353,14 @@ async function RecentAwardsRows({
     {
       key: "points",
       header: <span className="block text-right">점수</span>,
-      width: "w-[64px]",
+      width: 64,
       className: "text-right",
       cell: (row) => <AwardPoints row={row} />,
     },
     {
       key: "awardedBy",
       header: "부여자",
-      width: "w-[116px]",
+      width: 116,
       cell: (row) => {
         // 부여·취소는 교사 전용이라(can.ts) 이름 스냅샷에 역할이 없어도 호칭이 정해진다.
         const name = honorificName(row.awardedByName, "ADMIN");
@@ -373,7 +374,7 @@ async function RecentAwardsRows({
     {
       key: "status",
       header: "상태",
-      width: "w-[96px]",
+      width: 96,
       cell: (row) => <AwardStatus row={row} />,
     },
   ];

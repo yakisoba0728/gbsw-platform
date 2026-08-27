@@ -5,6 +5,7 @@ import { requireAuth } from "@/core/auth/session";
 import { AdminView } from "./admin-view";
 import { ParentView } from "./parent-view";
 import { StudentView } from "./student-view";
+import { pageClass } from "@/components/ui/page-shell";
 
 export const metadata: Metadata = { title: "출입증" };
 
@@ -17,7 +18,7 @@ export default async function PassPage() {
   if (actor.role === "PARENT") return <ParentView actor={actor} />;
 
   return (
-    <SectionCard title="출입증" className="mx-auto max-w-3xl" variant="panel">
+    <SectionCard title="출입증" className={pageClass("form")} variant="panel">
       <EmptyState variant="inside">이 계정에서는 쓸 수 없습니다.</EmptyState>
     </SectionCard>
   );

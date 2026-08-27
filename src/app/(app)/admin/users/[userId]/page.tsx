@@ -13,6 +13,7 @@ import { honorificName, isRole, ROLE_LABELS } from "@/core/authz/roles";
 import { formatDate, formatDateInput, formatDateTime } from "@/lib/datetime";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import { formatSeat } from "@/lib/student-number";
+import { pageClass } from "@/components/ui/page-shell";
 import {
   AdminUserError,
   getUserDetail,
@@ -76,7 +77,7 @@ export default async function UserDetailPage({
   };
 
   return (
-    <div className="@container mx-auto max-w-5xl">
+    <div className={pageClass("page", "@container")}>
       <BackLink href="/admin/users" className="mb-3">
         계정 목록
       </BackLink>

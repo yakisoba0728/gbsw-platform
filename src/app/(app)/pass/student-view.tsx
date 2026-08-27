@@ -7,6 +7,7 @@ import type { SessionUser } from "@/core/auth/session";
 import { getMyPasses } from "@/modules/pass/request.service";
 import { PassCard } from "./pass-card";
 import { WithdrawButton } from "./withdraw-button";
+import { pageClass } from "@/components/ui/page-shell";
 
 type MyPass = Awaited<ReturnType<typeof getMyPasses>>[number];
 
@@ -33,7 +34,7 @@ export async function StudentView({ actor }: { actor: SessionUser }) {
   const hasUsable = passes.some((pass) => isUsableNow(pass, now));
 
   return (
-    <div className="@container mx-auto max-w-3xl">
+    <div className={pageClass("page", "@container")}>
       <SectionCard
         title="내 출입증"
         // 목록에서 줄을 찾기 전에 카드 머리글이 먼저 답한다 — 정문 앞에서 묻는

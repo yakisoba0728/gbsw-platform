@@ -37,6 +37,7 @@ import {
   type PassHistoryQuery,
 } from "@/modules/pass/pass.schema";
 import { ExportPassHistoryButton } from "./export-button";
+import { pageClass } from "@/components/ui/page-shell";
 
 export const metadata: Metadata = { title: "전체 내역" };
 
@@ -83,7 +84,7 @@ export default async function PassHistoryPage({
   const boundaryKey = JSON.stringify(params);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
+    <div className={pageClass("wide", "space-y-4")}>
       <SectionCard
         variant="panel"
         title="전체 내역"
@@ -202,7 +203,7 @@ const COLUMNS: readonly Column<HistoryRow>[] = [
   {
     key: "type",
     header: "유형",
-    width: "w-[64px]",
+    width: 64,
     card: "meta",
     cardLabel: false,
     cell: (row) => (
@@ -215,7 +216,7 @@ const COLUMNS: readonly Column<HistoryRow>[] = [
     key: "status",
     header: "상태",
     // 「보호자 확인됨」이 한 줄에 서는 폭이다. 접히면 표 전체가 두꺼워진다.
-    width: "w-[112px]",
+    width: 112,
     card: "trailing",
     cell: (row) =>
       isPassStatus(row.status) ? (
@@ -229,7 +230,7 @@ const COLUMNS: readonly Column<HistoryRow>[] = [
   {
     key: "seat",
     header: "학급",
-    width: "w-[76px]",
+    width: 76,
     card: "meta",
     cardLabel: false,
     cell: (row) => (
@@ -241,15 +242,16 @@ const COLUMNS: readonly Column<HistoryRow>[] = [
   {
     key: "student",
     header: "학생",
-    width: "w-[104px]",
+    width: 104,
     card: "title",
     cell: (row) => <StudentLink row={row} />,
   },
   {
     key: "period",
     header: "기간",
-    // 외박이 가장 길다 — 「26. 8. 28. 오후 6:00 ~ 26. 8. 30. 오전 9:00」.
-    width: "w-[192px]",
+    // 외박이 가장 길다 — 「26. 8. 26. 오전 12:00 ~ 26. 8. 28. 오전 12:00」.
+    // 「오전 12:00」이 「오후 6:00」보다 길어 192px에서는 이 문자열이 접혔다.
+    width: 216,
     card: "meta",
     cardLabel: false,
     cell: (row) => (
@@ -266,7 +268,7 @@ const COLUMNS: readonly Column<HistoryRow>[] = [
   {
     key: "decided",
     header: "결재자",
-    width: "w-[112px]",
+    width: 112,
     card: "meta",
     cardLabel: "결재",
     cell: (row) => {
@@ -305,7 +307,7 @@ async function HistoryRows({
 
   return (
     <DataTable
-      minWidth={900}
+      minWidth={924}
       narrow="cards"
       // **fixed가 없으면 행선지 열이 안 잘린다.** table-layout이 auto면 셀 폭을
       // 내용이 정하므로 `truncate`가 기댈 확정 폭이 없다 — 긴 사유 한 줄이 표를

@@ -28,6 +28,7 @@ import {
 } from "@/modules/audit-log/audit-log.schema";
 import { readAuditLog } from "@/modules/audit-log/audit-log.service";
 import { LogFilters } from "./log-filters";
+import { pageClass } from "@/components/ui/page-shell";
 
 export const metadata: Metadata = { title: "감사로그" };
 
@@ -69,7 +70,7 @@ const COLUMNS: readonly Column<LogEntry>[] = [
     card: "meta",
     cardLabel: false,
     // 초까지 적는다 — 감사로그는 순서를 가려야 하는 자리다.
-    width: "w-[152px]",
+    width: 152,
     cell: (entry) => (
       <span className="tabular-nums text-mut">{formatDateTime(entry.createdAt)}</span>
     ),
@@ -78,14 +79,14 @@ const COLUMNS: readonly Column<LogEntry>[] = [
     key: "actor",
     header: "행위자",
     card: "title",
-    width: "w-[164px]",
+    width: 164,
     cell: (entry) => <ActorCell entry={entry} />,
   },
   {
     key: "action",
     header: "동작",
     card: "trailing",
-    width: "w-[116px]",
+    width: 116,
     cell: (entry) => (
       <Badge tone={auditActionTone(entry.action)}>
         {auditActionLabel(entry.action)}
@@ -96,7 +97,7 @@ const COLUMNS: readonly Column<LogEntry>[] = [
     key: "target",
     header: "대상",
     card: "meta",
-    width: "w-[76px]",
+    width: 76,
     cell: (entry) => (
       <span className="text-mut">{auditTargetLabel(entry.targetType)}</span>
     ),
@@ -106,7 +107,7 @@ const COLUMNS: readonly Column<LogEntry>[] = [
     // IP는 172.18.0.1 꼴이라 108px이면 넉넉하다.
     header: "접속",
     card: "meta",
-    width: "w-[108px]",
+    width: 108,
     cell: (entry) => (
       <span className="font-mono text-mut" title={entry.userAgent ?? undefined}>
         {entry.ip ?? "—"}
@@ -168,7 +169,7 @@ export default async function LogsPage({
         </Suspense>
       }
       flush
-      className="mx-auto max-w-6xl"
+      className={pageClass("wide")}
     >
       <Suspense key={`rows:${boundaryKey}`} fallback={<SkeletonRows rows={10} />}>
         <LogRows promise={resultPromise} params={raw} />

@@ -5,6 +5,7 @@ import { formatDateTime } from "@/lib/datetime";
 import { listThresholdSettings } from "@/modules/merit/threshold.service";
 import { ThresholdForm } from "./threshold-form";
 import { honorificName } from "@/core/authz/roles";
+import { pageClass } from "@/components/ui/page-shell";
 
 export const metadata: Metadata = { title: "설정" };
 
@@ -18,7 +19,7 @@ export default async function SettingsPage() {
   const thresholds = await listThresholdSettings(actor);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <div className={pageClass("form", "space-y-4")}>
       <SectionCard
         flush
         title="벌점 기준"

@@ -16,6 +16,7 @@ import { getStudentIdentity } from "@/modules/enrollment/enrollment.service";
 import { MeritTab } from "./merit-tab";
 import { PassTab } from "./pass-tab";
 import { ProfileTab } from "./profile-tab";
+import { pageClass } from "@/components/ui/page-shell";
 import {
   STUDENT_TABS,
   STUDENT_TAB_ACTIONS,
@@ -84,7 +85,7 @@ export default async function StudentPage({
   const seat = header ? formatStudentNumber(header) : null;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-4">
+    <div className={pageClass("wide", "space-y-4")}>
       {/* 들어오는 길이 여럿이라(상벌점·출입증 내역·계정 상세) 어느 한 곳으로만
           되돌릴 수 없다. 가장 많이 들어오는 자리 하나를 고정으로 둔다. */}
       <BackLink href="/merit">상벌점</BackLink>

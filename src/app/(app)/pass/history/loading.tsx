@@ -1,4 +1,5 @@
 import { cardClass } from "@/components/ui/card";
+import { pageClass } from "@/components/ui/page-shell";
 import {
   Skeleton,
   SkeletonField,
@@ -16,7 +17,7 @@ import {
  */
 export default function Loading() {
   return (
-    <SkeletonScreen className="mx-auto max-w-6xl space-y-4">
+    <SkeletonScreen className={pageClass("wide", "space-y-4")}>
       <div className={cardClass("panel")}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <Skeleton className="h-6 w-24" />

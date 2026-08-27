@@ -10,6 +10,7 @@ import { listMyParentInvites } from "@/modules/invites/invite.service";
 import { RevokeButton } from "@/app/(app)/admin/invites/revoke-button";
 import { ParentInviteForm } from "./parent-invite-form";
 import { honorificName } from "@/core/authz/roles";
+import { pageClass } from "@/components/ui/page-shell";
 
 export const metadata: Metadata = { title: "학부모 초대" };
 
@@ -111,7 +112,7 @@ export default async function ParentInvitePage() {
 
   return (
     // 두 단이 서는 기준은 뷰포트가 아니라 이 자리의 폭이다.
-    <div className="@container mx-auto max-w-4xl">
+    <div className={pageClass("page", "@container")}>
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 @2xl:grid-cols-[340px_1fr]">
         <SectionCard
           variant="panel"

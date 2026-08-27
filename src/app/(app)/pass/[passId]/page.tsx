@@ -27,6 +27,7 @@ import {
 } from "@/modules/pass/request.service";
 import { passPeriod } from "../pass-card";
 import { PassQr, type QrPayload } from "../pass-qr";
+import { pageClass } from "@/components/ui/page-shell";
 
 export const metadata: Metadata = { title: "출입증" };
 
@@ -73,7 +74,7 @@ export default async function PassDetailPage({
   });
 
   return (
-    <div className="@container mx-auto max-w-2xl">
+    <div className={pageClass("form", "@container")}>
       <BackLink href="/pass">출입증</BackLink>
 
       <SectionCard

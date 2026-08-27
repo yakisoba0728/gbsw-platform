@@ -17,6 +17,7 @@ import { CancelButton } from "./cancel-button";
 import { DecisionPanel } from "./decision-panel";
 import { IssueForm } from "./issue-form";
 import { PassCard, passEndLabel } from "./pass-card";
+import { pageClass } from "@/components/ui/page-shell";
 
 export async function AdminView({ actor }: { actor: SessionUser }) {
   const now = new Date();
@@ -28,7 +29,7 @@ export async function AdminView({ actor }: { actor: SessionUser }) {
   ]);
 
   return (
-    <div className="@container mx-auto max-w-5xl space-y-4">
+    <div className={pageClass("page", "@container space-y-4")}>
       <div className="grid gap-4 @2xl:grid-cols-2">
         <StatTile label="결재 대기" value={`${pending.length}건`} />
         <StatTile label="지금 나가 있는 학생" value={`${active.length}명`} />

@@ -22,8 +22,15 @@ export function TableFrame({
 }: {
   /** 표가 찌그러지지 않는 최소 폭(px). Tailwind는 실행 중 클래스를 못 만든다. */
   minWidth: number;
-  /** `<colgroup>`의 열별 클래스. `undefined`면 폭을 지정하지 않는 열이다. */
-  cols?: readonly (string | undefined)[];
+  /**
+   * `<colgroup>`의 열별 폭. `undefined`면 폭을 지정하지 않는 열이다.
+   *
+   * **숫자를 주면 `minWidth`일 때의 px로 읽고 비율로 바꿔 넣는다** — 표가 그보다
+   * 넓어지면 그 열도 같은 비율로 넓어진다. `fixed` 표에서 px를 그대로 쓰면 남는
+   * 폭이 폭을 안 정한 열 하나로 전부 몰려, 넓은 화면에서 「양옆은 비었는데
+   * 기간 칸만 두 줄」이 된다. 문자열(Tailwind 클래스)은 지금까지처럼 고정 폭이다.
+   */
+  cols?: readonly (string | number | undefined)[];
   headers: readonly ReactNode[];
   /**
    * 열별 `aria-sort`. headers와 같은 순서로 늘어놓는다. 보조기술은 헤더 셀에서
@@ -60,7 +67,15 @@ export function TableFrame({
         {cols && (
           <colgroup>
             {cols.map((col, i) => (
-              <col key={i} className={col} />
+              <col
+                key={i}
+                className={typeof col === "string" ? col : undefined}
+                style={
+                  typeof col === "number"
+                    ? { width: `${(col / minWidth) * 100}%` }
+                    : undefined
+                }
+              />
             ))}
           </colgroup>
         )}
@@ -105,8 +120,8 @@ export type Column<Row> = {
   key: string;
   header: ReactNode;
   cell: (row: Row, index: number) => ReactNode;
-  /** `<colgroup>`용 폭 클래스. */
-  width?: string;
+  /** `<colgroup>`용 폭. 숫자는 `minWidth`일 때의 px — `TableFrame.cols` 참고. */
+  width?: string | number;
   sort?: AriaAttributes["aria-sort"];
   /**
    * 카드 모드에서 앉는 자리. **비우면 카드에 나오지 않는다** — 375px에 안 들어가는

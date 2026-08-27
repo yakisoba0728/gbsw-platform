@@ -5,6 +5,7 @@ import { StudentsPanel } from "../students/panel";
 import { parseAdminTab } from "./admin-tab";
 import { AdminTabs } from "./admin-tabs";
 import { AccountsPanel } from "./panel";
+import { pageClass } from "@/components/ui/page-shell";
 
 /**
  * 탭 제목은 탭을 따라가지 않는다. `generateMetadata`에 searchParams를 물리면
@@ -35,7 +36,7 @@ export default async function AdminUsersPage({
   return (
     // 세 탭이 같은 자리에 선다 — 폭을 여기서 한 번만 정한다. 탭마다 다르면
     // 탭을 누를 때마다 카드 가장자리가 좌우로 흔들린다.
-    <div className="@container mx-auto max-w-7xl space-y-4">
+    <div className={pageClass("wide", "@container space-y-4")}>
       <AdminTabs current={tab} />
 
       {tab === "invites" && <InvitesPanel />}

@@ -1,3 +1,4 @@
+import { pageClass } from "@/components/ui/page-shell";
 import {
   SkeletonScreen,
   SkeletonTabs,
@@ -13,7 +14,7 @@ import {
  */
 export default function Loading() {
   return (
-    <SkeletonScreen className="mx-auto max-w-7xl">
+    <SkeletonScreen className={pageClass("wide")}>
       <SkeletonTabs count={3} size="sm" width="w-14" />
     </SkeletonScreen>
   );
