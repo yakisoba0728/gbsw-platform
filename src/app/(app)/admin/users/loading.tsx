@@ -14,7 +14,7 @@ import {
  */
 export default function Loading() {
   return (
-    <SkeletonScreen className={pageClass("wide")}>
+    <SkeletonScreen className={pageClass("page")}>
       <SkeletonTabs count={3} size="sm" width="w-14" />
     </SkeletonScreen>
   );

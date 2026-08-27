@@ -89,7 +89,7 @@ export function AdminMeritView({
   return (
     // 부여 화면은 명단과 부여 칸이 두 단으로 서므로 다른 화면(max-w-5xl)보다
     // 넓게 잡는다 — 5xl에서는 오른쪽 단이 좁아 항목 이름이 두 줄로 접힌다.
-    <div className={pageClass("wide", "space-y-4")}>
+    <div className={pageClass("page", "space-y-4")}>
       {/* 제목은 정식 이름(그린마일리지), 탭은 짧은 표기(교내)라 나란히 둬도 겹치지
           않는다. 상단바 제목은 쿼리를 떼고 찾으므로 어느 트랙이든 "상벌점"이다 —
           지금 어느 쪽을 보고 있는지는 이 줄이 답한다. */}

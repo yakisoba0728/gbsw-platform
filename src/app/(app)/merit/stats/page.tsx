@@ -170,7 +170,7 @@ type ShellProps = {
 /** 갈래 네 갈래가 같은 껍데기를 쓴다 — 머리글 카드 + 본문. */
 function Layout({ shell, children }: { shell: ShellProps; children: React.ReactNode }) {
   return (
-    <div className={pageClass("wide", "space-y-4")}>
+    <div className={pageClass("page", "space-y-4")}>
       <StatsShell {...shell} />
       {children}
     </div>

@@ -15,7 +15,7 @@ import { pageClass } from "@/components/ui/page-shell";
  */
 export default function Loading() {
   return (
-    <SkeletonScreen className={pageClass("wide", "space-y-4")}>
+    <SkeletonScreen className={pageClass("page", "space-y-4")}>
       <div className={cardClass("panel")}>
         {/* 제목 · 집계 범위 · 트랙 탭 */}
         <div className="flex flex-wrap items-start justify-between gap-3">

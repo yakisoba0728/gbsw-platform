@@ -14,7 +14,7 @@ import {
  */
 export default function Loading() {
   return (
-    <SkeletonScreen className={pageClass("wide", "space-y-4")}>
+    <SkeletonScreen className={pageClass("page", "space-y-4")}>
       <SkeletonTabs size="sm" />
 
       {/* 검색 폼 — 입력칸 + 버튼 */}

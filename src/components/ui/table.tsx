@@ -61,7 +61,17 @@ export function TableFrame({
     // 눈에 띄지 않으므로, 자리를 따지지 않고 늘 둥글린다.
     <div className={cn("scroll-x-hint overflow-x-auto rounded-b-card", className)}>
       <table
-        className={cn("w-full text-left text-sm", fixed && "table-fixed")}
+        className={cn(
+          // **폭을 화면이 아니라 내용이 정한다.** w-full이면 열이 적고 글이 짧은
+          // 표도 1600px까지 늘어나, 한 열만 900px가 되고 나머지는 붙어 선다.
+          // w-auto는 내용만큼만 서고 max-w-full이 상한, minWidth가 하한이다.
+          // 넘치면 바깥 상자가 가로로 스크롤한다.
+          //
+          // fixed 표는 예외다 — table-layout:fixed는 정해진 폭이 있어야 열을
+          // 나눌 수 있어서, 폭이 auto면 폭을 안 적은 열이 0이 된다.
+          fixed ? "w-full table-fixed" : "w-auto max-w-full",
+          "text-left text-sm",
+        )}
         style={{ minWidth }}
       >
         {cols && (

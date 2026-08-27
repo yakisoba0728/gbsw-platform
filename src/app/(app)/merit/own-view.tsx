@@ -53,7 +53,7 @@ export function OwnMeritView({
   ]);
 
   return (
-    <div className={pageClass("wide", "space-y-4")}>
+    <div className={pageClass("page", "space-y-4")}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         {/* h1은 상단바가 (app)의 모든 화면에 이미 그린다 — 여기는 h2다. */}
         <h2 className="text-title font-semibold text-ink">{title}</h2>
