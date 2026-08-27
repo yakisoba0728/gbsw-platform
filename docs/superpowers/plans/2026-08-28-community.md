@@ -2208,7 +2208,7 @@ git commit -m "feat(community): 익명을 가리는 뷰 변환기를 넣는다"
 **Interfaces:**
 - Consumes: Task 5의 `getReadableBySlug`·`getWritableBySlug`, Task 7의 `toPostView`·`toPostListItem`
 - Produces:
-  - repo: `countPosts(communityId, db?)` · `listPosts(communityId, skip, take, db?)` · `findPost(id, db?)` · `createPost(data, db?)` · `updatePost(id, data, updatedAt, db?)` · `markPostDeleted(id, actorUserId, reason, db?)`
+  - repo: `PostWithCounts` · `countPosts(communityId, db?)` · `listPosts(communityId, skip, take, db?)` · `findPost(id, db?)` · `createPost(data, db?)` · `updatePost(id, data, updatedAt, db?)` · `markPostDeleted(id, actorUserId, reason, db?)`
   - schema: `createPostSchema` → `{ slug, title, body, attachmentIds: string[] }` · `updatePostSchema` → `{ postId, updatedAt: Date, title, body, attachmentIds }` · `deletePostSchema` → `{ postId, reason: string|null }` · `pageSchema` → `number`
   - service: `listPostPage(actor, slug, page)` · `getPost(actor, postId)` · `createPost(actor, input)` → `{ postId, slug }` · `updatePost(actor, input)` · `deletePost(actor, input)` → `{ slug }`
 
@@ -2224,7 +2224,13 @@ const POST_WITH_COUNTS = {
   include: { _count: { select: { comments: { where: { deletedAt: null } } } } },
 } as const;
 
-export type PostRow = Awaited<ReturnType<typeof listPosts>>[number];
+/**
+ * 목록 한 줄. **`community.view.ts`의 `PostRow`와 이름이 겹치지 않게 한다** —
+ * 그쪽은 뷰 변환기가 받는 최소 모양이고, 이쪽은 댓글 수까지 붙은 조회 결과다.
+ * 두 이름이 같으면 `post.service.ts`가 둘 다 import하는 자리에서 무엇이
+ * 무엇인지 읽히지 않는다.
+ */
+export type PostWithCounts = Awaited<ReturnType<typeof listPosts>>[number];
 
 /** 지워진 글은 세지 않는다. 페이지 수 계산이 화면과 어긋나면 빈 쪽이 생긴다. */
 export function countPosts(communityId: string, db: DbClient = prisma): Promise<number> {
@@ -4399,7 +4405,8 @@ export async function deleteAttachment(key: string, at: Date): Promise<void> {
  * ASCII 폴백은 위험한 문자를 지우고 진짜 이름은 RFC 5987로 인코딩해 싣는다.
  */
 export function contentDisposition(filename: string, inline: boolean): string {
-  const ascii = filename.replace(/[^\x20-\x7e]/g, "_").replace(/["\;\r\n]/g, "_");
+  // 문자 클래스 안에서 `;`를 이스케이프하지 않는다 — `\;`는 no-useless-escape에 걸린다.
+  const ascii = filename.replace(/[^\x20-\x7e]/g, "_").replace(/[";\r\n]/g, "_");
   const encoded = encodeURIComponent(filename);
   return `${inline ? "inline" : "attachment"}; filename="${ascii}"; filename*=UTF-8''${encoded}`;
 }
