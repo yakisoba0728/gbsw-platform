@@ -136,3 +136,89 @@ export const deleteCommunitySchema = z.object({
 });
 
 export type DeleteCommunityInput = z.infer<typeof deleteCommunitySchema>;
+
+// ── 글 ────────────────────────────────────────────────────────
+
+const postTitle = z
+  .string()
+  .trim()
+  .min(1, "제목을 입력해 주세요.")
+  .max(200, "제목은 200자를 넘을 수 없습니다.");
+
+/**
+ * 본문. **trim하지 않는다** — 줄바꿈만 살리는 평문이라 앞뒤 빈 줄도 글쓴이가
+ * 넣은 모양이다. 대신 공백만 있는 본문은 거부한다.
+ */
+const postBody = z
+  .string()
+  .min(1, "내용을 입력해 주세요.")
+  .max(20000, "내용은 20000자를 넘을 수 없습니다.")
+  .refine((v) => v.trim().length > 0, "내용을 입력해 주세요.");
+
+/** 폼이 hidden으로 싣는 첨부 id들. 없으면 빈 배열. */
+const attachmentIds = z.preprocess(
+  (v) => (v == null ? [] : Array.isArray(v) ? v : [v]),
+  z
+    .array(z.string().trim().min(1))
+    .max(
+      MAX_ATTACHMENTS_PER_POST,
+      `첨부는 ${MAX_ATTACHMENTS_PER_POST}개까지 넣을 수 있습니다.`,
+    ),
+);
+
+export const createPostSchema = z.object({
+  slug: slugSchema,
+  title: postTitle,
+  body: postBody,
+  attachmentIds,
+});
+
+export type CreatePostInput = z.infer<typeof createPostSchema>;
+
+export const updatePostSchema = z.object({
+  postId: z.string().trim().min(1),
+  updatedAt: z.iso
+    .datetime("다른 곳에서 글이 바뀌었습니다. 새로고침 후 다시 저장해 주세요.")
+    .transform((value) => new Date(value)),
+  title: postTitle,
+  body: postBody,
+  attachmentIds,
+});
+
+export type UpdatePostInput = z.infer<typeof updatePostSchema>;
+
+export const deletePostSchema = z.object({
+  postId: z.string().trim().min(1),
+  reason: optionalText(200),
+});
+
+export type DeletePostInput = z.infer<typeof deletePostSchema>;
+
+/** `?page=`. 이상한 값은 조용히 1로 — 목록이 오류 화면이 되면 안 된다. */
+export function parsePage(value: unknown): number {
+  const n = Number(typeof value === "string" ? value : NaN);
+  return Number.isInteger(n) && n >= 1 && n <= 100000 ? n : 1;
+}
+
+// ── 댓글 ──────────────────────────────────────────────────────
+
+/** 본문. 글과 같은 이유로 trim하지 않고 공백만 있는 것을 거부한다. */
+const commentBody = z
+  .string()
+  .min(1, "댓글을 입력해 주세요.")
+  .max(2000, "댓글은 2000자를 넘을 수 없습니다.")
+  .refine((v) => v.trim().length > 0, "댓글을 입력해 주세요.");
+
+export const createCommentSchema = z.object({
+  postId: z.string().trim().min(1),
+  body: commentBody,
+});
+
+export type CreateCommentInput = z.infer<typeof createCommentSchema>;
+
+export const deleteCommentSchema = z.object({
+  commentId: z.string().trim().min(1),
+  reason: optionalText(200),
+});
+
+export type DeleteCommentInput = z.infer<typeof deleteCommentSchema>;
