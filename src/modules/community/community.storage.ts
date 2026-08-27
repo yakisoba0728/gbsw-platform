@@ -134,8 +134,10 @@ export async function deleteAttachment(key: string, at: Date): Promise<void> {
  * ASCII 폴백은 위험한 문자를 지우고 진짜 이름은 RFC 5987로 인코딩해 싣는다.
  */
 export function contentDisposition(filename: string, inline: boolean): string {
-  // 문자 클래스 안에서 `;`를 이스케이프하지 않는다 — `\;`는 no-useless-escape에 걸린다.
-  const ascii = filename.replace(/[^\x20-\x7e]/g, "_").replace(/[";\r\n]/g, "_");
+  // 역슬래시까지 지운다 — `보고서\.pdf`를 그대로 두면 `filename="보고서\"`가 되어
+  // 따옴표가 이스케이프된 것으로 읽는 파서가 있다.
+  // (문자 클래스 안에서 `;`는 이스케이프하지 않는다 — no-useless-escape에 걸린다.)
+  const ascii = filename.replace(/[^\x20-\x7e]/g, "_").replace(/["\\;\r\n]/g, "_");
   const encoded = encodeURIComponent(filename);
   return `${inline ? "inline" : "attachment"}; filename="${ascii}"; filename*=UTF-8''${encoded}`;
 }

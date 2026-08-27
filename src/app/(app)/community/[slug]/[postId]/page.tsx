@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { BackLink } from "@/components/ui/back-link";
 import { buttonClass } from "@/components/ui/button";
 import { cardClass } from "@/components/ui/card";
@@ -27,6 +28,14 @@ export default async function PostPage({
     getPost(actor, postId),
     listComments(actor, postId),
   ]);
+
+  // **주소의 게시판과 글의 게시판이 다르면 정규 주소로 보낸다.** 안 그러면
+  // 뒤로가기·「수정」 링크가 엉뚱한 게시판을 가리키고, 첨부 고르개가 그 slug로
+  // 파일을 올려 게시판 설정(첨부 허용 여부)을 우회하는 길이 생긴다.
+  if (slug !== view.community.slug) {
+    redirect(`/community/${view.community.slug}/${postId}`);
+  }
+
   const { post } = view;
 
   return (

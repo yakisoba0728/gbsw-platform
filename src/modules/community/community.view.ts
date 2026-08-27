@@ -1,4 +1,5 @@
 import type { SessionUser } from "@/core/auth/session";
+import { can } from "@/core/authz/can";
 import { honorificName, isRole, type Role } from "@/core/authz/roles";
 
 /**
@@ -90,7 +91,9 @@ export function toPostView(
     author: toAuthor(row, community),
     isMine,
     canEdit: isMine,
-    canDelete: isMine || viewer.role === "ADMIN",
+    // 삭제 버튼을 그릴지. 조정 판정은 `can()`이 한다 — 서비스와 같은 근거를
+    // 봐야 버튼은 보이는데 눌리지 않는 일이 없다.
+    canDelete: isMine || can(viewer, "community:moderate"),
   };
 }
 
@@ -156,7 +159,7 @@ export function toCommentView(
     createdAt: row.createdAt,
     author: toAuthor(row, community),
     isMine,
-    canDelete: isMine || viewer.role === "ADMIN",
+    canDelete: isMine || can(viewer, "community:moderate"),
     byPostAuthor: isSamePerson(row.authorUserId, post.authorUserId),
   };
 }

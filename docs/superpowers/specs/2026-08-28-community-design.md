@@ -148,6 +148,17 @@ toPostView(row, community, viewer) → {
 
 **학생에게 이 사실을 숨기지 않는다.** 익명 게시판 글쓰기 화면에 한 줄로 적는다.
 
+### 익명은 켤 수만 있다
+
+**켠 게시판을 실명으로 되돌릴 수 없다** (`ANONYMOUS_IRREVERSIBLE`). 되돌리는
+순간 이미 쌓인 모든 글과 댓글의 작성자가 화면에 뜨기 때문이다 — 뷰 변환기는
+저장된 이름을 **지금의** 플래그로만 가리므로, 체크박스 하나가 감사로그보다
+훨씬 싼 우회로가 된다. 감사로그 대조는 한 건씩 시각을 맞춰야 하지만 이쪽은
+게시판 전체가 한 번에 열린다.
+
+켜는 방향은 막지 않는다 — 이름이 더 감춰질 뿐 드러나지 않는다. 게시판을 만들 때
+정하는 것이 원칙이고, 켤 때는 폼과 확인 모달이 되돌릴 수 없다고 알린다.
+
 ## 결정 3 — 제거는 지우는 것이 아니다
 
 커뮤니티 제거는 `active = false`다. `MeritRule`과 같은 규약이다 — 글이 매달려
@@ -353,8 +364,11 @@ model CommunityAttachment {
   라우트가 직접 재고 넘으면 거부한다 — 아무도 안 재면 아무 제한이 없다.
 - **미결 첨부 수.** 한 사람의 `postId: null` 행이 **10개를 넘으면 거부한다.**
   위의 고아 정리는 「그 사람이 다음에 올릴 때」만 도는지라, 50분 동안 500개를
-  올리고 그만두는 사람에게는 영영 안 돈다. 이 상한이 계정당 최악의 디스크 사용을
-  정리 시점과 무관하게 묶는다.
+  올리고 그만두는 사람에게는 영영 안 돈다. 이 상한이 묶는 것은 **글에 붙지 않은
+  채 떠 있는 파일**뿐이다 — 글에 붙은 첨부에는 상한이 없고 글쓰기에도 속도
+  제한이 없어서, 「5개 올린다 → 글을 쓴다」를 되풀이하면 한 계정이 볼륨을 채울
+  수 있다. 그쪽은 글이 남으므로 교사가 보고 지울 수 있다는 것이 지금의 답이고,
+  용량 관리는 「다시 열어야 할 때」 목록에 있다.
 
 **프록시가 먼저 막을 수 있다.** 앱 앞의 리버스 프록시가 요청 본문 상한을 5MB보다
 낮게 두고 있으면(nginx 기본값은 `client_max_body_size 1m`이다) 업로드가 앱에 닿기도
@@ -400,8 +414,8 @@ model CommunityAttachment {
 사전이 맡는다 — `MeritError`·`PassError`와 같은 규약이다.
 
 ```
-SLUG_TAKEN · COMMUNITY_NOT_FOUND · COMMUNITY_CONFLICT
-POST_NOT_FOUND · POST_CONFLICT · COMMENT_NOT_FOUND
+SLUG_TAKEN · COMMUNITY_NOT_FOUND · COMMUNITY_CONFLICT · ANONYMOUS_IRREVERSIBLE
+POST_NOT_FOUND · POST_CONFLICT · COMMENT_NOT_FOUND · REASON_REQUIRED
 ATTACHMENT_NOT_FOUND · ATTACHMENT_NOT_ALLOWED · ATTACHMENT_TYPE
 ATTACHMENT_TOO_LARGE · ATTACHMENT_LIMIT (글당 5개)
 ATTACHMENT_PENDING_LIMIT (미결 10개)
@@ -475,7 +489,7 @@ ATTACHMENT_PENDING_LIMIT (미결 10개)
 | 글쓰기·댓글 쓰기 | **없음** | — |
 | 글 수정 | 있음 | 없음 |
 | 내 글·댓글 삭제 | 있음 | 없음 |
-| 남의 글·댓글 삭제 (교사) | 있음 (`tone="danger"`) | **필수** |
+| 남의 글·댓글 삭제 (교사) | 있음 (`tone="danger"`) | **필수 — 서비스가 강제한다** |
 | 첨부 빼기 (글 수정 중) | **없음** — 저장할 때 글 수정 모달이 한 번 묻는다 | — |
 
 **글쓰기와 댓글 쓰기에는 모달을 달지 않는다.** 되돌릴 수 있고(수정·삭제), 게시판에서

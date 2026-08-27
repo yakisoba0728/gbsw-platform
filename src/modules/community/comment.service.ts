@@ -1,5 +1,6 @@
 import { recordAudit } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
+import { can } from "@/core/authz/can";
 import { ForbiddenError } from "@/core/authz/errors";
 import { withTransaction } from "@/core/db/client";
 import * as board from "./board.service";
@@ -99,10 +100,14 @@ export async function deleteComment(
   const community = await board.getReadableBySlug(actor, comment.post.community.slug);
 
   const isMine = comment.authorUserId !== null && comment.authorUserId === actor.id;
-  const isModerator = actor.role === "ADMIN";
+  // 글 삭제와 같은 규칙 — 조정 판정은 `can()`이 한다.
+  const isModerator = can(actor, "community:moderate");
   if (!isMine && !isModerator) {
     await denyOwnership(actor, "community:comment:delete", input.commentId);
   }
+
+  // 남의 댓글을 지울 때는 사유가 필수다 (글 삭제와 같은 이유).
+  if (!isMine && !input.reason) throw new CommunityError("REASON_REQUIRED");
 
   await withTransaction(async (tx) => {
     const removed = await repo.markCommentDeleted(

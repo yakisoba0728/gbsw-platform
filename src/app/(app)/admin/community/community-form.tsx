@@ -51,6 +51,8 @@ export function CommunityForm({ board }: { board?: CommunityFormBoard }) {
   const readRoles = v?.readRoles ?? board?.readRoles ?? [];
   const writeRoles = v?.writeRoles ?? board?.writeRoles ?? [];
   const anonymous = v ? v.anonymous : (board?.anonymous ?? false);
+  /** 이미 켜진 게시판인가. 켜진 뒤에는 끌 수 없다. */
+  const lockedAnonymous = board?.anonymous ?? false;
   const allowAttachments = v ? v.allowAttachments : (board?.allowAttachments ?? true);
 
   return (
@@ -141,10 +143,16 @@ export function CommunityForm({ board }: { board?: CommunityFormBoard }) {
               label="익명 게시판"
               name="anonymous"
               defaultChecked={anonymous}
+              // **켜진 뒤에는 끌 수 없다.** 끄면 이미 쌓인 글의 작성자가 전부
+              // 드러나기 때문이다 — 서비스도 같은 이유로 거부한다. 체크는 계속
+              // 보내야 하므로 disabled가 아니라 readOnly처럼 막는다.
+              onClick={lockedAnonymous ? (e) => e.preventDefault() : undefined}
+              aria-readonly={lockedAnonymous || undefined}
             />
             <p className="text-caption text-mut">
-              켜면 이 게시판의 글과 댓글에서 작성자가 아무에게도 보이지 않습니다. 교사도
-              마찬가지입니다.
+              {lockedAnonymous
+                ? "이미 익명 게시판입니다. 끄면 그동안 쌓인 글의 작성자가 모두 드러나므로 되돌릴 수 없습니다."
+                : "켜면 이 게시판의 글과 댓글에서 작성자가 아무에게도 보이지 않습니다. 교사도 마찬가지이고, 한 번 켜면 되돌릴 수 없습니다."}
             </p>
           </div>
 
@@ -174,8 +182,11 @@ export function CommunityForm({ board }: { board?: CommunityFormBoard }) {
           label={editing ? "저장" : "게시판 만들기"}
           title={editing ? "게시판을 저장합니다" : "게시판을 만듭니다"}
           description={
-            anonymous
-              ? "익명 게시판입니다. 글과 댓글의 작성자가 화면에서 아무에게도 보이지 않습니다."
+            // 저장 뒤의 상태가 아니라 **이번 저장이 무엇을 바꾸는지**를 말한다.
+            // 예전에는 값만 보고 문구를 골라, 익명을 끄며 저장할 때 「작성자가
+            // 보이지 않습니다」라고 정반대로 안내했다.
+            anonymous && !lockedAnonymous
+              ? "익명 게시판으로 만듭니다. 글과 댓글의 작성자가 화면에서 아무에게도 보이지 않고, 되돌릴 수 없습니다."
               : "권한 설정이 바로 반영됩니다."
           }
           confirmLabel={editing ? "저장" : "만들기"}

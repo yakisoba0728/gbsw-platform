@@ -267,16 +267,58 @@ describe("updatePost", () => {
 
   it("수정에서 뺀 첨부는 커밋 뒤에 디스크에서도 지운다", async () => {
     const createdAt = new Date("2026-08-01T00:00:00.000Z");
-    detachFromPost.mockResolvedValue([{ storageKey: "c".repeat(32), createdAt }]);
+    detachFromPost.mockResolvedValue([
+      { id: "a9", storageKey: "c".repeat(32), filename: "옛파일.pdf", createdAt },
+    ]);
 
     await service.updatePost(student, input);
 
     expect(deleteAttachment).toHaveBeenCalledWith("c".repeat(32), createdAt);
   });
 
+  it("**뺀 첨부는 파일 이름과 함께 감사로그에 한 건씩 남는다** — 되돌릴 수 없는 삭제다", async () => {
+    detachFromPost.mockResolvedValue([
+      {
+        id: "a9",
+        storageKey: "c".repeat(32),
+        filename: "옛파일.pdf",
+        createdAt: new Date("2026-08-01T00:00:00.000Z"),
+      },
+    ]);
+
+    await service.updatePost(student, input);
+
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "community:attachment:delete",
+        targetId: "a9",
+        metadata: expect.objectContaining({ filename: "옛파일.pdf" }),
+      }),
+      txClient,
+    );
+  });
+
+  it("첨부를 안 받는 게시판이면 수정 경로로도 못 붙인다", async () => {
+    findPost.mockResolvedValue({
+      ...row(),
+      community: board({ allowAttachments: false }),
+    });
+    getReadableBySlug.mockResolvedValue(board({ allowAttachments: false }));
+
+    await expect(
+      service.updatePost(student, { ...input, attachmentIds: ["a1"] }),
+    ).rejects.toThrow(new CommunityError("ATTACHMENT_NOT_ALLOWED"));
+    expect(updatePost).not.toHaveBeenCalled();
+  });
+
   it("롤백되면 디스크를 안 건드린다", async () => {
     detachFromPost.mockResolvedValue([
-      { storageKey: "c".repeat(32), createdAt: new Date() },
+      {
+        id: "a9",
+        storageKey: "c".repeat(32),
+        filename: "옛파일.pdf",
+        createdAt: new Date(),
+      },
     ]);
     updatePost.mockResolvedValue(false);
 
@@ -319,6 +361,19 @@ describe("deletePost", () => {
       }),
       txClient,
     );
+  });
+
+  it("**남의 글을 사유 없이 지우려 하면 거부한다** — 화면을 건너뛴 요청도 막는다", async () => {
+    await expect(
+      service.deletePost(admin, { postId: "p1", reason: null }),
+    ).rejects.toThrow(new CommunityError("REASON_REQUIRED"));
+    expect(markPostDeleted).not.toHaveBeenCalled();
+  });
+
+  it("내 글은 사유 없이 지운다 — 물을 이유가 없다", async () => {
+    await expect(
+      service.deletePost(student, { postId: "p1", reason: null }),
+    ).resolves.toBeDefined();
   });
 
   it("남은 못 지운다", async () => {

@@ -199,13 +199,26 @@ describe("deleteComment", () => {
   });
 
   it("교사는 남의 댓글도 지운다 — byModerator는 true", async () => {
-    await service.deleteComment(admin, input);
+    await service.deleteComment(admin, { ...input, reason: "욕설" });
     expect(recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
-        metadata: expect.objectContaining({ byModerator: true }),
+        metadata: expect.objectContaining({ byModerator: true, reason: "욕설" }),
       }),
       txClient,
     );
+  });
+
+  it("**남의 댓글을 사유 없이 지우려 하면 거부한다** — 화면을 건너뛴 요청도 막는다", async () => {
+    await expect(service.deleteComment(admin, { ...input, reason: null })).rejects.toThrow(
+      new CommunityError("REASON_REQUIRED"),
+    );
+    expect(markCommentDeleted).not.toHaveBeenCalled();
+  });
+
+  it("내 댓글은 사유 없이 지운다 — 물을 이유가 없다", async () => {
+    await expect(
+      service.deleteComment(student, { ...input, reason: null }),
+    ).resolves.toBeDefined();
   });
 
   it("남은 못 지운다", async () => {

@@ -8,6 +8,22 @@ import { TruncatedText } from "@/components/ui/truncated-text";
 export type PickedAttachment = { id: string; filename: string; size: number };
 
 /**
+ * 응답에서 사람이 읽을 문구를 뽑는다. **본문이 JSON이 아닐 수 있다** — 프록시가
+ * 본문 상한으로 끊으면 HTML 413이 온다. 그때는 상태 코드가 유일한 단서다.
+ */
+async function errorText(res: Response): Promise<string> {
+  try {
+    const json = (await res.json()) as { error?: string };
+    if (json.error) return json.error;
+  } catch {
+    // JSON이 아니다 — 아래 상태 코드로 떨어진다.
+  }
+  if (res.status === 413) return "파일이 너무 큽니다.";
+  if (res.status === 401) return "로그인이 필요합니다. 새로고침 후 다시 시도해 주세요.";
+  return "올리지 못했습니다.";
+}
+
+/**
  * 파일을 고르면 **곧바로 라우트 핸들러로 올리고** id만 폼에 싣는다.
  *
  * 서버 액션으로 파일을 보내지 않는 이유는 `next.config.ts`의
@@ -37,32 +53,44 @@ export function AttachmentPicker({
     setError(null);
     setBusy(true);
 
-    // 한 번에 여럿 골라도 하나씩 보낸다 — 상한과 오류가 파일마다 다르다.
-    let current = files;
-    for (const file of Array.from(list)) {
-      if (current.length >= max) {
-        setError(`첨부는 ${max}개까지 넣을 수 있습니다.`);
-        break;
+    try {
+      // 한 번에 여럿 골라도 하나씩 보낸다 — 상한과 오류가 파일마다 다르다.
+      let current = files;
+      for (const file of Array.from(list)) {
+        if (current.length >= max) {
+          setError(`첨부는 ${max}개까지 넣을 수 있습니다.`);
+          break;
+        }
+
+        const body = new FormData();
+        body.append("file", file);
+
+        // **게시판은 쿼리로 보낸다.** 서버가 본문을 만지기 전에 권한을 봐야
+        // 하는데, 본문 안에 있으면 그러려고 본문을 먼저 파싱하게 된다.
+        const res = await fetch(
+          `/api/community/attachments?slug=${encodeURIComponent(slug)}`,
+          { method: "POST", body },
+        );
+
+        // **`res.ok`를 먼저 본다.** 프록시가 413을 내면 본문이 HTML이라
+        // `res.json()`이 던지고, 그러면 아래 finally 없이는 busy가 영영 안 풀려
+        // 파일 칸이 오류 한 줄도 없이 잠긴다.
+        if (!res.ok) {
+          setError(await errorText(res));
+          break;
+        }
+
+        const json = (await res.json()) as PickedAttachment;
+        current = [...current, { id: json.id, filename: json.filename, size: json.size }];
+        setFiles(current);
       }
-
-      const body = new FormData();
-      body.append("slug", slug);
-      body.append("file", file);
-
-      const res = await fetch("/api/community/attachments", { method: "POST", body });
-      const json = (await res.json()) as PickedAttachment & { error?: string };
-      if (!res.ok) {
-        setError(json.error ?? "올리지 못했습니다.");
-        break;
-      }
-
-      current = [...current, { id: json.id, filename: json.filename, size: json.size }];
-      setFiles(current);
+    } catch {
+      setError("올리지 못했습니다. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setBusy(false);
+      // 같은 파일을 다시 고를 수 있게 비운다 — 안 비우면 change가 안 뜬다.
+      if (inputRef.current) inputRef.current.value = "";
     }
-
-    setBusy(false);
-    // 같은 파일을 다시 고를 수 있게 비운다 — 안 비우면 change가 안 뜬다.
-    if (inputRef.current) inputRef.current.value = "";
   }
 
   return (

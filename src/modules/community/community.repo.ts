@@ -225,7 +225,12 @@ export async function attachToPost(
  *
  * 디스크 삭제는 여기서 하지 않는다 — repo는 Prisma만 부른다.
  */
-export type DetachedFile = { storageKey: string; createdAt: Date };
+export type DetachedFile = {
+  id: string;
+  storageKey: string;
+  filename: string;
+  createdAt: Date;
+};
 
 export async function detachFromPost(
   postId: string,
@@ -233,16 +238,16 @@ export async function detachFromPost(
   db: DbClient = prisma,
 ): Promise<DetachedFile[]> {
   const doomed = await db.communityAttachment.findMany({
-    // notIn에 빈 배열을 주면 Prisma가 조건을 통째로 무시한다 — 그러면 남길
-    // 것이 없다는 뜻인데 아무것도 안 지운다. 절대 안 맞는 id를 하나 세운다.
+    // 남길 것이 없으면(빈 배열) 이 글의 첨부가 전부 대상이다. `notIn: []`이
+    // 런타임마다 다르게 읽힐 여지를 없애려고 절대 안 맞는 id를 하나 세운다.
     where: { postId, id: { notIn: keepIds.length > 0 ? keepIds : ["__none__"] } },
-    select: { id: true, storageKey: true, createdAt: true },
+    select: { id: true, storageKey: true, filename: true, createdAt: true },
   });
   if (doomed.length === 0) return [];
   await db.communityAttachment.deleteMany({
     where: { id: { in: doomed.map((a) => a.id) } },
   });
-  return doomed.map(({ storageKey, createdAt }) => ({ storageKey, createdAt }));
+  return doomed;
 }
 
 export function listAttachments(postId: string, db: DbClient = prisma) {
@@ -309,15 +314,25 @@ export function countPending(
   return db.communityAttachment.count({ where: { uploaderUserId, postId: null } });
 }
 
-/** 내 것 중 오래된 고아. 남의 행은 애초에 조건에 안 걸린다. */
+/**
+ * 오래된 미결 첨부. **내 것과 「주인이 없는 것」을 함께 걷는다.**
+ *
+ * `uploaderUserId`는 계정이 완전 삭제되면 null이 된다(SetNull). 내 것만 훑으면
+ * 그런 행은 누구의 정리에도 안 걸려 DB와 디스크에 영원히 남는다 — 글에 붙은
+ * 첨부와 달리 이것들은 가리키는 글도 없어서 아무도 찾지 못한다.
+ */
 export function listStalePending(
   uploaderUserId: string,
   before: Date,
   db: DbClient = prisma,
 ) {
   return db.communityAttachment.findMany({
-    where: { uploaderUserId, postId: null, createdAt: { lt: before } },
-    select: { id: true, storageKey: true, createdAt: true },
+    where: {
+      postId: null,
+      createdAt: { lt: before },
+      OR: [{ uploaderUserId }, { uploaderUserId: null }],
+    },
+    select: { id: true, storageKey: true, filename: true, createdAt: true },
   });
 }
 

@@ -150,6 +150,13 @@ gbsw.example.hs.kr {
 ```
 gbsw.example.hs.kr {
 	tls /경로/인증서.crt /경로/개인키.key
+
+	# 커뮤니티 첨부는 파일당 5MB. Caddy는 기본 상한이 없어 이 줄이 없으면
+	# 앱이 유일한 방어선이 된다.
+	request_body {
+		max_size 8MB
+	}
+
 	reverse_proxy 127.0.0.1:3000 {
 		header_up X-Forwarded-For {remote_host}
 		header_up X-Real-IP {remote_host}
@@ -157,8 +164,10 @@ gbsw.example.hs.kr {
 }
 ```
 
-> **Caddy는 요청 본문 상한이 없어 손댈 것이 없다.** nginx는 아래처럼 올려야
-> 커뮤니티 첨부(5MB)가 통과한다.
+> **본문 상한을 반드시 프록시에도 건다.** 커뮤니티 첨부는 파일당 5MB이고 앱도
+> 스스로 세어 끊지만, 프록시가 먼저 끊어 주면 큰 요청이 앱에 닿지도 않는다.
+> Caddy는 기본 상한이 **없으므로** 아래 `request_body`를 넣어야 하고(없다고
+> 손댈 것이 없는 것이 아니다), nginx는 기본값 1m을 올려야 한다.
 
 ### nginx
 

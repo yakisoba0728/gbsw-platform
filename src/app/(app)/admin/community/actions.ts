@@ -17,6 +17,8 @@ const MESSAGES: Record<string, string> = {
   COMMUNITY_NOT_FOUND: "게시판을 찾을 수 없습니다.",
   COMMUNITY_CONFLICT:
     "다른 교사가 게시판을 바꿨습니다. 새로고침 후 다시 저장해 주세요.",
+  ANONYMOUS_IRREVERSIBLE:
+    "익명 게시판은 되돌릴 수 없습니다. 끄면 그동안 쌓인 글의 작성자가 모두 드러납니다.",
 };
 
 function fail(error: string, values?: CommunityFormValues): CommunityFormState {

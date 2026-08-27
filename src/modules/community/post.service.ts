@@ -1,5 +1,6 @@
 import { recordAudit } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
+import { can } from "@/core/authz/can";
 import { ForbiddenError } from "@/core/authz/errors";
 import { withTransaction } from "@/core/db/client";
 import * as board from "./board.service";
@@ -204,6 +205,12 @@ export async function updatePost(
     await denyOwnership(actor, "community:post:update", input.postId);
   }
 
+  // 새로 쓸 때와 같은 문이다. 없으면 첨부를 안 받는 게시판의 글에 수정 경로로만
+  // 파일이 붙는다 — 다른 게시판에 올린 첨부 id를 실어 보내면 된다.
+  if (input.attachmentIds.length > 0 && !community.allowAttachments) {
+    throw new CommunityError("ATTACHMENT_NOT_ALLOWED");
+  }
+
   let detached: repo.DetachedFile[] = [];
 
   await withTransaction(async (tx) => {
@@ -242,6 +249,27 @@ export async function updatePost(
       },
       tx,
     );
+
+    // **뺀 첨부는 한 건씩 따로 남긴다.** 위의 개수만으로는 「누가 어떤 파일을
+    // 지웠나」에 답할 수 없는데, 첨부 삭제는 이 모듈에서 되돌릴 수 없는 유일한
+    // 삭제다 (글·댓글·게시판은 전부 표시만 지운다).
+    for (const file of detached) {
+      await recordAudit(
+        {
+          actorUserId: actor.id,
+          actorName: actor.name,
+          action: "community:attachment:delete",
+          targetType: "CommunityAttachment",
+          targetId: file.id,
+          metadata: {
+            postId: input.postId,
+            slug: community.slug,
+            filename: file.filename,
+          },
+        },
+        tx,
+      );
+    }
   });
 
   // 커밋된 뒤에 디스크를 지운다.
@@ -259,10 +287,16 @@ export async function deletePost(
   const { post, community } = await loadPost(actor, input.postId);
 
   const isMine = post.authorUserId !== null && post.authorUserId === actor.id;
-  const isModerator = actor.role === "ADMIN";
+  // 남의 글을 지우는 것은 조정이다 — 판정을 `can()`에 맡긴다. 역할 문자열을
+  // 여기서 직접 비교하면 `RULES`를 고쳐도 이 줄이 안 따라온다.
+  const isModerator = can(actor, "community:moderate");
   if (!isMine && !isModerator) {
     await denyOwnership(actor, "community:post:delete", input.postId);
   }
+
+  // **남의 글을 지울 때는 사유가 필수다.** 화면의 모달도 받지만 그것만으로는
+  // 폼을 건너뛴 요청을 못 막는다 — 나중에 「왜 지웠나」에 답할 자료가 사라진다.
+  if (!isMine && !input.reason) throw new CommunityError("REASON_REQUIRED");
 
   await withTransaction(async (tx) => {
     const removed = await repo.markPostDeleted(input.postId, actor.id, input.reason, tx);

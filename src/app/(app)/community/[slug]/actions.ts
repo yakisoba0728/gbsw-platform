@@ -23,6 +23,7 @@ const MESSAGES: Record<string, string> = {
   COMMENT_NOT_FOUND: "댓글을 찾을 수 없습니다.",
   ATTACHMENT_NOT_FOUND: "첨부한 파일을 찾을 수 없습니다. 다시 올려 주세요.",
   ATTACHMENT_NOT_ALLOWED: "이 게시판은 첨부를 받지 않습니다.",
+  REASON_REQUIRED: "다른 사람의 글·댓글을 지울 때는 사유를 적어야 합니다.",
 };
 
 function fail(error: string, values?: PostFormValues): PostFormState {

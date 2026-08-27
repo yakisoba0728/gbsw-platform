@@ -115,6 +115,17 @@ export async function updateCommunity(
     sortOrder: input.sortOrder,
   };
 
+  // **익명은 되돌릴 수 없다.** 끄는 순간 이미 쌓인 모든 글·댓글의 작성자가
+  // 목록과 상세에 그대로 뜬다 — 뷰 변환기가 저장된 이름을 지금의 플래그로만
+  // 가리기 때문이다. 학생은 「작성자가 화면에 보이지 않습니다」라는 안내를 보고
+  // 썼고, 그 약속을 체크박스 하나로 깨는 길을 두지 않는다.
+  //
+  // 켜는 것은 된다 — 이름이 더 감춰질 뿐 드러나지 않는다. 실명으로 쓴 사람이
+  // 익명이 되는 것도 약속을 어기는 것은 아니다.
+  if (current.anonymous && !next.anonymous) {
+    throw new CommunityError("ANONYMOUS_IRREVERSIBLE");
+  }
+
   const changed: string[] = EDITABLE.filter((field) => current[field] !== next[field]);
   if (!sameRoles(current.readRoles, next.readRoles)) changed.push("readRoles");
   if (!sameRoles(current.writeRoles, next.writeRoles)) changed.push("writeRoles");
@@ -142,6 +153,9 @@ export async function updateCommunity(
           readRolesTo: next.readRoles,
           writeRolesFrom: current.writeRoles,
           writeRolesTo: next.writeRoles,
+          // 익명은 켜는 것만 되지만, 언제 켜졌는지는 남아야 한다.
+          anonymousFrom: current.anonymous,
+          anonymousTo: next.anonymous,
         },
       },
       tx,

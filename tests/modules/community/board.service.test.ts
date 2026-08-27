@@ -181,6 +181,35 @@ describe("updateCommunity", () => {
     );
   });
 
+  it("**익명을 끄면 거부한다** — 쌓인 글의 작성자가 전부 드러난다", async () => {
+    findCommunity.mockResolvedValue(board({ anonymous: true }));
+
+    await expect(
+      service.updateCommunity(admin, { ...patch, anonymous: false }),
+    ).rejects.toThrow(new CommunityError("ANONYMOUS_IRREVERSIBLE"));
+    expect(updateCommunity).not.toHaveBeenCalled();
+  });
+
+  it("익명을 켜는 것은 된다 — 이름이 더 감춰질 뿐이다", async () => {
+    findCommunity.mockResolvedValue(board({ anonymous: false }));
+
+    await service.updateCommunity(admin, { ...patch, anonymous: true });
+
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ anonymousFrom: false, anonymousTo: true }),
+      }),
+      txClient,
+    );
+  });
+
+  it("익명이 이미 켜진 채로 두면 통과한다", async () => {
+    findCommunity.mockResolvedValue(board({ anonymous: true, name: "옛이름" }));
+    await expect(
+      service.updateCommunity(admin, { ...patch, anonymous: true }),
+    ).resolves.toBeUndefined();
+  });
+
   it("학생은 거부한다", async () => {
     await expect(service.updateCommunity(student, patch)).rejects.toThrow(ForbiddenError);
   });
