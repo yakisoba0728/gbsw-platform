@@ -262,6 +262,29 @@ git pull
 docker compose up -d --build     # 마이그레이션이 자동으로 먼저 돈다
 ```
 
+> **저장소가 비공개라 서버에서 `git clone`·`git pull`이 안 된다.** 배포키를 넣기
+> 전까지는 로컬에서 밀어 넣는다. `--exclude '.env'`가 핵심이다 — 서버의 비밀값은
+> 서버에만 있고 로컬에는 없다 (`--delete`는 제외한 파일을 지우지 않는다).
+>
+> ```bash
+> rsync -az --delete \
+>   --exclude '.git/' --exclude 'node_modules/' --exclude '.next/' \
+>   --exclude '.env' --exclude 'src/generated/' \
+>   ./ root@서버:/opt/gbsw/
+> ```
+
+> **`--build`로 두 이미지를 한꺼번에 짓지 않는다.** app과 migrate를 동시에 빌드하면
+> buildkit이 죽는다 (`failed to receive status: rpc error … EOF`) — 메모리 4GB에서
+> Next의 정적 생성이 워커를 36개 띄우는 것과 겹친다. **더 나쁜 것은 그때 앱이
+> 이미 내려가 있다는 점이다**: compose가 재생성하려고 먼저 멈춘 뒤 빌드가 깨지므로,
+> 실패하면 사이트가 죽은 채로 남는다. 하나씩 짓고 나서 올린다.
+>
+> ```bash
+> docker compose build migrate
+> docker compose build app
+> docker compose up -d
+> ```
+
 ### 백업 — **가장 중요하다**
 
 상벌점 기록과 감사로그는 되살릴 방법이 없다.
