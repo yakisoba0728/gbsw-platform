@@ -71,6 +71,17 @@ CLAUDE.md의 오류 규약이 명시적으로 허용하는 갈래다.
 하나뿐」 문단 옆에 커뮤니티가 예외인 이유와 그 예외가 어디까지인지를 적는다.
 다른 모듈이 이것을 따라하면 안 된다 — 역할로 가를 수 있는 권한은 `can()`에 넣는다.
 
+### `canWrite`만으로는 부족하다
+
+`canRead`·`canWrite`는 **역할만 보는 순수 함수**다. 없앤 게시판인지, 지워진 글인지는
+모른다. 그래서 쓰기를 하는 서비스는 권한 검사 **다음에** 상태를 함께 본다.
+
+- 글쓰기·댓글쓰기: `community.active`가 false면 거부한다 (`COMMUNITY_NOT_FOUND`).
+- 댓글쓰기·글 수정·삭제: `post.deletedAt`이 있으면 거부한다 (`ALREADY_DELETED`).
+
+이 두 줄을 순수 함수 안으로 넣지 않는다 — 넣는 순간 「역할 판정」과 「행 상태」가
+한 함수에 섞여, 판정 표를 DB 없이 테스트하던 이점이 사라진다.
+
 ### 교사는 무조건 통과한다
 
 `can()`이 ADMIN을 무조건 통과시키는 것과 **같은 규칙을 커뮤니티 판정에도 그대로
@@ -274,8 +285,12 @@ model CommunityAttachment {
   post   CommunityPost? @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   /// 올린 사람. 글에 붙일 때 글쓴이와 같은지 확인하는 데 쓴다.
-  uploaderUserId String
-  uploaderUser   User @relation(fields: [uploaderUserId], references: [id], onDelete: Cascade)
+  /// **Cascade가 아니라 SetNull이다** — 글이 SetNull로 살아남는데 첨부만 계정을
+  /// 따라 사라지면, 남은 글에서 첨부가 조용히 없어지고 디스크 파일은 그 파일을
+  /// 가리키는 행이 사라져 영영 못 지운다. 붙은 뒤의 첨부는 올린 사람이 아니라
+  /// 글의 것이다.
+  uploaderUserId String?
+  uploaderUser   User?  @relation(fields: [uploaderUserId], references: [id], onDelete: SetNull)
 
   /// 디스크의 파일 이름. 랜덤 32자. 원래 이름은 절대 디스크에 쓰지 않는다.
   storageKey String @unique
@@ -313,12 +328,34 @@ model CommunityAttachment {
 ### 올리는 흐름
 
 1. 글쓰기 폼에서 파일을 고르면 클라이언트가 곧바로 `POST /api/community/attachments`로
-   보낸다. 서버는 디스크에 쓰고 `postId: null`인 행을 만들어 id를 돌려준다.
+   보낸다. **어느 게시판에 쓸 것인지(`slug`)를 함께 보낸다.** 서버는 디스크에 쓰고
+   `postId: null`인 행을 만들어 id를 돌려준다.
 2. 폼을 제출하면 서버 액션이 첨부 id 목록을 받는다. `post.service`가 글을 만들면서
    그 첨부들에 `postId`를 채운다 — **`uploaderUserId`가 글쓴이와 같은 것만.**
    남의 첨부 id를 실어 보내도 붙지 않는다.
 3. 붙지 못한 첨부는 고아다. **업로드가 일어날 때마다 그 사용자의 고아만 정리한다** —
    `postId: null`이고 1시간 지난 것. 크론 없이 수렴하고, 남의 행은 건드리지 않는다.
+
+### 업로드 라우트가 직접 막는 것
+
+이 라우트는 **글이 생기기 전에** 돌고 서버 액션이 아니다. 그래서 다른 쓰기 경로가
+당연히 가지고 있는 문 셋을 스스로 세워야 한다. 하나라도 빠지면 로그인한 아무나
+디스크를 채울 수 있다.
+
+- **권한.** 세션을 확인하고, 받은 `slug`의 커뮤니티에 대해 `canWrite(actor, community)`와
+  `community.allowAttachments`와 `community.active`를 **바이트 하나 쓰기 전에**
+  확인한다. 이것이 없으면 쓸 수 있는 게시판이 하나도 없는 학부모도 파일을 올린다.
+- **용량.** **`bodySizeLimit`은 라우트 핸들러에 걸리지 않는다.** 5MB 상한은 이
+  라우트가 직접 재고 넘으면 거부한다 — 아무도 안 재면 아무 제한이 없다.
+- **미결 첨부 수.** 한 사람의 `postId: null` 행이 **10개를 넘으면 거부한다.**
+  위의 고아 정리는 「그 사람이 다음에 올릴 때」만 도는지라, 50분 동안 500개를
+  올리고 그만두는 사람에게는 영영 안 돈다. 이 상한이 계정당 최악의 디스크 사용을
+  정리 시점과 무관하게 묶는다.
+
+**프록시가 먼저 막을 수 있다.** 앱 앞의 리버스 프록시가 요청 본문 상한을 5MB보다
+낮게 두고 있으면(nginx 기본값은 `client_max_body_size 1m`이다) 업로드가 앱에 닿기도
+전에 죽고 앱 로그에는 아무것도 안 남는다. 배포 때 프록시 설정을 함께 올린다 —
+`docs/deploy.md`에 적는다.
 
 ### 저장
 
@@ -360,7 +397,8 @@ model CommunityAttachment {
 
 ```
 SLUG_TAKEN · COMMUNITY_NOT_FOUND · POST_NOT_FOUND · COMMENT_NOT_FOUND
-ATTACHMENT_NOT_FOUND · ATTACHMENT_TOO_LARGE · ATTACHMENT_TYPE · ATTACHMENT_LIMIT
+ATTACHMENT_NOT_FOUND · ATTACHMENT_TOO_LARGE · ATTACHMENT_TYPE
+ATTACHMENT_LIMIT (글당 5개) · ATTACHMENT_PENDING_LIMIT (미결 10개)
 POST_CONFLICT · ALREADY_DELETED
 ```
 
