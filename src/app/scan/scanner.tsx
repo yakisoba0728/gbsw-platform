@@ -53,9 +53,28 @@ export function Scanner({ origin }: { origin: string }) {
 
   useEffect(() => {
     let stream: MediaStream | null = null;
-    let timer: ReturnType<typeof setTimeout>;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     let stopped = false;
     let detector: Detector | null = null;
+
+    /**
+     * 카메라를 끈다. **여러 번 불려도 안전해야 한다** — 정리와 `pagehide`가
+     * 같은 이동에서 둘 다 부를 수 있다.
+     *
+     * 트랙을 멈추는 것만으로는 부족하다. `<video>`가 스트림을 계속 물고 있으면
+     * 브라우저에 따라 렌즈 표시등이 남으므로 `srcObject`까지 비운다.
+     */
+    function stopCamera() {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      stream?.getTracks().forEach((track) => track.stop());
+      stream = null;
+      const video = videoRef.current;
+      if (video) {
+        video.pause();
+        video.srcObject = null;
+      }
+    }
 
     async function tick() {
       if (stopped || !detector || !videoRef.current) return;
@@ -77,6 +96,9 @@ export function Scanner({ origin }: { origin: string }) {
       } catch {
         // 한 프레임 실패는 무시한다 — 다음 프레임이 있다.
       }
+      // **여기서 다시 본다.** 위의 await 사이에 화면을 떠났을 수 있고, 그때
+      // 조건 없이 예약하면 정리가 끝난 뒤에도 루프가 한 바퀴 더 돈다.
+      if (stopped) return;
       timer = setTimeout(tick, TICK_MS);
     }
 
@@ -103,26 +125,51 @@ export function Scanner({ origin }: { origin: string }) {
       setSupported("ok");
       detector = new ctor({ formats: ["qr_code"] });
 
+      let opened: MediaStream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
+        opened = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: "environment" },
         });
-        if (stopped || !videoRef.current) return;
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-        void tick();
       } catch {
         setCameraError("카메라를 열지 못했습니다. 권한을 확인해 주세요.");
+        return;
       }
+
+      // **이 await 사이에 화면을 떠났을 수 있다.** 그때 정리는 이미 지나갔고
+      // `stream`은 아직 null이었으므로 아무것도 안 껐다 — 여기서 직접 끄지
+      // 않으면 카메라가 영영 켜진 채 남는다. 화면을 나가도 렌즈 표시등이
+      // 한참 뒤에야 꺼지던 원인이 이것이다.
+      if (stopped || !videoRef.current) {
+        opened.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
+      stream = opened;
+      videoRef.current.srcObject = opened;
+      try {
+        await videoRef.current.play();
+      } catch {
+        // 재생 거부는 무시한다 — 프레임은 여전히 읽힌다.
+      }
+      // play()도 기다리는 자리다. 같은 이유로 한 번 더 본다.
+      if (stopped) {
+        stopCamera();
+        return;
+      }
+      void tick();
     }
 
     void start();
 
+    /**
+     * 화면을 떠나는 다른 길. React가 언마운트를 못 보는 경우 —— 탭을 닫거나,
+     * 브라우저가 페이지를 bfcache로 넣거나, 앱을 뒤로 보내는 때 —— 를 받는다.
+     */
+    window.addEventListener("pagehide", stopCamera);
+
     return () => {
-      stopped = true;
-      clearTimeout(timer);
-      // 카메라를 안 끄면 화면을 떠나도 렌즈 표시등이 켜져 있다.
-      stream?.getTracks().forEach((track) => track.stop());
+      window.removeEventListener("pagehide", stopCamera);
+      stopCamera();
     };
   }, [origin]);
 
