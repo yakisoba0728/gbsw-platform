@@ -15,8 +15,13 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
 }
 
-function href(id: string): string {
-  return `/api/community/attachments/${id}`;
+/**
+ * 내려받기 주소. **파일 이름을 뒤에 붙인다** — 브라우저가 탭 제목과 저장 이름을
+ * 주소의 마지막 조각에서 가져오므로, id만 있으면 PDF를 열었을 때 제목이
+ * 무작위 문자열이 된다. 라우트는 이름을 읽지 않는다.
+ */
+function href(id: string, filename: string): string {
+  return `/api/community/attachments/${id}/${encodeURIComponent(filename)}`;
 }
 
 /**
@@ -52,7 +57,7 @@ export function AttachmentList({
         // eslint-disable-next-line @next/next/no-img-element -- 위 주석 참고
         <img
           key={image.id}
-          src={href(image.id)}
+          src={href(image.id, image.filename)}
           alt={image.filename}
           className="max-w-full rounded-card border border-line"
         />
@@ -79,7 +84,7 @@ function AttachmentLink({ file }: { file: PostAttachment }) {
     // 새 탭에서 연다 — 같은 탭이면 뷰어가 글을 덮어 뒤로가기로만 돌아온다.
     return (
       <a
-        href={href(file.id)}
+        href={href(file.id, file.filename)}
         target="_blank"
         rel="noopener noreferrer"
         className={className}
@@ -91,7 +96,7 @@ function AttachmentLink({ file }: { file: PostAttachment }) {
   }
 
   return (
-    <Link href={href(file.id)} className={className}>
+    <Link href={href(file.id, file.filename)} className={className}>
       {file.filename}
       {size}
     </Link>

@@ -9,9 +9,18 @@ import { contentDisposition } from "@/modules/community/community.storage";
  * 첨부 내려받기. 권한이 붙은 자료라 정적 파일로 서빙하지 않는다 —
  * 세션과 게시판 읽기 권한을 확인한 뒤에만 바이트가 나간다.
  */
+/**
+ * 경로가 `[...attachment]`인 이유는 **파일 이름을 뒤에 붙일 수 있게** 하기
+ * 위해서다 — `/api/community/attachments/<id>/가정통신문.pdf`. 브라우저는 탭
+ * 제목과 내려받기 이름을 주소의 마지막 조각에서 가져오므로, id만 있으면
+ * PDF를 열었을 때 제목이 `cmtc6jd9l…`로 뜬다.
+ *
+ * **이름은 장식이다.** 찾는 데 쓰는 것은 첫 조각(id)뿐이고 나머지는 읽지도
+ * 않는다 — 그래서 이름이 틀려도, 없어도 같은 파일이 나온다.
+ */
 export async function GET(
   _request: Request,
-  { params }: { params: Promise<{ attachmentId: string }> },
+  { params }: { params: Promise<{ attachment: string[] }> },
 ) {
   // 업로드 라우트와 같은 문이다 — mustChangePassword까지 본다.
   const actor = await getSessionUser();
@@ -19,7 +28,10 @@ export async function GET(
     return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
   }
 
-  const { attachmentId } = await params;
+  const [attachmentId] = await params.then((p) => p.attachment);
+  if (!attachmentId) {
+    return NextResponse.json({ error: "찾을 수 없습니다." }, { status: 404 });
+  }
 
   try {
     const file = await getDownload(actor, attachmentId);

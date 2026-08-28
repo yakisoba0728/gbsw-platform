@@ -32,6 +32,11 @@
 - **마크다운도 서식 편집기도 없다. 본문은 평문이다.** 줄바꿈만 살린다. 서식을
   넣으면 그 순간부터 HTML 살균이 이 모듈의 가장 위험한 코드가 되는데, 학교
   게시판이 얻는 것은 굵은 글씨뿐이다.
+
+  **단, 주소는 누를 수 있다** (`components/ui/plain-text.tsx`). 이것은 서식이
+  아니다 — 글을 해석해 HTML을 만드는 것이 아니라, 이미 주소인 조각을 `<a>`로
+  그릴 뿐이라 살균할 대상이 생기지 않는다. `http`·`https`만 잡으므로
+  `javascript:`가 `href`에 닿을 길이 없다.
 - **구성원 명단을 두지 않는다.** 권한은 역할 셋(교사·학생·학부모)으로만 가른다.
   동아리처럼 「이 사람들만」이 필요해지는 날에는 이 결정을 다시 연다. 잃는 것은
   학년·반·동아리 단위 게시판이다.
@@ -399,14 +404,36 @@ model CommunityAttachment {
 
 | 헤더 | 값 | 이유 |
 |---|---|---|
-| `Content-Type` | 이미지 허용 목록이면 그 타입, 아니면 `application/octet-stream` | 이미지는 화면에서 바로 보여야 한다 |
-| `Content-Disposition` | 이미지가 아니면 `attachment; filename*=UTF-8''…` | 브라우저가 같은 출처에서 열지 않게 |
+| `Content-Type` | 인라인 허용 목록이면 그 타입, 아니면 `application/octet-stream` | 이미지와 PDF는 화면에서 바로 보여야 한다 |
+| `Content-Disposition` | 인라인이 아니면 `attachment; filename*=UTF-8''…` | 브라우저가 같은 출처에서 열지 않게 |
 | `X-Content-Type-Options` | `nosniff` | 브라우저가 타입을 추측해 실행하지 않게 |
 | `Content-Security-Policy` | `default-src 'none'; sandbox` | 뚫려서 HTML이 흘러도 아무것도 못 하게 |
 | `Cache-Control` | `private, no-store` | 권한이 붙은 자료라 프록시가 안 들고 있게 |
 
-`next.config.ts`의 전역 CSP는 `img-src 'self' data: blob:`이라 같은 출처의 첨부
-이미지가 그대로 통과한다. 손댈 것이 없다.
+**첨부 응답의 CSP는 `next.config.ts`가 소유한다.** 라우트 핸들러가 응답에 직접
+건 CSP는 전역 `headers()` 규칙에 덮여 사라진다 — 실제로 확인했다. 그래서 전역
+규칙 **뒤에** 첨부 경로 전용 규칙(`ATTACHMENT_HEADERS`)을 두어 뒤엣것이 이기게
+한다. 페이지용 CSP(`img-src 'self' data: blob:`)는 같은 출처의 첨부 이미지를
+그대로 통과시키므로 그쪽은 손댈 것이 없다.
+
+### 무엇을 바로 보여 주는가
+
+| 형식 | 어떻게 |
+|---|---|
+| 이미지 (png·jpg·gif·webp) | 글 안에 그대로 그린다 |
+| **PDF** | `Content-Disposition: inline`. 누르면 브라우저 내장 뷰어가 새 탭에서 연다 |
+| 한글 (hwp·hwpx) · 오피스 · zip | 내려받는다 |
+
+**한글 문서는 웹에서 못 보여 준다.** 쓸 만한 자바스크립트 뷰어가 없다 —
+`hwp.js`는 0.0.3에 2022년 이후 갱신이 없고 `.hwp`만 되며, 검증 안 된 파서가
+우리 도메인의 DOM에 사용자 파일을 그리게 된다. 제대로 하려면 서버에 LibreOffice를
+두고 PDF로 변환해야 하는데, 이미지가 1GB쯤 커지고(한글 폰트 포함) 4GB 서버에서
+실측이 필요하다. **실제로 한글 파일이 얼마나 올라오는지 보고 결정한다.**
+
+내려받기 주소에는 파일 이름을 뒤에 붙인다
+(`/api/community/attachments/<id>/가정통신문.pdf`). 브라우저가 탭 제목과 저장
+이름을 주소의 마지막 조각에서 가져오기 때문이다 — id만 있으면 PDF를 열었을 때
+제목이 무작위 문자열이 된다. **이름은 장식이고 찾는 데는 id만 쓴다.**
 
 ## 오류
 

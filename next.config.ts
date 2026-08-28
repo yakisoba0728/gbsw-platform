@@ -87,7 +87,8 @@ const nextConfig: NextConfig = {
       // 핸들러가 직접 건 CSP는 위의 전역 규칙에 밀려 사라진다 — 실제로
       // 확인했다. 그래서 여기서 한 번 더 못 박는다.
       {
-        source: "/api/community/attachments/:id",
+        // `:id*`는 뒤에 붙는 파일 이름 조각까지 받는다.
+        source: "/api/community/attachments/:id*",
         headers: ATTACHMENT_HEADERS,
       },
     ];
