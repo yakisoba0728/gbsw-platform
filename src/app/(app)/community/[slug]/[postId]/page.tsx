@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { BackLink } from "@/components/ui/back-link";
 import { buttonClass } from "@/components/ui/button";
 import { cardClass } from "@/components/ui/card";
-import { PlainText } from "@/components/ui/plain-text";
+import { Markdown } from "@/components/ui/markdown";
 import { SectionCard } from "@/components/ui/section-card";
 import { requireAuth } from "@/core/auth/session";
 import { formatDateTime } from "@/lib/datetime";
@@ -70,8 +70,8 @@ export default async function PostPage({
           </span>
         </div>
 
-        {/* 평문의 줄바꿈이 글쓴이가 넣은 모양이다. 주소만 누를 수 있게 된다. */}
-        <PlainText className="mt-5 text-ink">{post.body}</PlainText>
+        {/* 마크다운. 날 HTML은 파싱하지 않고 허용 목록으로 한 번 더 거른다. */}
+        <Markdown className="mt-5 text-ink">{post.body}</Markdown>
 
         <AttachmentList attachments={view.attachments} />
       </article>

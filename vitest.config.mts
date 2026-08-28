@@ -34,7 +34,9 @@ export default defineConfig({
         extends: true,
         test: {
           name: "unit",
-          include: ["tests/**/*.test.ts"],
+          // `.tsx`도 잡는다 — 컴포넌트가 실제로 내보내는 HTML을 검사하는
+          // 테스트(마크다운 살균 등)는 JSX가 있어야 쓸 수 있다.
+          include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
           exclude: ["tests/integration/**"],
           // 실제 접속은 하지 않는다. core/db/client가 임포트 시점에 던지지
           // 않게만 해준다 — repo 테스트는 전부 @/core/db/client를 목으로 대체한다.

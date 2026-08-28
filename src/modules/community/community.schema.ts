@@ -6,8 +6,15 @@ import { ROLES } from "@/core/authz/roles";
  * FormData에서 오므로 입력은 전부 문자열이다 — 숫자·불리언 변환도 여기서 한다.
  */
 
-/** 첨부 상한. 라우트 핸들러가 직접 잰다 — bodySizeLimit은 라우트에 안 걸린다. */
-export const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+/**
+ * 첨부 상한. 라우트 핸들러가 직접 잰다 — bodySizeLimit은 라우트에 안 걸린다.
+ *
+ * **이 값을 올리면 세 곳이 함께 움직인다.** 앞단 프록시의 본문 상한
+ * (`docs/deploy.md`의 nginx `client_max_body_size`·Caddy `request_body`)과
+ * 앱 컨테이너의 `mem_limit`이다 — 업로드 한 건이 파일 크기의 서너 배를 잠깐
+ * 메모리에 들고 있기 때문이다(받은 바이트 → multipart 파싱 → Buffer 복사).
+ */
+export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 export const MAX_ATTACHMENTS_PER_POST = 5;
 /**
  * 한 사람이 글에 붙이지 못한 채 들고 있을 수 있는 첨부 수. 고아 정리가

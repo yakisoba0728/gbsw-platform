@@ -125,7 +125,7 @@ export function AttachmentPicker({
       />
 
       <p className="text-caption text-mut">
-        파일당 5MB, {max}개까지. 이미지·PDF·한글·오피스 문서·zip을 올릴 수 있습니다.
+        파일당 20MB, {max}개까지. 이미지·PDF·한글·오피스 문서·zip을 올릴 수 있습니다.
       </p>
 
       {error && <Note tone="error">{error}</Note>}

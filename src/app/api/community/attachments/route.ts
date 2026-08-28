@@ -20,16 +20,16 @@ import { MAX_ATTACHMENT_BYTES } from "@/modules/community/community.schema";
  */
 
 /**
- * 요청 본문의 상한. 파일 하나가 5MB이고 multipart 경계·헤더에 여유를 둔다.
+ * 요청 본문의 상한. 파일 하나가 20MB이고 multipart 경계·헤더에 여유를 둔다.
  * `MAX_ATTACHMENT_BYTES`(파일 자체)와 다른 값이라 따로 둔다.
  */
-const MAX_REQUEST_BYTES = MAX_ATTACHMENT_BYTES + 512 * 1024;
+const MAX_REQUEST_BYTES = MAX_ATTACHMENT_BYTES + 1024 * 1024;
 
 const MESSAGES: Record<string, string> = {
   COMMUNITY_NOT_FOUND: "게시판을 찾을 수 없습니다.",
   ATTACHMENT_NOT_ALLOWED: "이 게시판은 첨부를 받지 않습니다.",
   ATTACHMENT_TYPE: "올릴 수 없는 형식입니다.",
-  ATTACHMENT_TOO_LARGE: "파일은 5MB를 넘을 수 없습니다.",
+  ATTACHMENT_TOO_LARGE: "파일은 20MB를 넘을 수 없습니다.",
   ATTACHMENT_PENDING_LIMIT:
     "글에 붙이지 않은 첨부가 너무 많습니다. 쓰던 글을 저장하거나 잠시 후 다시 시도해 주세요.",
 };
@@ -114,7 +114,7 @@ export async function POST(request: Request) {
     const raw = await readCappedBody(request, MAX_REQUEST_BYTES);
     if (raw === null) {
       return NextResponse.json(
-        { error: "파일은 5MB를 넘을 수 없습니다." },
+        { error: "파일은 20MB를 넘을 수 없습니다." },
         { status: 413 },
       );
     }

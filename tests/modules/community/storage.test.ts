@@ -50,15 +50,15 @@ describe("classifyUpload", () => {
     },
   );
 
-  it("확장자가 맞아도 5MB를 넘으면 거부한다", () => {
-    expect(classifyUpload("큰파일.pdf", "application/pdf", 5 * MB + 1)).toEqual({
+  it("확장자가 맞아도 20MB를 넘으면 거부한다", () => {
+    expect(classifyUpload("큰파일.pdf", "application/pdf", 20 * MB + 1)).toEqual({
       ok: false,
       code: "ATTACHMENT_TOO_LARGE",
     });
   });
 
-  it("정확히 5MB는 통과한다", () => {
-    expect(classifyUpload("딱맞음.pdf", "application/pdf", 5 * MB).ok).toBe(true);
+  it("정확히 20MB는 통과한다", () => {
+    expect(classifyUpload("딱맞음.pdf", "application/pdf", 20 * MB).ok).toBe(true);
   });
 
   it("빈 파일은 거부한다", () => {

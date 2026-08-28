@@ -129,11 +129,11 @@ describe("uploadAttachment — 문 ②: 형식과 용량", () => {
     expect(writeAttachment).not.toHaveBeenCalled();
   });
 
-  it("5MB를 넘으면 거부한다", async () => {
+  it("20MB를 넘으면 거부한다", async () => {
     const big = {
       ...upload,
       filename: "큰.pdf",
-      bytes: Buffer.alloc(5 * 1024 * 1024 + 1),
+      bytes: Buffer.alloc(20 * 1024 * 1024 + 1),
     };
     await expect(service.uploadAttachment(student, big)).rejects.toThrow(
       new CommunityError("ATTACHMENT_TOO_LARGE"),

@@ -67,9 +67,15 @@ services:
       - "no-new-privileges:true"
     cap_drop:
       - ALL
-    # 뼈대 단계 기준 넉넉한 상한 — 컨테이너 하나가 폭주해 호스트 전체를
-    # 굶기는 걸 막는다. 상벌점 등 업무 모듈이 붙으며 실측 후 조정한다.
-    mem_limit: 512m
+    # 컨테이너 하나가 폭주해 호스트 전체를 굶기는 걸 막는다.
+    #
+    # **512m에서 1g로 올렸다 — 커뮤니티 첨부가 20MB까지 들어오기 때문이다.**
+    # 업로드 한 건이 파일 크기의 서너 배를 잠깐 들고 있다(받은 바이트 →
+    # multipart 파싱 → Buffer 복사). 20MB면 한 건에 60~80MB이고, 512m에서는
+    # 서너 명이 동시에 올리면 Next 자체가 쓰는 200MB 남짓과 합쳐 넘친다.
+    # 파일 상한(community.schema.ts의 MAX_ATTACHMENT_BYTES)을 다시 올릴 때
+    # 이 값도 함께 본다.
+    mem_limit: 1g
     cpus: 1.0
     depends_on:
       db:

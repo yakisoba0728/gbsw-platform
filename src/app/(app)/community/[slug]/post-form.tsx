@@ -85,7 +85,12 @@ export function PostForm({
             rows={12}
             maxLength={20000}
             defaultValue={v?.body ?? post?.body ?? ""}
+            aria-describedby="pf-body-hint"
           />
+          <p id="pf-body-hint" className="mt-1 text-caption text-mut">
+            마크다운을 쓸 수 있습니다 — **굵게**, *기울임*, # 제목, - 목록, &gt; 인용,
+            [글자](주소), 표, `코드`.
+          </p>
         </div>
 
         {allowAttachments && (
