@@ -60,3 +60,18 @@ export function requiresConsent(type: string): boolean {
  * 이 배열이 곧 동시 결재를 막는 장치다.
  */
 export const DECIDABLE_STATUSES: readonly PassStatus[] = ["REQUESTED", "CONSENTED"];
+
+/**
+ * **무를 값어치가 남아 있는 출입증인가.** 화면에 취소 자리를 낼지 정한다.
+ *
+ * 서비스의 `CANCELLABLE`(`REQUESTED`·`CONSENTED`·`APPROVED`)보다 좁다. 앞의 둘은
+ * 결재 대기 화면이 이미 **승인·반려**로 답하고 있고, 반려는 사유가 필수라
+ * 「누가 왜 막았나」가 더 잘 남는다 — 같은 자리에 취소를 겹쳐 놓으면 그 기록이
+ * 흐려진다. 그래서 여기서는 **결재가 끝난 것만** 센다.
+ *
+ * 끝난 건을 빼는 이유는 무를 것이 남아 있지 않아서다. 확인창의 「학생의 QR이
+ * 곧바로 통하지 않습니다」도 그때는 거짓말이 된다.
+ */
+export function isRevocable(status: string, endAt: Date, now: Date): boolean {
+  return status === "APPROVED" && endAt.getTime() > now.getTime();
+}

@@ -4,9 +4,11 @@ import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
 import { SectionCard } from "@/components/ui/section-card";
 import { requireAuth } from "@/core/auth/session";
+import { can } from "@/core/authz/can";
 import {
   isPassStatus,
   isPassType,
+  isRevocable,
   PASS_STATUS_LABELS,
   PASS_TYPE_LABELS,
 } from "@/core/authz/pass-type";
@@ -20,6 +22,7 @@ import {
   requesterRole,
 } from "@/modules/pass/pass.labels";
 import { getPassDetail } from "@/modules/pass/request.service";
+import { CancelButton } from "../cancel-button";
 import { passPeriod } from "../pass-card";
 
 export const metadata: Metadata = { title: "출입증" };
@@ -44,6 +47,12 @@ export default async function PassDetailPage({
 
   // QR은 이 화면에 없다. 학생증 한 장(`/pass/qr`)이 그 일을 하고, 여기는
   // 「이 신청이 지금 어떤 상태인가」만 답한다.
+  // 결재가 끝난 출입증을 무를 수 있는 **유일한 자리**다. `/pass`의 취소 버튼은
+  // 「지금 나가 있는 학생」 구역에만 있어 아직 시작 전인 건은 손댈 곳이 없었다 —
+  // 다음 주말 외박을 승인한 뒤 취소하려면 그 주말까지 기다려야 했다.
+  const canCancel =
+    can(actor, "pass:cancel") && isRevocable(pass.status, pass.endAt, new Date());
+
   const enrollment = pass.studentProfile.enrollments[0];
   const seat = formatSeat({
     grade: enrollment?.schoolClass?.grade ?? null,
@@ -99,6 +108,8 @@ export default async function PassDetailPage({
             />
           )}
         </dl>
+
+        {canCancel && <CancelButton passId={pass.id} />}
       </SectionCard>
     </div>
   );
