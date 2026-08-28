@@ -164,6 +164,9 @@ gbsw.example.hs.kr {
 }
 ```
 
+> **고쳤으면 `systemctl reload caddy`까지 한다.** `caddy validate`는 파일만 보므로,
+> 검증만 하고 넘어가면 옛 설정이 계속 돈다 — 실제로 이틀 전 설정이 돌고 있었다.
+>
 > **본문 상한을 반드시 프록시에도 건다.** 커뮤니티 첨부는 파일당 20MB이고 앱도
 > 스스로 세어 끊지만, 프록시가 먼저 끊어 주면 큰 요청이 앱에 닿지도 않는다.
 > Caddy는 기본 상한이 **없으므로** 아래 `request_body`를 넣어야 하고(없다고
@@ -270,6 +273,30 @@ curl -I http://gbsw.example.hs.kr            # 301
 ---
 
 ## 6. 운영
+
+### 빌드는 메모리를 많이 먹는다
+
+**서버 메모리가 4GB이면 `npm run build`가 `exit 137`(OOM)로 죽는다.** 커뮤니티
+모듈과 마크다운 의존성이 붙은 뒤로 그렇다 — `remark`·`rehype` 계열은 작은
+패키지가 100개가 넘어 번들러가 쓰는 메모리가 눈에 띄게 늘었다. **8GB로 올린
+뒤에야 통과했다.**
+
+LXC 컨테이너라 스왑은 안에서 못 늘린다(`swapon: Operation not permitted`).
+호스트에서 올려야 한다.
+
+**빌드 출력을 파이프로 넘기지 마라.**
+
+```bash
+# 나쁨 — 파이프의 종료 코드는 tail의 것이라 죽은 빌드가 성공으로 보인다
+docker compose build migrate | tail -8
+
+# 좋음
+docker compose build migrate > /tmp/build.log 2>&1; echo "EXITCODE=$?"
+```
+
+실제로 앞의 방식으로 OOM을 성공으로 읽고 같은 빌드를 다시 돌려, 부하가 42까지
+올라 SSH도 웹도 응답하지 않는 상태를 만들었다. 앱 컨테이너는 살아 있었지만
+CPU를 못 얻어 Cloudflare가 530을 냈다.
 
 ### 갱신
 
