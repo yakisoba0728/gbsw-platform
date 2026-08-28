@@ -7,6 +7,7 @@ import { cardClass } from "@/components/ui/card";
 import { Markdown } from "@/components/ui/markdown";
 import { SectionCard } from "@/components/ui/section-card";
 import { requireAuth } from "@/core/auth/session";
+import { orDenied } from "../../guard";
 import { formatDateTime } from "@/lib/datetime";
 import { listComments } from "@/modules/community/comment.service";
 import { getPost } from "@/modules/community/post.service";
@@ -25,10 +26,9 @@ export default async function PostPage({
   const actor = await requireAuth();
   const { slug, postId } = await params;
 
-  const [view, comments] = await Promise.all([
-    getPost(actor, postId),
-    listComments(actor, postId),
-  ]);
+  const [view, comments] = await orDenied(
+    Promise.all([getPost(actor, postId), listComments(actor, postId)]),
+  );
 
   // **주소의 게시판과 글의 게시판이 다르면 정규 주소로 보낸다.** 안 그러면
   // 뒤로가기·「수정」 링크가 엉뚱한 게시판을 가리키고, 첨부 고르개가 그 slug로

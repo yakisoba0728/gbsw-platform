@@ -4,6 +4,7 @@ import { BackLink } from "@/components/ui/back-link";
 import { requireAuth } from "@/core/auth/session";
 import { getPost } from "@/modules/community/post.service";
 import { PostForm } from "../../post-form";
+import { orDenied } from "../../../guard";
 
 export const metadata: Metadata = { title: "글 수정" };
 
@@ -15,7 +16,7 @@ export default async function EditPostPage({
   const actor = await requireAuth();
   const { slug, postId } = await params;
 
-  const view = await getPost(actor, postId);
+  const view = await orDenied(getPost(actor, postId));
 
   // 주소의 게시판과 글의 게시판이 다르면 정규 주소로 보낸다 — 첨부 고르개가
   // 이 slug로 파일을 올리므로, 어긋난 채로 두면 게시판의 첨부 설정을 우회하는

@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
 import { SectionCard } from "@/components/ui/section-card";
 import { requireAuth } from "@/core/auth/session";
 import { can } from "@/core/authz/can";
+import { ForbiddenError } from "@/core/authz/errors";
 import {
   isPassStatus,
   isPassType,
@@ -35,13 +36,15 @@ export default async function PassDetailPage({
   const { passId } = await params;
   const actor = await requireAuth();
 
-  // 없는 출입증은 404다. 권한 없는 접근은 서비스가 ForbiddenError를 던지고
-  // (app)/error.tsx가 받는다 — 「없다」와 「못 본다」를 화면에서 섞지 않는다.
+  // 없는 출입증은 404, 남의 출입증은 403이다 — 「없다」와 「못 본다」를 섞지 않는다.
+  // 403을 흘려 보내면 pass/error.tsx의 「출입증을 불러오지 못했습니다」가 떠서
+  // 원인을 안 알려 준다. 거부 감사로그는 서비스가 이미 남겼다.
   let pass: Awaited<ReturnType<typeof getPassDetail>>;
   try {
     pass = await getPassDetail(actor, passId);
   } catch (error) {
     if (error instanceof PassError) notFound();
+    if (error instanceof ForbiddenError) redirect("/forbidden");
     throw error;
   }
 

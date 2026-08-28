@@ -9,6 +9,7 @@ import { requireAuth } from "@/core/auth/session";
 import { parsePage } from "@/modules/community/community.schema";
 import { listPostPage } from "@/modules/community/post.service";
 import { PostList } from "./post-list";
+import { orDenied } from "../guard";
 
 export const metadata: Metadata = { title: "게시판" };
 
@@ -23,8 +24,8 @@ export default async function BoardPage({
   const { slug } = await params;
   const query = await searchParams;
 
-  // 권한 거부·없는 게시판은 서비스가 던지고 error.tsx가 받는다.
-  const view = await listPostPage(actor, slug, parsePage(query.page));
+  // 권한 거부는 403, 없는 게시판은 404로 간다 — 둘을 한 화면에 섞지 않는다.
+  const view = await orDenied(listPostPage(actor, slug, parsePage(query.page)));
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
