@@ -1,16 +1,13 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { usePathname } from "next/navigation";
-import { useState, useSyncExternalStore } from "react";
-import { Button } from "@/components/ui/button";
-import { LogoutIcon } from "@/components/icons";
+import { useSyncExternalStore } from "react";
 import { TruncatedText } from "@/components/ui/truncated-text";
-import { authClient } from "@/core/auth/auth-client";
 import type { Role } from "@/core/authz/roles";
 import { honorificName, honorificSuffix } from "@/core/authz/roles";
 import { formatClock } from "@/lib/datetime";
 import { MobileNav } from "./mobile-nav";
+import { SignOutButton } from "./sign-out-button";
 import { titleForPath } from "./nav";
 
 /** 시계가 자리를 잡아 두는 글자. `formatClock`이 내는 것과 폭이 같아야 한다. */
@@ -81,6 +78,9 @@ function getServerClockTick(): number | null {
  * 하루 종일 창을 띄워 두는 데스크톱이다. CSS로만 숨기므로 폰에서도 마운트돼
  * 초마다 돈다 — `<time>` 하나 다시 그리는 값이고, `matchMedia`로 가르면
  * 하이드레이션이 다시 어긋난다.
+ *
+ * **데스크톱 상단바에서 시각은 이제 오른쪽의 유일한 것이다.** 계정이 사이드바
+ * 바닥으로 내려가면서 이 줄은 「어디인가 · 몇 시인가」 둘만 답한다.
  */
 function Clock() {
   const tick = useSyncExternalStore(
@@ -110,67 +110,48 @@ function Clock() {
 
 export function Topbar({ name, role }: { name: string; role: Role | null }) {
   const pathname = usePathname();
-  const router = useRouter();
-  const [signingOut, setSigningOut] = useState(false);
-
   const title = titleForPath(pathname);
-
-  async function handleSignOut() {
-    setSigningOut(true);
-    await authClient.signOut();
-    router.replace("/login");
-    router.refresh();
-  }
 
   return (
     // print:hidden — 확인서 화면이 자기 <h1>을 그린다. 빼지 않으면 제목이 둘 찍힌다.
-    <header className="flex h-14 flex-none items-center justify-between border-b border-line bg-surface px-4 lg:h-15 lg:px-7 print:hidden">
+    <header className="flex h-14 flex-none items-center justify-between gap-3 border-b border-line bg-surface px-4 lg:h-15 lg:px-7 print:hidden">
       <div className="flex min-w-0 items-center gap-2.5">
         {/* 390px 폭에 로고와 메뉴 버튼을 둘 다 두면 제목이 잘린다. */}
         <MobileNav role={role} />
         {/* 제목은 <h1>로 남기고 자르는 일만 안에 맡긴다 — TruncatedText가 그리는
             것은 span이라 제목 계층을 대신할 수 없다. `truncate`를 뺀 자리에는
             `min-w-0`을 넣는다: 지금 제목이 줄어드는 것은 overflow-hidden이 flex
-            최소 폭을 0으로 만들어 준 덕이라, 그냥 빼면 긴 제목이 시계와 이름을
-            오른쪽 밖으로 밀어낸다. */}
+            최소 폭을 0으로 만들어 준 덕이라, 그냥 빼면 긴 제목이 오른쪽 것들을
+            화면 밖으로 밀어낸다. */}
         <h1 className="min-w-0 text-base font-semibold tracking-tight text-ink lg:text-lg">
           <TruncatedText full={title}>{title}</TruncatedText>
         </h1>
       </div>
 
-      {/* 제목이 이 줄의 유일한 초점이다. 오른쪽은 "지금 누구로 들어와 있나"만 답한다 —
-          직급 줄도 이니셜 동그라미도 두지 않는다(호칭이 직급을 말하고, 이름이 들어갈
-          자리를 한 글자가 차지하고 있었다).
-          대신 한 줄 안에서 이름과 호칭의 굵기를 가른다. 이름이 신원이고 호칭은 부르는
-          격이라, 둘을 같은 회색으로 뭉치면 문자열 하나로 읽힌다. */}
+      {/*
+       * 오른쪽은 폭에 따라 답하는 것이 다르다.
+       *
+       * **데스크톱** — 시각만 적는다. 「지금 누구인가」는 사이드바 바닥이 늘
+       * 답하고 있으므로 여기서 되풀이하면 같은 이름이 한 화면에 둘이 된다.
+       * 시각이 여기 남는 이유는 출입증이다: 외출 마감과 복귀 시각을 눈으로
+       * 대조하는 화면이 여럿이고, 그때 필요한 것은 「지금 몇 시인가」다.
+       *
+       * **폰** — 사이드바가 없다. 계정과 나가기를 이 줄이 대신 진다.
+       */}
       <div className="flex min-w-0 items-center">
         <Clock />
 
-        <span
-          className="mx-2 hidden h-4 w-px shrink-0 bg-line lg:block"
-          aria-hidden
-        />
-
-        {/* 굵기가 갈린 두 조각이라 말풍선에 띄울 전문은 따로 잇는다 —
-            그 문자열을 정하는 것은 honorificName 하나다. */}
-        <TruncatedText full={honorificName(name, role)} className="text-caption">
+        <TruncatedText
+          full={honorificName(name, role)}
+          className="text-caption lg:hidden"
+        >
           <span className="font-medium text-ink">{name}</span>
           <span className="text-mut">{honorificSuffix(role)}</span>
         </TruncatedText>
 
-        <span className="mx-2 h-4 w-px shrink-0 bg-line" aria-hidden />
+        <span className="mx-2 h-4 w-px shrink-0 bg-line lg:hidden" aria-hidden />
 
-        <Button
-          variant="quiet"
-          size="icon"
-          onClick={handleSignOut}
-          disabled={signingOut}
-          title="로그아웃"
-          className="shrink-0"
-        >
-          <LogoutIcon size={18} />
-          <span className="sr-only">로그아웃</span>
-        </Button>
+        <SignOutButton className="shrink-0 lg:hidden" />
       </div>
     </header>
   );

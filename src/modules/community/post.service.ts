@@ -141,6 +141,42 @@ export async function listPostPage(
   };
 }
 
+/** 대시보드의 「새 글」 한 줄. 게시판 이름을 함께 준다 — 여러 게시판이 섞이므로. */
+export type RecentPostView = PostListItemView & {
+  communitySlug: string;
+  communityName: string;
+};
+
+/**
+ * 읽을 수 있는 게시판을 가로지르는 최근 글.
+ *
+ * **볼 수 있는 게시판을 먼저 정하고 그 안에서만 찾는다.** 글을 먼저 모아
+ * 놓고 거르면 「못 보는 게시판의 글 3건」이 빠진 자리가 목록의 길이로 드러난다.
+ *
+ * 익명 게시판이 섞이므로 행을 그대로 넘기지 않는다 — `toPostListItem`이
+ * 게시판마다 제 익명 설정으로 작성자를 지운다.
+ */
+export async function listRecentPosts(
+  actor: SessionUser,
+  take: number,
+): Promise<RecentPostView[]> {
+  const communities = await board.listReadable(actor);
+  if (communities.length === 0) return [];
+
+  const byId = new Map(communities.map((c) => [c.id, c]));
+  const rows = await repo.listRecentPostsAcross([...byId.keys()], take);
+
+  return rows.map((row) => {
+    // in 절로 찾아온 행이라 반드시 있다.
+    const community = byId.get(row.communityId)!;
+    return {
+      ...toPostListItem(row, community, actor, row._count.comments),
+      communitySlug: community.slug,
+      communityName: community.name,
+    };
+  });
+}
+
 export async function createPost(
   actor: SessionUser,
   input: CreatePostInput,
