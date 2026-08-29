@@ -1,8 +1,9 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChipDivider } from "@/components/ui/filter-row";
-import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/input";
+import { Segmented, SegmentButton } from "@/components/ui/segmented";
+import { Select } from "@/components/ui/select";
 import { SearchForm } from "@/components/ui/search-form";
 import { auditActionLabel } from "@/modules/audit-log/audit-log.labels";
 import { AUDIT_PERIODS, type AuditPeriod } from "@/modules/audit-log/audit-log.schema";
@@ -44,40 +45,46 @@ export function LogFilters({
   return (
     // 카드 머리글 안에 들어간다 — 여백·구분선은 머리글이 이미 갖고 있다.
     <>
-      <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        {AUDIT_PERIODS.map((p) => (
-          <Button
-            key={p}
-            variant="chip"
-            size="sm"
-            active={period === p}
-            onClick={() => apply({ period: p })}
-          >
-            {PERIOD_LABEL[p]}
-          </Button>
-        ))}
+      {/*
+       * 동작은 **칩이 아니라 고르는 칸**이다. 감사로그의 동작은 스물일곱 가지이고
+       * 앞으로도 는다 — 칩으로 늘어놓으면 넉 줄짜리 알약 벽이 되어, 표보다 필터가
+       * 화면을 더 차지하고 그 안에서 원하는 하나를 눈으로 찾아야 한다.
+       *
+       * 기간은 넷뿐이고 늘 하나가 켜져 있어 세그먼티드로 남는다. 둘을 다른 모양으로
+       * 두는 것이 이 줄의 요점이다: 왼쪽은 눈금, 오른쪽은 목록.
+       */}
+      <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-3">
+        <div>
+          <Label htmlFor="log-period">기간</Label>
+          <Segmented id="log-period">
+            {AUDIT_PERIODS.map((p) => (
+              <SegmentButton
+                key={p}
+                active={period === p}
+                onClick={() => apply({ period: p })}
+              >
+                {PERIOD_LABEL[p]}
+              </SegmentButton>
+            ))}
+          </Segmented>
+        </div>
 
-        <ChipDivider />
-
-        <Button
-          variant="chip"
-          size="sm"
-          active={!action}
-          onClick={() => apply({ action: "" })}
-        >
-          전체 동작
-        </Button>
-        {actions.map((a) => (
-          <Button
-            key={a}
-            variant="chip"
+        <div className="min-w-52">
+          <Label htmlFor="log-action">동작</Label>
+          <Select
+            id="log-action"
             size="sm"
-            active={action === a}
-            onClick={() => apply({ action: a })}
+            value={action}
+            onChange={(event) => apply({ action: event.target.value })}
           >
-            {auditActionLabel(a)}
-          </Button>
-        ))}
+            <option value="">전체 동작</option>
+            {actions.map((a) => (
+              <option key={a} value={a}>
+                {auditActionLabel(a)}
+              </option>
+            ))}
+          </Select>
+        </div>
       </div>
 
       {/* 검색은 GET으로 보낸다 — 지금 고른 기간·동작은 hidden으로 함께 실어야
