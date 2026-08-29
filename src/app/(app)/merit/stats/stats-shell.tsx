@@ -3,8 +3,8 @@ import Link from "next/link";
 import type { MeritTrack } from "@/core/authz/merit-track";
 import { TrackTabs } from "@/components/merit/track-tabs";
 import { Badge } from "@/components/ui/badge";
-import { ChipLink } from "@/components/ui/chip-link";
-import { SectionCard } from "@/components/ui/section-card";
+import { PageHeader } from "@/components/ui/page-header";
+import { Segmented, SegmentLink } from "@/components/ui/segmented";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   STATS_VIEWS,
@@ -69,32 +69,31 @@ export function StatsShell({
   ) : null;
 
   return (
-    <SectionCard
-      variant="panel"
+    <PageHeader
       title="상벌점 통계"
-      hint={hint}
-      aside={<TrackTabs current={track} hrefFor={(t) => href({ track: t })} size="sm" />}
-      controls={
-        <nav aria-label="통계 갈래" className="mt-3 flex flex-wrap gap-1.5">
-          {STATS_VIEWS.map((item) => (
-            <ChipLink
-              key={item}
-              size="sm"
-              active={item === view}
-              href={href({
-                view: statsViewParam(item),
-                // 반을 못 보는 갈래로 갈 때는 반 조건을 떼고 간다.
-                ...(STATS_VIEW_SCOPED[item] ? {} : { grade: null, classNo: null }),
-              })}
-            >
-              {STATS_VIEW_LABELS[item]}
-            </ChipLink>
-          ))}
-        </nav>
+      description={hint}
+      actions={<TrackTabs current={track} hrefFor={(t) => href({ track: t })} />}
+      tabs={
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <Segmented role="navigation" aria-label="통계 갈래">
+            {STATS_VIEWS.map((item) => (
+              <SegmentLink
+                key={item}
+                active={item === view}
+                href={href({
+                  view: statsViewParam(item),
+                  // 반을 못 보는 갈래로 갈 때는 반 조건을 떼고 간다.
+                  ...(STATS_VIEW_SCOPED[item] ? {} : { grade: null, classNo: null }),
+                })}
+              >
+                {STATS_VIEW_LABELS[item]}
+              </SegmentLink>
+            ))}
+          </Segmented>
+          {scopeBadge}
+        </div>
       }
-    >
-      {scopeBadge}
-    </SectionCard>
+    />
   );
 }
 

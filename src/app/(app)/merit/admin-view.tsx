@@ -8,8 +8,8 @@ import {
 import { FilterRow } from "@/components/ui/filter-row";
 import { ChipLink } from "@/components/ui/chip-link";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
+import { PageHeader } from "@/components/ui/page-header";
 import { SearchForm } from "@/components/ui/search-form";
-import { SectionCard } from "@/components/ui/section-card";
 import { SkeletonScreen, SkeletonTable } from "@/components/ui/skeleton";
 import { StudentSearchResults } from "@/components/merit/student-search-results";
 import { hrefWith, type SearchParamsInput } from "@/lib/search-params";
@@ -92,12 +92,10 @@ export function AdminMeritView({
       {/* 제목은 정식 이름(그린마일리지), 탭은 짧은 표기(교내)라 나란히 둬도 겹치지
           않는다. 상단바 제목은 쿼리를 떼고 찾으므로 어느 트랙이든 "상벌점"이다 —
           지금 어느 쪽을 보고 있는지는 이 줄이 답한다. */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-title font-semibold text-ink">
-          {MERIT_TRACK_TITLES[track]}
-        </h2>
-        <TrackTabs current={track} hrefFor={trackHref} size="sm" />
-      </div>
+      <PageHeader
+        title={MERIT_TRACK_TITLES[track]}
+        actions={<TrackTabs current={track} hrefFor={trackHref} />}
+      />
 
       {/* 이 안내는 조건이 아니라 조회 결과에서 나온다. 자리는 여기지만 기다림은
           결과와 같은 약속을 나눠 쓴다 — 없을 때가 대부분이라 뼈대 없이 비워 둔다. */}
@@ -308,7 +306,13 @@ function ClassPicker({ params, track }: { params: Params; track: MeritTrack }) {
   const classNo = typeof params.classNo === "string" ? params.classNo : "";
 
   return (
-    <SectionCard variant="panel" title="반 고르기">
+    /*
+     * 필터는 상자에 담지 않는다. 「반 고르기」라는 제목을 붙이고 테두리를 두르면
+     * 칩 넉 줄이 폼 한 구획으로 읽혀, 바로 아래 명단 카드와 같은 무게로 선다 —
+     * 화면에서 가장 큰 상자가 조건 넷을 담은 칸이 된다. 라벨(학년·반)이 이미
+     * 무엇을 고르는 줄인지 말하므로 제목도 필요 없다.
+     */
+    <div className="space-y-2.5">
       <FilterRow label="학년">
         <ChipLink
           size="sm"
@@ -331,7 +335,7 @@ function ClassPicker({ params, track }: { params: Params; track: MeritTrack }) {
         ))}
       </FilterRow>
       {grade !== "" && (
-        <FilterRow label="반" className="mt-2.5">
+        <FilterRow label="반">
           <ChipLink
             size="sm"
             href={meritHref(params, { track, classNo: null })}
@@ -351,6 +355,6 @@ function ClassPicker({ params, track }: { params: Params; track: MeritTrack }) {
           ))}
         </FilterRow>
       )}
-    </SectionCard>
+    </div>
   );
 }

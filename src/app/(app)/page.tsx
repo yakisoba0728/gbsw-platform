@@ -118,6 +118,11 @@ function PassStatusBadge({ status }: { status: string }) {
   return <Badge tone={PASS_STATUS_TONES[status]}>{PASS_STATUS_LABELS[status]}</Badge>;
 }
 
+/** 보조 줄을 「·」로 잇는다. 없는 조각은 빠지고 구분점도 함께 빠진다. */
+function joinMeta(...parts: (string | null | undefined | false)[]): string {
+  return parts.filter(Boolean).join(" · ");
+}
+
 /** 「8. 30. 14:00 ~ 18:00」. 날이 넘어가면 뒤쪽도 날짜를 적는다. */
 function windowLabel(startAt: Date, endAt: Date): string {
   const sameDay = formatMonthDay(startAt) === formatMonthDay(endAt);
@@ -167,17 +172,15 @@ async function TeacherDashboard({ user }: { user: SessionUser }) {
                     key={pass.id}
                     href={`/pass/${pass.id}`}
                     title={honorificName(pass.studentProfile.user.name, "STUDENT")}
-                    meta={
-                      <>
-                        {classLabel(
-                          enrollment?.schoolClass?.grade,
-                          enrollment?.schoolClass?.classNo,
-                          enrollment?.number,
-                        )}
-                        {enrollment && " · "}
-                        {passTypeLabel(pass.type)} · {windowLabel(pass.startAt, pass.endAt)}
-                      </>
-                    }
+                    meta={joinMeta(
+                      classLabel(
+                        enrollment?.schoolClass?.grade,
+                        enrollment?.schoolClass?.classNo,
+                        enrollment?.number,
+                      ),
+                      passTypeLabel(pass.type),
+                      windowLabel(pass.startAt, pass.endAt),
+                    )}
                     trailing={<PassStatusBadge status={pass.status} />}
                   />
                 );
@@ -202,13 +205,10 @@ async function TeacherDashboard({ user }: { user: SessionUser }) {
                   key={award.id}
                   href={`/merit/students/${award.studentProfileId}`}
                   title={honorificName(award.studentName, "STUDENT")}
-                  meta={
-                    <>
-                      {classLabel(award.grade, award.classNo, award.number)}
-                      {award.grade != null && " · "}
-                      {award.label}
-                    </>
-                  }
+                  meta={joinMeta(
+                    classLabel(award.grade, award.classNo, award.number),
+                    award.label,
+                  )}
                   trailing={
                     award.status === "CANCELLED" ? (
                       <Badge tone="cancelled">취소</Badge>
@@ -250,17 +250,14 @@ async function TeacherDashboard({ user }: { user: SessionUser }) {
                     key={pass.id}
                     href={`/pass/${pass.id}`}
                     title={honorificName(pass.studentProfile.user.name, "STUDENT")}
-                    meta={
-                      <>
-                        {classLabel(
-                          enrollment?.schoolClass?.grade,
-                          enrollment?.schoolClass?.classNo,
-                          enrollment?.number,
-                        )}
-                        {enrollment && " · "}
-                        {pass.destination}
-                      </>
-                    }
+                    meta={joinMeta(
+                      classLabel(
+                        enrollment?.schoolClass?.grade,
+                        enrollment?.schoolClass?.classNo,
+                        enrollment?.number,
+                      ),
+                      pass.destination,
+                    )}
                     trailing={
                       <span className="text-caption tabular-nums text-mut">
                         {formatTimeShort(pass.endAt)} 복귀
@@ -564,14 +561,11 @@ function RecentPostsCard({ posts }: { posts: RecentPostView[] }) {
               key={post.id}
               href={`/community/${post.communitySlug}/${post.id}`}
               title={post.title}
-              meta={
-                <>
-                  {post.communityName}
-                  {post.author && ` · ${post.author.display}`}
-                  {" · "}
-                  {formatMonthDay(post.createdAt)}
-                </>
-              }
+              meta={joinMeta(
+                post.communityName,
+                post.author?.display,
+                formatMonthDay(post.createdAt),
+              )}
               trailing={
                 post.commentCount > 0 ? (
                   <span className="text-xs tabular-nums text-mut">

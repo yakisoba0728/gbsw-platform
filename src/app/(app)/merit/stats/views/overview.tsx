@@ -11,7 +11,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { SectionCard } from "@/components/ui/section-card";
 import { Skeleton, SkeletonStats, SkeletonTable } from "@/components/ui/skeleton";
-import { StatTile } from "@/components/ui/stat-tile";
+import { StatStrip, StatTile } from "@/components/ui/stat-tile";
 import { DataTable, type Column } from "@/components/ui/table";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import { DemeritCell } from "@/components/merit/demerit-level";
@@ -81,35 +81,38 @@ export async function OverviewBody({
   return (
     <>
       {/* 뷰포트가 아니라 놓인 자리의 폭을 본다 — MeritTotalsCards와 같은 기준이다. */}
-      <div className="@container">
-        <div className="grid grid-cols-2 gap-3 @md:grid-cols-3 @2xl:grid-cols-5">
-          <StatTile
-            label="상점"
-            value={stats.totals.merit}
-            valueClassName="text-blue"
-          />
-          <StatTile
-            label="벌점"
-            value={stats.totals.demerit}
-            valueClassName="text-rose"
-          />
-          <StatTile
-            label="상쇄점"
-            value={stats.totals.offset}
-            valueClassName="text-green"
-          />
-          <StatTile
-            label="순점수"
-            value={signedNet(stats.totals.net)}
-            valueClassName={stats.totals.net >= 0 ? "text-green" : "text-rose"}
-          />
-          <StatTile
-            label="부여 건수"
-            value={stats.totals.awardCount}
-            valueClassName="text-ink"
-          />
-        </div>
-      </div>
+      <StatStrip className="grid-cols-2 @md:grid-cols-3 @2xl:grid-cols-5">
+        <StatTile
+          variant="plain"
+          label="상점"
+          value={stats.totals.merit}
+          valueClassName="text-blue"
+        />
+        <StatTile
+          variant="plain"
+          label="벌점"
+          value={stats.totals.demerit}
+          valueClassName="text-rose"
+        />
+        <StatTile
+          variant="plain"
+          label="상쇄점"
+          value={stats.totals.offset}
+          valueClassName="text-green"
+        />
+        <StatTile
+          variant="plain"
+          label="순점수"
+          value={signedNet(stats.totals.net)}
+          valueClassName={stats.totals.net >= 0 ? "text-green" : "text-rose"}
+        />
+        <StatTile
+          variant="plain"
+          label="부여 건수"
+          value={stats.totals.awardCount}
+          valueClassName="text-ink"
+        />
+      </StatStrip>
 
       <MonthlyChart points={stats.monthly} axisLabel={stats.axisLabel} />
 

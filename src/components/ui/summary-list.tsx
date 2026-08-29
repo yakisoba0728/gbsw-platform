@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { TruncatedText } from "@/components/ui/truncated-text";
 import { cn } from "@/lib/cn";
 
 /**
@@ -22,21 +23,43 @@ export function SummaryList({ children }: { children: ReactNode }) {
 export function SummaryRow({
   href,
   title,
+  titleText,
   meta,
+  metaText,
   trailing,
 }: {
   href?: string;
   title: ReactNode;
+  /**
+   * 잘렸을 때 말풍선에 띄울 제목 전문. 제목이 여러 조각으로 조립되면 그 문자열을
+   * 화면 코드에서 다시 만들 수 없으므로 호출부가 준다. 안 주면 제목이 문자열일
+   * 때만 말풍선이 선다.
+   */
+  titleText?: string;
   /** 제목 아래 한 줄 — 학급·시각처럼 그 건을 특정하는 것. */
   meta?: ReactNode;
+  /** 위와 같다. 보조 줄의 전문. */
+  metaText?: string;
   /** 오른쪽 끝 — 배지·점수. */
   trailing?: ReactNode;
 }) {
   const body = (
     <>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm text-ink">{title}</div>
-        {meta && <div className="mt-0.5 truncate text-xs text-mut">{meta}</div>}
+        <TruncatedText
+          full={titleText ?? (typeof title === "string" ? title : "")}
+          className="text-sm text-ink"
+        >
+          {title}
+        </TruncatedText>
+        {meta && (
+          <TruncatedText
+            full={metaText ?? (typeof meta === "string" ? meta : "")}
+            className="mt-0.5 text-xs text-mut"
+          >
+            {meta}
+          </TruncatedText>
+        )}
       </div>
       {trailing && (
         <div className="flex shrink-0 items-center gap-2">{trailing}</div>

@@ -81,7 +81,6 @@ export default async function RecentAwardsPage({
           <TrackTabs
             current={track}
             hrefFor={(nextTrack) => href({ track: nextTrack, page: null })}
-            size="sm"
           />
         }
       >

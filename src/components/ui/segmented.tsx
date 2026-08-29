@@ -50,7 +50,8 @@ export function SegmentLink({
   active,
   className,
   children,
-}: {
+  ...props
+}: Omit<ComponentProps<typeof Link>, "href" | "className"> & {
   href: string;
   active: boolean;
   className?: string;
@@ -61,6 +62,7 @@ export function SegmentLink({
       href={href}
       aria-current={active ? "page" : undefined}
       className={segmentClass(active, className)}
+      {...props}
     >
       {children}
     </Link>
