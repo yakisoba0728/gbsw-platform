@@ -19,6 +19,7 @@ import {
 import {
   isPassStatus,
   isPassType,
+  requiresConsent,
   PASS_STATUS_LABELS,
   PASS_TYPE_LABELS,
 } from "@/core/authz/pass-type";
@@ -454,8 +455,27 @@ async function ParentDashboard({ user }: { user: SessionUser }) {
     );
   }
 
-  // 학부모가 이 화면에서 답해야 하는 것은 「내가 동의할 것이 있나」다.
-  const waiting = passes.filter((pass) => pass.status === "REQUESTED");
+  /*
+   * 학부모가 이 화면에서 답해야 하는 것은 **「내가 동의할 것이 있나」** 하나다.
+   * 그래서 조건이 `consentPass`가 실제로 받아 주는 것과 같아야 한다:
+   *
+   *   외박이고(requiresConsent) · 아직 REQUESTED이고 · 기간이 안 지났다.
+   *
+   * 유형을 안 보면 **외출**까지 「동의 대기」에 선다 — 외출은 보호자 동의 없이
+   * 곧장 교사 결재로 가는데(`CONSENT_NOT_ALLOWED`), 그 줄을 눌러 봐야 동의할
+   * 길이 없다. 「외박은 보호자 동의가 있어야」라는 설명 아래에 외출이 서면
+   * 그 설명이 거짓말이 된다.
+   *
+   * 끝난 것을 빼는 이유는 `listForParent`가 기간을 안 보기 때문이다 — 안 걸러
+   * 두면 지난달 신청이 영영 「대기」로 남는다.
+   */
+  const now = new Date();
+  const waiting = passes.filter(
+    (pass) =>
+      requiresConsent(pass.type) &&
+      pass.status === "REQUESTED" &&
+      pass.endAt.getTime() > now.getTime(),
+  );
 
   return (
     <Stack>

@@ -295,9 +295,12 @@
   appearance: none;
   background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239a9a9a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 0.7rem center;
+  background-position: right 0.6rem center;
   background-size: 14px 14px;
-  padding-right: 2rem;
+  /* 화살표가 앉을 자리. 브라우저 기본 화살표(약 20px)보다 넓으면 폭을 좁게 잡아
+     둔 칸에서 고른 글자가 화살표 밑으로 밀려 잘린다 — 「2026학년도 (현재)」가
+     w-36 안에서 그랬다. */
+  padding-right: 1.75rem;
 
   &:disabled {
     opacity: 1;

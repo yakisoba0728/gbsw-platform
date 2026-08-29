@@ -32,7 +32,7 @@ export function YearSwitcher({
       <div className="flex flex-wrap items-end gap-4">
         <form action={switchAction} className="flex items-end gap-2">
           {/* 폭은 바깥에서 준다 — cn()이 tailwind-merge가 아니라 w-full을 못 덮는다. */}
-          <div className="w-36">
+          <div className="w-40">
             <Select
               size="sm"
               name="year"
