@@ -213,6 +213,32 @@ export async function listReadable(actor: SessionUser): Promise<repo.CommunityRo
   return all.filter((community) => canRead(actor, community));
 }
 
+/** 목록 화면 한 줄. 게시판 성질에 「얼마나 도는 곳인가」를 더한 것이다. */
+export type ReadableBoard = repo.CommunityRow & {
+  postCount: number;
+  /** 마지막 글이 올라온 때. 글이 없으면 null. */
+  lastPostAt: Date | null;
+};
+
+/**
+ * 목록 화면용. 읽을 수 있는 게시판에 글 수와 마지막 글 시각을 얹는다.
+ *
+ * 활동을 함께 주는 이유는, 이름과 설명만 적힌 카드로는 어디에 들어가야 할지
+ * 고를 수가 없어서다 — 게시판이 셋이든 열이든 화면이 똑같아 보인다.
+ */
+export async function listReadableWithActivity(
+  actor: SessionUser,
+): Promise<ReadableBoard[]> {
+  const all = await repo.listCommunitiesWithActivity();
+  return all
+    .filter((community) => canRead(actor, community))
+    .map(({ _count, posts, ...community }) => ({
+      ...community,
+      postCount: _count.posts,
+      lastPostAt: posts[0]?.createdAt ?? null,
+    }));
+}
+
 /**
  * 주소로 집어 온다. 읽을 수 없으면 거부하고, 없앤 게시판은 없는 것으로 친다.
  *

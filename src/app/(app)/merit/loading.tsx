@@ -1,4 +1,3 @@
-import { cardClass } from "@/components/ui/card";
 import {
   Skeleton,
   SkeletonField,
@@ -8,7 +7,7 @@ import {
 } from "@/components/ui/skeleton";
 
 /**
- * `/merit`의 로딩 뼈대 — 탭 · 검색 폼 · 학년/반 칩 카드 · 반 명단.
+ * `/merit`의 로딩 뼈대 — 탭 · 검색 폼 · 학년 칩 · 반 명단.
  * 교사 모습에 맞춘다: 실제로 기다림이 생기는 쪽이 반 명단 집계다.
  */
 export default function Loading() {
@@ -22,15 +21,10 @@ export default function Loading() {
         <Skeleton className="h-9 w-[72px] rounded-btn" />
       </div>
 
-      {/* 반 고르기 카드 — 제목 + 학년·반 칩 */}
-      <div className={cardClass("panel")}>
-        <Skeleton className="mb-4 h-5 w-20 rounded-btn" />
-        <div className="flex flex-wrap gap-1.5">
-          <SkeletonTabs count={4} size="sm" width="w-[68px]" />
-        </div>
-        <div className="mt-2.5 flex flex-wrap gap-1.5">
-          <SkeletonTabs count={5} size="sm" width="w-[60px]" />
-        </div>
+      {/* 학년·반 칩 줄. 카드가 아니다 — 실제 화면과 상자 수가 다르면 내용이
+          들어오는 순간 화면이 한 칸 접히면서 아래 표가 위로 뛴다. */}
+      <div className="flex flex-wrap gap-1.5">
+        <SkeletonTabs count={4} size="sm" width="w-[68px]" />
       </div>
 
       <SkeletonTable />
