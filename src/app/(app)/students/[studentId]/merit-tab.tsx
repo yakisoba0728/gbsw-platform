@@ -121,7 +121,6 @@ export function MeritTab({
       <TrackTabs
         current={track}
         hrefFor={(t) => trackHref(studentId, params, t)}
-        size="sm"
       />
 
       {/* 부여 폼이 사라지는 이유를 적어 둔다 — 안 적으면 고장으로 읽힌다. */}

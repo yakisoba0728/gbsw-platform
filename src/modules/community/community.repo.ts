@@ -22,6 +22,30 @@ export function listCommunities(db: DbClient = prisma): Promise<CommunityRow[]> 
   });
 }
 
+/**
+ * 살아 있는 게시판 + 활동. 목록 화면이 「글이 얼마나 있고 마지막이 언제인가」를
+ * 적으려면 게시판마다 세어야 하는데, 게시판 수만큼 질의를 내지 않으려고 한 번에
+ * 가져온다.
+ *
+ * `posts`는 **날짜 하나만** 가져온다 — 제목이나 작성자를 실으면 못 읽는 사람의
+ * 화면으로 내려갈 길이 생기고, 익명 게시판에서는 그것이 곧 신원이다.
+ */
+export function listCommunitiesWithActivity(db: DbClient = prisma) {
+  return db.community.findMany({
+    where: { active: true },
+    orderBy: [...COMMUNITY_ORDER],
+    include: {
+      _count: { select: { posts: { where: { deletedAt: null } } } },
+      posts: {
+        where: { deletedAt: null },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { createdAt: true },
+      },
+    },
+  });
+}
+
 /** 없앤 것까지. 관리 화면만 쓴다 — 되살릴 수는 없어도 있었다는 사실은 보여야 한다. */
 export function listAllCommunities(db: DbClient = prisma): Promise<CommunityRow[]> {
   return db.community.findMany({ orderBy: [{ active: "desc" }, ...COMMUNITY_ORDER] });
@@ -136,6 +160,28 @@ export function listPosts(
     where: { communityId, deletedAt: null },
     orderBy: { createdAt: "desc" },
     skip,
+    take,
+    ...POST_WITH_COUNTS,
+  });
+}
+
+/**
+ * 여러 게시판을 가로지르는 최근 글. 대시보드의 「새 글」 한 칸이 쓴다.
+ *
+ * **어느 게시판을 볼지는 서비스가 정해서 넘긴다.** 여기서 권한을 보지 않는다 —
+ * repo는 Prisma 호출만 한다. 빈 배열을 그대로 넘기면 `in: []`이 되어 전부
+ * 걸러지므로, 부르는 쪽이 먼저 걸러야 한다.
+ */
+export function listRecentPostsAcross(
+  communityIds: readonly string[],
+  take: number,
+  db: DbClient = prisma,
+) {
+  return db.communityPost.findMany({
+    where: { communityId: { in: [...communityIds] }, deletedAt: null },
+    // 목록과 같은 정렬키다. 보조키(id)까지 같은 이유는 findRecentAwardPage와 같다 —
+    // 같은 밀리초에 들어온 글 사이의 순서가 조회마다 뒤집히면 안 된다.
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take,
     ...POST_WITH_COUNTS,
   });

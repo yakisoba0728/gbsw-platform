@@ -185,7 +185,9 @@ account에서 시작해 모듈이 커지면 merit의 모양으로 간다.
 
 ## 디자인
 
-`docs/design/2026-08-17-redesign-spec.md`가 기준이다. 원본 시안은
+`docs/design/2026-08-17-redesign-spec.md`(색·크기·굵기)와
+`docs/design/2026-08-30-ui-refresh.md`(화면 짜는 법 — 상자를 몇 겹 쌓나,
+세그먼티드와 칩을 어떻게 가르나)가 함께 기준이다. 원본 시안은
 `docs/design/DESIGN-supabase.md` — **흰 캔버스 · 근검정 잉크 · 에메랄드 하나**.
 색·크기·모서리는 `src/app/globals.css`의 `@theme`에 토큰으로 있고, 화면 코드는
 토큰 이름만 쓴다 (`text-caption`, `rounded-card`, `bg-pri` …).
@@ -201,12 +203,17 @@ account에서 시작해 모듈이 커지면 merit의 모양으로 간다.
 
 문구 규칙(한 문장 · 완충어 금지 · 용어 고정표)도 같은 문서 §3에 있다.
 
+**화면이 사람에게 말을 걸지 않는다.** 시각대별 인사말·「~해 보세요」·「팁」·
+도움말 말풍선 같은 것을 새로 만들지 않는다 — 설명이 필요한 화면은 문구가
+아니라 배치를 고친다. 대시보드가 답할 것은 몇 시인지가 아니라 무엇이 남았는지다.
+
 ### 화면을 만들기 전에 있는 것부터 찾는다
 
 같은 모양을 손으로 다시 그리면 규격이 갈라진다. 아래는 이미 있다.
 
 | 필요한 것 | 쓸 것 |
 |---|---|
+| 페이지 제목·설명·동작 | `PageHeader` — **카드가 아니다.** 바탕 위에 앉는다. 제목을 카드에 담으면 그 아래 내용 카드와 무게가 같아진다 |
 | 제목 달린 카드 | `SectionCard` — 머리글 띠가 필요 없으면 `variant="panel"`, 되돌릴 수 없는 동작이면 `tone="danger"` |
 | 제목 앞에 다른 것이 오는 카드 | `cardClass(pad, className)` — 역할 라벨·상태 배지가 `<h2>` 앞에 오면 `SectionCard`로 표현할 수 없다 |
 | 표 | `DataTable` — 폰에서 카드로 바뀌어야 하면 `narrow="cards"`. 열마다 `card` 자리를 고른다 |
@@ -215,9 +222,11 @@ account에서 시작해 모듈이 커지면 merit의 모양으로 간다.
 | 아이콘만 있는 버튼 | `Button size="icon"` (또는 `buttonClass({ size: "icon" })`) |
 | 뒤로 가기 | `BackLink` |
 | 방금 발급된 코드·임시 비밀번호 | `SecretPanel` |
-| 합계 한 칸 | `StatTile` |
+| 합계 한 칸 | `StatTile` — 여럿이면 `StatStrip`으로 묶는다(테두리는 하나, 칸 사이는 머리카락 선) |
+| 보는 방식을 바꾸는 탭 | `Segmented` + `SegmentLink`/`SegmentButton` — 늘 하나가 켜져 있고 끌 수 없는 것. 끄면 넓어지는 **필터는 칩**(`ChipLink`)이고 둘은 일부러 다르게 생겼다. 항목이 열을 넘으면 `Select` |
+| 대시보드의 짧은 목록 | `SummaryList` + `SummaryRow` — 표를 좁은 칸에 넣으면 한 건이 세 줄이 된다 |
 | 결과·오류 배너 | `Note` — `tone="error"`면 `role="alert"`이 자동으로 붙는다 |
-| 빈 상태 | `EmptyState` — 이미 카드 안이면 `variant="inside"` |
+| 빈 상태 | `EmptyState` — 이미 카드 안이면 `variant="inside"`. 거기서 할 수 있는 일이 있으면 `action`으로 버튼을 함께 준다 |
 
 **카드 안쪽 여백은 세 가지뿐이다.** 표를 담으면 `flush`, 폼·안내는 `panel`(p-5),
 페이지 대표 카드는 `page`(p-8). 그 외 값을 새로 만들지 않는다. 카드 껍데기

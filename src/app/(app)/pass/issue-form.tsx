@@ -2,11 +2,11 @@
 
 import { useActionState, useState } from "react";
 import { StudentPicker, type PickerStudent } from "@/components/students/student-picker";
-import { Button } from "@/components/ui/button";
 import { ConfirmSubmit } from "@/components/ui/confirm-submit";
 import { CheckboxField } from "@/components/ui/checkbox";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
+import { Segmented, SegmentButton } from "@/components/ui/segmented";
 import { PASS_TYPE_LABELS, PASS_TYPES, type PassType } from "@/core/authz/pass-type";
 import { EMPTY_PASS_STATE } from "./action-state";
 import { issueAction } from "./actions";
@@ -40,19 +40,19 @@ export function IssueForm({
 
   return (
     <form action={action}>
-      <div className="mb-4 flex gap-2">
+      {/* 유형은 둘 중 하나가 늘 켜져 있고 끌 수 없다 — 목록을 좁히는 칩이 아니라
+          같은 폼의 다른 모드라, 세그먼티드 컨트롤로 세운다. */}
+      <Segmented className="mb-4">
         {PASS_TYPES.map((value) => (
-          <Button
+          <SegmentButton
             key={value}
-            type="button"
-            variant="chip"
             active={type === value}
             onClick={() => setType(value)}
           >
             {PASS_TYPE_LABELS[value]}
-          </Button>
+          </SegmentButton>
         ))}
-      </div>
+      </Segmented>
       <input type="hidden" name="type" value={type} />
 
       {/* 고르는 버튼이 자기 이름을 말하므로(「학생 고르기」) htmlFor로 묶을 칸이 없다. */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChipLink } from "@/components/ui/chip-link";
+import { Segmented, SegmentLink } from "@/components/ui/segmented";
 import {
   ADMIN_TABS,
   ADMIN_TAB_LABELS,
@@ -21,15 +21,14 @@ import { hasUnsavedEdits } from "./unsaved";
  */
 export function AdminTabs({ current }: { current: AdminTab }) {
   return (
-    <nav aria-label="계정 관리 갈래" className="flex flex-wrap gap-1.5">
+    <Segmented role="navigation" aria-label="계정 관리 갈래">
       {ADMIN_TABS.map((item) => {
         const param = adminTabParam(item);
         const active = item === current;
 
         return (
-          <ChipLink
+          <SegmentLink
             key={item}
-            size="sm"
             active={active}
             href={param === null ? "/admin/users" : `/admin/users?tab=${param}`}
             onNavigate={(event) => {
@@ -44,9 +43,9 @@ export function AdminTabs({ current }: { current: AdminTab }) {
             }}
           >
             {ADMIN_TAB_LABELS[item]}
-          </ChipLink>
+          </SegmentLink>
         );
       })}
-    </nav>
+    </Segmented>
   );
 }

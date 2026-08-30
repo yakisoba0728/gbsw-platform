@@ -15,7 +15,7 @@ export default async function AppLayout({
    */
   return (
     <div className="flex h-dvh overflow-hidden print:block print:h-auto print:overflow-visible">
-      <Sidebar role={user.role} />
+      <Sidebar name={user.name} role={user.role} />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar name={user.name} role={user.role} />

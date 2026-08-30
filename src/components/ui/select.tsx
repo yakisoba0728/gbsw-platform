@@ -3,7 +3,8 @@ import { cn } from "@/lib/cn";
 import { fieldBase, fieldClass, type FieldSize } from "./input";
 
 /**
- * 고르는 칸. 크기 눈금은 `Input`과 같고, 화살표는 브라우저 기본을 쓴다.
+ * 고르는 칸. 크기 눈금은 `Input`과 같고, 화살표는 `field-chevron`이 그린다
+ * (브라우저 기본 화살표는 OS마다 다르게 생겨 이 칸만 남의 앱처럼 보인다).
  *
  * `rows`는 네이티브 `size` 속성이다 — 주면 한 줄짜리 칸이 아니라 목록이 되므로
  * 높이를 고정하지 않는다. 이름을 바꿔 받는 이유는 우리 크기 눈금(`size`)과
@@ -23,7 +24,9 @@ export function Select({
     <select
       size={rows}
       className={cn(
-        rows === undefined ? fieldClass(size) : cn(fieldBase(), "px-3 py-2"),
+        rows === undefined
+          ? cn(fieldClass(size), "field-chevron")
+          : cn(fieldBase(), "px-3 py-2"),
         className,
       )}
       {...props}

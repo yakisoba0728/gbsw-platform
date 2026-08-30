@@ -35,6 +35,30 @@ const VARIANTS: Record<ButtonVariant, string> = {
 /** 고른 칩. 초록이 아니라 잉크색이다 — 에메랄드는 실행 버튼에만 남긴다. */
 const CHIP_ACTIVE = "border-ink bg-ink text-white hover:bg-ink";
 
+/**
+ * 못 누르는 상태.
+ *
+ * **채워진 버튼은 투명도로 죽이지 않는다.** `opacity-40`을 에메랄드에 걸면
+ * 흰 바탕이 비쳐 물 빠진 연두가 되는데, 그 색은 「지금 못 누른다」가 아니라
+ * 「덜 만들어졌다」로 읽힌다 — 화면에서 가장 큰 버튼이 그 꼴이면 화면 전체가
+ * 미완성으로 보인다. 회색으로 갈아입히고 불투명도는 그대로 둔다.
+ *
+ * 테두리·투명 계열은 바탕이 없으므로 예전대로 흐리게 둔다.
+ */
+const SOLID_DISABLED =
+  "disabled:border-line disabled:bg-mut-soft disabled:text-mut2";
+const FADE_DISABLED = "disabled:opacity-40";
+
+const DISABLED: Record<ButtonVariant, string> = {
+  primary: SOLID_DISABLED,
+  "danger-solid": SOLID_DISABLED,
+  secondary: FADE_DISABLED,
+  danger: FADE_DISABLED,
+  ghost: FADE_DISABLED,
+  quiet: FADE_DISABLED,
+  chip: FADE_DISABLED,
+};
+
 /*
  * 모바일에서 36px 미만이면 안 된다 (시안 Touch Targets). 표 안이 빽빽해지는
  * 데스크톱에서만 다시 줄인다 — 마우스에는 36px이 필요 없다.
@@ -72,9 +96,12 @@ export function buttonClass({
   return cn(
     "inline-flex items-center justify-center gap-1.5 border font-medium leading-none whitespace-nowrap",
     "transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
-    "disabled:pointer-events-none disabled:opacity-40",
+    "disabled:pointer-events-none",
     isChip ? "rounded-full" : "rounded-btn",
     isChip && active ? CHIP_ACTIVE : VARIANTS[variant],
+    // variant 뒤에 온다 — cn()은 tailwind-merge가 아니라 순서로는 못 이기지만,
+    // disabled: 변형은 생성 순서상 무변형 유틸 뒤에 놓여 실제로 덮는다.
+    DISABLED[variant],
     SIZES[size],
     full && "w-full",
     className,

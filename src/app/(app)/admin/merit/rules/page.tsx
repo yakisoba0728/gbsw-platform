@@ -75,7 +75,6 @@ export default async function RulesPage({
             current={track}
             // 트랙을 바꾸면 검색 조건은 버린다 — 목록 자체가 달라 0건이 빈 화면처럼 읽힌다.
             hrefFor={(nextTrack) => `${BASE_PATH}?track=${nextTrack}`}
-            size="sm"
           />
         }
       />

@@ -101,7 +101,7 @@ export function MonthlyChart({
             들어가므로, 스크롤 상자를 만들 이유가 없다. 그보다 좁을 때만 스크롤한다
             (그 폭에는 hover가 없고 순점수는 막대 아래에 늘 적혀 있다).
           */}
-          <div className="flex items-stretch gap-1 overflow-x-auto pt-4 @md:overflow-x-visible @md:pt-14">
+          <div className="flex items-stretch gap-1 overflow-x-auto pt-4 @md:overflow-x-visible @md:pt-10">
           {points.map((point, i) => {
             const empty = !point.merit && !point.demerit && !point.offset;
             return (
@@ -135,18 +135,24 @@ export function MonthlyChart({
                   ]}
                 />
 
-                {/* 위: 상점 + 상쇄 */}
-                <div className="flex h-16 items-end">
+                {/*
+                  막대 폭에 상한을 둔다. 열두 달이 1000px을 나눠 가지면 한 칸이
+                  80px이 되어, 막대가 아니라 색 블록이 늘어선 그림이 된다 —
+                  값을 견주는 것이 아니라 면적을 보게 된다. 칸은 폭을 그대로
+                  나눠 갖고(그래야 달 이름이 제자리에 선다) 막대만 가운데로 좁힌다.
+                */}
+                <div className="flex h-16 items-end justify-center">
                   <div
-                    className="w-full rounded-t-btn bg-blue transition-opacity group-hover:opacity-80"
+                    className="w-full max-w-9 rounded-t-[3px] bg-blue transition-opacity group-hover:opacity-80"
                     style={{ height: `${meritScale[i]}%` }}
                   />
                 </div>
-                <div className="h-px bg-line2" />
-                {/* 아래: 벌점 */}
-                <div className="flex h-16 items-start">
+                {/* 0선. 이 선이 위아래 두 계열의 기준이라 카드 안쪽 구분선(line2)이
+                    아니라 표 테두리와 같은 굵기(line)로 긋는다. */}
+                <div className="h-px bg-line" />
+                <div className="flex h-16 items-start justify-center">
                   <div
-                    className="w-full rounded-b-btn bg-rose transition-opacity group-hover:opacity-80"
+                    className="w-full max-w-9 rounded-b-[3px] bg-rose transition-opacity group-hover:opacity-80"
                     style={{ height: `${demeritScale[i]}%` }}
                   />
                 </div>

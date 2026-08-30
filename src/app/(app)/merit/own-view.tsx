@@ -66,7 +66,6 @@ export function OwnMeritView({
                 ...(next === "DORM" ? { year: null } : {}),
               })
             }
-            size="sm"
           />
           {childOptions && childOptions.length > 1 && (
             <ChildPicker

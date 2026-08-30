@@ -54,7 +54,14 @@ export function TableFrame({
     // 눈에 띄지 않으므로, 자리를 따지지 않고 늘 둥글린다.
     <div className={cn("scroll-x-hint overflow-x-auto rounded-b-card", className)}>
       <table
-        className={cn("w-full text-left text-sm", fixed && "table-fixed")}
+        className={cn(
+          "w-full text-left text-sm",
+          // 훑는 표다. 마우스가 지나는 줄에 옅은 바탕을 깔아 눈이 가로로 미끄러지지
+          // 않게 한다 — 열이 예닐곱이면 이름과 순점수가 같은 줄인지 확신이 안 선다.
+          // 색을 바꾸는 것이 아니라 바탕만 얹으므로 rowClassName의 글자색을 덮지 않는다.
+          "[&>tbody>tr]:transition-colors [&>tbody>tr:hover]:bg-soft",
+          fixed && "table-fixed",
+        )}
         style={{ minWidth }}
       >
         {cols && (
@@ -65,13 +72,13 @@ export function TableFrame({
           </colgroup>
         )}
         <thead>
-          <tr className="border-b border-line bg-soft text-xs text-mut">
+          <tr className="border-b border-line bg-soft text-xs text-mut2">
             {headers.map((header, i) => (
               <th
                 key={i}
                 aria-sort={sort?.[i]}
                 className={cn(
-                  "py-2.5 font-medium",
+                  "py-2 font-medium",
                   tableCellPadding(i, headers.length, gutter),
                 )}
               >

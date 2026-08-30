@@ -2,10 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
 import { ConfirmSubmit } from "@/components/ui/confirm-submit";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
+import { Segmented, SegmentButton } from "@/components/ui/segmented";
 import { PASS_TYPE_LABELS, PASS_TYPES, type PassType } from "@/core/authz/pass-type";
 import { EMPTY_PASS_STATE } from "../action-state";
 import { requestAction } from "../actions";
@@ -30,19 +30,17 @@ export function RequestForm({ today }: { today: string }) {
     <form action={action}>
       <fieldset className="mb-5">
         <legend className="mb-2 text-caption font-medium text-ink">유형</legend>
-        <div className="flex gap-2">
+        <Segmented>
           {PASS_TYPES.map((value) => (
-            <Button
+            <SegmentButton
               key={value}
-              type="button"
-              variant="chip"
               active={type === value}
               onClick={() => setType(value)}
             >
               {PASS_TYPE_LABELS[value]}
-            </Button>
+            </SegmentButton>
           ))}
-        </div>
+        </Segmented>
       </fieldset>
 
       <input type="hidden" name="type" value={type} />
