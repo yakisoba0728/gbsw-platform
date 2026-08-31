@@ -61,9 +61,9 @@ export async function listAll(year: number) {
   });
 }
 
-export async function listByStudent(studentId: string) {
+export async function listByStudent(studentId: string, createdById: string) {
   return prisma.invite.findMany({
-    where: { studentId },
+    where: { studentId, createdById, role: "PARENT" },
     // 같은 이유로 보조 정렬키를 둔다 (listAll 참고). 한 학생에게 학부모 코드를
     // 한 번에 여러 개 발급하면 그 코드들이 밀리초까지 같은 createdAt을 갖는다.
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -96,21 +96,32 @@ export async function countActiveByStudent(
 }
 
 /**
- * 학부모 초대 한도 판정의 직렬화 지점. 학생 행을 트랜잭션 끝까지 잠근 뒤에만
- * count+insert를 수행하면 활성 2개에서 들어온 병렬 요청 두 개가 모두 3 미만을
- * 보는 check-then-insert 경쟁이 성립하지 않는다.
+ * 학부모 초대 한도 판정의 직렬화 지점. User → StudentProfile 순으로 잠근 뒤에만
+ * count+insert를 수행한다. 관리자 계정 수정·삭제와 같은 순서라 교착이 없고,
+ * 학생 행 잠금은 병렬 요청 둘이 모두 한도 미만을 보는 경쟁을 막는다.
  */
 export async function lockStudentForParentInvite(
   studentId: string,
   db: DbClient,
 ): Promise<boolean> {
-  const rows = await db.$queryRaw<Array<{ id: string }>>`
-    SELECT "id"
-    FROM "StudentProfile"
-    WHERE "id" = ${studentId}
+  const users = await db.$queryRaw<Array<{ id: string }>>`
+    SELECT u."id"
+    FROM "user" AS u
+    WHERE u."id" = (
+      SELECT sp."userId" FROM "StudentProfile" AS sp WHERE sp."id" = ${studentId}
+    )
     FOR UPDATE
   `;
-  return rows.length === 1;
+  const user = users[0];
+  if (!user) return false;
+
+  const profiles = await db.$queryRaw<Array<{ id: string }>>`
+    SELECT "id"
+    FROM "StudentProfile"
+    WHERE "id" = ${studentId} AND "userId" = ${user.id}
+    FOR UPDATE
+  `;
+  return profiles.length === 1;
 }
 
 /** PENDING인 것만 폐기한다. 이미 쓰였거나 폐기된 코드는 건드리지 않는다. */

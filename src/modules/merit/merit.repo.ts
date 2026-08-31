@@ -660,6 +660,12 @@ export async function listAwardYears(studentProfileId: string): Promise<number[]
 export async function listChildren(parentUserId: string) {
   return prisma.parentStudent.findMany({
     where: { parentUserId, student: { user: { deletedAt: null } } },
+    // 대시보드가 첫 자녀의 상벌점을 요약하므로 첫 행은 새로고침마다 같아야 한다.
+    // 동명이인은 불변 식별자인 학생 프로필 id로 동점을 끊는다.
+    orderBy: [
+      { student: { user: { name: "asc" } } },
+      { student: { id: "asc" } },
+    ],
     select: {
       student: { select: { id: true, user: { select: { name: true } } } },
     },

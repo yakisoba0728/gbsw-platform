@@ -128,7 +128,7 @@ function pick(passes: repo.PassWithStudent[], now: Date): Picked | null {
   const approved = passes.filter((p) => p.status === "APPROVED");
 
   const current = approved.find(
-    (p) => p.startAt.getTime() <= at && p.endAt.getTime() >= at,
+    (p) => p.startAt.getTime() <= at && p.endAt.getTime() > at,
   );
   if (current) return { verdict: "VALID", pass: current };
 

@@ -2,28 +2,29 @@ import Link from "next/link";
 import { buttonClass } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Note } from "@/components/ui/note";
+import { Pagination } from "@/components/ui/pagination";
 import { SectionCard } from "@/components/ui/section-card";
 import type { SessionUser } from "@/core/auth/session";
-import { requiresConsent } from "@/core/authz/pass-type";
 import { honorificName } from "@/core/authz/roles";
-import { getMyChildPasses } from "@/modules/pass/request.service";
+import {
+  getMyChildPasses,
+  getMyChildPassesAwaitingConsent,
+} from "@/modules/pass/request.service";
 import { ConsentButton } from "./consent-button";
 import { PassCard } from "./pass-card";
 
-export async function ParentView({ actor }: { actor: SessionUser }) {
-  const passes = await getMyChildPasses(actor);
-
-  // 확인을 기다리는 것을 위로 올린다 — 학부모가 이 화면에 오는 이유가 그것이다.
-  const waiting = passes.filter(
-    (pass) =>
-      pass.status === "REQUESTED" && requiresConsent(pass.type),
-  );
-
-  // 나머지는 id 집합으로 가른다. `!waiting.includes(pass)`는 건마다 대기 목록을
-  // 다시 훑어 O(n²)이고, 참조 비교라 같은 행이라도 객체가 새로 만들어지면
-  // (직렬화 한 번, map 한 번) 조용히 어긋나 같은 건이 두 목록에 다 뜬다.
-  const waitingIds = new Set(waiting.map((pass) => pass.id));
-  const rest = passes.filter((pass) => !waitingIds.has(pass.id));
+export async function ParentView({
+  actor,
+  page,
+}: {
+  actor: SessionUser;
+  page: number;
+}) {
+  const now = new Date();
+  const [waiting, history] = await Promise.all([
+    getMyChildPassesAwaitingConsent(actor, now),
+    getMyChildPasses(actor, page, now),
+  ]);
 
   return (
     <div className="@container mx-auto max-w-3xl space-y-4">
@@ -60,14 +61,14 @@ export async function ParentView({ actor }: { actor: SessionUser }) {
 
       <SectionCard
         title="자녀 출입증 내역"
-        aside={<span className="text-xs text-mut">{rest.length}건</span>}
+        aside={<span className="text-xs text-mut">전체 {history.total}건</span>}
         flush
       >
-        {rest.length === 0 ? (
+        {history.entries.length === 0 ? (
           <EmptyState variant="inside">아직 기록이 없습니다.</EmptyState>
         ) : (
           <ul>
-            {rest.map((pass) => (
+            {history.entries.map((pass) => (
               <PassCard key={pass.id} pass={pass}>
                 <p className="text-caption text-mut">
                   {honorificName(pass.studentProfile.user.name, "STUDENT")}
@@ -76,6 +77,12 @@ export async function ParentView({ actor }: { actor: SessionUser }) {
             ))}
           </ul>
         )}
+        <Pagination
+          label="자녀 출입증 내역 페이지"
+          page={history.page}
+          pageCount={history.pageCount}
+          href={(next) => `/pass?page=${next}`}
+        />
       </SectionCard>
 
       <Note tone="warn">

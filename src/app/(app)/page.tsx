@@ -19,7 +19,6 @@ import {
 import {
   isPassStatus,
   isPassType,
-  requiresConsent,
   PASS_STATUS_LABELS,
   PASS_TYPE_LABELS,
 } from "@/core/authz/pass-type";
@@ -40,7 +39,10 @@ import {
   listPendingPasses,
 } from "@/modules/pass/decision.service";
 import { PASS_STATUS_TONES } from "@/modules/pass/pass.labels";
-import { getMyChildPasses, getMyPasses } from "@/modules/pass/request.service";
+import {
+  getMyChildPassesAwaitingConsent,
+  getMyLivePasses,
+} from "@/modules/pass/request.service";
 
 /**
  * 대시보드.
@@ -139,20 +141,22 @@ async function TeacherDashboard({ user }: { user: SessionUser }) {
   // 옆에 두 건짜리 목록이 선다.
   const now = new Date();
 
-  const [pending, active, recent, posts] = await Promise.all([
+  const [pendingResult, activeResult, recent, posts] = await Promise.all([
     listPendingPasses(user, now),
     listActivePasses(user, now),
     listRecentAwards(user, { track: "SCHOOL", page: 1 }),
     listRecentPosts(user, 5),
   ]);
+  const pending = pendingResult.entries;
+  const active = activeResult.entries;
 
   return (
     <Stack>
       <TeacherStats
         user={user}
         now={now}
-        pendingCount={pending.length}
-        activeCount={active.length}
+        pendingCount={pendingResult.total}
+        activeCount={activeResult.total}
       />
 
       <TwoUp>
@@ -342,9 +346,10 @@ async function TeacherStats({
 // ── 학생 ────────────────────────────────────────────────────────
 
 async function StudentDashboard({ user }: { user: SessionUser }) {
-  const [merit, passes, posts] = await Promise.all([
+  const now = new Date();
+  const [merit, live, posts] = await Promise.all([
     loadOwnMerit(user),
-    getMyPasses(user),
+    getMyLivePasses(user, now),
     listRecentPosts(user, 5),
   ]);
 
@@ -355,17 +360,6 @@ async function StudentDashboard({ user }: { user: SessionUser }) {
       </Stack>
     );
   }
-
-  // 아직 안 끝난 것만. 지난 외출을 대시보드에 세우면 「지금 무엇이 유효한가」가
-  // 흐려진다 — 지난 것은 출입증 화면의 내역이 갖는다.
-  const now = new Date();
-  const live = passes.filter(
-    (pass) =>
-      pass.endAt.getTime() > now.getTime() &&
-      pass.status !== "REJECTED" &&
-      pass.status !== "CANCELLED" &&
-      pass.status !== "WITHDRAWN",
-  );
 
   return (
     <Stack>
@@ -394,7 +388,7 @@ async function StudentDashboard({ user }: { user: SessionUser }) {
             </EmptyState>
           ) : (
             <SummaryList>
-              {live.slice(0, 5).map((pass) => (
+              {live.map((pass) => (
                 <SummaryRow
                   key={pass.id}
                   href={`/pass/${pass.id}`}
@@ -442,9 +436,10 @@ async function ParentDashboard({ user }: { user: SessionUser }) {
   }
 
   const first = children[0];
-  const [merit, passes] = await Promise.all([
+  const now = new Date();
+  const [merit, waiting] = await Promise.all([
     loadChildMerit(user, first.studentProfileId),
-    getMyChildPasses(user),
+    getMyChildPassesAwaitingConsent(user, now, 5),
   ]);
 
   if (merit === "no-year") {
@@ -455,32 +450,10 @@ async function ParentDashboard({ user }: { user: SessionUser }) {
     );
   }
 
-  /*
-   * 학부모가 이 화면에서 답해야 하는 것은 **「내가 동의할 것이 있나」** 하나다.
-   * 그래서 조건이 `consentPass`가 실제로 받아 주는 것과 같아야 한다:
-   *
-   *   외박이고(requiresConsent) · 아직 REQUESTED이고 · 기간이 안 지났다.
-   *
-   * 유형을 안 보면 **외출**까지 「동의 대기」에 선다 — 외출은 보호자 동의 없이
-   * 곧장 교사 결재로 가는데(`CONSENT_NOT_ALLOWED`), 그 줄을 눌러 봐야 동의할
-   * 길이 없다. 「외박은 보호자 동의가 있어야」라는 설명 아래에 외출이 서면
-   * 그 설명이 거짓말이 된다.
-   *
-   * 끝난 것을 빼는 이유는 `listForParent`가 기간을 안 보기 때문이다 — 안 걸러
-   * 두면 지난달 신청이 영영 「대기」로 남는다.
-   */
-  const now = new Date();
-  const waiting = passes.filter(
-    (pass) =>
-      requiresConsent(pass.type) &&
-      pass.status === "REQUESTED" &&
-      pass.endAt.getTime() > now.getTime(),
-  );
-
   return (
     <Stack>
       <p className="text-caption font-medium text-ink">
-        {honorificName(first.name, "STUDENT")}
+        상벌점 · {honorificName(first.name, "STUDENT")}
       </p>
 
       <TwoUp>
@@ -491,7 +464,7 @@ async function ParentDashboard({ user }: { user: SessionUser }) {
       <SectionCard
         headingLevel={3}
         title="동의 대기"
-        hint="외박은 보호자 동의가 있어야 결재로 넘어갑니다"
+        hint="모든 자녀 · 외박은 보호자 동의 뒤 결재로 넘어갑니다"
         aside={<CardLink href="/pass">출입증</CardLink>}
         flush
       >
@@ -499,11 +472,14 @@ async function ParentDashboard({ user }: { user: SessionUser }) {
           <EmptyState variant="inside">동의를 기다리는 신청이 없습니다.</EmptyState>
         ) : (
           <SummaryList>
-            {waiting.slice(0, 5).map((pass) => (
+            {waiting.map((pass) => (
               <SummaryRow
                 key={pass.id}
                 href={`/pass/${pass.id}`}
-                title={`${passTypeLabel(pass.type)} · ${pass.destination}`}
+                title={`${honorificName(
+                  pass.studentProfile.user.name,
+                  "STUDENT",
+                )} · ${passTypeLabel(pass.type)} · ${pass.destination}`}
                 meta={windowLabel(pass.startAt, pass.endAt)}
                 trailing={<PassStatusBadge status={pass.status} />}
               />

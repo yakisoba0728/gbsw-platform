@@ -7,6 +7,7 @@ import { withTransaction } from "@/core/db/client";
 import { PassError } from "./pass.error";
 import { toQrPath } from "./pass.qr";
 import * as repo from "./pass.repo";
+import { PASS_HISTORY_PAGE_SIZE } from "./pass.schema";
 import type {
   ConsentPassInput,
   RequestPassInput,
@@ -31,10 +32,13 @@ export async function requestPass(
 
   const { startAt, endAt } = requestWindow(input, now);
 
-  const overlapping = await repo.findOverlapping(profile.id, startAt, endAt);
-  if (overlapping) throw new PassError("OVERLAPPING_PASS");
-
   return withTransaction(async (tx) => {
+    const exists = await repo.lockStudentForPassCreation(profile.id, tx);
+    if (!exists) throw new PassError("NO_STUDENT_PROFILE");
+
+    const overlapping = await repo.findOverlapping(profile.id, startAt, endAt, tx);
+    if (overlapping) throw new PassError("OVERLAPPING_PASS");
+
     const created = await repo.createPass(
       {
         studentProfileId: profile.id,
@@ -117,6 +121,7 @@ export async function withdrawPass(
 export async function consentPass(
   actor: SessionUser,
   input: ConsentPassInput,
+  now: Date = new Date(),
 ): Promise<void> {
   await assertCan(actor, "pass:consent");
 
@@ -133,22 +138,25 @@ export async function consentPass(
   if (!requiresConsent(pass.type)) {
     throw new PassError("CONSENT_NOT_ALLOWED");
   }
+  if (pass.endAt.getTime() <= now.getTime()) throw new PassError("PASS_EXPIRED");
 
   await withTransaction(async (tx) => {
-    const changed = await repo.transition(
+    const outcome = await repo.transitionUnexpired(
       input.passId,
       ["REQUESTED"],
+      now,
       {
         status: "CONSENTED",
         consentedByUserId: actor.id,
         consentedByName: actor.name,
-        consentedAt: new Date(),
+        consentedAt: now,
         consentByProxy: false,
         consentNote: input.consentNote,
       },
       tx,
     );
-    if (changed === 0) throw new PassError("ALREADY_DECIDED");
+    if (outcome === "EXPIRED") throw new PassError("PASS_EXPIRED");
+    if (outcome !== "UPDATED") throw new PassError("ALREADY_DECIDED");
 
     await recordAudit(
       {
@@ -164,18 +172,93 @@ export async function consentPass(
   });
 }
 
-export async function getMyPasses(actor: SessionUser) {
+function listWindow(page: number): { page: number; skip: number; take: number } {
+  const safePage = Number.isSafeInteger(page) && page > 0 ? page : 1;
+  return {
+    page: safePage,
+    skip: (safePage - 1) * PASS_HISTORY_PAGE_SIZE,
+    take: PASS_HISTORY_PAGE_SIZE,
+  };
+}
+
+function withPage(
+  result: { entries: repo.PassWithStudent[]; total: number },
+  page: number,
+) {
+  return {
+    ...result,
+    page,
+    pageCount: Math.max(1, Math.ceil(result.total / PASS_HISTORY_PAGE_SIZE)),
+  };
+}
+
+async function loadClampedPage(
+  requestedPage: number,
+  load: (window: { page: number; skip: number; take: number }) => Promise<{
+    entries: repo.PassWithStudent[];
+    total: number;
+  }>,
+) {
+  const requestedWindow = listWindow(requestedPage);
+  const initial = await load(requestedWindow);
+  const pageCount = Math.max(1, Math.ceil(initial.total / PASS_HISTORY_PAGE_SIZE));
+  const actualPage = Math.min(requestedWindow.page, pageCount);
+
+  if (actualPage === requestedWindow.page || initial.total === 0) {
+    return withPage(initial, actualPage);
+  }
+
+  return withPage(await load(listWindow(actualPage)), actualPage);
+}
+
+export async function getMyPasses(actor: SessionUser, page: number = 1) {
   await assertCan(actor, "pass:request");
 
   const profile = await repo.findStudentProfileByUserId(actor.id);
   if (!profile) throw new PassError("NO_STUDENT_PROFILE");
 
-  return repo.listForStudent(profile.id, await repo.displayYear());
+  const year = await repo.displayYear();
+  return loadClampedPage(page, (window) =>
+    repo.listForStudent(profile.id, year, window),
+  );
 }
 
-export async function getMyChildPasses(actor: SessionUser) {
+/** 학생 대시보드용. 내역 페이지를 자른 뒤 거르지 않고 DB에서 조건을 먼저 좁힌다. */
+export async function getMyLivePasses(actor: SessionUser, now: Date = new Date()) {
+  await assertCan(actor, "pass:request");
+
+  const profile = await repo.findStudentProfileByUserId(actor.id);
+  if (!profile) throw new PassError("NO_STUDENT_PROFILE");
+
+  return repo.listLiveForStudent(profile.id, now, await repo.displayYear(), 5);
+}
+
+export async function getMyChildPasses(
+  actor: SessionUser,
+  page: number = 1,
+  now: Date = new Date(),
+) {
   await assertCan(actor, "pass:consent");
-  return repo.listForParent(actor.id, await repo.displayYear());
+  const year = await repo.displayYear();
+  return loadClampedPage(page, (window) =>
+    repo.listForParent(actor.id, year, now, window),
+  );
+}
+
+/** 학부모 화면과 대시보드가 공유하는, 지금 실제로 동의 가능한 신청 목록. */
+export async function getMyChildPassesAwaitingConsent(
+  actor: SessionUser,
+  now: Date = new Date(),
+  limit: number = 50,
+) {
+  await assertCan(actor, "pass:consent");
+  const safeLimit = Number.isSafeInteger(limit) && limit > 0 ? Math.min(limit, 50) : 50;
+  return repo.listAwaitingParentConsent(
+    actor.id,
+    now,
+    await repo.displayYear(),
+    safeLimit,
+  );
 }
 
 /** 상세 화면. 본인·보호자·교사 셋이 각기 다른 근거로 통과한다. */

@@ -213,7 +213,7 @@ export async function listInvites(actor: SessionUser) {
 export async function listMyParentInvites(sessionUser: { id: string }) {
   const profile = await repo.getStudentProfileByUserId(sessionUser.id);
   if (!profile) return [];
-  return repo.listByStudent(profile.id);
+  return repo.listByStudent(profile.id, sessionUser.id);
 }
 
 // ── 폐기 ──────────────────────────────────────────────────────
@@ -233,7 +233,11 @@ export async function revokeInvite(actor: SessionUser, input: RevokeInviteInput)
     // 소유권 검사는 can()으로 못 가르는 거부라 assertCan을 못 쓴다. 거부 기록과
     // ForbiddenError를 같은 방식으로 직접 맞춘다.
     const profile = await repo.getStudentProfileByUserId(actor.id);
-    const owns = profile !== null && invite.studentId === profile.id;
+    const owns =
+      profile !== null &&
+      invite.role === "PARENT" &&
+      invite.studentId === profile.id &&
+      invite.createdById === actor.id;
     if (!owns) {
       try {
         await recordAudit({

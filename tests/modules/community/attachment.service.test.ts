@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionUser } from "@/core/auth/session";
 
 const countPending = vi.fn();
+const lockAttachmentUploader = vi.fn();
 const listStalePending = vi.fn();
 const deleteAttachments = vi.fn();
 const createAttachment = vi.fn();
@@ -19,6 +20,7 @@ const withTransaction = vi.fn(
 
 vi.mock("@/modules/community/community.repo", () => ({
   countPending,
+  lockAttachmentUploader,
   listStalePending,
   deleteAttachments,
   createAttachment,
@@ -81,6 +83,7 @@ beforeEach(() => {
   getWritableBySlug.mockResolvedValue(board);
   getReadableBySlug.mockResolvedValue(board);
   countPending.mockResolvedValue(0);
+  lockAttachmentUploader.mockResolvedValue(undefined);
   listStalePending.mockResolvedValue([]);
   // 약속을 돌려주게 둔다 — 서비스가 `.catch()`를 붙이는 자리가 있다.
   deleteAttachments.mockResolvedValue(undefined);
