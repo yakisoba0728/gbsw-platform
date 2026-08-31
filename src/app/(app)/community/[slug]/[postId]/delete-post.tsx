@@ -25,7 +25,12 @@ export function DeletePost({
   return (
     <ConfirmDialog
       trigger={(open) => (
-        <Button variant="ghost" size="sm" onClick={open}>
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label="현재 글 삭제"
+          onClick={open}
+        >
           삭제
         </Button>
       )}

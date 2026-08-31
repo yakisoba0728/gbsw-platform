@@ -30,8 +30,10 @@ export const PASS_STATUSES = [
 export type PassStatus = (typeof PASS_STATUSES)[number];
 
 export const PASS_STATUS_LABELS: Record<PassStatus, string> = {
-  REQUESTED: "승인 대기",
-  CONSENTED: "보호자 확인됨",
+  // 유형을 모르는 필터·집계에서는 외출의 교사 승인과 외박의 보호자 확인을
+  // 함께 센다. 둘 중 하나를 생략하면 같은 REQUESTED가 문맥마다 다른 뜻이 된다.
+  REQUESTED: "보호자 확인/승인 대기",
+  CONSENTED: "교사 승인 대기",
   APPROVED: "승인됨",
   REJECTED: "반려됨",
   CANCELLED: "취소됨",

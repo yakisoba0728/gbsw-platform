@@ -3,7 +3,6 @@ import { Badge } from "@/components/ui/badge";
 import {
   isPassStatus,
   isPassType,
-  PASS_STATUS_LABELS,
   PASS_TYPE_LABELS,
 } from "@/core/authz/pass-type";
 import {
@@ -11,6 +10,7 @@ import {
   passEndLabel,
   passPeriod,
   PASS_STATUS_TONES,
+  passStatusLabel,
 } from "@/modules/pass/pass.labels";
 import type { PassWithStudent } from "@/modules/pass/pass.repo";
 import { honorificName } from "@/core/authz/roles";
@@ -29,6 +29,9 @@ export function PassCard({
 }) {
   const type = isPassType(pass.type) ? PASS_TYPE_LABELS[pass.type] : pass.type;
   const status = isPassStatus(pass.status) ? pass.status : null;
+  const statusLabel = passStatusLabel(pass);
+  const student = honorificName(pass.studentProfile.user.name, "STUDENT");
+  const period = passPeriod(pass);
 
   return (
     // relative — 아래 링크가 이 줄 전체를 덮는다. 유형 글자에만 걸면 표적이
@@ -43,7 +46,7 @@ export function PassCard({
       */}
       <Link
         href={`/pass/${pass.id}`}
-        aria-label={`${type} 상세`}
+        aria-label={`${type} · ${period} · ${statusLabel} · ${student} 상세`}
         className="absolute inset-0 rounded-btn focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ink"
       />
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -54,12 +57,12 @@ export function PassCard({
             </span>
             {status && (
               <Badge tone={PASS_STATUS_TONES[status]}>
-                {PASS_STATUS_LABELS[status]}
+                {statusLabel}
               </Badge>
             )}
           </p>
           <p className="mt-1 text-caption text-mut tabular-nums">
-            {passPeriod(pass)}
+            {period}
           </p>
           <p className="mt-0.5 text-caption text-mut">
             {pass.destination}
@@ -69,7 +72,15 @@ export function PassCard({
             {pass.reason}
           </p>
           {pass.decisionNote && (
-            <p className="mt-1 text-xs text-rose">반려 사유: {pass.decisionNote}</p>
+            <p
+              className={
+                pass.status === "REJECTED"
+                  ? "mt-1 text-xs text-rose"
+                  : "mt-1 text-xs text-mut"
+              }
+            >
+              {pass.status === "REJECTED" ? "반려 사유" : "승인 메모"}: {pass.decisionNote}
+            </p>
           )}
           {pass.consentByProxy && pass.consentedByName && (
             <p className="mt-1 text-xs text-mut">
@@ -83,4 +94,3 @@ export function PassCard({
     </li>
   );
 }
-

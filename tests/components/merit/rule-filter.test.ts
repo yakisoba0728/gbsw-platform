@@ -83,6 +83,13 @@ describe("규정 묶기", () => {
     const groups = groupRules(filterRules(RULES, "봉사"));
     expect(groups.flatMap((g) => g.items.map((i) => i.index))).toEqual([0, 1]);
   });
+
+  it("관리 화면 행의 추가 필드를 묶은 뒤에도 보존한다", () => {
+    const rows = RULES.map((item) => ({ ...item, updatedAt: "2026-08-31" }));
+    const groups = groupRules(rows);
+
+    expect(groups[0].items[0].rule.updatedAt).toBe("2026-08-31");
+  });
 });
 
 describe("선택지 표기", () => {

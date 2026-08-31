@@ -54,7 +54,8 @@ export function YearSwitcher({
             description={`${selected}학년도를 현재로 지정합니다. 전교 집계와 명단이 이 학년도를 기준으로 바뀝니다.`}
             confirmLabel="지정"
             pendingLabel="바꾸는 중…"
-            pending={switching || Number(selected) === current}
+            pending={switching}
+            disabled={Number(selected) === current}
             variant="secondary"
             size="sm"
             full={false}

@@ -10,6 +10,7 @@ import { SectionCard } from "@/components/ui/section-card";
 import { DataTable, type Column } from "@/components/ui/table";
 import { RevokeButton } from "./revoke-button";
 import { honorificName, isRole } from "@/core/authz/roles";
+import { maskInviteCode } from "@/lib/invite-code";
 
 export type InviteRow = {
   id: string;
@@ -70,7 +71,12 @@ const COLUMNS: readonly Column<InviteRow>[] = [
     header: "코드",
     card: "title",
     cell: (row) => (
-      <span className="font-mono font-medium text-ink">{row.code}</span>
+      <span
+        className="font-mono font-medium text-ink"
+        title={row.status === "PENDING" ? undefined : "사용이 끝난 코드는 일부만 표시합니다."}
+      >
+        {row.status === "PENDING" ? row.code : maskInviteCode(row.code)}
+      </span>
     ),
   },
   {
@@ -143,7 +149,10 @@ const COLUMNS: readonly Column<InviteRow>[] = [
     cell: (row) =>
       row.status === "PENDING" ? (
         <div className="flex justify-end">
-          <RevokeButton inviteId={row.id} />
+          <RevokeButton
+            inviteId={row.id}
+            ariaLabel={`${honorificName(row.name, isRole(row.role) ? row.role : null)} 초대코드 폐기`}
+          />
         </div>
       ) : null,
   },

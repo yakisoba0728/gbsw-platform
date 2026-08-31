@@ -1,10 +1,18 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useId, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { cardClass } from "@/components/ui/card";
 import { Note } from "@/components/ui/note";
+import { SectionCard } from "@/components/ui/section-card";
 import { tokenFromScanUrl } from "@/modules/pass/pass.url";
 import { scanAction } from "./actions";
 import { EMPTY_SCAN_STATE } from "./scan-state";
+import {
+  createQrDetector,
+  type Detector,
+  type DetectorCtor,
+} from "./scanner-detector";
 import { VerdictCard } from "./verdict-card";
 
 /**
@@ -18,10 +26,6 @@ import { VerdictCard } from "./verdict-card";
  * **어느 쪽이든 폴백은 온전한 경로다**: 폰 기본 카메라로 찍으면 /scan?c=…가 열려
  * 같은 판정이 나온다. 그래서 QR 디코딩 라이브러리를 넣지 않는다.
  */
-type DetectedBarcode = { rawValue: string };
-type Detector = { detect(source: HTMLVideoElement): Promise<DetectedBarcode[]> };
-type DetectorCtor = new (options: { formats: string[] }) => Detector;
-
 /** 프레임을 얼마나 자주 보는가. 400ms면 정문에서 체감상 즉시다. */
 const TICK_MS = 400;
 
@@ -46,10 +50,17 @@ export function Scanner({ origin }: { origin: string }) {
   const sentRef = useRef<{ code: string; at: number } | null>(null);
   /** null은 아직 확인 전. 셋으로 갈리는 이유는 안내 문구가 갈리기 때문이다. */
   const [supported, setSupported] = useState<
-    "ok" | "unsupported" | "insecure" | null
+    "ok" | "unsupported" | "insecure" | "error" | null
   >(null);
-  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [startupError, setStartupError] = useState<{
+    kind: "detector" | "camera";
+    message: string;
+  } | null>(null);
+  const [cameraReady, setCameraReady] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const [state, action, pending] = useActionState(scanAction, EMPTY_SCAN_STATE);
+  const guideId = useId();
+  const statusId = useId();
 
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -122,8 +133,14 @@ export function Scanner({ origin }: { origin: string }) {
         setSupported("unsupported");
         return;
       }
+      const setup = createQrDetector(ctor);
+      if (!setup.ok) {
+        setSupported("error");
+        setStartupError({ kind: "detector", message: setup.message });
+        return;
+      }
+      detector = setup.detector;
       setSupported("ok");
-      detector = new ctor({ formats: ["qr_code"] });
 
       let opened: MediaStream;
       try {
@@ -131,7 +148,11 @@ export function Scanner({ origin }: { origin: string }) {
           video: { facingMode: "environment" },
         });
       } catch {
-        setCameraError("카메라를 열지 못했습니다. 권한을 확인해 주세요.");
+        setSupported("error");
+        setStartupError({
+          kind: "camera",
+          message: "카메라를 열지 못했습니다. 권한을 확인하세요.",
+        });
         return;
       }
 
@@ -156,6 +177,7 @@ export function Scanner({ origin }: { origin: string }) {
         stopCamera();
         return;
       }
+      setCameraReady(true);
       void tick();
     }
 
@@ -171,43 +193,114 @@ export function Scanner({ origin }: { origin: string }) {
       window.removeEventListener("pagehide", stopCamera);
       stopCamera();
     };
-  }, [origin]);
+  }, [origin, attempt]);
+
+  function retryCamera() {
+    setStartupError(null);
+    setCameraReady(false);
+    setSupported(null);
+    setAttempt((current) => current + 1);
+  }
+
+  const status =
+    startupError
+      ? startupError.message
+      : supported === null
+        ? "카메라를 준비하는 중입니다."
+        : pending
+          ? "읽은 학생증을 확인하는 중입니다."
+          : state.result
+            ? "판정 결과가 표시되었습니다. 다음 학생증 QR 코드를 비춰 주세요."
+            : supported === "ok" && !cameraReady
+              ? "카메라를 연결하고 있습니다. 권한 요청이 보이면 허용해 주세요."
+              : supported === "ok"
+                ? "스캔할 준비가 되었습니다. 학생증 QR 코드를 카메라에 비춰 주세요."
+                : "폰 기본 카메라로 학생증 QR 코드를 찍어 주세요.";
 
   return (
-    <div className="space-y-4">
-      {/* 카메라를 못 열면 상자를 걷는다 — 남겨 두면 오류 배너 위에 검은 사각형이
-          그대로 서서, 잠깐 로딩 중인 것처럼 읽힌다. */}
-      {supported === "ok" && !cameraError && (
-        <div className="overflow-hidden rounded-card border border-line bg-ink">
-          {/* muted·playsInline이 없으면 iOS가 전체화면으로 띄운다. */}
-          <video
-            ref={videoRef}
-            className="aspect-square w-full object-cover"
-            muted
-            playsInline
-          />
-        </div>
-      )}
+    <div className="@container">
+      <div className="grid gap-4 @3xl:grid-cols-[minmax(0,1fr)_minmax(18rem,0.85fr)] @3xl:items-start">
+        <section className="space-y-3 @3xl:order-2" aria-labelledby={guideId}>
+          <SectionCard
+            title={<span id={guideId}>스캔 방법</span>}
+            variant="panel"
+          >
+            <ol className="list-inside list-decimal space-y-1 text-caption text-mut">
+              <li>학생증의 QR 코드가 네모 안에 들어오게 비춥니다.</li>
+              <li>판정 결과가 나오면 다음 학생증을 비춥니다.</li>
+            </ol>
+            <p
+              id={statusId}
+              className="mt-3 border-t border-line2 pt-3 text-caption font-medium text-ink"
+              role="status"
+              aria-live="polite"
+            >
+              {status}
+            </p>
+          </SectionCard>
 
-      {supported === "insecure" && (
-        <Note tone="warn">
-          http로 열려 있어 카메라를 쓸 수 없습니다. 폰 기본 카메라로 QR을 찍으세요.
-        </Note>
-      )}
-      {supported === "unsupported" && (
-        <Note tone="warn">
-          이 브라우저는 카메라 스캔을 지원하지 않습니다. 폰 기본 카메라로 QR을 찍으세요.
-        </Note>
-      )}
-      {cameraError && <Note tone="error">{cameraError}</Note>}
+          <div aria-live="polite" aria-busy={pending} className="space-y-3">
+            {state.error && <Note tone="error">{state.error}</Note>}
+            {state.result && <VerdictCard result={state.result} />}
+          </div>
+        </section>
+
+        <section
+          className="space-y-3 @3xl:order-1"
+          aria-label="학생증 카메라 스캔"
+        >
+          {/* 카메라를 못 열면 상자를 걷는다 — 남겨 두면 오류 배너 위에 검은 사각형이
+              그대로 서서, 잠깐 로딩 중인 것처럼 읽힌다. */}
+          {supported === "ok" && !startupError && (
+            <div className={cardClass("flush", "relative overflow-hidden")}>
+              {/* muted·playsInline이 없으면 iOS가 전체화면으로 띄운다. */}
+              <video
+                ref={videoRef}
+                className="aspect-square w-full bg-ink object-cover"
+                aria-label="학생증 QR 코드 스캔 카메라 화면"
+                aria-describedby={`${guideId} ${statusId}`}
+                muted
+                playsInline
+              />
+              {!cameraReady && (
+                <span className="absolute inset-0 flex items-center justify-center bg-ink/70 text-caption font-medium text-white">
+                  카메라 연결 중…
+                </span>
+              )}
+            </div>
+          )}
+
+          {supported === "insecure" && (
+            <Note tone="warn">
+              http로 열려 있어 카메라를 쓸 수 없습니다. 폰 기본 카메라로 QR을 찍으세요.
+            </Note>
+          )}
+          {supported === "unsupported" && (
+            <Note tone="warn">
+              이 브라우저는 카메라 스캔을 지원하지 않습니다. 폰 기본 카메라로 QR을
+              찍으세요.
+            </Note>
+          )}
+          {startupError && (
+            <div className="space-y-3">
+              <Note tone="error">{startupError.message}</Note>
+              <Button
+                type="button"
+                variant="secondary"
+                full
+                aria-label={`${startupError.kind === "detector" ? "QR 스캔" : "카메라"} 다시 시도`}
+                onClick={retryCamera}
+              >
+                다시 시도
+              </Button>
+            </div>
+          )}
+        </section>
+      </div>
 
       <form ref={formRef} action={action} className="hidden">
         <input ref={codeRef} type="hidden" name="code" />
       </form>
-
-      {pending && <p className="text-center text-caption text-mut">확인하는 중…</p>}
-      {state.error && <Note tone="error">{state.error}</Note>}
-      {state.result && <VerdictCard result={state.result} />}
     </div>
   );
 }

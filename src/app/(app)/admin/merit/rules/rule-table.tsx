@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { Fragment, useActionState, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmSubmit } from "@/components/ui/confirm-submit";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -8,8 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
 import { SectionCard } from "@/components/ui/section-card";
 import { TableFrame, tableCellPadding } from "@/components/ui/table";
+import { TruncatedText } from "@/components/ui/truncated-text";
 import { DeleteRuleButton } from "@/components/merit/delete-rule-button";
 import { KindBadge, kindColorClass } from "@/components/merit/kind-badge";
+import { groupRules } from "@/components/merit/rule-filter";
+import { ChevronDownIcon } from "@/components/icons";
 import { MERIT_KIND_LABELS, meritKindSign, type MeritKind } from "@/core/authz/merit-track";
 import { EMPTY_RULE_FORM_STATE } from "./action-state";
 import { deleteRuleAction, updateRuleAction } from "./actions";
@@ -39,8 +42,22 @@ export type RuleRow = {
  * reset()이 함께 되돌린다. 저장에 실패하면 편집 모드는 남고 값만 규정 원본으로
  * 돌아가므로, 실패 상태가 실어 온 제출값을 defaultValue로 다시 내려 준다.
  */
-export function RuleTable({ rules }: { rules: RuleRow[] }) {
+export function RuleTable({
+  rules,
+  expandAllInitially = false,
+}: {
+  rules: RuleRow[];
+  /** 검색 결과는 접지 않아 일치하는 규정을 바로 보여 준다. */
+  expandAllInitially?: boolean;
+}) {
+  const groups = groupRules(rules);
+  const groupKeys = groups.map((group) => group.key);
+  const groupBodyIds = groups.map((_, index) => `rule-group-${index}`);
+  const [expandedGroups, setExpandedGroups] = useState(
+    () => new Set(expandAllInitially ? groupKeys : groupKeys.slice(0, 1)),
+  );
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [revealedRuleId, setRevealedRuleId] = useState<string | null>(null);
 
   /**
    * 편집을 켜고 끌 때 초점을 옮긴다.
@@ -76,7 +93,11 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
   const [handledUpdateState, setHandledUpdateState] = useState(updateState);
   if (updateState !== handledUpdateState) {
     setHandledUpdateState(updateState);
-    if (updateState.ok) setEditingId(null);
+    if (updateState.ok) {
+      // 분류를 바꿔 저장해도 수정한 규정과 복귀할 「수정」 버튼을 계속 보인다.
+      setRevealedRuleId(editingId);
+      setEditingId(null);
+    }
   }
 
   if (rules.length === 0) {
@@ -88,8 +109,71 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
     );
   }
 
+  const isGroupExpanded = (group: (typeof groups)[number]) =>
+    expandedGroups.has(group.key) ||
+    group.items.some(({ rule }) => rule.id === revealedRuleId);
+  const allExpanded = groups.every(isGroupExpanded);
+  const noneExpanded = groups.every((group) => !isGroupExpanded(group));
+
+  const toggleGroup = (group: (typeof groups)[number]) => {
+    const expanded = isGroupExpanded(group);
+    setRevealedRuleId((current) =>
+      group.items.some(({ rule }) => rule.id === current) ? null : current,
+    );
+    setExpandedGroups((current) => {
+      const next = new Set(current);
+      if (expanded) next.delete(group.key);
+      else next.add(group.key);
+      return next;
+    });
+  };
+
+  const expandAll = () => {
+    setRevealedRuleId(null);
+    setExpandedGroups(new Set(groupKeys));
+  };
+
+  const collapseAll = () => {
+    setRevealedRuleId(null);
+    setExpandedGroups(new Set());
+  };
+
   return (
-    <SectionCard flush title="규정 목록" aside={<span className="text-xs text-mut">{rules.length}개</span>}>
+    <SectionCard
+      flush
+      title="규정 목록"
+      aside={
+        <span className="text-xs text-mut">
+          {groups.length}개 분류 · {rules.length}개
+        </span>
+      }
+      controls={
+        groups.length > 1 ? (
+          <div className="mt-3 flex flex-wrap justify-end gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              aria-controls={groupBodyIds.join(" ")}
+              disabled={allExpanded}
+              onClick={expandAll}
+            >
+              모두 펼치기
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              aria-controls={groupBodyIds.join(" ")}
+              disabled={noneExpanded}
+              onClick={collapseAll}
+            >
+              모두 접기
+            </Button>
+          </div>
+        ) : undefined
+      }
+    >
       <form id="rule-edit-form" action={updateAction} className="hidden" />
 
       {/* 삭제 실패는 각 행의 모달이 자기 안에서 보여준다. */}
@@ -104,148 +188,194 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
         cols={["w-[76px]", "w-[128px]", undefined, "w-[92px]", "w-[150px]"]}
         headers={HEADERS}
       >
-        <tbody>
-          {rules.map((rule) => {
-            const editing = editingId === rule.id;
-            // 방금 저장에 실패한 그 행일 때만 제출값을 쓴다 — ruleId로 가르지 않으면
-            // 다른 행을 열었을 때 남의 값이 채워진다.
-            const typed =
-              updateState.values?.ruleId === rule.id ? updateState.values : null;
+        {groups.map((group, groupIndex) => {
+          const expanded = isGroupExpanded(group);
+          const bodyId = groupBodyIds[groupIndex];
 
-            return (
-              <tr key={rule.id} className="border-b border-line2 last:border-0">
-                <td className={cell(0)}>
-                  <KindBadge kind={rule.kind} />
-                </td>
-
-                <td className={`${cell(1)} text-mut`}>
-                  {editing ? (
-                    <Input
-                      ref={firstFieldRef}
-                      size="sm"
-                      name="category"
-                      form="rule-edit-form"
-                      defaultValue={typed?.category ?? rule.category ?? ""}
-                      maxLength={50}
-                      aria-label={`${rule.label} 분류 수정`}
-                    />
-                  ) : (
-                    (rule.category ?? "—")
-                  )}
-                </td>
-
-                <td className={`${cell(2)} font-medium text-ink`}>
-                  {editing ? (
-                    <Input
-                      size="sm"
-                      name="label"
-                      form="rule-edit-form"
-                      defaultValue={typed?.label ?? rule.label}
-                      required
-                      maxLength={200}
-                      aria-label={`${rule.label} 항목명 수정`}
-                    />
-                  ) : (
-                    rule.label
-                  )}
-                </td>
-
-                {/* 부호는 종류가 정하며 고칠 수 없다. 수정 중에도 입력칸 앞에 붙여 둔다. */}
-                <td className={`${cell(3)} font-medium text-ink`}>
-                  <span className="flex items-center gap-1">
-                    <span aria-hidden className={kindColorClass(rule.kind)}>
-                      {meritKindSign(rule.kind)}
-                    </span>
-                    {editing ? (
-                      // 폭은 바깥에서 준다 — cn()은 tailwind-merge가 아니라
-                      // Input의 w-full을 className으로 덮을 수 없다.
-                      <span className="inline-block w-16">
-                        <Input
-                          size="sm"
-                          name="points"
-                          form="rule-edit-form"
-                          defaultValue={typed?.points ?? String(rule.points)}
-                          inputMode="numeric"
-                          required
-                          aria-label={`${rule.label} 점수 수정 (${
-                            MERIT_KIND_LABELS[rule.kind as MeritKind]
-                          })`}
-                        />
+          return (
+            <Fragment key={group.key}>
+              <tbody>
+                <tr className="border-b border-line2">
+                  <th scope="row" colSpan={HEADERS.length} className="p-0 text-left">
+                    <button
+                      type="button"
+                      aria-expanded={expanded}
+                      aria-controls={bodyId}
+                      className="flex w-full items-center gap-2 px-5 py-3 text-caption font-medium text-ink outline-none hover:bg-soft focus-visible:ring-2 focus-visible:ring-ink"
+                      onClick={() => toggleGroup(group)}
+                    >
+                      <ChevronDownIcon
+                        size={16}
+                        className={`shrink-0 text-mut transition-transform ${
+                          expanded ? "rotate-180" : ""
+                        }`}
+                      />
+                      <TruncatedText
+                        full={group.label}
+                        focusable={false}
+                        outerClassName="min-w-0 flex-1"
+                      >
+                        {group.label}
+                      </TruncatedText>
+                      <span className="shrink-0 text-xs font-normal text-mut">
+                        {group.items.length}개
                       </span>
-                    ) : (
-                      rule.points
-                    )}
-                  </span>
-                </td>
+                    </button>
+                  </th>
+                </tr>
+              </tbody>
 
-                <td className={cell(4)}>
-                  {editing ? (
-                    <div className="flex gap-2">
-                      <input type="hidden" name="ruleId" value={rule.id} form="rule-edit-form" />
-                      <input
-                        type="hidden"
-                        name="updatedAt"
-                        value={rule.updatedAt}
-                        form="rule-edit-form"
-                      />
-                      {/* 표에 없는 필드는 그대로 넘긴다 — 안 넘기면 수정할 때마다 설명이 사라진다. */}
-                      <input
-                        type="hidden"
-                        name="description"
-                        value={rule.description ?? ""}
-                        form="rule-edit-form"
-                      />
-                      {/* 이 화면을 연 목적은 규정 추가다 — 인라인 편집의 저장은 취소와 짝이다. */}
-                      <ConfirmSubmit
-                        label="저장"
-                        title="규정 수정"
-                        description="이미 부여된 점수는 그대로 두고 앞으로의 부여에만 적용됩니다."
-                        confirmLabel="저장"
-                        pendingLabel="저장 중…"
-                        pending={updating}
-                        variant="secondary"
-                        size="sm"
-                        full={false}
-                        form="rule-edit-form"
-                      />
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => setEditingId(null)}
-                      >
-                        취소
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2">
-                      <Button
-                        ref={(node) => {
-                          const map = editButtonsRef.current;
-                          if (node) map.set(rule.id, node);
-                          else map.delete(rule.id);
-                        }}
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => setEditingId(rule.id)}
-                      >
-                        수정
-                      </Button>
-                      <DeleteRuleButton
-                        ruleId={rule.id}
-                        updatedAt={rule.updatedAt}
-                        label={rule.label}
-                        deleteAction={deleteRuleAction}
-                        initialState={EMPTY_RULE_FORM_STATE}
-                      />
-                    </div>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
+              <tbody id={bodyId} hidden={!expanded}>
+                {group.items.map(({ rule }) => {
+                  const editing = editingId === rule.id;
+                  // 방금 저장에 실패한 그 행일 때만 제출값을 쓴다 — ruleId로 가르지 않으면
+                  // 다른 행을 열었을 때 남의 값이 채워진다.
+                  const typed =
+                    updateState.values?.ruleId === rule.id ? updateState.values : null;
+
+                  return (
+                    <tr key={rule.id} className="border-b border-line2 last:border-0">
+                      <td className={cell(0)}>
+                        <KindBadge kind={rule.kind} />
+                      </td>
+
+                      <td className={`${cell(1)} text-mut`}>
+                        {editing ? (
+                          <Input
+                            ref={firstFieldRef}
+                            size="sm"
+                            name="category"
+                            form="rule-edit-form"
+                            defaultValue={typed?.category ?? rule.category ?? ""}
+                            maxLength={50}
+                            aria-label={`${rule.label} 분류 수정`}
+                          />
+                        ) : (
+                          (rule.category ?? "—")
+                        )}
+                      </td>
+
+                      <td className={`${cell(2)} font-medium text-ink`}>
+                        {editing ? (
+                          <Input
+                            size="sm"
+                            name="label"
+                            form="rule-edit-form"
+                            defaultValue={typed?.label ?? rule.label}
+                            required
+                            maxLength={200}
+                            aria-label={`${rule.label} 항목명 수정`}
+                          />
+                        ) : (
+                          rule.label
+                        )}
+                      </td>
+
+                      {/* 부호는 종류가 정하며 고칠 수 없다. 수정 중에도 입력칸 앞에 붙여 둔다. */}
+                      <td className={`${cell(3)} font-medium text-ink`}>
+                        <span className="flex items-center gap-1">
+                          <span aria-hidden className={kindColorClass(rule.kind)}>
+                            {meritKindSign(rule.kind)}
+                          </span>
+                          {editing ? (
+                            // 폭은 바깥에서 준다 — cn()은 tailwind-merge가 아니라
+                            // Input의 w-full을 className으로 덮을 수 없다.
+                            <span className="inline-block w-16">
+                              <Input
+                                size="sm"
+                                name="points"
+                                form="rule-edit-form"
+                                defaultValue={typed?.points ?? String(rule.points)}
+                                inputMode="numeric"
+                                required
+                                aria-label={`${rule.label} 점수 수정 (${
+                                  MERIT_KIND_LABELS[rule.kind as MeritKind]
+                                })`}
+                              />
+                            </span>
+                          ) : (
+                            rule.points
+                          )}
+                        </span>
+                      </td>
+
+                      <td className={cell(4)}>
+                        {editing ? (
+                          <div className="flex gap-2">
+                            <input type="hidden" name="ruleId" value={rule.id} form="rule-edit-form" />
+                            <input
+                              type="hidden"
+                              name="updatedAt"
+                              value={rule.updatedAt}
+                              form="rule-edit-form"
+                            />
+                            {/* 표에 없는 필드는 그대로 넘긴다 — 안 넘기면 수정할 때마다 설명이 사라진다. */}
+                            <input
+                              type="hidden"
+                              name="description"
+                              value={rule.description ?? ""}
+                              form="rule-edit-form"
+                            />
+                            {/* 이 화면을 연 목적은 규정 추가다 — 인라인 편집의 저장은 취소와 짝이다. */}
+                            <ConfirmSubmit
+                              label="저장"
+                              ariaLabel={`${rule.label} 규정 저장`}
+                              title="규정 수정"
+                              description="이미 부여된 점수는 그대로 두고 앞으로의 부여에만 적용됩니다."
+                              confirmLabel="저장"
+                              pendingLabel="저장 중…"
+                              pending={updating}
+                              variant="secondary"
+                              size="sm"
+                              full={false}
+                              form="rule-edit-form"
+                            />
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              aria-label={`${rule.label} 규정 수정 취소`}
+                              onClick={() => setEditingId(null)}
+                            >
+                              취소
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex gap-2">
+                            <Button
+                              ref={(node) => {
+                                const map = editButtonsRef.current;
+                                if (node) map.set(rule.id, node);
+                                else map.delete(rule.id);
+                              }}
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              aria-label={`${rule.label} 규정 수정`}
+                              onClick={() => {
+                                setRevealedRuleId(null);
+                                setEditingId(rule.id);
+                              }}
+                            >
+                              수정
+                            </Button>
+                            <DeleteRuleButton
+                              ruleId={rule.id}
+                              updatedAt={rule.updatedAt}
+                              label={rule.label}
+                              deleteAction={deleteRuleAction}
+                              initialState={EMPTY_RULE_FORM_STATE}
+                            />
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </Fragment>
+          );
+        })}
       </TableFrame>
     </SectionCard>
   );

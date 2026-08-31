@@ -16,9 +16,11 @@ import { PassCard } from "./pass-card";
 export async function ParentView({
   actor,
   page,
+  consented,
 }: {
   actor: SessionUser;
   page: number;
+  consented: boolean;
 }) {
   const now = new Date();
   const [waiting, history] = await Promise.all([
@@ -28,6 +30,12 @@ export async function ParentView({
 
   return (
     <div className="@container mx-auto max-w-3xl space-y-4">
+      {consented && (
+        <Note tone="success" role="status">
+          보호자 확인을 완료했습니다. 이제 교사 승인을 기다립니다.
+        </Note>
+      )}
+
       <SectionCard
         title="확인이 필요한 신청"
         // 판독은 메뉴에서 빠졌다 — 세 역할 모두 출입증 화면에서 들어간다.

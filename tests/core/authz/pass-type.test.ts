@@ -23,6 +23,10 @@ describe("pass-type", () => {
     for (const status of PASS_STATUSES) expect(PASS_STATUS_LABELS[status]).toBeTruthy();
   });
 
+  it("유형을 함께 보지 못하는 REQUESTED 집계는 두 다음 단계를 모두 밝힌다", () => {
+    expect(PASS_STATUS_LABELS.REQUESTED).toBe("보호자 확인/승인 대기");
+  });
+
   it("보호자 확인은 외박에만 필요하다", () => {
     expect(requiresConsent("OVERNIGHT")).toBe(true);
     expect(requiresConsent("OUTING")).toBe(false);

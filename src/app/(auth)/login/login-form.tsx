@@ -6,25 +6,33 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
-import { authClient } from "@/core/auth/auth-client";
+import {
+  LOGIN_DISABLED_MESSAGE,
+  type LoginErrorCode,
+  loginErrorMessage,
+} from "./login-state";
 
 /** 배너와 로그인 실패가 같은 문구를 쓴다. */
-const DISABLED_MESSAGE = "사용이 중지된 계정입니다. 선생님께 문의해 주세요.";
 const PASSWORD_CHANGED_MESSAGE = "비밀번호가 변경되었습니다. 다시 로그인해 주세요.";
 
 export function LoginForm({
   disabled = false,
   passwordChanged = false,
   next = null,
+  initialEmail = "",
+  initialError = null,
 }: {
   disabled?: boolean;
   passwordChanged?: boolean;
   /** 로그인 뒤 돌아갈 경로. 이미 safeNext를 통과한 값이다. */
   next?: string | null;
+  /** JS 없는 POST 실패 뒤 잠깐 복원할 이메일. 비밀번호는 복원하지 않는다. */
+  initialEmail?: string;
+  initialError?: string | null;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(
-    disabled ? DISABLED_MESSAGE : null,
+    disabled ? LOGIN_DISABLED_MESSAGE : initialError,
   );
   const notice = !disabled && passwordChanged ? PASSWORD_CHANGED_MESSAGE : null;
   const [pending, setPending] = useState(false);
@@ -34,50 +42,68 @@ export function LoginForm({
     setError(null);
     setPending(true);
 
-    const data = new FormData(event.currentTarget);
-    const result = await authClient.signIn.email({
-      email: String(data.get("email") ?? ""),
-      password: String(data.get("password") ?? ""),
-    });
+    const form = event.currentTarget;
+    const data = new FormData(form);
 
-    if (result.error) {
+    try {
+      const response = await fetch(form.action, {
+        method: "POST",
+        body: data,
+        headers: { Accept: "application/json" },
+      });
+      const result = (await response.json()) as {
+        error?: LoginErrorCode;
+        redirectTo?: string;
+      };
+
+      if (!response.ok || !result.redirectTo) {
+        const password = form.elements.namedItem("password");
+        if (password instanceof HTMLInputElement) password.value = "";
+        setError(
+          loginErrorMessage(result.error) ??
+            "로그인 중 오류가 발생했습니다. 다시 시도해 주세요.",
+        );
+        setPending(false);
+        return;
+      }
+
+      // 세션 쿠키가 붙은 상태로 서버 컴포넌트를 다시 그리게 한다.
+      router.replace(result.redirectTo);
+      router.refresh();
+    } catch {
+      const password = form.elements.namedItem("password");
+      if (password instanceof HTMLInputElement) password.value = "";
       setPending(false);
-      // 계정 존재 여부가 드러나지 않게 원인을 구분하지 않는다. 403은 예외다 —
-      // 비밀번호가 맞아야만 나오는 응답이라 존재 여부가 새지 않는다.
-      setError(
-        result.error.status === 429
-          ? "시도가 너무 잦습니다. 잠시 후 다시 시도해 주세요."
-          : result.error.status === 403
-            ? DISABLED_MESSAGE
-            : "이메일 또는 비밀번호가 맞지 않습니다.",
-      );
-      return;
+      setError("로그인 중 오류가 발생했습니다. 다시 시도해 주세요.");
     }
-
-    // 세션 쿠키가 붙은 상태로 서버 컴포넌트를 다시 그리게 한다.
-    // next는 정문에서 QR을 찍고 로그인한 사람을 판정 화면으로 되돌린다 —
-    // 없으면 대시보드로 떨어져 다시 스캔해야 한다.
-    router.replace(next ?? "/");
-    router.refresh();
   }
 
   return (
-    <form onSubmit={handleSubmit} className="animate-auth-in">
+    <form
+      action="/login/submit"
+      method="post"
+      onSubmit={handleSubmit}
+      className="animate-auth-in"
+    >
+      {next && <input type="hidden" name="next" value={next} />}
       <h1 className="mb-8 text-title font-semibold text-ink">로그인</h1>
 
       <Label htmlFor="email">이메일</Label>
-      <Input size="lg"
+      <Input
+        size="lg"
         id="email"
         name="email"
         type="email"
         autoComplete="username"
         placeholder="name@gbsw.hs.kr"
         required
+        defaultValue={initialEmail}
         className="mb-4"
       />
 
       <Label htmlFor="password">비밀번호</Label>
-      <Input size="lg"
+      <Input
+        size="lg"
         id="password"
         name="password"
         type="password"

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { passEndLabel, passPeriod } from "@/modules/pass/pass.labels";
+import {
+  passEndLabel,
+  passPeriod,
+  passStatusLabel,
+} from "@/modules/pass/pass.labels";
 
 /**
  * 외박이 시작·종료에 시각을 받게 되면서 **화면이 저장값을 그대로 그린다** —
@@ -67,5 +71,31 @@ describe("passEndLabel", () => {
         endAt: new Date("2026-08-31T12:00:00.000Z"), // 8/31 21:00 KST
       }),
     ).toBe("8. 31. 오후 9:00");
+  });
+});
+
+describe("passStatusLabel — 다음 처리 단계", () => {
+  it("보호자 확인 전 외박은 보호자 확인 대기다", () => {
+    expect(passStatusLabel({ type: "OVERNIGHT", status: "REQUESTED" })).toBe(
+      "보호자 확인 대기",
+    );
+  });
+
+  it("보호자 확인 뒤 외박과 외출 신청은 교사 승인 대기다", () => {
+    expect(passStatusLabel({ type: "OVERNIGHT", status: "CONSENTED" })).toBe(
+      "교사 승인 대기",
+    );
+    expect(passStatusLabel({ type: "OUTING", status: "REQUESTED" })).toBe(
+      "교사 승인 대기",
+    );
+  });
+
+  it("결정된 상태와 모르는 상태는 기존 문구를 유지한다", () => {
+    expect(passStatusLabel({ type: "OVERNIGHT", status: "APPROVED" })).toBe(
+      "승인됨",
+    );
+    expect(passStatusLabel({ type: "OVERNIGHT", status: "UNKNOWN" })).toBe(
+      "UNKNOWN",
+    );
   });
 });

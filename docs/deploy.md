@@ -374,15 +374,27 @@ cron으로 매일 돌리고 **다른 장비에도 복사해 둔다.** 서버가 
 
 #### 커뮤니티 첨부는 DB 덤프에 없다
 
-첨부 파일은 `gbsw-uploads` 볼륨에 있고 **`pg_dump`에 들어가지 않는다.** DB만
+첨부 파일은 앱의 `/app/uploads` 볼륨에 있고 **`pg_dump`에 들어가지 않는다.** DB만
 받아 두면 글은 살아나는데 붙어 있던 파일이 전부 사라진다. 백업이 둘이다.
 
+Compose의 최종 볼륨 이름에는 프로젝트 접두사가 붙는다. `gbsw-uploads`를 그대로 쓰면
+기존 파일이 든 볼륨이 아니라 **같은 이름의 빈 볼륨을 새로 만들 수 있다.** 실행 중인 앱이
+실제로 마운트한 이름을 먼저 구해 그 볼륨을 백업한다.
+
 ```bash
-docker run --rm -v gbsw-uploads:/data -v "$PWD:/out" alpine \
+GBSW_UPLOAD_VOLUME=$(docker inspect gbsw-app \
+  --format '{{range .Mounts}}{{if eq .Destination "/app/uploads"}}{{.Name}}{{end}}{{end}}')
+test -n "$GBSW_UPLOAD_VOLUME"
+
+docker run --rm -v "$GBSW_UPLOAD_VOLUME:/data" -v "$PWD:/out" alpine \
   tar czf /out/uploads-$(date +%F).tar.gz -C /data .
 
-# 되돌리기
-docker run --rm -v gbsw-uploads:/data -v "$PWD:/in" alpine \
+# 되돌리기 — 위와 똑같이 실행 중인 앱의 실제 볼륨 이름을 다시 확인한다
+GBSW_UPLOAD_VOLUME=$(docker inspect gbsw-app \
+  --format '{{range .Mounts}}{{if eq .Destination "/app/uploads"}}{{.Name}}{{end}}{{end}}')
+test -n "$GBSW_UPLOAD_VOLUME"
+
+docker run --rm -v "$GBSW_UPLOAD_VOLUME:/data" -v "$PWD:/in" alpine \
   tar xzf /in/uploads-2026-08-28.tar.gz -C /data
 ```
 

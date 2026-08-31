@@ -80,6 +80,9 @@ export function ClassRoster({
   const [state, formAction, pending] = useActionState(bulkAwardAction, EMPTY_MERIT_STATE);
   // 고른 항목은 hidden input이 싣고 가지만, 제출 버튼을 잠그려면 화면도 알아야 한다.
   const [rule, setRule] = useState<RuleOption | null>(null);
+  // 좁은 화면에서는 명단과 부여 칸이 한 단으로 길게 이어진다. 학생을 고른 뒤
+  // 다시 수십 줄을 내려가지 않고 부여 칸으로 이동할 수 있게 실제 목적지를 잡는다.
+  const awardPanelRef = useRef<HTMLDivElement>(null);
 
   // 부여 직전 확인. 메모는 확인창에 다시 세울 때만 필요해서 상태로 들지 않고
   // 열리는 순간 칸에서 읽는다 — 제어 입력으로 바꾸면 액션이 끝난 뒤의 자동 reset이
@@ -336,6 +339,27 @@ export function ClassRoster({
             columns={columns}
           />
         </SectionCard>
+
+        {/* 한 단으로 접힌 화면의 바로가기. 명단 안에서는 아래에 있는 부여 칸이
+            보이지 않으므로 선택이 생긴 동안만 화면 아래에 붙잡아 둔다. 넓은 화면은
+            오른쪽 sticky 패널이 이미 같은 역할을 하므로 그리지 않는다. */}
+        {!viewingPast && selected.size > 0 && (
+          <div className="fixed bottom-20 left-1/2 z-40 flex w-[calc(100%_-_2rem)] max-w-md -translate-x-1/2 items-center justify-between gap-3 rounded-card border border-pri-line bg-surface px-4 py-3 shadow-float lg:bottom-4 @4xl:hidden">
+            <p className="text-caption font-medium text-ink" role="status">
+              {selected.size}명 선택됨
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                awardPanelRef.current?.scrollIntoView({ block: "start" });
+                awardPanelRef.current?.focus({ preventScroll: true });
+              }}
+            >
+              부여 설정으로
+            </Button>
+          </div>
+        )}
       </div>
 
       {/*
@@ -344,7 +368,11 @@ export function ClassRoster({
         고를 학생도 없는 상태에서 부여 칸이 먼저 나오면 첫 화면이 흐리게 덮인
         「대상 학생을 먼저 추가하세요」로 시작한다.
       */}
-      <div className="order-3 @4xl:col-start-2 @4xl:row-start-1 @4xl:row-span-2 @4xl:sticky @4xl:top-4">
+      <div
+        ref={awardPanelRef}
+        tabIndex={-1}
+        className="order-3 scroll-mt-4 rounded-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink @4xl:col-start-2 @4xl:row-start-1 @4xl:row-span-2 @4xl:sticky @4xl:top-4"
+      >
         {viewingPast ? (
           <SectionCard variant="panel" title="상벌점 부여" headingLevel={3}>
             {/* 지난 학년도를 보고 있으면 폼을 감춘다 — 부여는 현재 학년도로만 들어간다. */}

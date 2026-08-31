@@ -26,7 +26,11 @@ import {
   countStudentPasses,
   listPassHistory,
 } from "@/modules/pass/decision.service";
-import { PASS_STATUS_TONES, passPeriod } from "@/modules/pass/pass.labels";
+import {
+  PASS_STATUS_TONES,
+  passPeriod,
+  passStatusLabel,
+} from "@/modules/pass/pass.labels";
 import { passHistoryQuerySchema } from "@/modules/pass/pass.schema";
 import { studentHref } from "./student-tab";
 
@@ -176,13 +180,13 @@ const COLUMNS: readonly Column<PassRow>[] = [
   {
     key: "status",
     header: "상태",
-    // 「보호자 확인됨」이 한 줄에 서는 폭이다. 접히면 표 전체가 두꺼워진다.
+    // 「교사 승인 대기」가 한 줄에 서는 폭이다. 접히면 표 전체가 두꺼워진다.
     width: "w-[112px]",
     card: "trailing",
     cell: (row) =>
       isPassStatus(row.status) ? (
         <Badge tone={PASS_STATUS_TONES[row.status]}>
-          {PASS_STATUS_LABELS[row.status]}
+          {passStatusLabel(row)}
         </Badge>
       ) : (
         <span className="text-caption text-mut">{row.status}</span>

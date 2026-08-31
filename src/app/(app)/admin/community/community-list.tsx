@@ -70,6 +70,7 @@ const COLUMNS: readonly Column<ManagedBoard>[] = [
         <Link
           href={`/admin/community/${board.id}`}
           className={buttonClass({ variant: "secondary", size: "sm" })}
+          aria-label={`${board.name} 게시판 설정`}
         >
           설정
         </Link>

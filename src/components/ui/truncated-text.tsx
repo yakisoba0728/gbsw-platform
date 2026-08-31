@@ -27,6 +27,7 @@ export function TruncatedText({
   className,
   outerClassName,
   focusable = true,
+  screenReaderText = "full",
   children,
 }: {
   /** 말풍선에 띄울 전문. 줄바꿈을 담을 수 있다. */
@@ -45,6 +46,11 @@ export function TruncatedText({
    * 멈춘다. 마우스 말풍선과 아래 낭독기 전문은 껐을 때도 그대로다.
    */
   focusable?: boolean;
+  /**
+   * 기본값은 별도 sr-only 전문을 읽힌다. children 자체가 이미 완전한 문자열인
+   * 제목에서는 `children`을 골라 같은 텍스트가 DOM에 두 번 생기지 않게 한다.
+   */
+  screenReaderText?: "full" | "children";
   /** 화면에 세울 잘린 내용. 색이 섞인 조각이라 문자열이 아니라 노드로 받는다. */
   children: ReactNode;
 }) {
@@ -122,7 +128,7 @@ export function TruncatedText({
         <span
           ref={ref}
           // 읽어 주는 것은 아래 sr-only 전문이다 — 잘린 글까지 읽으면 두 번 읽는다.
-          aria-hidden
+          aria-hidden={screenReaderText === "full" ? true : undefined}
           // nowrap이 빠지면 글이 접혀 버려 잘리지 않는다 — 줄이 늘어나고,
           // scrollWidth가 clientWidth를 넘지 않아 말풍선도 안 뜬다.
           className={cn(
@@ -132,7 +138,7 @@ export function TruncatedText({
         >
           {children}
         </span>
-        <span className="sr-only">{full}</span>
+        {screenReaderText === "full" && <span className="sr-only">{full}</span>}
       </span>
 
       {at && (

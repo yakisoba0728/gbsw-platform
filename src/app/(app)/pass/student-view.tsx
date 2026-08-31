@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { buttonClass } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Note } from "@/components/ui/note";
 import { Pagination } from "@/components/ui/pagination";
 import { SectionCard } from "@/components/ui/section-card";
 import type { SessionUser } from "@/core/auth/session";
@@ -33,16 +34,24 @@ function isUsableNow(pass: MyPass, now: Date): boolean {
 export async function StudentView({
   actor,
   page,
+  requested,
 }: {
   actor: SessionUser;
   page: number;
+  requested: boolean;
 }) {
   const result = await getMyPasses(actor, page);
   const passes = result.entries;
   const now = new Date();
 
   return (
-    <div className="@container mx-auto max-w-3xl">
+    <div className="@container mx-auto max-w-3xl space-y-4">
+      {requested && (
+        <Note tone="success" aria-live="polite">
+          출입증을 신청했습니다. 현재 처리 단계는 아래 목록에서 확인할 수 있습니다.
+        </Note>
+      )}
+
       <SectionCard
         title="내 출입증"
         hint={`전체 ${result.total}건`}

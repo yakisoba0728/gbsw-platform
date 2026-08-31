@@ -68,6 +68,9 @@ const ATTACHMENT_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
+  // `next dev`를 0.0.0.0에 띄운 뒤 127.0.0.1로 접속하는 로컬 점검도 지원한다.
+  // 이 옵션은 개발 자산·엔드포인트에만 적용되며 운영 허용 출처를 넓히지 않는다.
+  allowedDevOrigins: ["127.0.0.1"],
   // Docker 멀티스테이지 빌드에서 최소 런타임 이미지를 만들기 위해 필요.
   output: "standalone",
   // 첨부는 런타임 볼륨에서 읽는다. 동적 fs 경로를 정적 자산으로 오인하는 추적이

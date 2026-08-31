@@ -50,6 +50,9 @@ export function fieldBase(): string {
   return cn(
     "w-full rounded-field border border-line bg-surface",
     "text-sm text-ink outline-none",
+    // 브라우저가 한 번 검증한 뒤에는 잘못된 칸이 화면에도 남아야 한다. 기본
+    // validation bubble은 닫히면 사라져, 긴 폼에서 어느 칸이 문제였는지 잃는다.
+    "user-invalid:border-rose-line aria-[invalid=true]:border-rose-line",
     "disabled:cursor-not-allowed disabled:bg-soft disabled:text-mut",
   );
 }

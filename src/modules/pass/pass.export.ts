@@ -6,6 +6,7 @@ import {
 } from "@/core/authz/pass-type";
 import { formatDateInput, formatDateTimeSheet } from "@/lib/datetime";
 import { formatStudentNumber } from "@/lib/student-number";
+import { passStatusLabel } from "./pass.labels";
 import type { PassHistoryExportInput } from "./pass.schema";
 
 /**
@@ -57,7 +58,11 @@ function consentCell(row: PassHistoryExportRow): string {
  */
 function remarkCell(row: PassHistoryExportRow): string {
   const parts: string[] = [];
-  if (row.decisionNote) parts.push(`반려 사유 · ${row.decisionNote}`);
+  if (row.decisionNote) {
+    parts.push(
+      `${row.status === "REJECTED" ? "반려 사유" : "승인 메모"} · ${row.decisionNote}`,
+    );
+  }
   if (row.status === "CANCELLED") {
     parts.push(row.cancelReason ? `취소 사유 · ${row.cancelReason}` : "취소");
   }
@@ -141,7 +146,7 @@ export function toPassHistorySheet(
     [...HEADERS],
     ...rows.map((row) => [
       isPassType(row.type) ? PASS_TYPE_LABELS[row.type] : row.type,
-      isPassStatus(row.status) ? PASS_STATUS_LABELS[row.status] : row.status,
+      isPassStatus(row.status) ? passStatusLabel(row) : row.status,
       row.grade ?? "",
       row.classNo ?? "",
       row.number ?? "",

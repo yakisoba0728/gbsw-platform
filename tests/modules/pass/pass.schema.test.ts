@@ -162,11 +162,25 @@ describe("approve/reject/cancel", () => {
   });
 
   it("승인의 보호자 확인 대행은 선택이다", () => {
-    expect(approvePassSchema.safeParse({ passId: "p-1" }).success).toBe(true);
-    expect(
-      approvePassSchema.safeParse({ passId: "p-1", byProxy: "on", consentNote: "전화 확인" })
-        .success,
-    ).toBe(true);
+    const normal = approvePassSchema.parse({
+      passId: "p-1",
+      decisionNote: "  병원 예약 확인  ",
+    });
+    expect(normal).toMatchObject({
+      decisionNote: "병원 예약 확인",
+      consentNote: null,
+    });
+
+    const proxy = approvePassSchema.parse({
+      passId: "p-1",
+      byProxy: "on",
+      consentNote: "전화 확인",
+    });
+    expect(proxy).toMatchObject({
+      byProxy: "on",
+      decisionNote: null,
+      consentNote: "전화 확인",
+    });
   });
 });
 
@@ -206,6 +220,30 @@ describe("passHistoryQuerySchema", () => {
 
   it("쪽 번호는 문자열로 와도 수가 된다", () => {
     expect(passHistoryQuerySchema.parse({ page: "3" }).page).toBe(3);
+  });
+
+  it("시작일이 종료일보다 늦으면 화면 조회와 내보내기 모두 거부한다", () => {
+    const reversed = { from: "2026-08-27", to: "2026-08-26" };
+    const query = passHistoryQuerySchema.safeParse(reversed);
+    const exported = passHistoryExportSchema.safeParse(reversed);
+
+    expect(query.success).toBe(false);
+    expect(exported.success).toBe(false);
+    if (!query.success) {
+      expect(query.error.issues[0]).toMatchObject({
+        path: ["to"],
+        message: "시작일은 종료일보다 늦을 수 없습니다.",
+      });
+    }
+  });
+
+  it("시작일과 종료일이 같으면 그 하루를 조회할 수 있다", () => {
+    expect(
+      passHistoryQuerySchema.safeParse({
+        from: "2026-08-26",
+        to: "2026-08-26",
+      }).success,
+    ).toBe(true);
   });
 
   it("내보내기 조건에는 쪽 번호가 없다", () => {

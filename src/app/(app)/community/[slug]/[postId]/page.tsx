@@ -15,6 +15,8 @@ import { AttachmentList } from "./attachment-list";
 import { CommentForm } from "./comment-form";
 import { CommentList } from "./comment-list";
 import { DeletePost } from "./delete-post";
+import { PostDraftCleanup } from "../post-draft-cleanup";
+import { postDraftKey } from "../post-draft";
 
 export const metadata: Metadata = { title: "글" };
 
@@ -41,6 +43,7 @@ export default async function PostPage({
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
+      <PostDraftCleanup draftKey={postDraftKey(actor.id, slug)} />
       <BackLink href={`/community/${slug}`}>{view.community.name}</BackLink>
 
       {/* 제목 앞뒤로 다른 것이 오는 카드라 SectionCard로는 표현할 수 없다. */}

@@ -1,10 +1,18 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies, headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { requireAuth } from "@/core/auth/session";
 import { ForbiddenError } from "@/core/authz/errors";
 import * as decision from "@/modules/pass/decision.service";
 import { PassError } from "@/modules/pass/pass.error";
+import {
+  issuePassFlash,
+  PASS_FLASH_COOKIE,
+  PASS_FLASH_MAX_AGE_SECONDS,
+  type PassFlashKind,
+} from "@/modules/pass/pass-flash";
 import {
   approvePassSchema,
   cancelPassSchema,
@@ -70,6 +78,23 @@ function revalidatePass(passId?: string): void {
   if (passId) revalidatePath(`/pass/${passId}`);
 }
 
+async function redirectWithPassFlash(
+  kind: PassFlashKind,
+  userId: string,
+): Promise<never> {
+  const [cookieStore, requestHeaders] = await Promise.all([cookies(), headers()]);
+  const forwardedProtocol = requestHeaders.get("x-forwarded-proto")?.split(",")[0];
+  const origin = requestHeaders.get("origin");
+  cookieStore.set(PASS_FLASH_COOKIE, issuePassFlash(kind, userId), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: forwardedProtocol === "https" || origin?.startsWith("https://") === true,
+    path: "/pass",
+    maxAge: PASS_FLASH_MAX_AGE_SECONDS,
+  });
+  redirect("/pass");
+}
+
 export async function requestAction(
   _prev: PassActionState,
   formData: FormData,
@@ -98,7 +123,7 @@ export async function requestAction(
   }
 
   revalidatePass();
-  return { error: null, ok: true };
+  return redirectWithPassFlash("requested", actor.id);
 }
 
 export async function withdrawAction(
@@ -144,7 +169,7 @@ export async function consentAction(
   }
 
   revalidatePass(parsed.data.passId);
-  return { error: null, ok: true };
+  return redirectWithPassFlash("consented", actor.id);
 }
 
 export async function approveAction(
@@ -156,6 +181,7 @@ export async function approveAction(
   const parsed = approvePassSchema.safeParse({
     passId: formData.get("passId"),
     byProxy: formData.get("byProxy") ?? undefined,
+    decisionNote: formData.get("decisionNote"),
     consentNote: formData.get("consentNote"),
   });
   if (!parsed.success) {
@@ -169,7 +195,7 @@ export async function approveAction(
   }
 
   revalidatePass(parsed.data.passId);
-  return { error: null, ok: true };
+  return redirectWithPassFlash("approved", actor.id);
 }
 
 export async function rejectAction(

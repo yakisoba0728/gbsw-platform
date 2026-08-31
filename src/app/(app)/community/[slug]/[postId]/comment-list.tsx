@@ -19,7 +19,7 @@ export function CommentList({ comments }: { comments: readonly CommentView[] }) 
 
   return (
     <ul>
-      {comments.map((comment) => (
+      {comments.map((comment, index) => (
         <li
           key={comment.id}
           className="border-b border-line2 px-5 py-3 last:border-0"
@@ -39,6 +39,7 @@ export function CommentList({ comments }: { comments: readonly CommentView[] }) 
               <DeleteComment
                 commentId={comment.id}
                 byModerator={!comment.isMine}
+                accessibleName={`${index + 1}번째 댓글 삭제`}
               />
             )}
           </div>
