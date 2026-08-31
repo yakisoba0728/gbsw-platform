@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { buttonClass } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
-import { PageScaffold } from "@/components/ui/page-scaffold";
 import { SectionCard } from "@/components/ui/section-card";
 import { StatStrip, StatTile } from "@/components/ui/stat-tile";
 import { SummaryList, SummaryRow } from "@/components/ui/summary-list";
@@ -68,7 +67,7 @@ export default async function DashboardPage() {
 
 /** 대시보드의 세로 간격. 카드마다 적으면 화면끼리 어긋난다. */
 function Stack({ children }: { children: ReactNode }) {
-  return <div className="space-y-5 lg:space-y-6">{children}</div>;
+  return <div className="mx-auto max-w-5xl space-y-4">{children}</div>;
 }
 
 /** 카드 두 장을 나란히. 뷰포트가 아니라 놓인 자리의 폭을 본다. */
@@ -78,7 +77,7 @@ function TwoUp({ children }: { children: ReactNode }) {
       {/* items-start — 격자 기본값(stretch)이면 짧은 카드가 옆의 긴 카드 높이까지
           늘어난다. 「신청이 없습니다」 한 줄이 320px 상자 한가운데 뜨는 그림이
           그것이었다. 카드는 제 내용만큼만 선다. */}
-      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 @4xl:grid-cols-2 lg:gap-6">
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 @3xl:grid-cols-2">
         {children}
       </div>
     </div>
@@ -152,23 +151,7 @@ async function TeacherDashboard({ user }: { user: SessionUser }) {
   const active = activeResult.entries;
 
   return (
-    <PageScaffold
-      eyebrow="교사 워크스페이스"
-      title="오늘의 학교 운영"
-      description={`${honorificName(user.name, user.role)}님, 결재와 교내 현황을 한곳에서 확인하세요.`}
-      width="data"
-      actions={
-        <>
-          <Link href="/merit" className={buttonClass({ variant: "secondary" })}>
-            상벌점 부여
-          </Link>
-          <Link href="/pass" className={buttonClass()}>
-            출입증 관리
-          </Link>
-        </>
-      }
-    >
-      <Stack>
+    <Stack>
       <TeacherStats
         user={user}
         now={now}
@@ -178,7 +161,7 @@ async function TeacherDashboard({ user }: { user: SessionUser }) {
 
       <TwoUp>
         <SectionCard
-          headingLevel={2}
+          headingLevel={3}
           title="결재 대기"
           aside={<CardLink href="/pass">출입증</CardLink>}
           flush
@@ -212,7 +195,7 @@ async function TeacherDashboard({ user }: { user: SessionUser }) {
         </SectionCard>
 
         <SectionCard
-          headingLevel={2}
+          headingLevel={3}
           title="최근 부여"
           hint="교내 기준"
           aside={<CardLink href="/merit/recent">전체</CardLink>}
@@ -256,7 +239,7 @@ async function TeacherDashboard({ user }: { user: SessionUser }) {
 
       <TwoUp>
         <SectionCard
-          headingLevel={2}
+          headingLevel={3}
           title="지금 나가 있는 학생"
           aside={<CardLink href="/pass">출입증</CardLink>}
           flush
@@ -294,8 +277,7 @@ async function TeacherDashboard({ user }: { user: SessionUser }) {
 
         <RecentPostsCard posts={posts} />
       </TwoUp>
-      </Stack>
-    </PageScaffold>
+    </Stack>
   );
 }
 
@@ -371,70 +353,57 @@ async function StudentDashboard({ user }: { user: SessionUser }) {
     listRecentPosts(user, 5),
   ]);
 
-  return (
-    <PageScaffold
-      eyebrow="학생 워크스페이스"
-      title={`${user.name}님의 학교생활`}
-      description="상벌점, 출입증과 학교 소식을 한눈에 확인하세요."
-      width="data"
-      actions={
-        <>
-          <Link href="/pass/qr" className={buttonClass({ variant: "secondary" })}>
-            학생증 QR
-          </Link>
-          <Link href="/pass/new" className={buttonClass()}>
-            외출·외박 신청
-          </Link>
-        </>
-      }
-    >
+  if (merit === "no-year") {
+    return (
       <Stack>
-        {merit === "no-year" ? (
-          <NoAcademicYearNotice title="상벌점" />
-        ) : (
-          <TwoUp>
-            <TrackCard track="SCHOOL" view={merit.school} />
-            <TrackCard track="DORM" view={merit.dorm} />
-          </TwoUp>
-        )}
-
-        <TwoUp>
-          <SectionCard
-            headingLevel={2}
-            title="내 출입증"
-            aside={<CardLink href="/pass">전체</CardLink>}
-            flush
-          >
-            {live.length === 0 ? (
-              <EmptyState
-                variant="inside"
-                action={
-                  <Link href="/pass/new" className={buttonClass({ size: "sm" })}>
-                    외출·외박 신청
-                  </Link>
-                }
-              >
-                신청한 출입증이 없습니다.
-              </EmptyState>
-            ) : (
-              <SummaryList>
-                {live.map((pass) => (
-                  <SummaryRow
-                    key={pass.id}
-                    href={`/pass/${pass.id}`}
-                    title={`${passTypeLabel(pass.type)} · ${pass.destination}`}
-                    meta={windowLabel(pass.startAt, pass.endAt)}
-                    trailing={<PassStatusBadge status={pass.status} />}
-                  />
-                ))}
-              </SummaryList>
-            )}
-          </SectionCard>
-
-          <RecentPostsCard posts={posts} />
-        </TwoUp>
+        <NoAcademicYearNotice title="상벌점" />
       </Stack>
-    </PageScaffold>
+    );
+  }
+
+  return (
+    <Stack>
+      <TwoUp>
+        <TrackCard track="SCHOOL" view={merit.school} />
+        <TrackCard track="DORM" view={merit.dorm} />
+      </TwoUp>
+
+      <TwoUp>
+        <SectionCard
+          headingLevel={3}
+          title="내 출입증"
+          aside={<CardLink href="/pass">전체</CardLink>}
+          flush
+        >
+          {live.length === 0 ? (
+            <EmptyState
+              variant="inside"
+              action={
+                <Link href="/pass" className={buttonClass({ size: "sm" })}>
+                  외출·외박 신청
+                </Link>
+              }
+            >
+              신청한 출입증이 없습니다.
+            </EmptyState>
+          ) : (
+            <SummaryList>
+              {live.map((pass) => (
+                <SummaryRow
+                  key={pass.id}
+                  href={`/pass/${pass.id}`}
+                  title={`${passTypeLabel(pass.type)} · ${pass.destination}`}
+                  meta={windowLabel(pass.startAt, pass.endAt)}
+                  trailing={<PassStatusBadge status={pass.status} />}
+                />
+              ))}
+            </SummaryList>
+          )}
+        </SectionCard>
+
+        <RecentPostsCard posts={posts} />
+      </TwoUp>
+    </Stack>
   );
 }
 
@@ -460,19 +429,9 @@ async function ParentDashboard({ user }: { user: SessionUser }) {
   const children = await listMyChildren(user);
   if (children.length === 0) {
     return (
-      <PageScaffold
-        eyebrow="보호자 워크스페이스"
-        title="자녀 학교생활"
-        description="자녀가 연결되면 상벌점과 동의 요청을 여기에서 확인할 수 있습니다."
-        width="standard"
-        actions={
-          <Link href="/parent-invite" className={buttonClass()}>
-            초대 코드 연결
-          </Link>
-        }
-      >
+      <Stack>
         <EmptyState>연결된 자녀가 없습니다.</EmptyState>
-      </PageScaffold>
+      </Stack>
     );
   }
 
@@ -483,69 +442,65 @@ async function ParentDashboard({ user }: { user: SessionUser }) {
     getMyChildPassesAwaitingConsent(user, now, 5),
   ]);
 
-  return (
-    <PageScaffold
-      eyebrow={`상벌점 · ${honorificName(first.name, "STUDENT")}`}
-      title={`${first.name} 학생의 학교생활`}
-      description="상벌점 현황과 보호자 동의가 필요한 출입 신청을 확인하세요."
-      width="data"
-      actions={
-        <Link href="/pass" className={buttonClass()}>
-          출입증 확인
-        </Link>
-      }
-    >
+  if (merit === "no-year") {
+    return (
       <Stack>
-        {merit === "no-year" ? (
-          <NoAcademicYearNotice title="상벌점" />
-        ) : (
-          <TwoUp>
-            <TrackCard track="SCHOOL" view={merit.school} />
-            <TrackCard track="DORM" view={merit.dorm} />
-          </TwoUp>
-        )}
-
-        <SectionCard
-          headingLevel={2}
-          title="동의 대기"
-          hint="모든 자녀 · 외박은 보호자 동의 뒤 결재로 넘어갑니다"
-          aside={<CardLink href="/pass">출입증</CardLink>}
-          flush
-        >
-          {waiting.length === 0 ? (
-            <EmptyState variant="inside">동의를 기다리는 신청이 없습니다.</EmptyState>
-          ) : (
-            <SummaryList>
-              {waiting.map((pass) => (
-                <SummaryRow
-                  key={pass.id}
-                  href={`/pass/${pass.id}`}
-                  title={`${honorificName(
-                    pass.studentProfile.user.name,
-                    "STUDENT",
-                  )} · ${passTypeLabel(pass.type)} · ${pass.destination}`}
-                  meta={windowLabel(pass.startAt, pass.endAt)}
-                  trailing={<PassStatusBadge status={pass.status} />}
-                />
-              ))}
-            </SummaryList>
-          )}
-        </SectionCard>
-
-        {children.length > 1 && (
-          <p className="text-xs text-mut">
-            자녀가 여럿입니다.{" "}
-            <Link
-              href="/merit"
-              className="text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
-            >
-              상벌점
-            </Link>
-            에서 골라 봅니다.
-          </p>
-        )}
+        <NoAcademicYearNotice title="상벌점" />
       </Stack>
-    </PageScaffold>
+    );
+  }
+
+  return (
+    <Stack>
+      <p className="text-caption font-medium text-ink">
+        상벌점 · {honorificName(first.name, "STUDENT")}
+      </p>
+
+      <TwoUp>
+        <TrackCard track="SCHOOL" view={merit.school} />
+        <TrackCard track="DORM" view={merit.dorm} />
+      </TwoUp>
+
+      <SectionCard
+        headingLevel={3}
+        title="동의 대기"
+        hint="모든 자녀 · 외박은 보호자 동의 뒤 결재로 넘어갑니다"
+        aside={<CardLink href="/pass">출입증</CardLink>}
+        flush
+      >
+        {waiting.length === 0 ? (
+          <EmptyState variant="inside">동의를 기다리는 신청이 없습니다.</EmptyState>
+        ) : (
+          <SummaryList>
+            {waiting.map((pass) => (
+              <SummaryRow
+                key={pass.id}
+                href={`/pass/${pass.id}`}
+                title={`${honorificName(
+                  pass.studentProfile.user.name,
+                  "STUDENT",
+                )} · ${passTypeLabel(pass.type)} · ${pass.destination}`}
+                meta={windowLabel(pass.startAt, pass.endAt)}
+                trailing={<PassStatusBadge status={pass.status} />}
+              />
+            ))}
+          </SummaryList>
+        )}
+      </SectionCard>
+
+      {children.length > 1 && (
+        <p className="text-xs text-mut">
+          자녀가 여럿입니다.{" "}
+          <Link
+            href="/merit"
+            className="text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
+          >
+            상벌점
+          </Link>
+          에서 골라 봅니다.
+        </p>
+      )}
+    </Stack>
   );
 }
 
@@ -570,7 +525,7 @@ async function loadChildMerit(
 function TrackCard({ track, view }: { track: MeritTrack; view: StudentMeritView }) {
   return (
     <SectionCard
-      headingLevel={2}
+      headingLevel={3}
       title={MERIT_TRACK_TITLES[track]}
       hint={
         view.year === null
@@ -588,7 +543,7 @@ function TrackCard({ track, view }: { track: MeritTrack; view: StudentMeritView 
 function RecentPostsCard({ posts }: { posts: RecentPostView[] }) {
   return (
     <SectionCard
-      headingLevel={2}
+      headingLevel={3}
       title="새 글"
       aside={<CardLink href="/community">커뮤니티</CardLink>}
       flush

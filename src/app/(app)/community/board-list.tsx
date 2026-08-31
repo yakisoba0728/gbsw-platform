@@ -28,24 +28,24 @@ export type BoardCard = {
  */
 export function BoardList({ boards }: { boards: readonly BoardCard[] }) {
   return (
-    <ul className="grid gap-4 @3xl:grid-cols-2 lg:gap-5">
+    <ul className="grid gap-3 @2xl:grid-cols-2">
       {boards.map((board) => (
         <li
           key={board.id}
           className={cardClass(
             "panel",
-            "group relative min-h-44 overflow-hidden transition-all hover:-translate-y-0.5 hover:border-line-strong hover:shadow-md",
+            "group relative transition-colors hover:border-line-strong",
           )}
         >
           <Link
             href={`/community/${board.slug}`}
-            className="absolute inset-1 rounded-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pri"
+            className="absolute inset-0 rounded-card focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ink"
           >
             <span className="sr-only">{board.name}</span>
           </Link>
 
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pr-10">
-            <h2 className="text-lg font-semibold text-ink">{board.name}</h2>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <h2 className="text-base font-semibold text-ink">{board.name}</h2>
             {board.anonymous && <Badge tone="info">익명</Badge>}
             {!board.writable && <Badge tone="neutral">읽기 전용</Badge>}
           </div>
@@ -54,7 +54,7 @@ export function BoardList({ boards }: { boards: readonly BoardCard[] }) {
             <p className="mt-1.5 text-sm text-mut">{board.description}</p>
           )}
 
-          <p className="mt-5 text-xs font-medium text-mut2 tabular-nums">
+          <p className="mt-3 text-xs text-mut2 tabular-nums">
             글 {board.postCount}
             {board.lastPostAt && (
               <>
@@ -65,12 +65,6 @@ export function BoardList({ boards }: { boards: readonly BoardCard[] }) {
               </>
             )}
           </p>
-          <span
-            aria-hidden
-            className="absolute right-5 bottom-5 grid size-9 place-items-center rounded-full bg-soft text-lg text-pri-ink transition-transform group-hover:translate-x-0.5"
-          >
-            →
-          </span>
         </li>
       ))}
     </ul>

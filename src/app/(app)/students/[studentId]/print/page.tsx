@@ -128,7 +128,6 @@ export default async function MeritPrintPage({
           </EmptyState>
         ) : (
           <TableFrame
-            ariaLabel="학생 상벌점 확인서 내역"
             minWidth={520}
             gutter={false}
             headers={PRINT_HEADERS}

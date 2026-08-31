@@ -7,8 +7,8 @@ import { honorificName, isRole } from "@/core/authz/roles";
 import { EnrollmentTag } from "@/components/merit/enrollment-tag";
 import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
-import { PageScaffold } from "@/components/ui/page-scaffold";
-import { Segmented, SegmentLink } from "@/components/ui/segmented";
+import { ChipLink } from "@/components/ui/chip-link";
+import { SectionCard } from "@/components/ui/section-card";
 import type { SearchParamsInput } from "@/lib/search-params";
 import { formatStudentNumber } from "@/lib/student-number";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
@@ -29,7 +29,7 @@ import {
 /**
  * 탭 제목은 갈래를 따라가지 않는다 — 같은 경로에서 쿼리만 바뀌는 이동이라
  * 라우터가 캐시된 제목을 그대로 쓴다(`merit/stats/page.tsx`에 같은 기록이 있다).
- * 지금 보는 갈래는 화면 안의 선택된 세그먼트가 답한다.
+ * 지금 보는 갈래는 화면 안의 켜진 칩이 답한다.
  */
 export const metadata: Metadata = { title: "학생" };
 
@@ -84,75 +84,74 @@ export default async function StudentPage({
   const seat = header ? formatStudentNumber(header) : null;
 
   return (
-    <PageScaffold
-      width="standard"
-      // 들어오는 길이 여럿이라(상벌점·출입증 내역·계정 상세) 어느 한 곳으로만
-      // 되돌릴 수 없다. 가장 많이 들어오는 자리 하나를 고정으로 둔다.
-      eyebrow={<BackLink href="/merit">상벌점</BackLink>}
-      title={
-        header ? (
-          <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-            {/* 역할을 모르면 「님」으로 떨어진다 — 학생 상세라 실제로는 늘 학생이다. */}
-            {honorificName(header.name, isRole(header.role) ? header.role : "STUDENT")}
-            {/* 사용자 상세와 같은 배지·같은 문구를 쓴다 — 같은 사실이다. */}
-            {removed && <Badge tone="rejected">삭제됨</Badge>}
-          </span>
-        ) : (
-          // 현재 학년도가 없으면 신원 조회 자체가 못 돌아 이름을 모른다.
-          "학생"
-        )
-      }
-      description={
-        header ? (
-          <span className="flex flex-wrap items-center gap-2">
-            <span>
-              {/* 학번이 먼저다 — 교사가 학생을 부르고 적을 때 쓰는 값이다.
-                  학생코드는 그 뒤에 온다: 동명이인을 가르고 해가 바뀌어도
-                  안 변하지만, 평소에 입으로 부르는 값이 아니다. */}
-              {seat && <span className="tabular-nums text-ink">{seat}</span>}
-              {seat && " · "}
-              {header.grade !== null && header.classNo !== null
-                ? `${header.grade}학년 ${header.classNo}반${header.number !== null ? ` ${header.number}번` : ""}`
-                : "소속 미배정"}
-              {" · "}
-              <span className="font-mono">{header.studentCode}</span>
-            </span>
-            {/* 부여 폼은 학적을 보지 않는다 — 막지 않되 머리글에서 보이게 한다. */}
-            <EnrollmentTag status={header.status} />
-          </span>
-        ) : undefined
-      }
-      tabs={
-        <Segmented role="navigation" aria-label="학생 갈래">
-          {visible.map((item) => (
-            <SegmentLink
-              key={item}
-              active={item === tab}
-              href={studentHref(studentId, raw, { tab: studentTabParam(item) })}
-            >
-              {STUDENT_TAB_LABELS[item]}
-            </SegmentLink>
-          ))}
-        </Segmented>
-      }
-    >
-      <section aria-labelledby="student-detail-view-heading">
-        <h2 id="student-detail-view-heading" className="sr-only">
-          {STUDENT_TAB_LABELS[tab]}
-        </h2>
+    <div className="mx-auto max-w-4xl space-y-4">
+      {/* 들어오는 길이 여럿이라(상벌점·출입증 내역·계정 상세) 어느 한 곳으로만
+          되돌릴 수 없다. 가장 많이 들어오는 자리 하나를 고정으로 둔다. */}
+      <BackLink href="/merit">상벌점</BackLink>
 
-        {tab === "merit" && (
-          <MeritTab
-            actor={actor}
-            studentId={studentId}
-            params={raw}
-            removedAt={header?.removedAt ?? null}
-            noCurrentYear={noCurrentYear}
-          />
-        )}
-        {tab === "pass" && <PassTab actor={actor} studentId={studentId} params={raw} />}
-        {tab === "profile" && <ProfileTab actor={actor} studentId={studentId} />}
-      </section>
-    </PageScaffold>
+      <SectionCard
+        variant="panel"
+        title={
+          header ? (
+            <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-title">
+              {/* 역할을 모르면 「님」으로 떨어진다 — 학생 상세라 실제로는 늘 학생이다. */}
+              {honorificName(header.name, isRole(header.role) ? header.role : "STUDENT")}
+              {/* 사용자 상세와 같은 배지·같은 문구를 쓴다 — 같은 사실이다. */}
+              {removed && <Badge tone="rejected">삭제됨</Badge>}
+            </span>
+          ) : (
+            // 현재 학년도가 없으면 신원 조회 자체가 못 돌아 이름을 모른다.
+            "학생"
+          )
+        }
+        controls={
+          <>
+            {header && (
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <p className="text-caption text-mut">
+                  {/* 학번이 먼저다 — 교사가 학생을 부르고 적을 때 쓰는 값이다.
+                      학생코드는 그 뒤에 온다: 동명이인을 가르고 해가 바뀌어도
+                      안 변하지만, 평소에 입으로 부르는 값이 아니다. */}
+                  {seat && <span className="tabular-nums text-ink">{seat}</span>}
+                  {seat && " · "}
+                  {header.grade !== null && header.classNo !== null
+                    ? `${header.grade}학년 ${header.classNo}반${header.number !== null ? ` ${header.number}번` : ""}`
+                    : "소속 미배정"}
+                  {" · "}
+                  <span className="font-mono">{header.studentCode}</span>
+                </p>
+                {/* 부여 폼은 학적을 보지 않는다 — 막지 않되 머리글에서 보이게 한다. */}
+                <EnrollmentTag status={header.status} />
+              </div>
+            )}
+
+            <nav aria-label="학생 갈래" className="mt-3 flex flex-wrap gap-1.5">
+              {visible.map((item) => (
+                <ChipLink
+                  key={item}
+                  size="sm"
+                  active={item === tab}
+                  href={studentHref(studentId, raw, { tab: studentTabParam(item) })}
+                >
+                  {STUDENT_TAB_LABELS[item]}
+                </ChipLink>
+              ))}
+            </nav>
+          </>
+        }
+      />
+
+      {tab === "merit" && (
+        <MeritTab
+          actor={actor}
+          studentId={studentId}
+          params={raw}
+          removedAt={header?.removedAt ?? null}
+          noCurrentYear={noCurrentYear}
+        />
+      )}
+      {tab === "pass" && <PassTab actor={actor} studentId={studentId} params={raw} />}
+      {tab === "profile" && <ProfileTab actor={actor} studentId={studentId} />}
+    </div>
   );
 }

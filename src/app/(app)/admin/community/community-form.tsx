@@ -58,7 +58,7 @@ export function CommunityForm({ board }: { board?: CommunityFormBoard }) {
   return (
     <SectionCard
       variant="panel"
-      title={editing ? "기본 정보와 권한" : "게시판 추가"}
+      title={editing ? "게시판 설정" : "게시판 추가"}
       className="@container"
     >
       <form action={formAction} className="space-y-4">
@@ -213,8 +213,8 @@ function RoleGroup({
   idPrefix: string;
 }) {
   return (
-    <fieldset>
-      <legend className="text-caption font-medium text-ink">{title}</legend>
+    <div>
+      <p className="text-caption font-medium text-ink">{title}</p>
       <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
         {ASSIGNABLE.map((role) => (
           <CheckboxField
@@ -227,6 +227,6 @@ function RoleGroup({
           />
         ))}
       </div>
-    </fieldset>
+    </div>
   );
 }

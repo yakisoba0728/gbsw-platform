@@ -151,8 +151,7 @@ export function StudentTable({
         }
         controls={
           <>
-            <fieldset className="mt-3 flex flex-wrap items-center gap-1.5">
-              <legend className="sr-only">학년 필터</legend>
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
               {["ALL", "1", "2", "3"].map((g) => (
                 <Button
                   key={g}
@@ -165,7 +164,7 @@ export function StudentTable({
                   {g === "ALL" ? "전체" : `${g}학년`}
                 </Button>
               ))}
-            </fieldset>
+            </div>
 
             <Input
               size="sm"
@@ -199,7 +198,7 @@ export function StudentTable({
         {filtered.length === 0 ? (
           <EmptyState variant="inside">조건에 맞는 학생이 없습니다.</EmptyState>
         ) : (
-          <TableFrame ariaLabel="학생 명단" minWidth={820} headers={HEADERS}>
+          <TableFrame minWidth={820} headers={HEADERS}>
             <tbody>
               {filtered.map((row) => {
                 const d = draftFor(row, drafts);

@@ -8,10 +8,10 @@ import { KindBadge, kindColorClass, signedPoints } from "@/components/merit/kind
 import { CancelButton } from "@/components/merit/cancel-button";
 import { TrackTabs } from "@/components/merit/track-tabs";
 import { Badge } from "@/components/ui/badge";
+import { cardClass } from "@/components/ui/card";
 import { ChipLink } from "@/components/ui/chip-link";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterRow } from "@/components/ui/filter-row";
-import { PageScaffold } from "@/components/ui/page-scaffold";
 import { Pagination } from "@/components/ui/pagination";
 import { SearchForm } from "@/components/ui/search-form";
 import { SectionCard } from "@/components/ui/section-card";
@@ -73,26 +73,14 @@ export default async function RecentAwardsPage({
   const boundaryKey = JSON.stringify(params);
 
   return (
-    <PageScaffold
-      width="data"
-      title="최근 부여"
-      description="최근 상벌점 기록을 찾고 잘못 부여한 기록을 취소합니다."
-      tabs={
-        <TrackTabs
-          current={track}
-          hrefFor={(nextTrack) => href({ track: nextTrack, page: null })}
-        />
-      }
-    >
+    <div className="mx-auto max-w-5xl space-y-4">
       <SectionCard
         variant="panel"
-        title="내역 찾기"
+        title="최근 부여"
         aside={
-          <ExportRecentAwardsButton
-            track={query.track}
-            kind={query.kind}
-            status={query.status}
-            q={query.q}
+          <TrackTabs
+            current={track}
+            hrefFor={(nextTrack) => href({ track: nextTrack, page: null })}
           />
         }
       >
@@ -102,31 +90,37 @@ export default async function RecentAwardsPage({
           {/* 필터와 검색칸은 조회 결과가 아니라 지금 고른 조건이다 — 경계 밖에 둔다. */}
           <RecentAwardControls query={query} href={href} />
 
-          <SearchForm
-            action={PATH}
-            defaultValue={query.q}
-            placeholder="학생 · 항목 · 메모 · 부여자"
-            ariaLabel="학생, 항목, 메모 또는 부여자 검색"
-            maxLength={60}
-            hidden={{
-              track: query.track,
-              kind: query.kind,
-              status: query.status,
-            }}
-            className="flex max-w-xl gap-2"
-          />
+          <div className="grid gap-2.5 @2xl:grid-cols-[minmax(0,1fr)_auto] @2xl:items-center">
+            <SearchForm
+              action={PATH}
+              defaultValue={query.q}
+              placeholder="학생 · 항목 · 메모 · 부여자"
+              ariaLabel="학생, 항목, 메모 또는 부여자 검색"
+              maxLength={60}
+              hidden={{
+                track: query.track,
+                kind: query.kind,
+                status: query.status,
+              }}
+              className="flex max-w-xl gap-2"
+            />
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              {/* 건수는 결과에서 나온다 — 한 글자짜리 뼈대만 세운다. */}
+              <Suspense key={`total:${boundaryKey}`} fallback={<Skeleton className="h-4 w-10" />}>
+                <RecentTotal promise={resultPromise} />
+              </Suspense>
+              <ExportRecentAwardsButton
+                track={query.track}
+                kind={query.kind}
+                status={query.status}
+                q={query.q}
+              />
+            </div>
+          </div>
         </div>
       </SectionCard>
 
-      <SectionCard
-        flush
-        title="부여 내역"
-        aside={
-          <Suspense key={`total:${boundaryKey}`} fallback={<Skeleton className="h-4 w-10" />}>
-            <RecentTotal promise={resultPromise} />
-          </Suspense>
-        }
-      >
+      <div className={cardClass("flush")}>
         <Suspense key={`rows:${boundaryKey}`} fallback={<SkeletonRows rows={10} />}>
           <RecentAwardsRows promise={resultPromise} query={query} />
         </Suspense>
@@ -135,8 +129,8 @@ export default async function RecentAwardsPage({
         <Suspense key={`pagination:${boundaryKey}`} fallback={null}>
           <RecentPagination promise={resultPromise} page={query.page} href={href} />
         </Suspense>
-      </SectionCard>
-    </PageScaffold>
+      </div>
+    </div>
   );
 }
 
@@ -393,7 +387,6 @@ async function RecentAwardsRows({
 
       <div className="hidden lg:block">
         <DataTable
-          ariaLabel="최근 상벌점 부여 내역"
           minWidth={820}
           // **fixed가 없으면 항목 열이 안 잘린다.** table-layout이 auto면 셀 폭을
           // 내용이 정하므로 `truncate`가 기댈 확정 폭이 없다 — 긴 규정 한 줄이 표를
@@ -525,3 +518,4 @@ function RecentAwardControls({
     </div>
   );
 }
+

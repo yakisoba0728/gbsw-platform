@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { PageScaffold } from "@/components/ui/page-scaffold";
 import { SectionCard } from "@/components/ui/section-card";
 import { DataTable, type Column } from "@/components/ui/table";
 import { requirePermission } from "@/core/auth/session";
@@ -70,7 +69,8 @@ const COLUMNS: readonly Column<MyInvite>[] = [
   },
   {
     key: "revoke",
-    header: <span className="sr-only">작업</span>,
+    // 폐기 버튼 열 — 머리글에 이름이 없다.
+    header: "",
     card: "actions",
     cell: (row) =>
       row.status === "PENDING" ? (
@@ -87,18 +87,14 @@ export default async function ParentInvitePage() {
   // 교사도 권한 검사는 통과하지만 학생 프로필이 없다.
   if (actor.role !== "STUDENT") {
     return (
-      <PageScaffold
-        eyebrow="계정 연결"
-        title="학부모 초대"
-        description="학부모 가입코드는 학생 계정에서 만들 수 있습니다."
-        width="compact"
-      >
-        <SectionCard variant="panel" title="이용 안내">
+      <div className="mx-auto max-w-xl">
+        {/* 제목은 h2부터 — h1은 상단바가 이미 그린다. */}
+        <SectionCard variant="panel" title="학부모 초대">
           <p className="text-caption text-mut">
             학부모 가입코드는 학생 본인만 만들 수 있습니다.
           </p>
         </SectionCard>
-      </PageScaffold>
+      </div>
     );
   }
 
@@ -114,14 +110,9 @@ export default async function ParentInvitePage() {
     }));
 
   return (
-    <PageScaffold
-      eyebrow="계정 연결"
-      title="학부모 초대"
-      description="가입코드를 만들어 보호자 계정을 내 학생 정보와 안전하게 연결합니다."
-      width="standard"
-    >
-      <div className="@container">
-      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 @3xl:grid-cols-[22rem_minmax(0,1fr)] lg:gap-6">
+    // 두 단이 서는 기준은 뷰포트가 아니라 이 자리의 폭이다.
+    <div className="@container mx-auto max-w-4xl">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 @2xl:grid-cols-[340px_1fr]">
         <SectionCard
           variant="panel"
           title="가입코드 만들기"
@@ -135,7 +126,6 @@ export default async function ParentInvitePage() {
             <EmptyState variant="inside">만든 코드가 없습니다.</EmptyState>
           ) : (
             <DataTable
-              ariaLabel="내가 만든 학부모 초대코드"
               minWidth={520}
               rows={invites}
               rowKey={(row) => row.id}
@@ -145,7 +135,6 @@ export default async function ParentInvitePage() {
           )}
         </SectionCard>
       </div>
-      </div>
-    </PageScaffold>
+    </div>
   );
 }

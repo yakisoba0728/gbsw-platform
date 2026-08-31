@@ -3,7 +3,6 @@ import { buttonClass } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Note } from "@/components/ui/note";
 import { Pagination } from "@/components/ui/pagination";
-import { PageScaffold } from "@/components/ui/page-scaffold";
 import { SectionCard } from "@/components/ui/section-card";
 import type { SessionUser } from "@/core/auth/session";
 import { honorificName } from "@/core/authz/roles";
@@ -28,20 +27,18 @@ export async function ParentView({
   ]);
 
   return (
-    <PageScaffold
-      eyebrow="출입 관리"
-      title="자녀 출입증"
-      description="보호자 확인이 필요한 신청을 처리하고 자녀의 출입 기록을 확인하세요."
-      width="standard"
-      actions={
-        <Link href="/scan" className={buttonClass({ variant: "secondary" })}>
-          QR 스캔
-        </Link>
-      }
-    >
-      <div className="@container space-y-5 lg:space-y-6">
+    <div className="@container mx-auto max-w-3xl space-y-4">
       <SectionCard
         title="확인이 필요한 신청"
+        // 판독은 메뉴에서 빠졌다 — 세 역할 모두 출입증 화면에서 들어간다.
+        aside={
+          <Link
+            href="/scan"
+            className={buttonClass({ variant: "secondary", size: "sm" })}
+          >
+            스캔
+          </Link>
+        }
         flush
       >
         {waiting.length === 0 ? (
@@ -91,7 +88,6 @@ export async function ParentView({
       <Note tone="warn">
         보호자 확인 뒤에도 선생님의 승인이 있어야 출입증이 나옵니다.
       </Note>
-      </div>
-    </PageScaffold>
+    </div>
   );
 }

@@ -74,17 +74,15 @@ export function MobileNav({ role }: { role: Role | null }) {
         onClick={(event) => {
           if (event.target === dialogRef.current) setOpen(false);
         }}
-        className="workspace-sidebar fixed inset-y-0 left-0 m-0 h-dvh max-h-dvh w-76 max-w-[86vw] border-0 bg-surface p-0 text-ink shadow-2xl backdrop:bg-[#071713]/60 backdrop:backdrop-blur-sm"
+        className="fixed inset-y-0 left-0 m-0 h-dvh max-h-dvh w-68 max-w-[82vw] border-0 bg-surface p-0 text-ink backdrop:bg-black/40"
       >
         <div className="flex h-full w-full flex-col overflow-y-auto px-3 py-5">
-          <div className="flex items-center justify-between gap-2 pb-7">
+          <div className="flex items-center justify-between gap-2 pb-6">
             <span className="flex items-center gap-2.5 px-3">
-              <span className="grid size-10 place-items-center rounded-[12px] bg-white">
-                <Image src="/brand/gbsw-logo.webp" alt="" width={31} height={31} />
-              </span>
+              <Image src="/brand/gbsw-logo.webp" alt="" width={30} height={30} />
               <span>
                 <span className="block text-sm font-semibold tracking-tight text-ink">
-                  GBSW Campus
+                  GBSW
                 </span>
                 <span className="block text-xs text-mut">통합관리시스템</span>
               </span>
@@ -131,8 +129,7 @@ export function MobileNav({ role }: { role: Role | null }) {
   );
 }
 
-const ITEM =
-  "relative flex min-h-11 items-center gap-3 rounded-btn px-3 py-2.5 text-sm transition-colors";
+const ITEM = "relative flex items-center gap-3 rounded-btn px-3 py-2.5 text-sm transition-colors";
 const IDLE = "font-normal text-mut hover:bg-soft hover:text-ink";
 
 function Rail() {
@@ -238,7 +235,7 @@ function DrawerItem({
               href={child.href}
               aria-current={child.href === current?.href ? "page" : undefined}
               className={cn(
-                "relative flex min-h-11 items-center rounded-btn px-3 py-2.5 text-caption transition-colors",
+                "relative rounded-btn px-3 py-2.5 text-caption transition-colors",
                 child.href === current?.href
                   ? "bg-soft font-medium text-ink"
                   : IDLE,

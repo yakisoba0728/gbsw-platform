@@ -137,7 +137,8 @@ const COLUMNS: readonly Column<InviteRow>[] = [
   },
   {
     key: "revoke",
-    header: <span className="sr-only">작업</span>,
+    // 폐기 버튼 열 — 머리글에 이름이 없다.
+    header: "",
     card: "actions",
     cell: (row) =>
       row.status === "PENDING" ? (
@@ -182,37 +183,31 @@ export function InviteTable({ rows }: { rows: InviteRow[] }) {
       controls={
         <>
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
-            <fieldset className="flex flex-wrap items-center gap-1.5">
-              <legend className="sr-only">초대 상태</legend>
-              {STATUS_FILTERS.map((f) => (
-                <Button
-                  key={f.key}
-                  variant="chip"
-                  size="sm"
-                  active={status === f.key}
-                  onClick={() => setStatus(f.key)}
-                >
-                  {f.label} {countFor(f.key)}
-                </Button>
-              ))}
-            </fieldset>
+            {STATUS_FILTERS.map((f) => (
+              <Button
+                key={f.key}
+                variant="chip"
+                size="sm"
+                active={status === f.key}
+                onClick={() => setStatus(f.key)}
+              >
+                {f.label} {countFor(f.key)}
+              </Button>
+            ))}
 
             <ChipDivider />
 
-            <fieldset className="flex flex-wrap items-center gap-1.5">
-              <legend className="sr-only">초대 역할</legend>
-              {ROLE_FILTERS.map((f) => (
-                <Button
-                  key={f.key}
-                  variant="chip"
-                  size="sm"
-                  active={role === f.key}
-                  onClick={() => setRole(f.key)}
-                >
-                  {f.label}
-                </Button>
-              ))}
-            </fieldset>
+            {ROLE_FILTERS.map((f) => (
+              <Button
+                key={f.key}
+                variant="chip"
+                size="sm"
+                active={role === f.key}
+                onClick={() => setRole(f.key)}
+              >
+                {f.label}
+              </Button>
+            ))}
           </div>
 
           <Input
@@ -232,7 +227,6 @@ export function InviteTable({ rows }: { rows: InviteRow[] }) {
         <EmptyState variant="inside">조건에 맞는 코드가 없습니다.</EmptyState>
       ) : (
         <DataTable
-          ariaLabel="초대코드 목록"
           minWidth={680}
           narrow="cards"
           rows={filtered}

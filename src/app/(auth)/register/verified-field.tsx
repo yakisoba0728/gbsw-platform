@@ -97,14 +97,8 @@ export function VerifiedField({
   }
 
   return (
-    <div
-      role="group"
-      aria-labelledby={`${id}-label`}
-      className="mb-3"
-    >
-      <Label id={`${id}-label`} htmlFor={id}>
-        {label}
-      </Label>
+    <div className="mb-3">
+      <Label htmlFor={id}>{label}</Label>
 
       {/*
         이 칸들은 제어 입력이다. 가입 액션이 오류를 return하면 React 19가 폼을
@@ -112,7 +106,7 @@ export function VerifiedField({
         근거)는 state에 남아 앞뒤가 어긋난다 — 게다가 readOnly 칸은 제약 검증에서
         빠져 required도 빈 값 제출을 못 막는다.
       */}
-      <div className="flex flex-col gap-2 min-[360px]:flex-row">
+      <div className="flex gap-2">
         {format ? (
           <MaskedInput
             id={id}
@@ -123,8 +117,6 @@ export function VerifiedField({
             placeholder={placeholder}
             required
             readOnly={verified}
-            aria-invalid={error ? true : undefined}
-            aria-describedby={error ? `${id}-error` : undefined}
             format={format}
             value={value}
             onValueChange={handleValueChange}
@@ -140,8 +132,6 @@ export function VerifiedField({
             placeholder={placeholder}
             required
             readOnly={verified}
-            aria-invalid={error ? true : undefined}
-            aria-describedby={error ? `${id}-error` : undefined}
             value={value}
             onChange={(e) => handleValueChange(e.currentTarget.value)}
             className="min-w-0 flex-1"
@@ -149,11 +139,7 @@ export function VerifiedField({
         )}
 
         {verified ? (
-          <span
-            role="status"
-            aria-live="polite"
-            className="flex shrink-0 items-center"
-          >
+          <span className="flex shrink-0 items-center">
             <Badge tone="approved">확인됨</Badge>
           </span>
         ) : (
@@ -162,7 +148,6 @@ export function VerifiedField({
             size="lg"
             onClick={send}
             disabled={pending || value.length === 0}
-            aria-label={`${label} ${sent ? "인증번호 다시 요청" : "확인 요청"}`}
             className="shrink-0"
           >
             {sent ? "재확인" : "확인"}
@@ -171,47 +156,39 @@ export function VerifiedField({
       </div>
 
       {sent && !verified && (
-        <>
-          <p role="status" className="sr-only">
-            {label} 인증번호를 입력해 주세요.
-          </p>
-          <div className="mt-2 flex flex-col gap-2 min-[360px]:flex-row">
-            <MaskedInput
-              // 이 칸도 제어다 — 폼이 리셋돼도 화면과 code state가 갈라지지 않는다.
-              value={code}
-              aria-label={`${label} 인증번호`}
-              aria-invalid={error ? true : undefined}
-              aria-describedby={error ? `${id}-error` : undefined}
-              size="lg"
-              inputMode="numeric"
-              placeholder="인증번호 6자리"
-              format={formatVerificationCode}
-              onValueChange={setCode}
-              className="min-w-0 flex-1 font-mono"
-            />
-            {/* 이 화면의 초록은 가입 버튼 하나다. */}
-            <Button
-              variant="secondary"
-              size="lg"
-              onClick={confirm}
-              disabled={pending || code.length !== 6}
-              aria-label={`${label} 인증번호 확인`}
-              className="shrink-0"
-            >
-              확인
-            </Button>
-          </div>
-        </>
+        <div className="mt-2 flex gap-2">
+          <MaskedInput
+            // 이 칸도 제어다 — 폼이 리셋돼도 화면과 code state가 갈라지지 않는다.
+            value={code}
+            aria-label={`${label} 인증번호`}
+            size="lg"
+            inputMode="numeric"
+            placeholder="인증번호 6자리"
+            format={formatVerificationCode}
+            onValueChange={setCode}
+            className="min-w-0 flex-1 font-mono"
+          />
+          {/* 이 화면의 초록은 가입 버튼 하나다. */}
+          <Button
+            variant="secondary"
+            size="lg"
+            onClick={confirm}
+            disabled={pending || code.length !== 6}
+            className="shrink-0"
+          >
+            확인
+          </Button>
+        </div>
       )}
 
       {sent && !verified && mocked && (
-        <p role="status" className="mt-1.5 text-xs text-amber-ink">
+        <p className="mt-1.5 text-xs text-amber-ink">
           개발 목업 — 발송하지 않고 인증번호를 채웠습니다.
         </p>
       )}
 
       {error && (
-        <Note id={`${id}-error`} tone="error" className="mt-1.5">
+        <Note tone="error" className="mt-1.5">
           {error}
         </Note>
       )}

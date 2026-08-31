@@ -3,7 +3,6 @@ import { SectionCard } from "@/components/ui/section-card";
 import { signedNet } from "@/core/authz/merit-track";
 import { scaleToPercent } from "@/modules/merit/merit.chart";
 import { honorificName } from "@/core/authz/roles";
-import { ChartDataSummary } from "./chart-data-summary";
 
 /**
  * 서버에서 그리는 CSS 막대. 이 화면에만 쓰므로 여기 둔다 —
@@ -80,91 +79,81 @@ export function TeacherChart({ rows }: { rows: readonly TeacherChartRow[] }) {
       {rows.length === 0 ? (
         <EmptyState variant="inside">부여된 상벌점이 없습니다.</EmptyState>
       ) : (
-        <>
-          <ChartDataSummary
-            label="부여자별 상점·벌점"
-            rows={rows.map(
-              (row) =>
-                `${honorificName(row.name, "ADMIN")}${row.removed ? " (삭제된 계정)" : ""}: ${row.awardCount}건, 상점 ${row.totals.merit}점, 벌점 ${row.totals.demerit}점, 상쇄점 ${row.totals.offset}점, 순점수 ${signedNet(row.totals.net)}, 전체의 ${row.share}`,
-            )}
-          />
+        <div className="flex flex-col gap-2">
+          {rows.map((row, i) => {
+            const positive = positives[i];
+            // 상점과 상쇄점은 오른쪽 한 막대를 나눠 쓴다 — 합이 곧 막대 길이다.
+            const meritWidth =
+              positive === 0 ? 0 : (positiveScale[i] * row.totals.merit) / positive;
+            const offsetWidth = positiveScale[i] - meritWidth;
 
-          <div className="flex flex-col gap-2">
-            {rows.map((row, i) => {
-              const positive = positives[i];
-              // 상점과 상쇄점은 오른쪽 한 막대를 나눠 쓴다 — 합이 곧 막대 길이다.
-              const meritWidth =
-                positive === 0 ? 0 : (positiveScale[i] * row.totals.merit) / positive;
-              const offsetWidth = positiveScale[i] - meritWidth;
-
-              return (
-                <div
-                  key={row.key}
-                  tabIndex={0}
-                  role="group"
-                  aria-label={`${honorificName(row.name, "ADMIN")}${
-                    row.removed ? " 삭제된 계정" : ""
-                  } 상점 ${
-                    row.totals.merit
-                  } 벌점 ${row.totals.demerit} ${row.awardCount}건 전체의 ${row.share}`}
-                  className="group relative flex items-center gap-2 rounded-btn px-1 py-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ink"
-                >
-                  <Tooltip
-                    title={`${honorificName(row.name, "ADMIN")}${row.removed ? " · 삭제된 계정" : ""}`}
-                    rows={[
-                      { label: "상점", value: String(row.totals.merit), className: "text-blue" },
-                      ...(row.totals.offset
-                        ? [
-                            {
-                              label: "상쇄점",
-                              value: String(row.totals.offset),
-                              className: "text-green",
-                            },
-                          ]
-                        : []),
-                      { label: "벌점", value: String(row.totals.demerit), className: "text-rose" },
-                      {
-                        label: "순점수",
-                        value: signedNet(row.totals.net),
-                        className: row.totals.net >= 0 ? "text-green" : "text-rose",
-                      },
-                      { label: "전체 대비", value: row.share },
-                    ]}
+            return (
+              <div
+                key={row.key}
+                tabIndex={0}
+                role="group"
+                aria-label={`${honorificName(row.name, "ADMIN")}${
+                  row.removed ? " 삭제된 계정" : ""
+                } 상점 ${
+                  row.totals.merit
+                } 벌점 ${row.totals.demerit} ${row.awardCount}건 전체의 ${row.share}`}
+                className="group relative flex items-center gap-2 rounded-btn px-1 py-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ink"
+              >
+                <Tooltip
+                  title={`${honorificName(row.name, "ADMIN")}${row.removed ? " · 삭제된 계정" : ""}`}
+                  rows={[
+                    { label: "상점", value: String(row.totals.merit), className: "text-blue" },
+                    ...(row.totals.offset
+                      ? [
+                          {
+                            label: "상쇄점",
+                            value: String(row.totals.offset),
+                            className: "text-green",
+                          },
+                        ]
+                      : []),
+                    { label: "벌점", value: String(row.totals.demerit), className: "text-rose" },
+                    {
+                      label: "순점수",
+                      value: signedNet(row.totals.net),
+                      className: row.totals.net >= 0 ? "text-green" : "text-rose",
+                    },
+                    { label: "전체 대비", value: row.share },
+                  ]}
+                />
+                {/* 축 라벨만 맨이름이다 — 폭이 76px로 고정이라 호칭을 붙이면
+                    이름이 잘린다. 말풍선과 aria-label은 호칭을 붙여 읽어 준다.
+                    그래서 TruncatedText도 달지 않는다: 이 줄을 덮는 Tooltip이
+                    이미 전문을 띄워 말풍선이 둘 뜨게 된다. */}
+                <span className="w-[76px] shrink-0 truncate text-xs font-medium text-ink">
+                  {row.name}
+                </span>
+                <span className="flex flex-1 justify-end">
+                  <span
+                    className="h-4 rounded-l-btn bg-rose"
+                    style={{ width: `${demeritScale[i]}%` }}
                   />
-                  {/* 축 라벨만 맨이름이다 — 폭이 76px로 고정이라 호칭을 붙이면
-                      이름이 잘린다. 말풍선과 aria-label은 호칭을 붙여 읽어 준다.
-                      그래서 TruncatedText도 달지 않는다: 이 줄을 덮는 Tooltip이
-                      이미 전문을 띄워 말풍선이 둘 뜨게 된다. */}
-                  <span className="w-[76px] shrink-0 truncate text-xs font-medium text-ink">
-                    {row.name}
-                  </span>
-                  <span className="flex flex-1 justify-end">
+                </span>
+                <span className="h-5 w-px bg-line" />
+                <span className="flex flex-1">
+                  <span
+                    className={`h-4 bg-blue ${offsetWidth > 0 ? "rounded-l-btn" : "rounded-btn"}`}
+                    style={{ width: `${meritWidth}%` }}
+                  />
+                  {offsetWidth > 0 && (
                     <span
-                      className="h-4 rounded-l-btn bg-rose"
-                      style={{ width: `${demeritScale[i]}%` }}
+                      className="h-4 rounded-r-btn bg-green"
+                      style={{ width: `${offsetWidth}%` }}
                     />
-                  </span>
-                  <span className="h-5 w-px bg-line" />
-                  <span className="flex flex-1">
-                    <span
-                      className={`h-4 bg-blue ${offsetWidth > 0 ? "rounded-l-btn" : "rounded-btn"}`}
-                      style={{ width: `${meritWidth}%` }}
-                    />
-                    {offsetWidth > 0 && (
-                      <span
-                        className="h-4 rounded-r-btn bg-green"
-                        style={{ width: `${offsetWidth}%` }}
-                      />
-                    )}
-                  </span>
-                  <span className="w-[60px] shrink-0 text-right text-xs font-medium text-ink">
-                    {row.awardCount}건
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </>
+                  )}
+                </span>
+                <span className="w-[60px] shrink-0 text-right text-xs font-medium text-ink">
+                  {row.awardCount}건
+                </span>
+              </div>
+            );
+          })}
+        </div>
       )}
 
       <Legend

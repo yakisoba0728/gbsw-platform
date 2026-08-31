@@ -209,7 +209,6 @@ function StudentRankCard({
         <EmptyState variant="inside">재학 중인 학생이 없습니다.</EmptyState>
       ) : (
         <DataTable
-          ariaLabel="학생 순위"
           minWidth={660}
           narrow="cards"
           rows={stats.students}
@@ -305,7 +304,6 @@ function ClassRankCard({
         <EmptyState variant="inside">배정된 반이 없습니다.</EmptyState>
       ) : (
         <DataTable
-          ariaLabel="반 순위"
           minWidth={620}
           narrow="cards"
           rows={stats.classes}
@@ -394,7 +392,6 @@ function ClassRosterCard({
         </EmptyState>
       ) : (
         <DataTable
-          ariaLabel={`${stats.scope?.grade}학년 ${stats.scope?.classNo}반 학생 순위`}
           minWidth={600}
           narrow="cards"
           rows={stats.students}

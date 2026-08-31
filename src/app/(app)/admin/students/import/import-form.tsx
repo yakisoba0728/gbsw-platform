@@ -176,7 +176,7 @@ function UploadCard({
   return (
     <SectionCard
       variant="panel"
-      title="명단 파일"
+      title="명단 반영"
       hint="파일이 곧 전교생 완성본입니다. 줄을 지우면 그 학생이 명단에서 빠집니다."
       aside={
         <div className="flex shrink-0 flex-col items-end gap-1.5">
@@ -571,7 +571,6 @@ function InvitesResult({
       {/* 같은 내용을 내는 다른 초대 표 둘(초대 관리·학부모 초대)은 폰에서 카드로
           접힌다. 여기만 옆으로 스크롤되고 있었다. */}
       <DataTable
-        ariaLabel="명단 반영 후 발급된 초대코드"
         minWidth={520}
         narrow="cards"
         rows={invites}

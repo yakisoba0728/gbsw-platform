@@ -8,7 +8,7 @@ import {
 import { FilterRow } from "@/components/ui/filter-row";
 import { ChipLink } from "@/components/ui/chip-link";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
-import { PageScaffold } from "@/components/ui/page-scaffold";
+import { PageHeader } from "@/components/ui/page-header";
 import { SearchForm } from "@/components/ui/search-form";
 import { SkeletonScreen, SkeletonTable } from "@/components/ui/skeleton";
 import { StudentSearchResults } from "@/components/merit/student-search-results";
@@ -88,12 +88,15 @@ export function AdminMeritView({
   return (
     // 부여 화면은 명단과 부여 칸이 두 단으로 서므로 다른 화면(max-w-5xl)보다
     // 넓게 잡는다 — 5xl에서는 오른쪽 단이 좁아 항목 이름이 두 줄로 접힌다.
-    <PageScaffold
-      width="data"
-      title={MERIT_TRACK_TITLES[track]}
-      description="학생을 찾거나 학급을 골라 상벌점을 부여합니다."
-      tabs={<TrackTabs current={track} hrefFor={trackHref} />}
-    >
+    <div className="mx-auto max-w-6xl space-y-4">
+      {/* 제목은 정식 이름(그린마일리지), 탭은 짧은 표기(교내)라 나란히 둬도 겹치지
+          않는다. 상단바 제목은 쿼리를 떼고 찾으므로 어느 트랙이든 "상벌점"이다 —
+          지금 어느 쪽을 보고 있는지는 이 줄이 답한다. */}
+      <PageHeader
+        title={MERIT_TRACK_TITLES[track]}
+        actions={<TrackTabs current={track} hrefFor={trackHref} />}
+      />
+
       {/* 이 안내는 조건이 아니라 조회 결과에서 나온다. 자리는 여기지만 기다림은
           결과와 같은 약속을 나눠 쓴다 — 없을 때가 대부분이라 뼈대 없이 비워 둔다. */}
       <Suspense key={`${searchKey}|${rosterKey}`} fallback={null}>
@@ -153,7 +156,7 @@ export function AdminMeritView({
           </Suspense>
         </div>
       </div>
-    </PageScaffold>
+    </div>
   );
 }
 

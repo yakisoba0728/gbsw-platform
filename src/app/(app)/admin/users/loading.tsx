@@ -1,4 +1,3 @@
-import { PageScaffold } from "@/components/ui/page-scaffold";
 import {
   SkeletonScreen,
   SkeletonTabs,
@@ -14,17 +13,8 @@ import {
  */
 export default function Loading() {
   return (
-    <PageScaffold
-      width="data"
-      title="계정 관리"
-      description="계정, 초대코드, 학생 재적 정보를 한곳에서 관리합니다."
-      tabs={
-        <SkeletonScreen className="">
-          <SkeletonTabs count={3} size="sm" width="w-14" />
-        </SkeletonScreen>
-      }
-    >
-      <span className="sr-only">계정 목록 불러오는 중</span>
-    </PageScaffold>
+    <SkeletonScreen className="mx-auto max-w-7xl">
+      <SkeletonTabs count={3} size="sm" width="w-14" />
+    </SkeletonScreen>
   );
 }

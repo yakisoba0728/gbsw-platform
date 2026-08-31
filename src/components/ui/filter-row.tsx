@@ -14,23 +14,16 @@ import { cn } from "@/lib/cn";
  */
 export function FilterRow({
   label,
-  ariaLabel,
   className,
   children,
 }: {
   /** 없으면 칩만 있는 줄이다(자녀 고르기처럼). */
   label?: ReactNode;
-  /** label이 문자열이 아닐 때 필터 묶음의 접근 가능한 이름. */
-  ariaLabel?: string;
   className?: string;
   children: ReactNode;
 }) {
   return (
-    <div
-      role="group"
-      aria-label={ariaLabel ?? (typeof label === "string" ? label : undefined)}
-      className={cn("flex flex-wrap items-center gap-1.5", className)}
-    >
+    <div className={cn("flex flex-wrap items-center gap-1.5", className)}>
       {label !== undefined && (
         <span className="mr-1 min-w-8 shrink-0 text-xs font-medium text-mut">{label}</span>
       )}

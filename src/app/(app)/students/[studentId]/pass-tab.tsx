@@ -262,7 +262,6 @@ async function PassRows({
 
   return (
     <DataTable
-      ariaLabel="학생 출입증 내역"
       minWidth={780}
       narrow="cards"
       // **fixed가 없으면 행선지 열이 안 잘린다.** table-layout이 auto면 셀 폭을

@@ -1,5 +1,4 @@
 import { cardClass } from "@/components/ui/card";
-import { PageScaffold } from "@/components/ui/page-scaffold";
 import {
   Skeleton,
   SkeletonField,
@@ -17,37 +16,36 @@ import {
  */
 export default function Loading() {
   return (
-    <PageScaffold
-      width="data"
-      title="최근 부여"
-      description="최근 상벌점 기록을 찾고 잘못 부여한 기록을 취소합니다."
-      tabs={<SkeletonTabs size="sm" />}
-    >
-      <SkeletonScreen className="space-y-4">
-        <div className={cardClass("panel")}>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <Skeleton className="h-6 w-24" />
-            <Skeleton className="h-9 w-24 rounded-btn" />
-          </div>
+    <SkeletonScreen>
+      <div className={cardClass("panel")}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <Skeleton className="h-6 w-24" />
+          <SkeletonTabs size="sm" />
+        </div>
 
-          <div className="@container mt-4 space-y-2.5">
-            {/* 종류 · 상태 두 줄. 칩 높이는 ChipLink의 sm 규격을 따른다. */}
-            <SkeletonTabs count={4} size="sm" className="flex-wrap" />
-            <SkeletonTabs count={3} size="sm" className="flex-wrap" />
+        <div className="@container mt-4 space-y-2.5">
+          {/* 종류 · 상태 두 줄. 칩 높이는 ChipLink의 sm 규격을 따른다. */}
+          <SkeletonTabs count={4} size="sm" className="flex-wrap" />
+          <SkeletonTabs count={3} size="sm" className="flex-wrap" />
 
+          <div className="grid gap-2.5 @2xl:grid-cols-[minmax(0,1fr)_auto] @2xl:items-center">
             <SkeletonField size="sm" className="max-w-xl" />
+            <div className="flex items-center justify-end gap-3">
+              <Skeleton className="h-4 w-10" />
+              {/* 내보내기 버튼은 md라 높이가 고정이다 — 칩과 달리 좁은 폭에서 안 커진다. */}
+              <Skeleton className="h-9 w-24 rounded-btn" />
+            </div>
           </div>
         </div>
+      </div>
 
-        <div className={cardClass("flush")}>
-          {/* 표 머리글 띠 자리. */}
-          <div className="flex items-center justify-between border-b border-line px-5 py-4">
-            <Skeleton className="h-5 w-24" />
-            <Skeleton className="h-4 w-10" />
-          </div>
-          <SkeletonRows rows={10} />
+      <div className={cardClass("flush")}>
+        {/* 표 머리글 띠 자리. */}
+        <div className="border-b border-line bg-soft px-5 py-2.5">
+          <Skeleton className="h-4 w-24" />
         </div>
-      </SkeletonScreen>
-    </PageScaffold>
+        <SkeletonRows rows={10} />
+      </div>
+    </SkeletonScreen>
   );
 }
