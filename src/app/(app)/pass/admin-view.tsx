@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { buttonClass } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Note } from "@/components/ui/note";
 import { SectionCard } from "@/components/ui/section-card";
 import type { SessionUser } from "@/core/auth/session";
 import { requiresConsent } from "@/core/authz/pass-type";
@@ -17,7 +18,13 @@ import { DecisionPanel } from "./decision-panel";
 import { IssueForm } from "./issue-form";
 import { PassCard, passEndLabel } from "./pass-card";
 
-export async function AdminView({ actor }: { actor: SessionUser }) {
+export async function AdminView({
+  actor,
+  approved,
+}: {
+  actor: SessionUser;
+  approved: boolean;
+}) {
   const now = new Date();
   // 셋은 서로를 안 기다린다.
   const [pendingResult, activeResult, students] = await Promise.all([
@@ -30,6 +37,13 @@ export async function AdminView({ actor }: { actor: SessionUser }) {
 
   return (
     <div className="@container mx-auto max-w-5xl space-y-4">
+      {approved && (
+        <Note tone="success" role="status">
+          출입증을 승인했습니다. 학생은 정해진 기간에 발급된 출입증을 사용할 수
+          있습니다.
+        </Note>
+      )}
+
       {/*
        * 합계 칸 둘을 뺐다. 「결재 대기 0건」이라 적힌 상자 바로 아래에 「결재
        * 대기」 카드가 서고 그 안에 다시 「결재할 신청이 없습니다」가 있어서,

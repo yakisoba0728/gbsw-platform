@@ -3,6 +3,7 @@ import { BackLink } from "@/components/ui/back-link";
 import { requireAuth } from "@/core/auth/session";
 import { getWritableBySlug } from "@/modules/community/board.service";
 import { PostForm } from "../post-form";
+import { postDraftKey } from "../post-draft";
 import { orDenied } from "../../guard";
 
 export const metadata: Metadata = { title: "글쓰기" };
@@ -25,6 +26,7 @@ export default async function NewPostPage({
         boardName={community.name}
         anonymous={community.anonymous}
         allowAttachments={community.allowAttachments}
+        draftKey={postDraftKey(actor.id, slug)}
       />
     </div>
   );

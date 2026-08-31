@@ -19,7 +19,6 @@ import {
 import {
   isPassStatus,
   isPassType,
-  PASS_STATUS_LABELS,
   PASS_TYPE_LABELS,
 } from "@/core/authz/pass-type";
 import { honorificName } from "@/core/authz/roles";
@@ -38,7 +37,7 @@ import {
   listActivePasses,
   listPendingPasses,
 } from "@/modules/pass/decision.service";
-import { PASS_STATUS_TONES } from "@/modules/pass/pass.labels";
+import { PASS_STATUS_TONES, passStatusLabel } from "@/modules/pass/pass.labels";
 import {
   getMyChildPassesAwaitingConsent,
   getMyLivePasses,
@@ -116,9 +115,13 @@ function passTypeLabel(value: string): string {
 }
 
 /** 상태 배지. 모르는 상태는 중립으로 그린다. */
-function PassStatusBadge({ status }: { status: string }) {
-  if (!isPassStatus(status)) return <Badge tone="neutral">{status}</Badge>;
-  return <Badge tone={PASS_STATUS_TONES[status]}>{PASS_STATUS_LABELS[status]}</Badge>;
+function PassStatusBadge({ pass }: { pass: { type: string; status: string } }) {
+  if (!isPassStatus(pass.status)) {
+    return <Badge tone="neutral">{pass.status}</Badge>;
+  }
+  return (
+    <Badge tone={PASS_STATUS_TONES[pass.status]}>{passStatusLabel(pass)}</Badge>
+  );
 }
 
 /** 보조 줄을 「·」로 잇는다. 없는 조각은 빠지고 구분점도 함께 빠진다. */
@@ -186,7 +189,7 @@ async function TeacherDashboard({ user }: { user: SessionUser }) {
                       passTypeLabel(pass.type),
                       windowLabel(pass.startAt, pass.endAt),
                     )}
-                    trailing={<PassStatusBadge status={pass.status} />}
+                    trailing={<PassStatusBadge pass={pass} />}
                   />
                 );
               })}
@@ -394,7 +397,7 @@ async function StudentDashboard({ user }: { user: SessionUser }) {
                   href={`/pass/${pass.id}`}
                   title={`${passTypeLabel(pass.type)} · ${pass.destination}`}
                   meta={windowLabel(pass.startAt, pass.endAt)}
-                  trailing={<PassStatusBadge status={pass.status} />}
+                  trailing={<PassStatusBadge pass={pass} />}
                 />
               ))}
             </SummaryList>
@@ -481,7 +484,7 @@ async function ParentDashboard({ user }: { user: SessionUser }) {
                   "STUDENT",
                 )} · ${passTypeLabel(pass.type)} · ${pass.destination}`}
                 meta={windowLabel(pass.startAt, pass.endAt)}
-                trailing={<PassStatusBadge status={pass.status} />}
+                trailing={<PassStatusBadge pass={pass} />}
               />
             ))}
           </SummaryList>

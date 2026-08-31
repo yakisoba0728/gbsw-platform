@@ -35,6 +35,13 @@ export function DecisionPanel({
 
   return (
     <div className="mt-3 w-full space-y-3">
+      {needsProxyConsent && (
+        <Note tone="warn">
+          보호자 확인되지 않음 · 보호자가 확인하거나 전화 확인을 대행해야 승인할 수
+          있습니다.
+        </Note>
+      )}
+
       <div className="flex flex-wrap gap-2">
         <ConfirmDialog
           trigger={(open) => (
@@ -58,12 +65,13 @@ export function DecisionPanel({
               />
             ) : undefined
           }
-          // 대행일 때 적는 「확인 방법」이 곧 승인 메모다 — consentNote에 담긴다.
+          // 대행일 때만 보호자 확인 기록(consentNote)이다. 이미 보호자가 확인한
+          // 신청이나 외출의 메모는 교사 결정 기록(decisionNote)에 따로 남긴다.
           reasonLabel={needsProxyConsent ? "확인 방법" : "승인 메모"}
           reasonPlaceholder={
             needsProxyConsent ? "예: 어머니와 통화" : "예: 병원 예약 확인함"
           }
-          reasonName="consentNote"
+          reasonName={needsProxyConsent ? "consentNote" : "decisionNote"}
           reasonRequired={false}
           confirmLabel="승인"
           confirmVariant="primary"

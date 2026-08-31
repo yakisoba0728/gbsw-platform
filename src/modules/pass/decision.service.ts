@@ -43,39 +43,72 @@ export async function approvePass(
   if (!pass) throw new PassError("PASS_NOT_FOUND");
   if (pass.endAt.getTime() <= now.getTime()) throw new PassError("PASS_EXPIRED");
 
-  const byProxy = input.byProxy === "on";
   const consented = pass.consentedAt !== null || pass.consentByProxy;
+  const needsConsent = requiresConsent(pass.type) && !consented;
+  // 전화 대행은 보호자 확인이 실제로 비어 있는 외박에서만 성립한다. 외출이나 이미
+  // 보호자가 확인한 신청에 임의로 byProxy를 보내도 기존 확인 기록을 덮지 않는다.
+  const requestedProxy = needsConsent && input.byProxy === "on";
 
   // 외박의 APPROVED 전이는 보호자 확인이 있을 때만. 대행이 그 자리를 대신한다.
-  if (requiresConsent(pass.type) && !consented && !byProxy) {
+  if (needsConsent && !requestedProxy) {
     throw new PassError("CONSENT_REQUIRED");
   }
 
-  const proxyFields = byProxy
-    ? {
-        consentByProxy: true,
-        consentedByUserId: actor.id,
-        consentedByName: actor.name,
-        consentedAt: now,
-        consentNote: input.consentNote,
-      }
-    : {};
-
   await withTransaction(async (tx) => {
-    const outcome = await repo.transitionUnexpired(
-      input.passId,
-      DECIDABLE_STATUSES,
-      now,
-      {
-        status: "APPROVED",
-        decidedByUserId: actor.id,
-        decidedByName: actor.name,
-        decidedAt: now,
-        decisionNote: null,
-        ...proxyFields,
-      },
-      tx,
-    );
+    const decisionFields = {
+      status: "APPROVED" as const,
+      decidedByUserId: actor.id,
+      decidedByName: actor.name,
+      decidedAt: now,
+    };
+    let byProxy = false;
+    let decisionNote = input.decisionNote ?? null;
+    let consentNote: string | null = null;
+    let outcome: repo.UnexpiredTransitionOutcome;
+
+    if (requestedProxy) {
+      decisionNote = null;
+      consentNote = input.consentNote ?? null;
+      outcome = await repo.transitionUnexpired(
+        input.passId,
+        ["REQUESTED"],
+        now,
+        {
+          ...decisionFields,
+          decisionNote,
+          consentByProxy: true,
+          consentedByUserId: actor.id,
+          consentedByName: actor.name,
+          consentedAt: now,
+          consentNote,
+        },
+        tx,
+      );
+      byProxy = outcome === "UPDATED";
+
+      if (outcome === "UNCHANGED") {
+        // 화면을 연 뒤 보호자가 먼저 확인했으면 첫 전이는 CONSENTED를 만난다.
+        // 이때는 보호자 기록을 덮지 않고 승인만 이어 간다. 대행 입력 메모도
+        // 보호자 확인 메모로 저장하지 않는다.
+        consentNote = null;
+        outcome = await repo.transitionUnexpired(
+          input.passId,
+          ["CONSENTED"],
+          now,
+          { ...decisionFields, decisionNote },
+          tx,
+        );
+      }
+    } else {
+      outcome = await repo.transitionUnexpired(
+        input.passId,
+        DECIDABLE_STATUSES,
+        now,
+        { ...decisionFields, decisionNote },
+        tx,
+      );
+    }
+
     if (outcome === "EXPIRED") throw new PassError("PASS_EXPIRED");
     if (outcome !== "UPDATED") throw new PassError("ALREADY_DECIDED");
 
@@ -91,7 +124,8 @@ export async function approvePass(
           byProxy,
           startAt: pass.startAt.toISOString(),
           endAt: pass.endAt.toISOString(),
-          reason: input.consentNote,
+          decisionNote,
+          consentNote,
         },
       },
       tx,

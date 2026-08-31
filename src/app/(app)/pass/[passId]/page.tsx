@@ -10,7 +10,6 @@ import {
   isPassStatus,
   isPassType,
   isRevocable,
-  PASS_STATUS_LABELS,
   PASS_TYPE_LABELS,
 } from "@/core/authz/pass-type";
 import { honorificName } from "@/core/authz/roles";
@@ -20,6 +19,7 @@ import { PassError } from "@/modules/pass/pass.error";
 import {
   consenterRole,
   PASS_STATUS_TONES,
+  passStatusLabel,
   requesterRole,
 } from "@/modules/pass/pass.labels";
 import { getPassDetail } from "@/modules/pass/request.service";
@@ -73,7 +73,7 @@ export default async function PassDetailPage({
         aside={
           isPassStatus(pass.status) ? (
             <Badge tone={PASS_STATUS_TONES[pass.status]}>
-              {PASS_STATUS_LABELS[pass.status]}
+              {passStatusLabel(pass)}
             </Badge>
           ) : null
         }

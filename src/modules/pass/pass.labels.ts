@@ -1,10 +1,15 @@
 import type { BadgeTone } from "@/components/ui/badge";
 import {
+  isPassStatus,
+  PASS_STATUS_LABELS,
+  requiresConsent,
+  type PassStatus,
+} from "@/core/authz/pass-type";
+import {
   formatDateTimeShort,
   formatMonthDayTime,
   formatTimeShort,
 } from "@/lib/datetime";
-import type { PassStatus } from "@/core/authz/pass-type";
 import type { Role } from "@/core/authz/roles";
 import type { Verdict } from "./verify.service";
 
@@ -17,6 +22,21 @@ export const PASS_STATUS_TONES: Record<PassStatus, BadgeTone> = {
   REJECTED: "rejected",
   CANCELLED: "cancelled",
 };
+
+/**
+ * 저장 상태를 사용자가 다음에 해야 할 일로 풀어 쓴다.
+ *
+ * REQUESTED 하나만으로는 외출과 외박의 차이가 보이지 않는다. 외출은 곧바로
+ * 교사가 판단하지만, 외박은 보호자 확인이 먼저다. CONSENTED도 최종 승인이
+ * 아니라 교사 판단을 기다리는 중이므로 단계가 드러나는 문구를 쓴다.
+ */
+export function passStatusLabel(pass: { type: string; status: string }): string {
+  if (pass.status === "REQUESTED") {
+    return requiresConsent(pass.type) ? "보호자 확인 대기" : "교사 승인 대기";
+  }
+  if (pass.status === "CONSENTED") return "교사 승인 대기";
+  return isPassStatus(pass.status) ? PASS_STATUS_LABELS[pass.status] : pass.status;
+}
 
 /**
  * 정문에서 팔 뻗은 거리로 읽는 한 마디. **판정의 주어는 학생이다** —

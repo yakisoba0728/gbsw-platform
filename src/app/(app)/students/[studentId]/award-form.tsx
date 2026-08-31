@@ -76,7 +76,8 @@ export function AwardForm({
             }
             confirmLabel="부여"
             pendingLabel="부여하는 중…"
-            pending={pending || rules.length === 0 || !rule}
+            pending={pending}
+            disabled={rules.length === 0 || !rule}
             size="md"
             full={false}
             onOpen={() => {

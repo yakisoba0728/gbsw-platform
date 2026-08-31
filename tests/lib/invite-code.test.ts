@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatInviteCode,
   isInviteUsable,
+  maskInviteCode,
   normalizeInviteCode,
 } from "@/lib/invite-code";
 
@@ -19,6 +20,13 @@ describe("formatInviteCode()", () => {
   it("정규화하면 원래대로 돌아온다", () => {
     const code = "GBSWA3K92M7P";
     expect(normalizeInviteCode(formatInviteCode(code))).toBe(code);
+  });
+});
+
+describe("maskInviteCode()", () => {
+  it("앞 네 자리를 가리고 식별에 필요한 끝 네 자리만 남긴다", () => {
+    expect(maskInviteCode("GBSWA3K92M7P")).toBe("GBSW-••••-2M7P");
+    expect(maskInviteCode("GBSW-A3K9-2M7P")).toBe("GBSW-••••-2M7P");
   });
 });
 

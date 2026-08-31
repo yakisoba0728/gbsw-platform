@@ -113,16 +113,22 @@ export function AdminMeritView({
       />
 
       {searchPromise && (
-        <Suspense
-          key={searchKey}
-          fallback={
-            <SkeletonScreen className="space-y-4">
-              <SkeletonTable rows={3} />
-            </SkeletonScreen>
-          }
-        >
-          <SearchResults promise={searchPromise} track={track} />
-        </Suspense>
+        <div className="space-y-2">
+          <p className="text-caption text-mut">
+            검색 결과는 전교를 대상으로 합니다. 아래 명단은 지금 고른 학년·반 범위를 그대로
+            유지합니다.
+          </p>
+          <Suspense
+            key={searchKey}
+            fallback={
+              <SkeletonScreen className="space-y-4">
+                <SkeletonTable rows={3} />
+              </SkeletonScreen>
+            }
+          >
+            <SearchResults promise={searchPromise} track={track} />
+          </Suspense>
+        </div>
       )}
 
       {/*

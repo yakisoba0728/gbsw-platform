@@ -175,6 +175,23 @@ describe("toPassHistorySheet", () => {
     expect(sheet[2]![column(sheet, "상태")]).toBe("승인됨");
   });
 
+  it("결재 전 상태는 유형에 맞는 다음 처리 단계를 적는다", () => {
+    const sheet = toPassHistorySheet(
+      [
+        { ...overnight, status: "REQUESTED" },
+        { ...overnight, status: "CONSENTED" },
+        { ...outing, status: "REQUESTED" },
+      ],
+      {},
+      RANGE,
+    );
+    const status = column(sheet, "상태");
+
+    expect(sheet[2]![status]).toBe("보호자 확인 대기");
+    expect(sheet[3]![status]).toBe("교사 승인 대기");
+    expect(sheet[4]![status]).toBe("교사 승인 대기");
+  });
+
   it("학년·반·번호는 수로, 학번은 글자로 낸다", () => {
     const sheet = toPassHistorySheet([outing], {}, RANGE);
     const row = sheet[2]!;
@@ -229,6 +246,18 @@ describe("toPassHistorySheet", () => {
       RANGE,
     );
     expect(cancelled[2]![column(cancelled, "비고")]).toBe("취소 사유 · 학부모 요청");
+  });
+
+  it("승인 메모는 반려 사유로 잘못 부르지 않는다", () => {
+    const approved = toPassHistorySheet(
+      [{ ...outing, decisionNote: "병원 예약 확인" }],
+      {},
+      RANGE,
+    );
+
+    expect(approved[2]![column(approved, "비고")]).toBe(
+      "승인 메모 · 병원 예약 확인",
+    );
   });
 
   it("사유 없는 학생 철회도 비고에 취소로 남는다 — 빈 칸이 아니다", () => {

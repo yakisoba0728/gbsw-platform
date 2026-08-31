@@ -198,6 +198,7 @@ async function RulesResult({
 
   return (
     <RuleTable
+      expandAllInitially={q.trim() !== ""}
       rules={rules.map((rule) => ({
         ...rule,
         updatedAt: rule.updatedAt.toISOString(),

@@ -111,9 +111,16 @@ export type IssuePassInput = z.infer<typeof issuePassSchema>;
 export const approvePassSchema = z.object({
   passId: id,
   byProxy: z.literal("on").optional(),
+  decisionNote: optionalText(200),
   consentNote: optionalText(100),
 });
-export type ApprovePassInput = z.infer<typeof approvePassSchema>;
+/** 서비스 직접 호출은 기존 호출부도 받아들이고, 액션 경계에서 null로 정규화한다. */
+export type ApprovePassInput = {
+  passId: string;
+  byProxy?: "on";
+  decisionNote?: string | null;
+  consentNote?: string | null;
+};
 
 /** 반려. 사유는 필수다 — 「왜 안 되는지」를 학생이 알아야 다시 낸다. */
 export const rejectPassSchema = z.object({
@@ -186,7 +193,7 @@ const historyDate = z.preprocess(
  * (`/students/<id>?tab=pass`)이 이 조회를 한 사람으로 좁혀 쓴다. 좁힌 조회에는
  * 기본 30일 창이 걸리지 않는다(`decision.service`의 `historyFilter`).
  */
-export const passHistoryQuerySchema = z.object({
+const passHistoryQueryBaseSchema = z.object({
   type: z.enum(PASS_TYPES).optional(),
   status: z.enum(PASS_STATUSES).optional(),
   q: passHistorySearch,
@@ -196,6 +203,25 @@ export const passHistoryQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(1000).default(1),
 });
 
+/** 시작일과 종료일이 모두 있으면 달력 순서도 검증한다. */
+function rejectReversedHistoryPeriod(
+  value: { from?: string; to?: string },
+  context: { addIssue: (issue: { code: "custom"; message: string; path: string[] }) => void },
+): void {
+  // canonical YYYY-MM-DD끼리는 문자열 순서가 곧 날짜 순서다.
+  if (value.from && value.to && value.from > value.to) {
+    context.addIssue({
+      code: "custom",
+      message: "시작일은 종료일보다 늦을 수 없습니다.",
+      path: ["to"],
+    });
+  }
+}
+
+export const passHistoryQuerySchema = passHistoryQueryBaseSchema.superRefine(
+  rejectReversedHistoryPeriod,
+);
+
 export type PassHistoryQuery = z.infer<typeof passHistoryQuerySchema>;
 
 /**
@@ -203,10 +229,12 @@ export type PassHistoryQuery = z.infer<typeof passHistoryQuerySchema>;
  * 학생 좁히기도 뺀다 — 시트 첫 줄에 적는 조회 창(`passHistoryRange`)이 30일인데
  * 실제 질의만 열려 있으면, 파일에 적힌 기간과 파일에 든 기록이 어긋난다.
  */
-export const passHistoryExportSchema = passHistoryQuerySchema.omit({
-  page: true,
-  studentProfileId: true,
-});
+export const passHistoryExportSchema = passHistoryQueryBaseSchema
+  .omit({
+    page: true,
+    studentProfileId: true,
+  })
+  .superRefine(rejectReversedHistoryPeriod);
 export type PassHistoryExportInput = z.infer<typeof passHistoryExportSchema>;
 
 const DAY_MS = 24 * 60 * 60 * 1000;

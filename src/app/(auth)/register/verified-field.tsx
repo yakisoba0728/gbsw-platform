@@ -148,6 +148,11 @@ export function VerifiedField({
             size="lg"
             onClick={send}
             disabled={pending || value.length === 0}
+            aria-label={
+              sent
+                ? `${label} 인증번호 다시 보내기`
+                : `${label} 인증번호 보내기`
+            }
             className="shrink-0"
           >
             {sent ? "재확인" : "확인"}
@@ -174,6 +179,7 @@ export function VerifiedField({
             size="lg"
             onClick={confirm}
             disabled={pending || code.length !== 6}
+            aria-label={`${label} 인증번호 확인`}
             className="shrink-0"
           >
             확인

@@ -45,7 +45,13 @@ export function DeleteRuleButton({
   return (
     <ConfirmDialog
       trigger={(open) => (
-        <Button type="button" variant="danger" size="sm" onClick={open}>
+        <Button
+          type="button"
+          variant="danger"
+          size="sm"
+          aria-label={`${label} 규정 삭제`}
+          onClick={open}
+        >
           삭제
         </Button>
       )}

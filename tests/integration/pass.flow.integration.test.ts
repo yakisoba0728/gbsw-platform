@@ -2,10 +2,14 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { prisma } from "@/core/db/client";
 import type { SessionUser } from "@/core/auth/session";
 import { formatDateInput, parseDateTimeInputKst } from "@/lib/datetime";
-import { issuePass } from "@/modules/pass/decision.service";
+import { approvePass, issuePass } from "@/modules/pass/decision.service";
 import { PassError } from "@/modules/pass/pass.error";
 import * as repo from "@/modules/pass/pass.repo";
-import { requestPass } from "@/modules/pass/request.service";
+import {
+  consentPass,
+  getPassDetail,
+  requestPass,
+} from "@/modules/pass/request.service";
 
 vi.mock("server-only", () => ({}));
 
@@ -15,6 +19,7 @@ vi.mock("server-only", () => ({}));
  * 1. 조건부 갱신(transition)이 정말로 동시 결재를 하나로 만드는가
  * 2. 겹침 질의(findOverlapping)의 경계가 맞는가 — 맞닿은 구간은 겹치지 않는다
  * 3. 학생 신청과 교사 직접 부여가 각각 학생 행 잠금 안에서 겹침을 재검사하는가
+ * 4. 외박의 신청→보호자 확인→교사 승인이 상태와 메모를 실제 DB에 남기는가
  *
  * 자기가 만든 행만 지운다. 다른 테스트의 시드를 건드리지 않는다.
  */
@@ -23,6 +28,7 @@ const SUFFIX = "pass-flow-integration";
 const ids = {
   user: `u-${SUFFIX}`,
   admin: `a-${SUFFIX}`,
+  parent: `p-${SUFFIX}`,
   profile: "",
   schoolClass: "",
 };
@@ -51,6 +57,18 @@ function adminActor(): SessionUser {
   };
 }
 
+function parentActor(): SessionUser {
+  return {
+    id: ids.parent,
+    name: "통합 테스트 보호자",
+    email: `parent-${SUFFIX}@example.invalid`,
+    role: "PARENT",
+    status: "ACTIVE",
+    deletedAt: null,
+    mustChangePassword: false,
+  };
+}
+
 beforeAll(async () => {
   await prisma.user.create({
     data: {
@@ -59,6 +77,17 @@ beforeAll(async () => {
       email: `admin-${SUFFIX}@example.invalid`,
       phone: "01000000001",
       role: "ADMIN",
+      status: "ACTIVE",
+    },
+  });
+
+  await prisma.user.create({
+    data: {
+      id: ids.parent,
+      name: "통합 테스트 보호자",
+      email: `parent-${SUFFIX}@example.invalid`,
+      phone: "01000000002",
+      role: "PARENT",
       status: "ACTIVE",
     },
   });
@@ -86,6 +115,10 @@ beforeAll(async () => {
   });
   ids.profile = profile.id;
 
+  await prisma.parentStudent.create({
+    data: { parentUserId: ids.parent, studentId: ids.profile },
+  });
+
   const current = await prisma.academicYear.findFirstOrThrow({
     where: { isCurrent: true },
     select: { year: true },
@@ -111,18 +144,122 @@ afterAll(async () => {
   // 한 DELETE에서 학생(출입증 Cascade)과 교사(결재자 SetNull)를 함께 지우면
   // PostgreSQL의 참조 동작 순서가 충돌할 수 있어 테스트 행을 먼저 명시적으로 걷는다.
   await prisma.auditLog.deleteMany({
-    where: { actorUserId: { in: [ids.user, ids.admin] } },
+    where: { actorUserId: { in: [ids.user, ids.admin, ids.parent] } },
   });
   if (ids.profile) {
     await prisma.pass.deleteMany({ where: { studentProfileId: ids.profile } });
   }
-  await prisma.user.deleteMany({ where: { id: { in: [ids.user, ids.admin] } } });
+  await prisma.user.deleteMany({
+    where: { id: { in: [ids.user, ids.admin, ids.parent] } },
+  });
   if (ids.schoolClass) {
     await prisma.schoolClass.deleteMany({ where: { id: ids.schoolClass } });
   }
 });
 
+describe("외박 신청 → 보호자 확인 → 교사 승인", () => {
+  it("각 단계의 상태와 보호자·교사 메모를 실제 DB에 보존한다", async () => {
+    const requestedAt = new Date("2036-01-10T00:00:00.000Z");
+    const consentedAt = new Date("2036-01-10T00:05:00.000Z");
+    const approvedAt = new Date("2036-01-10T00:10:00.000Z");
+
+    const created = await requestPass(
+      studentActor(),
+      {
+        type: "OVERNIGHT",
+        startDate: "2036-01-10",
+        startTime: "18:00",
+        endDate: "2036-01-11",
+        endTime: "09:00",
+        destination: "본가",
+        reason: "가족 행사",
+      },
+      requestedAt,
+    );
+
+    await expect(getPassDetail(adminActor(), created.id)).resolves.toMatchObject({
+      type: "OVERNIGHT",
+      status: "REQUESTED",
+      consentedAt: null,
+      decidedAt: null,
+    });
+
+    await consentPass(
+      parentActor(),
+      { passId: created.id, consentNote: "어머니가 앱에서 확인" },
+      consentedAt,
+    );
+
+    await expect(getPassDetail(adminActor(), created.id)).resolves.toMatchObject({
+      status: "CONSENTED",
+      consentedByUserId: ids.parent,
+      consentedByName: "통합 테스트 보호자",
+      consentedAt,
+      consentByProxy: false,
+      consentNote: "어머니가 앱에서 확인",
+      decidedAt: null,
+    });
+
+    await approvePass(
+      adminActor(),
+      {
+        passId: created.id,
+        decisionNote: "기숙사 일정 확인",
+        consentNote: null,
+      },
+      approvedAt,
+    );
+
+    await expect(getPassDetail(adminActor(), created.id)).resolves.toMatchObject({
+      status: "APPROVED",
+      consentedByUserId: ids.parent,
+      consentedByName: "통합 테스트 보호자",
+      consentedAt,
+      consentByProxy: false,
+      consentNote: "어머니가 앱에서 확인",
+      decidedByUserId: ids.admin,
+      decidedByName: "통합 테스트 교사",
+      decidedAt: approvedAt,
+      decisionNote: "기숙사 일정 확인",
+    });
+  });
+});
+
 describe("transition — 조건부 갱신 (동시 결재)", () => {
+  it("일반 승인 메모는 보호자 확인 메모와 섞이지 않고 DB에 보존된다", async () => {
+    const created = await repo.createPass({
+      studentProfileId: ids.profile,
+      type: "OUTING",
+      status: "REQUESTED",
+      startAt: new Date("2035-01-01T05:00:00.000Z"),
+      endAt: new Date("2035-01-01T09:00:00.000Z"),
+      destination: "치과",
+      reason: "검진",
+      requestedByUserId: ids.user,
+      requestedByName: "통합 테스트 학생",
+    });
+
+    await approvePass(
+      adminActor(),
+      {
+        passId: created.id,
+        decisionNote: "병원 예약 확인",
+        consentNote: null,
+      },
+      new Date("2035-01-01T00:00:00.000Z"),
+    );
+
+    const approved = await prisma.pass.findUniqueOrThrow({
+      where: { id: created.id },
+      select: { status: true, decisionNote: true, consentNote: true },
+    });
+    expect(approved).toEqual({
+      status: "APPROVED",
+      decisionNote: "병원 예약 확인",
+      consentNote: null,
+    });
+  });
+
   it("두 번 불러도 한 번만 바뀐다", async () => {
     const created = await repo.createPass({
       studentProfileId: ids.profile,

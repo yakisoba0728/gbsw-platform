@@ -122,7 +122,11 @@ describe("approvePass", () => {
     findPass.mockResolvedValue(pending({ endAt: NOW }));
 
     await expect(
-      service.approvePass(admin, { passId: "p-1", consentNote: null }, NOW),
+      service.approvePass(
+        admin,
+        { passId: "p-1", decisionNote: null, consentNote: null },
+        NOW,
+      ),
     ).rejects.toThrow(new PassError("PASS_EXPIRED"));
     expect(transition).not.toHaveBeenCalled();
     expect(transitionUnexpired).not.toHaveBeenCalled();
@@ -130,7 +134,11 @@ describe("approvePass", () => {
 
   it("외출은 그대로 승인된다", async () => {
     findPass.mockResolvedValue(pending());
-    await service.approvePass(admin, { passId: "p-1", consentNote: null }, NOW);
+    await service.approvePass(
+      admin,
+      { passId: "p-1", decisionNote: "병원 예약 확인", consentNote: null },
+      NOW,
+    );
 
     expect(transitionUnexpired).toHaveBeenCalledWith(
       "p-1",
@@ -140,13 +148,18 @@ describe("approvePass", () => {
         status: "APPROVED",
         decidedByUserId: "u-admin",
         decidedByName: "테스트",
+        decisionNote: "병원 예약 확인",
       }),
       txClient,
     );
     expect(auditEntries()).toEqual([
       expect.objectContaining({
         action: "pass:approve",
-        metadata: expect.objectContaining({ byProxy: false }),
+        metadata: expect.objectContaining({
+          byProxy: false,
+          decisionNote: "병원 예약 확인",
+          consentNote: null,
+        }),
       }),
     ]);
   });
@@ -154,7 +167,11 @@ describe("approvePass", () => {
   it("외박인데 동의도 대행도 없으면 CONSENT_REQUIRED", async () => {
     findPass.mockResolvedValue(pending({ type: "OVERNIGHT" }));
     await expect(
-      service.approvePass(admin, { passId: "p-1", consentNote: null }, NOW),
+      service.approvePass(
+        admin,
+        { passId: "p-1", decisionNote: null, consentNote: null },
+        NOW,
+      ),
     ).rejects.toThrow(new PassError("CONSENT_REQUIRED"));
     expect(transitionUnexpired).not.toHaveBeenCalled();
   });
@@ -164,8 +181,47 @@ describe("approvePass", () => {
       pending({ type: "OVERNIGHT", status: "CONSENTED", consentedAt: new Date() }),
     );
     await expect(
-      service.approvePass(admin, { passId: "p-1", consentNote: null }, NOW),
+      service.approvePass(
+        admin,
+        { passId: "p-1", decisionNote: "확인 완료", consentNote: null },
+        NOW,
+      ),
     ).resolves.toBeUndefined();
+    expect(transitionUnexpired).toHaveBeenCalledWith(
+      "p-1",
+      ["REQUESTED", "CONSENTED"],
+      NOW,
+      expect.objectContaining({
+        status: "APPROVED",
+        decisionNote: "확인 완료",
+      }),
+      txClient,
+    );
+  });
+
+  it("이미 보호자가 확인한 외박은 임의의 대행 값으로 확인 기록을 덮지 않는다", async () => {
+    findPass.mockResolvedValue(
+      pending({ type: "OVERNIGHT", status: "CONSENTED", consentedAt: new Date() }),
+    );
+
+    await service.approvePass(
+      admin,
+      {
+        passId: "p-1",
+        byProxy: "on",
+        decisionNote: "교사 승인 메모",
+        consentNote: "덮어쓰면 안 되는 값",
+      },
+      NOW,
+    );
+
+    const update = transitionUnexpired.mock.calls[0]?.[3];
+    expect(update).toMatchObject({
+      status: "APPROVED",
+      decisionNote: "교사 승인 메모",
+    });
+    expect(update).not.toHaveProperty("consentedAt");
+    expect(update).not.toHaveProperty("consentNote");
   });
 
   it("대행 체크가 있으면 교사 이름으로 보호자 확인이 함께 찍힌다", async () => {
@@ -175,6 +231,7 @@ describe("approvePass", () => {
       {
         passId: "p-1",
         byProxy: "on",
+        decisionNote: null,
         consentNote: "어머니와 전화 확인",
       },
       NOW,
@@ -182,7 +239,7 @@ describe("approvePass", () => {
 
     expect(transitionUnexpired).toHaveBeenCalledWith(
       "p-1",
-      ["REQUESTED", "CONSENTED"],
+      ["REQUESTED"],
       NOW,
       expect.objectContaining({
         status: "APPROVED",
@@ -190,11 +247,68 @@ describe("approvePass", () => {
         consentedByUserId: "u-admin",
         consentedByName: "테스트",
         consentNote: "어머니와 전화 확인",
+        decisionNote: null,
       }),
       txClient,
     );
     expect(auditEntries()).toEqual([
-      expect.objectContaining({ metadata: expect.objectContaining({ byProxy: true }) }),
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          byProxy: true,
+          decisionNote: null,
+          consentNote: "어머니와 전화 확인",
+        }),
+      }),
+    ]);
+  });
+
+  it("대행 승인 직전 보호자가 확인하면 보호자 기록을 덮지 않고 승인만 한다", async () => {
+    findPass.mockResolvedValue(pending({ type: "OVERNIGHT" }));
+    transitionUnexpired
+      .mockResolvedValueOnce("UNCHANGED")
+      .mockResolvedValueOnce("UPDATED");
+
+    await service.approvePass(
+      admin,
+      {
+        passId: "p-1",
+        byProxy: "on",
+        decisionNote: null,
+        consentNote: "어머니와 전화 확인",
+      },
+      NOW,
+    );
+
+    expect(transitionUnexpired).toHaveBeenNthCalledWith(
+      1,
+      "p-1",
+      ["REQUESTED"],
+      NOW,
+      expect.objectContaining({
+        consentByProxy: true,
+        consentNote: "어머니와 전화 확인",
+      }),
+      txClient,
+    );
+    expect(transitionUnexpired).toHaveBeenNthCalledWith(
+      2,
+      "p-1",
+      ["CONSENTED"],
+      NOW,
+      expect.not.objectContaining({
+        consentByProxy: true,
+        consentNote: "어머니와 전화 확인",
+      }),
+      txClient,
+    );
+    expect(auditEntries()).toEqual([
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          byProxy: false,
+          decisionNote: null,
+          consentNote: null,
+        }),
+      }),
     ]);
   });
 
@@ -202,7 +316,11 @@ describe("approvePass", () => {
     findPass.mockResolvedValue(pending());
     transitionUnexpired.mockResolvedValue("UNCHANGED");
     await expect(
-      service.approvePass(admin, { passId: "p-1", consentNote: null }, NOW),
+      service.approvePass(
+        admin,
+        { passId: "p-1", decisionNote: null, consentNote: null },
+        NOW,
+      ),
     ).rejects.toThrow(new PassError("ALREADY_DECIDED"));
     expect(auditEntries()).toEqual([]);
   });
@@ -212,7 +330,11 @@ describe("approvePass", () => {
     transitionUnexpired.mockResolvedValue("EXPIRED");
 
     await expect(
-      service.approvePass(admin, { passId: "p-1", consentNote: null }, NOW),
+      service.approvePass(
+        admin,
+        { passId: "p-1", decisionNote: null, consentNote: null },
+        NOW,
+      ),
     ).rejects.toThrow(new PassError("PASS_EXPIRED"));
     expect(auditEntries()).toEqual([]);
   });
@@ -220,7 +342,11 @@ describe("approvePass", () => {
   it("학생은 승인할 수 없다", async () => {
     findPass.mockResolvedValue(pending());
     await expect(
-      service.approvePass(student, { passId: "p-1", consentNote: null }),
+      service.approvePass(student, {
+        passId: "p-1",
+        decisionNote: null,
+        consentNote: null,
+      }),
     ).rejects.toThrow(ForbiddenError);
   });
 });

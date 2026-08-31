@@ -252,6 +252,7 @@ function WatchList({
           <Link
             href="/admin/settings"
             className="text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
+            aria-label={`${where} 벌점 기준 설정`}
           >
             설정
           </Link>
@@ -421,4 +422,3 @@ function TopRules({ rows }: { rows: MeritStats["topRules"] }) {
     </SectionCard>
   );
 }
-

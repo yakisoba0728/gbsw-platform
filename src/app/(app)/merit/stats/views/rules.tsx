@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { SessionUser } from "@/core/auth/session";
 import type { MeritTrack } from "@/core/authz/merit-track";
+import { ChevronDownIcon } from "@/components/icons";
 import { KindBadge, kindColorClass, signedPoints } from "@/components/merit/kind-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
@@ -158,13 +159,25 @@ function UnusedRules({ stats, track }: { stats: RuleStats; track: MeritTrack }) 
       {rows.length === 0 ? (
         <EmptyState variant="inside">안 쓰인 규정이 없습니다.</EmptyState>
       ) : (
-        <DataTable
-          minWidth={480}
-          narrow="cards"
-          rows={rows}
-          rowKey={(row) => row.id}
-          columns={columns}
-        />
+        // 사용 기록이 있는 분류를 읽은 뒤 60개 넘는 미사용 행이 바로 이어지면
+        // 화면의 핵심이 밀린다. 필요할 때만 펼치되 개수는 카드 머리에서 늘 보인다.
+        <details className="group">
+          <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-3 text-caption font-medium text-ink outline-none hover:bg-soft focus-visible:ring-2 focus-visible:ring-ink [&::-webkit-details-marker]:hidden">
+            <ChevronDownIcon
+              size={16}
+              className="shrink-0 text-mut transition-transform group-open:rotate-180"
+            />
+            목록 펼치기
+            <span className="text-mut">{rows.length}개</span>
+          </summary>
+          <DataTable
+            minWidth={480}
+            narrow="cards"
+            rows={rows}
+            rowKey={(row) => row.id}
+            columns={columns}
+          />
+        </details>
       )}
     </SectionCard>
   );

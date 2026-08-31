@@ -54,7 +54,7 @@ export default async function ScanPage({
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-4 p-4">
+    <main className="mx-auto flex min-h-dvh max-w-4xl flex-col justify-center gap-4 p-4 sm:p-6">
       <h1 className="text-center text-lg font-semibold text-ink">학생증 확인</h1>
 
       {error && <Note tone="error">{error}</Note>}
@@ -63,7 +63,14 @@ export default async function ScanPage({
       {/* 코드를 들고 왔어도 스캐너를 함께 띄운다 — 정문은 다음 학생이 바로 온다. */}
       <Scanner origin={scanOrigin()} />
 
-      <Link href="/pass" className={buttonClass({ variant: "secondary", full: true })}>
+      <Link
+        href="/pass"
+        className={buttonClass({
+          variant: "secondary",
+          full: true,
+          className: "sm:mx-auto sm:max-w-xs",
+        })}
+      >
         출입증으로
       </Link>
     </main>

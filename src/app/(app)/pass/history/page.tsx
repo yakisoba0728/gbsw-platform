@@ -1,16 +1,13 @@
 import type { Metadata } from "next";
-import Form from "next/form";
 import Link from "next/link";
 import { Suspense } from "react";
 import { PassDetailCell } from "@/components/pass/pass-detail-cell";
 import { Badge } from "@/components/ui/badge";
 import { BackLink } from "@/components/ui/back-link";
-import { Button } from "@/components/ui/button";
 import { cardClass } from "@/components/ui/card";
 import { ChipLink } from "@/components/ui/chip-link";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterRow } from "@/components/ui/filter-row";
-import { Input } from "@/components/ui/input";
 import { Pagination } from "@/components/ui/pagination";
 import { SearchForm } from "@/components/ui/search-form";
 import { SectionCard } from "@/components/ui/section-card";
@@ -30,13 +27,15 @@ import { honorificName, isRole } from "@/core/authz/roles";
 import { hrefWith, type SearchParamsInput } from "@/lib/search-params";
 import { formatSeat } from "@/lib/student-number";
 import { listPassHistory } from "@/modules/pass/decision.service";
-import { PASS_STATUS_TONES, passPeriod } from "@/modules/pass/pass.labels";
 import {
-  PASS_HISTORY_DEFAULT_DAYS,
-  passHistoryQuerySchema,
-  type PassHistoryQuery,
-} from "@/modules/pass/pass.schema";
+  PASS_STATUS_TONES,
+  passPeriod,
+  passStatusLabel,
+} from "@/modules/pass/pass.labels";
+import type { PassHistoryQuery } from "@/modules/pass/pass.schema";
 import { ExportPassHistoryButton } from "./export-button";
+import { PeriodForm } from "./period-form";
+import { parseHistoryPageParams } from "./query";
 
 export const metadata: Metadata = { title: "전체 내역" };
 
@@ -57,9 +56,10 @@ export default async function PassHistoryPage({
   const actor = await requirePermission("pass:read:any");
 
   const raw = await searchParams;
-  // 검증은 URL 경계에서 한 번만. 잘못된 쿼리는 안전한 기본 조건으로 되돌린다.
-  const parsed = passHistoryQuerySchema.safeParse(raw);
-  const query = parsed.success ? parsed.data : passHistoryQuerySchema.parse({});
+  // 필드별로 검증한다. 기간 관계가 틀려도 이미 유효한 유형·상태·검색·쪽은
+  // 유지해야 사용자가 날짜 한 칸만 바로잡고 같은 조회를 이어갈 수 있다.
+  const { query, periodError, initialFrom, initialTo } =
+    parseHistoryPageParams(raw);
 
   // 화면이 이해한 값만 주소에 다시 싣는다. 손으로 넣은 모르는 쿼리를 전파하지 않는다.
   const params: SearchParamsInput = {
@@ -75,7 +75,9 @@ export default async function PassHistoryPage({
   // 조회를 시작만 하고 기다리지 않는다. 기다리면 이 함수 전체가 멈춰서 검색칸·기간
   // 칸까지 뼈대로 덮인다 — 사용자가 방금 고른 날짜가 사라지는 그 증상이다.
   // 세 경계가 같은 약속을 나눠 기다리므로 질의는 한 번이다.
-  const resultPromise = listPassHistory(actor, query);
+  const resultPromise: ReturnType<typeof listPassHistory> = periodError
+    ? Promise.resolve({ entries: [], total: 0, page: query.page, pageCount: 1 })
+    : listPassHistory(actor, query);
 
   // 조건이 바뀌면 경계를 새로 만든다. 이미 해결된 Suspense 경계는 자식이 다시
   // 매달려도 뼈대 대신 **옛 내용을 그대로** 보여준다 — key가 없으면 검색해도
@@ -93,7 +95,13 @@ export default async function PassHistoryPage({
             자기 자신을 볼 수 없으므로 기준이 될 상자를 한 겹 둔다. */}
         <div className="@container space-y-2.5">
           {/* 조건 칸은 조회 결과가 아니라 지금 고른 것이다 — 경계 밖에 둔다. */}
-          <HistoryControls query={query} href={href} />
+          <HistoryControls
+            query={query}
+            href={href}
+            periodError={periodError}
+            initialFrom={initialFrom}
+            initialTo={initialTo}
+          />
 
           <div className="grid gap-2.5 @2xl:grid-cols-[minmax(0,1fr)_auto] @2xl:items-center">
             <SearchForm
@@ -115,13 +123,17 @@ export default async function PassHistoryPage({
               <Suspense key={`total:${boundaryKey}`} fallback={<Skeleton className="h-4 w-10" />}>
                 <HistoryTotal promise={resultPromise} />
               </Suspense>
-              <ExportPassHistoryButton
-                type={query.type}
-                status={query.status}
-                q={query.q}
-                from={query.from}
-                to={query.to}
-              />
+              {periodError ? (
+                <span className="text-xs text-rose">기간을 바로잡으면 내보낼 수 있습니다.</span>
+              ) : (
+                <ExportPassHistoryButton
+                  type={query.type}
+                  status={query.status}
+                  q={query.q}
+                  from={query.from}
+                  to={query.to}
+                />
+              )}
             </div>
           </div>
         </div>
@@ -129,7 +141,11 @@ export default async function PassHistoryPage({
 
       <div className={cardClass("flush")}>
         <Suspense key={`rows:${boundaryKey}`} fallback={<SkeletonRows rows={10} />}>
-          <HistoryRows promise={resultPromise} query={query} />
+          <HistoryRows
+            promise={resultPromise}
+            query={query}
+            periodError={periodError}
+          />
         </Suspense>
 
         {/* 쪽 넘기기는 다 읽은 뒤에 쓴다 — 위에 두면 목록보다 먼저 눈에 든다. */}
@@ -214,13 +230,13 @@ const COLUMNS: readonly Column<HistoryRow>[] = [
   {
     key: "status",
     header: "상태",
-    // 「보호자 확인됨」이 한 줄에 서는 폭이다. 접히면 표 전체가 두꺼워진다.
+    // 「교사 승인 대기」가 한 줄에 서는 폭이다. 접히면 표 전체가 두꺼워진다.
     width: "w-[112px]",
     card: "trailing",
     cell: (row) =>
       isPassStatus(row.status) ? (
         <Badge tone={PASS_STATUS_TONES[row.status]}>
-          {PASS_STATUS_LABELS[row.status]}
+          {passStatusLabel(row)}
         </Badge>
       ) : (
         <span className="text-caption text-mut">{row.status}</span>
@@ -287,11 +303,17 @@ const COLUMNS: readonly Column<HistoryRow>[] = [
 async function HistoryRows({
   promise,
   query,
+  periodError,
 }: {
   promise: ResultPromise;
   query: PassHistoryQuery;
+  periodError: string | null;
 }) {
   const { entries } = await promise;
+
+  if (periodError) {
+    return <EmptyState variant="inside">기간을 바로잡아 다시 조회해 주세요.</EmptyState>;
+  }
 
   if (entries.length === 0) {
     return (
@@ -322,9 +344,15 @@ async function HistoryRows({
 function HistoryControls({
   query,
   href,
+  periodError,
+  initialFrom,
+  initialTo,
 }: {
   query: PassHistoryQuery;
   href: (patch: Record<string, string | null>) => string;
+  periodError: string | null;
+  initialFrom?: string;
+  initialTo?: string;
 }) {
   return (
     <div className="space-y-2.5">
@@ -365,64 +393,14 @@ function HistoryControls({
       </FilterRow>
 
       <FilterRow label="기간">
-        <PeriodForm query={query} />
+        <PeriodForm
+          key={`${initialFrom ?? query.from ?? ""}:${initialTo ?? query.to ?? ""}:${periodError ?? ""}`}
+          query={query}
+          serverError={periodError}
+          initialFrom={initialFrom}
+          initialTo={initialTo}
+        />
       </FilterRow>
     </div>
-  );
-}
-
-/**
- * 기간 고르기. 칩으로는 「지난 학기 3월분」 같은 조회를 못 하므로 날짜 칸 둘이다.
- *
- * GET 폼이라 결과가 주소에 남아 새로고침·뒤로가기·링크 공유가 그대로 동작한다.
- * 지금 고른 유형·상태·검색어를 hidden으로 함께 실어 보낸다 — 안 그러면 기간을
- * 바꾸는 순간 나머지 조건이 통째로 풀린다.
- *
- * **비워 두면 최근 30일이다**(`passHistoryRange`). 그래서 두 칸이 비어 있는
- * 것이 오류가 아니라 기본 상태다 — required를 걸지 않는다.
- */
-function PeriodForm({ query }: { query: PassHistoryQuery }) {
-  return (
-    <Form action={PATH} className="flex flex-wrap items-center gap-1.5">
-      {query.type && <input type="hidden" name="type" value={query.type} />}
-      {query.status && <input type="hidden" name="status" value={query.status} />}
-      {query.q && <input type="hidden" name="q" value={query.q} />}
-
-      {/* 폭은 바깥에서 준다 — Input은 w-full이고 cn()은 그것을 덮지 못한다. */}
-      <span className="w-40 shrink-0">
-        <Input
-          type="date"
-          name="from"
-          size="sm"
-          defaultValue={query.from ?? ""}
-          aria-label="시작일"
-        />
-      </span>
-      <span className="text-mut2" aria-hidden>
-        ~
-      </span>
-      <span className="w-40 shrink-0">
-        <Input
-          type="date"
-          name="to"
-          size="sm"
-          defaultValue={query.to ?? ""}
-          aria-label="종료일"
-        />
-      </span>
-
-      <Button type="submit" variant="secondary" size="sm">
-        적용
-      </Button>
-
-      {/* 비워 두면 최근 30일인데, 칸이 비어 있으면 화면은 「전체」처럼 보인다.
-          지금 무엇을 보고 있는지를 글자로 적는다 — 안 적으면 없는 기록을
-          「없다」로 읽는다. */}
-      {!query.from && !query.to && (
-        <span className="text-xs text-mut">
-          최근 {PASS_HISTORY_DEFAULT_DAYS}일
-        </span>
-      )}
-    </Form>
   );
 }

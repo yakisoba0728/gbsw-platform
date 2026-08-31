@@ -143,7 +143,8 @@ export function StudentTable({
               description={`고친 ${dirtyIds.length}명의 학년·반·번호와 학적을 저장합니다.`}
               confirmLabel="저장"
               pendingLabel="저장 중…"
-              pending={pending || dirtyIds.length === 0}
+              pending={pending}
+              disabled={dirtyIds.length === 0}
               size="sm"
               full={false}
             />
@@ -198,75 +199,80 @@ export function StudentTable({
         {filtered.length === 0 ? (
           <EmptyState variant="inside">조건에 맞는 학생이 없습니다.</EmptyState>
         ) : (
-          <TableFrame minWidth={820} headers={HEADERS}>
-            <tbody>
-              {filtered.map((row) => {
-                const d = draftFor(row, drafts);
-                const dirty = !sameAsRow(row, d);
-                const enrolled = d.status === "ENROLLED";
+          <>
+            <p className="border-b border-line2 px-5 py-2 text-xs text-mut lg:hidden">
+              표를 좌우로 밀어 학년·반·번호와 학적을 수정할 수 있습니다.
+            </p>
+            <TableFrame minWidth={820} headers={HEADERS}>
+              <tbody>
+                {filtered.map((row) => {
+                  const d = draftFor(row, drafts);
+                  const dirty = !sameAsRow(row, d);
+                  const enrolled = d.status === "ENROLLED";
 
-                return (
-                  <tr
-                    key={row.studentProfileId}
-                    className={
-                      dirty
-                        ? "border-b border-line2 bg-amber-soft last:border-0"
-                        : "border-b border-line2 last:border-0"
-                    }
-                  >
-                    <td className={cell(0)}>
-                      <span className="font-medium text-ink">
-                        {honorificName(row.name, "STUDENT")}
-                      </span>
-                      <span className="block text-xs text-mut">{row.email}</span>
-                    </td>
-                    {(["grade", "classNo", "number"] as const).map((f, i) => (
-                      <td key={f} className={cell(i + 1)}>
-                        {/* 폭은 바깥에서 준다 — cn()이 w-full을 못 덮는다. */}
-                        <div className="w-20">
-                          <Input
+                  return (
+                    <tr
+                      key={row.studentProfileId}
+                      className={
+                        dirty
+                          ? "border-b border-line2 bg-amber-soft last:border-0"
+                          : "border-b border-line2 last:border-0"
+                      }
+                    >
+                      <td className={cell(0)}>
+                        <span className="font-medium text-ink">
+                          {honorificName(row.name, "STUDENT")}
+                        </span>
+                        <span className="block text-xs text-mut">{row.email}</span>
+                      </td>
+                      {(["grade", "classNo", "number"] as const).map((f, i) => (
+                        <td key={f} className={cell(i + 1)}>
+                          {/* 폭은 바깥에서 준다 — cn()이 w-full을 못 덮는다. */}
+                          <div className="w-20">
+                            <Input
+                              size="sm"
+                              type="number"
+                              aria-label={`${honorificName(row.name, "STUDENT")} ${
+                                { grade: "학년", classNo: "반", number: "번호" }[f]
+                              }`}
+                              value={d[f]}
+                              disabled={!enrolled}
+                              onChange={(e) =>
+                                set(row.studentProfileId, { [f]: e.currentTarget.value })
+                              }
+                            />
+                          </div>
+                        </td>
+                      ))}
+                      <td className={cell(4)}>
+                        <div className="w-28">
+                          <Select
                             size="sm"
-                            type="number"
-                            aria-label={`${honorificName(row.name, "STUDENT")} ${
-                              { grade: "학년", classNo: "반", number: "번호" }[f]
-                            }`}
-                            value={d[f]}
-                            disabled={!enrolled}
+                            aria-label={`${honorificName(row.name, "STUDENT")} 학적`}
+                            value={d.status}
                             onChange={(e) =>
-                              set(row.studentProfileId, { [f]: e.currentTarget.value })
+                              set(row.studentProfileId, {
+                                status: e.currentTarget.value as Draft["status"],
+                              })
                             }
-                          />
+                          >
+                            {ENROLLMENT_STATUSES.map((s) => (
+                              <option key={s} value={s}>
+                                {ENROLLMENT_STATUS_LABELS[s]}
+                              </option>
+                            ))}
+                          </Select>
                         </div>
                       </td>
-                    ))}
-                    <td className={cell(4)}>
-                      <div className="w-28">
-                        <Select
-                          size="sm"
-                          aria-label={`${honorificName(row.name, "STUDENT")} 학적`}
-                          value={d.status}
-                          onChange={(e) =>
-                            set(row.studentProfileId, {
-                              status: e.currentTarget.value as Draft["status"],
-                            })
-                          }
-                        >
-                          {ENROLLMENT_STATUSES.map((s) => (
-                            <option key={s} value={s}>
-                              {ENROLLMENT_STATUS_LABELS[s]}
-                            </option>
-                          ))}
-                        </Select>
-                      </div>
-                    </td>
-                    <td className={`${cell(5)} text-xs text-mut`}>
-                      {row.accountActive ? "활성" : "비활성"}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </TableFrame>
+                      <td className={`${cell(5)} text-xs text-mut`}>
+                        {row.accountActive ? "활성" : "비활성"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </TableFrame>
+          </>
         )}
       </SectionCard>
     </form>

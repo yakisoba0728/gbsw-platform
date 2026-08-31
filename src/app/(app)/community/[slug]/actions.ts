@@ -15,6 +15,10 @@ import {
 } from "@/modules/community/community.schema";
 import * as service from "@/modules/community/post.service";
 import type { PostFormState, PostFormValues } from "./action-state";
+import {
+  parsePostDraftNonce,
+  postDraftCompletionHash,
+} from "./post-draft";
 
 const MESSAGES: Record<string, string> = {
   COMMUNITY_NOT_FOUND: "게시판을 찾을 수 없습니다.",
@@ -54,6 +58,7 @@ export async function createPostAction(
 ): Promise<PostFormState> {
   const actor = await requireAuth();
   const submitted = values(formData);
+  const draftNonce = parsePostDraftNonce(formData.get("draftNonce"));
 
   const parsed = createPostSchema.safeParse({
     slug: formData.get("slug"),
@@ -75,7 +80,10 @@ export async function createPostAction(
   revalidatePath(`/community/${created.slug}`);
   // redirect는 예외를 던진다 — try 밖에서 부른다. 안에서 부르면 catch가 그것을
   // 오류로 삼켜 「처리하지 못했습니다」가 뜬다.
-  redirect(`/community/${created.slug}/${created.postId}`);
+  // 클라이언트가 이번 제출과 같은 sessionStorage 초안만 지울 수 있게 난수를
+  // fragment로 돌려준다. JS 없는 제출에는 난수가 없으므로 fragment도 붙이지 않는다.
+  const completion = draftNonce ? postDraftCompletionHash(draftNonce) : "";
+  redirect(`/community/${created.slug}/${created.postId}${completion}`);
 }
 
 export async function updatePostAction(

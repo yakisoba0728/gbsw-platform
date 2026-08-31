@@ -124,7 +124,11 @@ export function Topbar({ name, role }: { name: string; role: Role | null }) {
             최소 폭을 0으로 만들어 준 덕이라, 그냥 빼면 긴 제목이 오른쪽 것들을
             화면 밖으로 밀어낸다. */}
         <h1 className="min-w-0 text-base font-semibold tracking-tight text-ink lg:text-lg">
-          <TruncatedText full={title}>{title}</TruncatedText>
+          {/* route announcer가 h1의 textContent를 읽는다. 보이는 문자열과 sr-only
+              전문을 둘 다 넣으면 "출입증출입증"처럼 두 번 발표하므로 한 벌만 둔다. */}
+          <TruncatedText full={title} screenReaderText="children">
+            {title}
+          </TruncatedText>
         </h1>
       </div>
 

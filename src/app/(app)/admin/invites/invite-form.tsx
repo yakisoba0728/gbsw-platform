@@ -109,7 +109,8 @@ function ParentForm({ students }: { students: PickerStudent[] }) {
         description="코드는 이 화면에서 한 번만 보입니다."
         confirmLabel="발급"
         pendingLabel="발급 중…"
-        pending={pending || students.length === 0}
+        pending={pending}
+        disabled={students.length === 0}
         size="md"
       />
 

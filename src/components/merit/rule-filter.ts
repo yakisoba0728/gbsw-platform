@@ -51,19 +51,19 @@ export function filterRules<T extends RuleOption>(rules: T[], query: string): T[
   return rules.filter((rule) => matchesQuery(rule, tokens));
 }
 
-export type RuleGroup = {
+export type RuleGroup<T extends RuleOption = RuleOption> = {
   key: string;
   label: string;
   /** 목록 전체에서의 자리. 방향키가 이 번호로 움직인다. */
-  items: { rule: RuleOption; index: number }[];
+  items: { rule: T; index: number }[];
 };
 
 /**
  * 종류·분류가 같은 연속된 규정을 한 묶음으로 접는다. 다시 정렬하지 않는다 —
  * 서비스가 세운 순서(학교 규정표의 순서)와 어긋난다.
  */
-export function groupRules(rules: RuleOption[]): RuleGroup[] {
-  const groups: RuleGroup[] = [];
+export function groupRules<T extends RuleOption>(rules: T[]): RuleGroup<T>[] {
+  const groups: RuleGroup<T>[] = [];
 
   rules.forEach((rule, index) => {
     const key = `${rule.kind}::${rule.category ?? ""}`;

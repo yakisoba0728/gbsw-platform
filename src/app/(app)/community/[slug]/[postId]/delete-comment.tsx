@@ -9,9 +9,11 @@ import { deleteCommentAction } from "../actions";
 export function DeleteComment({
   commentId,
   byModerator,
+  accessibleName,
 }: {
   commentId: string;
   byModerator: boolean;
+  accessibleName: string;
 }) {
   const [state, formAction, pending] = useActionState(
     deleteCommentAction,
@@ -21,7 +23,12 @@ export function DeleteComment({
   return (
     <ConfirmDialog
       trigger={(open) => (
-        <Button variant="ghost" size="sm" onClick={open}>
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label={accessibleName}
+          onClick={open}
+        >
           삭제
         </Button>
       )}

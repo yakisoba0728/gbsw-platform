@@ -20,6 +20,8 @@ export function ConfirmSubmit({
   confirmLabel,
   pendingLabel,
   pending,
+  disabled = false,
+  ariaLabel,
   variant = "primary",
   size = "lg",
   full = true,
@@ -31,7 +33,12 @@ export function ConfirmSubmit({
   description: ReactNode;
   confirmLabel: string;
   pendingLabel: string;
+  /** 실제 서버 작업이 진행 중일 때만 true. 이때만 pendingLabel을 보여 준다. */
   pending: boolean;
+  /** 입력 전제조건이 충족되지 않아 아직 누를 수 없는 상태. 로딩 상태와 구분한다. */
+  disabled?: boolean;
+  /** 같은 동사가 한 화면에 반복될 때 대상을 포함한 접근 가능한 이름. */
+  ariaLabel?: string;
   variant?: ButtonVariant;
   size?: "sm" | "md" | "lg";
   full?: boolean;
@@ -71,7 +78,9 @@ export function ConfirmSubmit({
         variant={variant}
         size={size}
         full={full}
-        disabled={pending}
+        disabled={pending || disabled}
+        aria-label={ariaLabel}
+        aria-busy={pending || undefined}
         onClick={() => {
           // 빈 칸이 있으면 모달을 열기 전에 브라우저가 먼저 짚어 준다.
           const form = triggerRef.current?.form;

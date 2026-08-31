@@ -9,6 +9,19 @@ import { MAX_THRESHOLD } from "@/modules/merit/merit.schema";
 import { EMPTY_THRESHOLD_FORM_STATE } from "./action-state";
 import { saveThresholdAction } from "./actions";
 
+function validateThresholdOrder(form: HTMLFormElement | null): void {
+  if (!form) return;
+  const warn = form.elements.namedItem("warn");
+  const danger = form.elements.namedItem("danger");
+  if (!(warn instanceof HTMLInputElement) || !(danger instanceof HTMLInputElement)) return;
+
+  const invalidOrder =
+    Number.isFinite(warn.valueAsNumber) &&
+    Number.isFinite(danger.valueAsNumber) &&
+    danger.valueAsNumber <= warn.valueAsNumber;
+  danger.setCustomValidity(invalidOrder ? "위험 기준은 경고 기준보다 커야 합니다." : "");
+}
+
 /**
  * 트랙 하나의 기준 폼. 트랙마다 폼이 따로다 — 한 폼으로 묶으면 감사로그가
  * 트랙별로 안 남고 한쪽만 고치려다 다른 쪽까지 덮어쓴다.
@@ -41,10 +54,15 @@ export function ThresholdForm({
   // 곧 defaultValue다. 저장이 거부됐으면 방금 제출한 값을 내리고, 성공했으면
   // 서버가 다시 내려준 값을 쓴다. 계정 상세의 정보 수정 폼과 같은 방식이다.
   const kept = state.values;
+  const trackLabel = MERIT_TRACK_LABELS[track];
 
   return (
     <div className="border-b border-line2 px-5 py-4 last:border-0">
-      <form action={formAction} className="flex flex-wrap items-end gap-2.5">
+      <form
+        action={formAction}
+        aria-label={`${trackLabel} 벌점 기준 설정`}
+        className="flex flex-wrap items-end gap-2.5"
+      >
         <input type="hidden" name="track" value={track} />
         <input type="hidden" name="updatedAt" value={updatedAt ?? ""} />
 
@@ -53,7 +71,7 @@ export function ThresholdForm({
           {/* 읽기 전용이지만 옆 입력칸과 한 줄에 서므로 같은 높이를 갖는다 —
               `py-3`으로 두었더니 44px이 되어 42px짜리 칸들보다 라벨이 2px 올라갔다. */}
           <p className="flex h-9 items-center text-sm font-medium text-ink">
-            {MERIT_TRACK_LABELS[track]}
+            {trackLabel}
           </p>
         </div>
 
@@ -62,10 +80,15 @@ export function ThresholdForm({
           <Input
             id={`${fieldId}-warn`}
             name="warn"
-            inputMode="numeric"
+            type="number"
+            min={1}
+            max={MAX_THRESHOLD}
+            step={1}
             defaultValue={kept?.warn ?? String(warn)}
             required
+            aria-label={`${trackLabel} 경고 기준`}
             aria-describedby={`${fieldId}-help`}
+            onInput={(event) => validateThresholdOrder(event.currentTarget.form)}
           />
         </div>
 
@@ -74,10 +97,15 @@ export function ThresholdForm({
           <Input
             id={`${fieldId}-danger`}
             name="danger"
-            inputMode="numeric"
+            type="number"
+            min={1}
+            max={MAX_THRESHOLD}
+            step={1}
             defaultValue={kept?.danger ?? String(danger)}
             required
+            aria-label={`${trackLabel} 위험 기준`}
             aria-describedby={`${fieldId}-help`}
+            onInput={(event) => validateThresholdOrder(event.currentTarget.form)}
           />
         </div>
 
@@ -88,7 +116,8 @@ export function ThresholdForm({
         */}
         <ConfirmSubmit
           label="저장"
-          title="벌점 기준 저장"
+          ariaLabel={`${trackLabel} 벌점 기준 저장`}
+          title={`${trackLabel} 벌점 기준 저장`}
           description="이 트랙의 경고·위험 기준이 바뀝니다."
           confirmLabel="저장"
           pendingLabel="저장 중…"
@@ -115,7 +144,7 @@ export function ThresholdForm({
       )}
       {state.ok && (
         <Note tone="success" className="mt-2.5">
-          {MERIT_TRACK_LABELS[track]} 기준을 저장했습니다.
+          {trackLabel} 기준을 저장했습니다.
         </Note>
       )}
     </div>

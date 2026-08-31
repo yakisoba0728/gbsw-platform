@@ -260,6 +260,10 @@ describe("titleForPath — 하위 메뉴까지 훑는다", () => {
     expect(titleForPath("/admin/logs")).toBe("감사로그");
   });
 
+  it("명단 반영처럼 메뉴 바깥의 관리자 화면도 정확한 제목을 쓴다", () => {
+    expect(titleForPath("/admin/students/import")).toBe("명단 반영");
+  });
+
 
   it("설정 화면도 제목이 나온다", () => {
     expect(titleForPath("/admin/settings")).toBe("설정");

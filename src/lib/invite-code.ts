@@ -19,6 +19,15 @@ export function formatInviteCode(code: string): string {
   return `${PREFIX}-${body.slice(0, 4)}-${body.slice(4)}`;
 }
 
+/**
+ * 더는 가입에 쓸 수 없는 코드를 목록에 식별 가능한 만큼만 남긴다.
+ * `GBSW-A3K9-2M7P` → `GBSW-••••-2M7P`.
+ */
+export function maskInviteCode(code: string): string {
+  const formatted = formatInviteCode(normalizeInviteCode(code));
+  return `${PREFIX}-••••-${formatted.slice(-4)}`;
+}
+
 /** 입력한 코드를 저장 형태로 되돌린다. 대소문자·하이픈·GBSW 누락을 흘려보낸다. */
 export function normalizeInviteCode(input: string): string {
   const bare = input.trim().toUpperCase().replaceAll(/[^A-Z0-9]/g, "");

@@ -175,6 +175,8 @@ export function visibleChildren(item: NavItem, role: Role | null): NavChild[] {
  * (넣으면 사이드바에 눌러도 404가 나는 줄이 생긴다).
  */
 const EXTRA_TITLES: { href: string; label: string }[] = [
+  // 계정 관리 안에서 들어오지만 주소는 /admin/users 아래가 아니라서 별도로 잡는다.
+  { href: "/admin/students/import", label: "명단 반영" },
   { href: "/students", label: "학생" },
   // 판독 화면은 앱 셸 밖이라 상단바를 안 그리지만, 제목 찾기는 여기 한 곳이
   // 소유한다 — 메뉴에서 뺐다고 이름까지 없어지면 안 된다.

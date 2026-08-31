@@ -1,21 +1,24 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { CheckboxField } from "@/components/ui/checkbox";
 import { ConfirmSubmit } from "@/components/ui/confirm-submit";
 import { Input, Label } from "@/components/ui/input";
+import {
+  NativeFieldError,
+  NativeFormErrorSummary,
+  useNativeFormErrors,
+} from "@/components/ui/native-form-errors";
 import { Note } from "@/components/ui/note";
 import { SectionCard } from "@/components/ui/section-card";
-import { ROLE_LABELS, ROLES, type Role } from "@/core/authz/roles";
+import { ROLE_LABELS, type Role } from "@/core/authz/roles";
 import { EMPTY_COMMUNITY_FORM_STATE } from "./action-state";
 import { createCommunityAction, updateCommunityAction } from "./actions";
-
-/**
- * 역할 체크박스에 세울 역할. **ADMIN은 없다** — 교사는 늘 통과하므로 배열에
- * 자리가 없고, 체크칸을 두면 "ADMIN을 뺐으니 교사는 못 본다"는 오해가 생긴다.
- * `community.schema.ts`가 같은 이유로 ADMIN을 거부한다.
- */
-const ASSIGNABLE: readonly Role[] = ROLES.filter((role) => role !== "ADMIN");
+import {
+  COMMUNITY_ASSIGNABLE_ROLES,
+  communityRolePermissions,
+  toggleCommunityRolePermission,
+} from "./role-permissions";
 
 export type CommunityFormBoard = {
   id: string;
@@ -50,10 +53,39 @@ export function CommunityForm({ board }: { board?: CommunityFormBoard }) {
   const v = state.values;
   const readRoles = v?.readRoles ?? board?.readRoles ?? [];
   const writeRoles = v?.writeRoles ?? board?.writeRoles ?? [];
-  const anonymous = v ? v.anonymous : (board?.anonymous ?? false);
   /** 이미 켜진 게시판인가. 켜진 뒤에는 끌 수 없다. */
   const lockedAnonymous = board?.anonymous ?? false;
+  const initialAnonymous = lockedAnonymous || (v ? v.anonymous : false);
   const allowAttachments = v ? v.allowAttachments : (board?.allowAttachments ?? true);
+  const [permissions, setPermissions] = useState(() =>
+    communityRolePermissions(readRoles, writeRoles),
+  );
+  const [anonymous, setAnonymous] = useState(initialAnonymous);
+  const [handledState, setHandledState] = useState(state);
+  const [handledBoardRevision, setHandledBoardRevision] = useState(board?.updatedAt);
+  const {
+    formRef,
+    issues,
+    issueFor,
+    focusIssue,
+    onInvalidCapture,
+    onInputCapture,
+    onResetCapture,
+  } = useNativeFormErrors();
+
+  const nameIssue = issueFor("name");
+  const slugIssue = issueFor("slug");
+  const descriptionIssue = issueFor("description");
+  const sortIssue = issueFor("sortOrder");
+
+  // 액션이 끝나면 실패 시 제출값, 성공 시 서버가 다시 내린 값으로 제어 필드를
+  // 맞춘다. 사용자가 체크하는 동안에는 state가 그대로라 이 분기가 돌지 않는다.
+  if (state !== handledState || board?.updatedAt !== handledBoardRevision) {
+    setHandledState(state);
+    setHandledBoardRevision(board?.updatedAt);
+    setPermissions(communityRolePermissions(readRoles, writeRoles));
+    setAnonymous(initialAnonymous);
+  }
 
   return (
     <SectionCard
@@ -61,13 +93,25 @@ export function CommunityForm({ board }: { board?: CommunityFormBoard }) {
       title={editing ? "게시판 설정" : "게시판 추가"}
       className="@container"
     >
-      <form action={formAction} className="space-y-4">
+      <form
+        ref={formRef}
+        action={formAction}
+        className="space-y-4"
+        onInvalidCapture={onInvalidCapture}
+        onInputCapture={onInputCapture}
+        onResetCapture={onResetCapture}
+      >
         {editing && (
           <>
             <input type="hidden" name="communityId" value={board.id} />
             <input type="hidden" name="updatedAt" value={board.updatedAt} />
           </>
         )}
+
+        <NativeFormErrorSummary
+          issues={issues}
+          onSelect={focusIssue}
+        />
 
         <div className="grid gap-2.5 @xl:grid-cols-2">
           <div>
@@ -79,7 +123,10 @@ export function CommunityForm({ board }: { board?: CommunityFormBoard }) {
               maxLength={50}
               defaultValue={v?.name ?? board?.name ?? ""}
               placeholder="예: 공지사항"
+              aria-invalid={nameIssue ? true : undefined}
+              aria-describedby={nameIssue ? "cf-name-error" : undefined}
             />
+            <NativeFieldError id="cf-name-error" issue={nameIssue} />
           </div>
 
           <div>
@@ -89,16 +136,25 @@ export function CommunityForm({ board }: { board?: CommunityFormBoard }) {
               name="slug"
               required={!editing}
               readOnly={editing}
+              minLength={2}
               maxLength={32}
+              pattern="[a-z0-9]+(-[a-z0-9]+)*"
+              title="소문자 영문·숫자·하이픈으로 2~32자 입력해 주세요."
+              autoCapitalize="none"
+              spellCheck={false}
               defaultValue={v?.slug ?? board?.slug ?? ""}
               placeholder="notice"
-              aria-describedby="cf-slug-hint"
+              aria-invalid={slugIssue ? true : undefined}
+              aria-describedby={
+                slugIssue ? "cf-slug-hint cf-slug-error" : "cf-slug-hint"
+              }
             />
             <p id="cf-slug-hint" className="mt-1 text-caption text-mut">
               {editing
                 ? "주소는 만든 뒤에 바꿀 수 없습니다. 바꾸면 그동안 붙은 링크가 모두 끊깁니다."
-                : "소문자 영문·숫자·하이픈만 씁니다. /community/주소 로 열립니다."}
+                : "소문자 영문·숫자·하이픈으로 2~32자 입력합니다. /community/주소 로 열립니다."}
             </p>
+            <NativeFieldError id="cf-slug-error" issue={slugIssue} />
           </div>
         </div>
 
@@ -110,7 +166,10 @@ export function CommunityForm({ board }: { board?: CommunityFormBoard }) {
             maxLength={200}
             defaultValue={v?.description ?? board?.description ?? ""}
             placeholder="게시판 목록에 한 줄로 나옵니다"
+            aria-invalid={descriptionIssue ? true : undefined}
+            aria-describedby={descriptionIssue ? "cf-description-error" : undefined}
           />
+          <NativeFieldError id="cf-description-error" issue={descriptionIssue} />
         </div>
 
         <fieldset className="rounded-card border border-line p-4">
@@ -120,14 +179,24 @@ export function CommunityForm({ board }: { board?: CommunityFormBoard }) {
             <RoleGroup
               title="읽기"
               name="readRoles"
-              selected={readRoles}
+              selected={permissions.readRoles}
               idPrefix="cf-read"
+              onChange={(role, checked) =>
+                setPermissions((current) =>
+                  toggleCommunityRolePermission(current, "read", role, checked),
+                )
+              }
             />
             <RoleGroup
               title="글쓰기"
               name="writeRoles"
-              selected={writeRoles}
+              selected={permissions.writeRoles}
               idPrefix="cf-write"
+              onChange={(role, checked) =>
+                setPermissions((current) =>
+                  toggleCommunityRolePermission(current, "write", role, checked),
+                )
+              }
             />
           </div>
 
@@ -139,17 +208,22 @@ export function CommunityForm({ board }: { board?: CommunityFormBoard }) {
 
         <div className="grid gap-2.5 @xl:grid-cols-2">
           <div className="space-y-2">
+            {lockedAnonymous && <input type="hidden" name="anonymous" value="on" />}
             <CheckboxField
-              label="익명 게시판"
-              name="anonymous"
-              defaultChecked={anonymous}
-              // **켜진 뒤에는 끌 수 없다.** 끄면 이미 쌓인 글의 작성자가 전부
-              // 드러나기 때문이다 — 서비스도 같은 이유로 거부한다. 체크는 계속
-              // 보내야 하므로 disabled가 아니라 readOnly처럼 막는다.
-              onClick={lockedAnonymous ? (e) => e.preventDefault() : undefined}
-              aria-readonly={lockedAnonymous || undefined}
+              id="cf-anonymous"
+              label={lockedAnonymous ? "익명 게시판 (잠김)" : "익명 게시판"}
+              name={lockedAnonymous ? undefined : "anonymous"}
+              checked={anonymous}
+              disabled={lockedAnonymous}
+              aria-describedby="cf-anonymous-hint"
+              onChange={
+                lockedAnonymous
+                  ? undefined
+                  : (event) => setAnonymous(event.currentTarget.checked)
+              }
+              className={lockedAnonymous ? "opacity-60" : undefined}
             />
-            <p className="text-caption text-mut">
+            <p id="cf-anonymous-hint" className="text-caption text-mut">
               {lockedAnonymous
                 ? "이미 익명 게시판입니다. 끄면 그동안 쌓인 글의 작성자가 모두 드러나므로 되돌릴 수 없습니다."
                 : "켜면 이 게시판의 글과 댓글에서 작성자가 아무에게도 보이지 않습니다. 교사도 마찬가지이고, 한 번 켜면 되돌릴 수 없습니다."}
@@ -167,11 +241,17 @@ export function CommunityForm({ board }: { board?: CommunityFormBoard }) {
               <Input
                 id="cf-sort"
                 name="sortOrder"
-                inputMode="numeric"
+                type="number"
+                min={-999}
+                max={999}
+                step={1}
                 size="sm"
                 defaultValue={v?.sortOrder ?? String(board?.sortOrder ?? 0)}
                 placeholder="0"
+                aria-invalid={sortIssue ? true : undefined}
+                aria-describedby={sortIssue ? "cf-sort-error" : undefined}
               />
+              <NativeFieldError id="cf-sort-error" issue={sortIssue} />
             </div>
           </div>
         </div>
@@ -206,27 +286,31 @@ function RoleGroup({
   name,
   selected,
   idPrefix,
+  onChange,
 }: {
   title: string;
   name: string;
-  selected: string[];
+  selected: readonly Role[];
   idPrefix: string;
+  onChange: (role: Role, checked: boolean) => void;
 }) {
   return (
-    <div>
-      <p className="text-caption font-medium text-ink">{title}</p>
+    <fieldset>
+      <legend className="text-caption font-medium text-ink">{title} 권한</legend>
       <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
-        {ASSIGNABLE.map((role) => (
+        {COMMUNITY_ASSIGNABLE_ROLES.map((role) => (
           <CheckboxField
             key={role}
             id={`${idPrefix}-${role}`}
             label={ROLE_LABELS[role]}
+            aria-label={`${title} 권한: ${ROLE_LABELS[role]}`}
             name={name}
             value={role}
-            defaultChecked={selected.includes(role)}
+            checked={selected.includes(role)}
+            onChange={(event) => onChange(role, event.currentTarget.checked)}
           />
         ))}
       </div>
-    </div>
+    </fieldset>
   );
 }

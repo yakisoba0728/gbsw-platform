@@ -13,7 +13,13 @@ import { revokeInviteAction } from "./actions";
  * 사유는 감사로그에만 남는다. 폐기하면 목록에서 대기 상태가 사라지는데, 「왜
  * 없앴나」를 되짚을 자료가 거기밖에 없다 — 로그 화면이 「사유: …」로 그려 준다.
  */
-export function RevokeButton({ inviteId }: { inviteId: string }) {
+export function RevokeButton({
+  inviteId,
+  ariaLabel,
+}: {
+  inviteId: string;
+  ariaLabel?: string;
+}) {
   const [state, formAction, pending] = useActionState(
     revokeInviteAction,
     REVOKE_INITIAL,
@@ -22,7 +28,13 @@ export function RevokeButton({ inviteId }: { inviteId: string }) {
   return (
     <ConfirmDialog
       trigger={(open) => (
-        <Button type="button" variant="danger" size="sm" onClick={open}>
+        <Button
+          type="button"
+          variant="danger"
+          size="sm"
+          aria-label={ariaLabel}
+          onClick={open}
+        >
           폐기
         </Button>
       )}
