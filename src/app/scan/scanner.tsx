@@ -175,16 +175,6 @@ export function Scanner({ origin }: { origin: string }) {
 
   return (
     <div className="space-y-4">
-      {supported === null && (
-        <div
-          role="status"
-          aria-busy="true"
-          className="flex aspect-square items-center justify-center rounded-card border border-line bg-ink px-6 text-center"
-        >
-          <p className="text-caption font-medium text-white/75">카메라 준비 중…</p>
-        </div>
-      )}
-
       {/* 카메라를 못 열면 상자를 걷는다 — 남겨 두면 오류 배너 위에 검은 사각형이
           그대로 서서, 잠깐 로딩 중인 것처럼 읽힌다. */}
       {supported === "ok" && !cameraError && (
@@ -193,7 +183,6 @@ export function Scanner({ origin }: { origin: string }) {
           <video
             ref={videoRef}
             className="aspect-square w-full object-cover"
-            aria-label="학생증 QR 카메라 화면"
             muted
             playsInline
           />
@@ -201,12 +190,12 @@ export function Scanner({ origin }: { origin: string }) {
       )}
 
       {supported === "insecure" && (
-        <Note tone="warn" role="status">
+        <Note tone="warn">
           http로 열려 있어 카메라를 쓸 수 없습니다. 폰 기본 카메라로 QR을 찍으세요.
         </Note>
       )}
       {supported === "unsupported" && (
-        <Note tone="warn" role="status">
+        <Note tone="warn">
           이 브라우저는 카메라 스캔을 지원하지 않습니다. 폰 기본 카메라로 QR을 찍으세요.
         </Note>
       )}
@@ -216,13 +205,9 @@ export function Scanner({ origin }: { origin: string }) {
         <input ref={codeRef} type="hidden" name="code" />
       </form>
 
-      {pending && (
-        <p role="status" className="text-center text-caption text-mut">
-          확인하는 중…
-        </p>
-      )}
+      {pending && <p className="text-center text-caption text-mut">확인하는 중…</p>}
       {state.error && <Note tone="error">{state.error}</Note>}
-      {state.result && <VerdictCard result={state.result} headingLevel={3} />}
+      {state.result && <VerdictCard result={state.result} />}
     </div>
   );
 }

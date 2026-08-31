@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { TrackTabs } from "@/components/merit/track-tabs";
-import { PageScaffold } from "@/components/ui/page-scaffold";
 import { requirePermission } from "@/core/auth/session";
 import { isMeritTrack, type MeritTrack } from "@/core/authz/merit-track";
 import { hrefWith, type SearchParamsInput } from "@/lib/search-params";
@@ -11,13 +9,8 @@ import {
   MIN_CLASS_NO,
   MIN_GRADE,
 } from "@/modules/enrollment/enrollment.schema";
-import { HintSkeleton, StatsNavigation } from "./stats-shell";
-import {
-  parseStatsView,
-  STATS_VIEW_LABELS,
-  STATS_VIEW_SCOPED,
-  type StatsView,
-} from "./stats-view";
+import { HintSkeleton, StatsShell } from "./stats-shell";
+import { parseStatsView, STATS_VIEW_SCOPED, type StatsView } from "./stats-view";
 import { loadOverview, OverviewBody, OverviewHint, OverviewSkeleton } from "./views/overview";
 import { loadRanking, RankingBody, RankingHint, RankingSkeleton } from "./views/ranking";
 import { loadRules, RulesBody, RulesHint, RulesSkeleton } from "./views/rules";
@@ -35,11 +28,11 @@ type RawParams = Record<string, string | string[] | undefined>;
 /**
  * 탭 제목은 갈래를 따라가지 않는다 — **따라가게 만들 수 없다.**
  *
- * `generateMetadata`에 searchParams를 물려 갈래별 제목을 내 봤더니, 갈래 세그먼트로
+ * `generateMetadata`에 searchParams를 물려 갈래별 제목을 내 봤더니, 갈래 칩으로
  * 옮길 때 제목이 처음 값에 붙박인 채 바뀌지 않았다(주소와 화면은 바뀌는데
  * `document.title`만 남는다). 같은 경로에서 쿼리만 바뀌는 이동이라 라우터가
  * 캐시된 것을 그대로 쓴다. 틀린 제목이 붙어 있는 것보다 한 이름으로 두는 편이
- * 낫다 — 지금 보는 갈래는 화면 안의 선택된 세그먼트가 답한다.
+ * 낫다 — 지금 보는 갈래는 화면 안의 켜진 칩이 답한다.
  */
 export const metadata: Metadata = { title: "상벌점 통계" };
 
@@ -173,35 +166,12 @@ type ShellProps = {
   hint: React.ReactNode;
 };
 
-/** 네 갈래가 같은 페이지 머리와 본문 리듬을 쓴다. */
+/** 갈래 네 갈래가 같은 껍데기를 쓴다 — 머리글 카드 + 본문. */
 function Layout({ shell, children }: { shell: ShellProps; children: React.ReactNode }) {
-  const headingId = `merit-stats-${shell.view}-heading`;
-
   return (
-    <PageScaffold
-      width="data"
-      title="상벌점 통계"
-      description={shell.hint}
-      tabs={
-        <div className="flex flex-wrap items-center gap-2">
-          <TrackTabs
-            current={shell.track}
-            hrefFor={(track) => shell.href({ track })}
-          />
-          <StatsNavigation
-            view={shell.view}
-            href={shell.href}
-            scope={shell.scope}
-          />
-        </div>
-      }
-    >
-      <section aria-labelledby={headingId} className="space-y-4">
-        <h2 id={headingId} className="sr-only">
-          {STATS_VIEW_LABELS[shell.view]}
-        </h2>
-        {children}
-      </section>
-    </PageScaffold>
+    <div className="mx-auto max-w-5xl space-y-4">
+      <StatsShell {...shell} />
+      {children}
+    </div>
   );
 }

@@ -1,5 +1,4 @@
-import { BackLink } from "@/components/ui/back-link";
-import { PageScaffold } from "@/components/ui/page-scaffold";
+import { cardClass } from "@/components/ui/card";
 import {
   Skeleton,
   SkeletonScreen,
@@ -17,23 +16,23 @@ import {
  */
 export default function Loading() {
   return (
-    <PageScaffold
-      width="standard"
-      eyebrow={<BackLink href="/merit">상벌점</BackLink>}
-      title="학생"
-      description={<Skeleton as="span" className="inline-block h-4 w-56 max-w-full" />}
-      tabs={
+    <SkeletonScreen className="mx-auto max-w-4xl space-y-4">
+      {/* ← 상벌점 */}
+      <Skeleton className="h-4 w-20 rounded-btn" />
+
+      {/* 이름 + 학생코드·소속 + 갈래 탭 */}
+      <div className={cardClass("panel")}>
+        <Skeleton className="h-7 w-40 rounded-btn" />
+        <Skeleton className="mt-2 h-4 w-56 rounded-btn" />
         <SkeletonTabs
           count={3}
           size="sm"
           width="w-[72px]"
-          className="flex-wrap"
+          className="mt-3 flex-wrap"
         />
-      }
-    >
-      <SkeletonScreen className="space-y-4">
-        <SkeletonTable />
-      </SkeletonScreen>
-    </PageScaffold>
+      </div>
+
+      <SkeletonTable />
+    </SkeletonScreen>
   );
 }

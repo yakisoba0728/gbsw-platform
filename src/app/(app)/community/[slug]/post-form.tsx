@@ -47,11 +47,7 @@ export function PostForm({
   const v = state.values;
 
   return (
-    <SectionCard
-      variant="panel"
-      title={editing ? "게시글 내용 수정" : "게시글 내용"}
-      hint={editing ? boardName : `${boardName} 게시판`}
-    >
+    <SectionCard variant="panel" title={editing ? "글 수정" : `${boardName}에 글쓰기`}>
       {anonymous && (
         <Note tone="warn" className="mb-4">
           이 게시판의 글은 작성자가 화면에 보이지 않습니다. 다만 학교는 감사 기록으로

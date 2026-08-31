@@ -21,7 +21,7 @@ export function Note({
 }: ComponentProps<"p"> & { tone: NoteTone }) {
   return (
     <p
-      role={tone === "error" ? "alert" : tone === "success" ? "status" : undefined}
+      role={tone === "error" ? "alert" : undefined}
       className={cn(
         "rounded-btn border px-3 py-2 text-caption font-medium",
         TONES[tone],

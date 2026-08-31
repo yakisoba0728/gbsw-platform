@@ -4,7 +4,6 @@ import { MeritTotalsCards } from "@/components/merit/merit-totals";
 import { TrackTabs } from "@/components/merit/track-tabs";
 import { ChipLink } from "@/components/ui/chip-link";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
-import { PageScaffold } from "@/components/ui/page-scaffold";
 import {
   SkeletonScreen,
   SkeletonStats,
@@ -53,32 +52,31 @@ export function OwnMeritView({
   ]);
 
   return (
-    <PageScaffold
-      width="form"
-      title={title}
-      description="상벌점 합계와 부여 내역을 확인합니다."
-      actions={
-        childOptions && childOptions.length > 1 ? (
-          <ChildPicker
-            options={childOptions}
-            selected={selectedChild}
-            params={params}
+    <div className="mx-auto max-w-3xl space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {/* h1은 상단바가 (app)의 모든 화면에 이미 그린다 — 여기는 h2다. */}
+        <h2 className="text-title font-semibold text-ink">{title}</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <TrackTabs
+            current={track}
+            hrefFor={(next) =>
+              hrefWith("/merit", params, {
+                track: next,
+                // 기숙사는 누적이라 학년도가 의미 없다.
+                ...(next === "DORM" ? { year: null } : {}),
+              })
+            }
           />
-        ) : undefined
-      }
-      tabs={
-        <TrackTabs
-          current={track}
-          hrefFor={(next) =>
-            hrefWith("/merit", params, {
-              track: next,
-              // 기숙사는 누적이라 학년도가 의미 없다.
-              ...(next === "DORM" ? { year: null } : {}),
-            })
-          }
-        />
-      }
-    >
+          {childOptions && childOptions.length > 1 && (
+            <ChildPicker
+              options={childOptions}
+              selected={selectedChild}
+              params={params}
+            />
+          )}
+        </div>
+      </div>
+
       {yearsPromise && (
         // 고르는 자리지만 선택지도 "지금 보는 해"도 조회에서 나온다 — 결과와 같은
         // 약속을 나눠 기다리는 작은 경계를 그 자리에 둔다. 대개 비어 있어 뼈대는 없다.
@@ -100,14 +98,9 @@ export function OwnMeritView({
           </SkeletonScreen>
         }
       >
-        <section aria-labelledby="own-merit-summary-heading">
-          <h2 id="own-merit-summary-heading" className="sr-only">
-            상벌점 현황
-          </h2>
-          <OwnMeritResults promise={viewPromise} />
-        </section>
+        <OwnMeritResults promise={viewPromise} />
       </Suspense>
-    </PageScaffold>
+    </div>
   );
 }
 
@@ -159,7 +152,7 @@ function ChildPicker({
   }
 
   return (
-    <nav aria-label="자녀 선택" className="flex flex-wrap gap-1.5">
+    <div className="flex flex-wrap gap-1.5">
       {options.map((c) => (
         <ChipLink
           key={c.studentProfileId}
@@ -170,6 +163,6 @@ function ChildPicker({
           {honorificName(c.name, "STUDENT")}
         </ChipLink>
       ))}
-    </nav>
+    </div>
   );
 }

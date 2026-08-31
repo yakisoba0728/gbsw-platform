@@ -52,11 +52,11 @@ export function LogFilters({
        *
        * 기간은 넷뿐이고 늘 하나가 켜져 있어 세그먼티드로 남는다. 둘을 다른 모양으로
        * 두는 것이 이 줄의 요점이다: 왼쪽은 눈금, 오른쪽은 목록.
-      */}
+       */}
       <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-3">
-        <fieldset>
-          <legend className="mb-1.5 text-caption font-medium text-ink">기간</legend>
-          <Segmented>
+        <div>
+          <Label htmlFor="log-period">기간</Label>
+          <Segmented id="log-period">
             {AUDIT_PERIODS.map((p) => (
               <SegmentButton
                 key={p}
@@ -67,7 +67,7 @@ export function LogFilters({
               </SegmentButton>
             ))}
           </Segmented>
-        </fieldset>
+        </div>
 
         <div className="min-w-52">
           <Label htmlFor="log-action">동작</Label>

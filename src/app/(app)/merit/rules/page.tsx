@@ -7,7 +7,6 @@ import { TrackTabs } from "@/components/merit/track-tabs";
 import { ChipLink } from "@/components/ui/chip-link";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterRow } from "@/components/ui/filter-row";
-import { PageScaffold } from "@/components/ui/page-scaffold";
 import { SearchForm } from "@/components/ui/search-form";
 import { SectionCard } from "@/components/ui/section-card";
 import { Skeleton, SkeletonTable } from "@/components/ui/skeleton";
@@ -119,19 +118,19 @@ export default async function MeritRulesPage({
   const boundaryKey = JSON.stringify({ track, q, kind });
 
   return (
-    <PageScaffold
-      width="data"
-      title="상벌점 규정"
-      description="학교가 정한 상벌점 항목과 점수를 찾습니다."
-      tabs={
-        <TrackTabs
-          current={track}
-          // 트랙을 바꾸면 검색 조건은 버린다 — 목록이 달라 0건이 빈 화면처럼 읽힌다.
-          hrefFor={(nextTrack) => `${BASE_PATH}?track=${nextTrack}`}
-        />
-      }
-    >
-      <SectionCard variant="panel" title="규정 찾기">
+    <div className="mx-auto max-w-5xl space-y-4">
+      <SectionCard
+        variant="panel"
+        title="상벌점 규정"
+        hint="학교가 정한 항목과 점수입니다."
+        aside={
+          <TrackTabs
+            current={track}
+            // 트랙을 바꾸면 검색 조건은 버린다 — 목록이 달라 0건이 빈 화면처럼 읽힌다.
+            hrefFor={(nextTrack) => `${BASE_PATH}?track=${nextTrack}`}
+          />
+        }
+      >
         <SearchForm
           action={BASE_PATH}
           defaultValue={q}
@@ -177,7 +176,7 @@ export default async function MeritRulesPage({
       <Suspense key={`rows:${boundaryKey}`} fallback={<SkeletonTable rows={10} />}>
         <RulesResult promise={rulesPromise} q={q} kind={kind} filtering={filtering} />
       </Suspense>
-    </PageScaffold>
+    </div>
   );
 }
 
@@ -243,7 +242,6 @@ async function RulesResult({
         </EmptyState>
       ) : (
         <DataTable
-          ariaLabel="상벌점 규정 목록"
           minWidth={560}
           narrow="cards"
           rows={rules}

@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { BackLink } from "@/components/ui/back-link";
-import { PageScaffold } from "@/components/ui/page-scaffold";
-import { SectionCard } from "@/components/ui/section-card";
+import { cardClass } from "@/components/ui/card";
 import { requireAuth } from "@/core/auth/session";
 import { ForbiddenError } from "@/core/authz/errors";
 import { honorificName } from "@/core/authz/roles";
@@ -32,17 +31,19 @@ export default async function StudentQrPage() {
   }
 
   return (
-    <PageScaffold
-      eyebrow={<BackLink href="/pass">출입증으로 돌아가기</BackLink>}
-      title={honorificName(actor.name, "STUDENT")}
-      description="정문 스캐너에 아래 학생증 QR을 보여주세요."
-      width="compact"
-    >
-      <SectionCard title="학생증 QR" hint="화면 밝기를 높이면 더 빠르게 인식됩니다." variant="panel">
-        <div className="py-2 text-center sm:py-4">
+    <div className="mx-auto max-w-2xl">
+      <BackLink href="/pass">출입증</BackLink>
+
+      <section className={cardClass("page", "mt-3 text-center")}>
+        <h2 className="text-title font-semibold text-ink">
+          {honorificName(actor.name, "STUDENT")}
+        </h2>
+        <p className="mt-1 text-caption text-mut">학생증</p>
+
+        <div className="mt-6">
           <StudentQr initial={initial} />
         </div>
-      </SectionCard>
-    </PageScaffold>
+      </section>
+    </div>
   );
 }

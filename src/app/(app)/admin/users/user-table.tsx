@@ -149,37 +149,31 @@ export function UserTable({ rows }: { rows: UserRow[] }) {
       controls={
         <>
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
-            <fieldset className="flex flex-wrap items-center gap-1.5">
-              <legend className="sr-only">계정 상태</legend>
-              {STATUS_FILTERS.map((f) => (
-                <Button
-                  key={f.key}
-                  variant="chip"
-                  size="sm"
-                  active={status === f.key}
-                  onClick={() => setStatus(f.key)}
-                >
-                  {f.label} {countFor(f.key)}
-                </Button>
-              ))}
-            </fieldset>
+            {STATUS_FILTERS.map((f) => (
+              <Button
+                key={f.key}
+                variant="chip"
+                size="sm"
+                active={status === f.key}
+                onClick={() => setStatus(f.key)}
+              >
+                {f.label} {countFor(f.key)}
+              </Button>
+            ))}
 
             <ChipDivider />
 
-            <fieldset className="flex flex-wrap items-center gap-1.5">
-              <legend className="sr-only">계정 역할</legend>
-              {ROLE_FILTERS.map((f) => (
-                <Button
-                  key={f.key}
-                  variant="chip"
-                  size="sm"
-                  active={role === f.key}
-                  onClick={() => setRole(f.key)}
-                >
-                  {f.label}
-                </Button>
-              ))}
-            </fieldset>
+            {ROLE_FILTERS.map((f) => (
+              <Button
+                key={f.key}
+                variant="chip"
+                size="sm"
+                active={role === f.key}
+                onClick={() => setRole(f.key)}
+              >
+                {f.label}
+              </Button>
+            ))}
           </div>
 
           <Input
@@ -198,7 +192,6 @@ export function UserTable({ rows }: { rows: UserRow[] }) {
         <EmptyState variant="inside">조건에 맞는 계정이 없습니다.</EmptyState>
       ) : (
         <DataTable
-          ariaLabel="계정 목록"
           minWidth={700}
           narrow="cards"
           rows={filtered}
@@ -209,3 +202,4 @@ export function UserTable({ rows }: { rows: UserRow[] }) {
     </SectionCard>
   );
 }
+

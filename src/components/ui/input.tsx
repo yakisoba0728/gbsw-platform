@@ -48,7 +48,7 @@ export function fieldClass(size: FieldSize): string {
 /** 높이를 뺀 공통 부분. 여러 줄 입력과 목록형 선택칸이 이것만 가져다 쓴다. */
 export function fieldBase(): string {
   return cn(
-    "ui-field w-full rounded-field border border-line bg-surface",
+    "w-full rounded-field border border-line bg-surface",
     "text-sm text-ink outline-none",
     "disabled:cursor-not-allowed disabled:bg-soft disabled:text-mut",
   );

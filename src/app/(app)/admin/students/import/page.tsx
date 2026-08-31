@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import { BackLink } from "@/components/ui/back-link";
-import { PageScaffold } from "@/components/ui/page-scaffold";
 import { requirePermission } from "@/core/auth/session";
 import { ImportForm } from "./import-form";
 
@@ -10,13 +8,9 @@ export default async function StudentsImportPage() {
   await requirePermission("student:manage");
 
   return (
-    <PageScaffold
-      width="data"
-      eyebrow={<BackLink href="/admin/users?tab=students">학생 명단</BackLink>}
-      title="명단 반영"
-      description="엑셀 명단을 검토한 뒤 현재 학년도 재적 정보에 반영합니다."
-    >
+    // grid로 두면 암시적 열이 max-content라 표의 minWidth가 페이지를 밀어낸다.
+    <div className="flex flex-col gap-4">
       <ImportForm />
-    </PageScaffold>
+    </div>
   );
 }

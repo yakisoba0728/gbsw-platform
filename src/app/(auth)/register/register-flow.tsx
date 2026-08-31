@@ -53,26 +53,11 @@ function CodeStep({
   error: string | null;
 }) {
   return (
-    <form
-      action={formAction}
-      aria-labelledby="register-code-title"
-      aria-describedby="register-code-description"
-      className="animate-auth-in"
-    >
-      <p className="mb-2 text-xs font-semibold tracking-[0.12em] text-pri-ink uppercase">
-        <span className="sr-only">2단계 중 1단계</span>
-        <span aria-hidden>1 / 2</span>
-      </p>
-      <h1 id="register-code-title" className="text-title font-semibold text-ink">
-        가입
-      </h1>
-      <p id="register-code-description" className="mt-2 mb-8 text-caption text-mut">
-        학교에서 받은 가입코드를 입력해 주세요.
-      </p>
+    <form action={formAction} className="animate-auth-in">
+      <h1 className="mb-8 text-title font-semibold text-ink">가입</h1>
 
       <Label htmlFor="code">가입코드</Label>
-      <MaskedInput
-        size="lg"
+      <MaskedInput size="lg"
         id="code"
         name="code"
         placeholder="GBSW-0000-0000"
@@ -113,12 +98,7 @@ function ProfileStep({ code, role }: { code: string; role: Role }) {
   );
 
   return (
-    <form
-      action={formAction}
-      aria-labelledby="register-profile-title"
-      aria-describedby="register-profile-description"
-      className="animate-auth-in"
-    >
+    <form action={formAction} className="animate-auth-in">
       <input type="hidden" name="code" value={code} />
 
       {/* 같은 주소로 되돌아가 1단계부터 다시 시작한다 (JS 없이도 동작). */}
@@ -126,16 +106,7 @@ function ProfileStep({ code, role }: { code: string; role: Role }) {
         가입코드 다시 입력
       </BackLink>
 
-      <p className="mb-2 text-xs font-semibold tracking-[0.12em] text-pri-ink uppercase">
-        <span className="sr-only">2단계 중 2단계</span>
-        <span aria-hidden>2 / 2</span>
-      </p>
-      <h1 id="register-profile-title" className="text-title font-semibold text-ink">
-        정보 입력
-      </h1>
-      <p id="register-profile-description" className="mt-2 mb-6 text-caption text-mut">
-        계정에 사용할 연락처와 비밀번호를 입력해 주세요.
-      </p>
+      <h1 className="mb-6 text-title font-semibold text-ink">정보 입력</h1>
 
       {/*
         비제어 칸이라 실패 뒤 폼 자동 리셋(React 19)에 지워진다. 액션이 되돌려준
@@ -143,7 +114,7 @@ function ProfileStep({ code, role }: { code: string; role: Role }) {
         끝난 뒤에 돌아서 새 defaultValue를 본다. 비밀번호 두 칸은 일부러 뺐다.
       */}
       {role === "STUDENT" ? (
-        <div className="mb-3 grid gap-3 sm:grid-cols-2">
+        <div className="mb-3 grid grid-cols-2 gap-2">
           <div>
             <Label htmlFor="name">이름</Label>
             <Input

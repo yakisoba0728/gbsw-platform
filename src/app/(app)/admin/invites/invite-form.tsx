@@ -26,35 +26,32 @@ export function InviteForm({ students }: { students: PickerStudent[] }) {
       title="초대코드 발급"
       hint="학부모 코드는 학생 본인도 만들 수 있습니다."
     >
-      <fieldset className="mb-5">
-        <legend className="sr-only">초대 대상</legend>
-        <div className="flex gap-1.5">
-          <Button
-            variant="chip"
-            size="sm"
-            active={target === "STUDENT"}
-            onClick={() => setTarget("STUDENT")}
-          >
-            학생
-          </Button>
-          <Button
-            variant="chip"
-            size="sm"
-            active={target === "ADMIN"}
-            onClick={() => setTarget("ADMIN")}
-          >
-            교사
-          </Button>
-          <Button
-            variant="chip"
-            size="sm"
-            active={target === "PARENT"}
-            onClick={() => setTarget("PARENT")}
-          >
-            학부모
-          </Button>
-        </div>
-      </fieldset>
+      <div className="mb-5 flex gap-1.5">
+        <Button
+          variant="chip"
+          size="sm"
+          active={target === "STUDENT"}
+          onClick={() => setTarget("STUDENT")}
+        >
+          학생
+        </Button>
+        <Button
+          variant="chip"
+          size="sm"
+          active={target === "ADMIN"}
+          onClick={() => setTarget("ADMIN")}
+        >
+          교사
+        </Button>
+        <Button
+          variant="chip"
+          size="sm"
+          active={target === "PARENT"}
+          onClick={() => setTarget("PARENT")}
+        >
+          학부모
+        </Button>
+      </div>
 
       {target === "STUDENT" && <StudentForm />}
       {target === "ADMIN" && <AdminForm />}
@@ -75,8 +72,9 @@ function ParentForm({ students }: { students: PickerStudent[] }) {
 
   return (
     <form action={formAction}>
-      <fieldset className="mb-4">
-        <legend className="mb-1.5 text-caption font-medium text-ink">학생</legend>
+      {/* 고르는 버튼이 자기 이름을 말하므로(「학생 고르기」) htmlFor로 묶을 칸이 없다. */}
+      <Label>학생</Label>
+      <div className="mb-4">
         {/*
           key는 남는다 — 이유가 바뀌었다. 예전에는 React가 <option>.defaultSelected를
           마운트 때 한 번만 쓰기 때문이었고, 지금은 고른 학생이 리액트 상태라
@@ -91,7 +89,7 @@ function ParentForm({ students }: { students: PickerStudent[] }) {
           defaultValue={keepStudentId}
           required
         />
-      </fieldset>
+      </div>
 
       <Label htmlFor="p-name">학부모 이름</Label>
       <Input

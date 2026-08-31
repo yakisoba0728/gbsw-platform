@@ -12,7 +12,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { FilterRow } from "@/components/ui/filter-row";
 import { Input } from "@/components/ui/input";
 import { Pagination } from "@/components/ui/pagination";
-import { PageScaffold } from "@/components/ui/page-scaffold";
 import { SearchForm } from "@/components/ui/search-form";
 import { SectionCard } from "@/components/ui/section-card";
 import { Skeleton, SkeletonRows } from "@/components/ui/skeleton";
@@ -84,15 +83,11 @@ export default async function PassHistoryPage({
   const boundaryKey = JSON.stringify(params);
 
   return (
-    <PageScaffold
-      eyebrow={<BackLink href="/pass">출입증 운영으로 돌아가기</BackLink>}
-      title="출입증 전체 내역"
-      description="학생, 유형, 상태와 기간으로 지난 출입 기록을 찾아봅니다."
-      width="data"
-    >
+    <div className="mx-auto max-w-6xl space-y-4">
       <SectionCard
         variant="panel"
-        title="조회 조건"
+        title="전체 내역"
+        aside={<BackLink href="/pass">출입증</BackLink>}
       >
         {/* 카드 안쪽이라 뷰포트가 아니라 놓인 자리의 폭을 본다. 컨테이너 질의는
             자기 자신을 볼 수 없으므로 기준이 될 상자를 한 겹 둔다. */}
@@ -142,7 +137,7 @@ export default async function PassHistoryPage({
           <HistoryPagination promise={resultPromise} page={query.page} href={href} />
         </Suspense>
       </div>
-    </PageScaffold>
+    </div>
   );
 }
 
@@ -310,7 +305,6 @@ async function HistoryRows({
 
   return (
     <DataTable
-      ariaLabel="출입증 전체 내역"
       minWidth={900}
       narrow="cards"
       // **fixed가 없으면 행선지 열이 안 잘린다.** table-layout이 auto면 셀 폭을

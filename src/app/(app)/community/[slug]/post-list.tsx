@@ -61,7 +61,6 @@ export function PostList({
 }) {
   return (
     <DataTable
-      ariaLabel="게시글 목록"
       minWidth={anonymous ? 480 : 640}
       rows={posts}
       rowKey={(post) => post.id}

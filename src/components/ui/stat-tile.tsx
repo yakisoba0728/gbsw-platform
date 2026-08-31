@@ -31,7 +31,6 @@ export function StatTile({
   return (
     <div
       className={cn(
-        "ui-stat-tile",
         variant === "boxed" ? cardClass("flush", "px-4 py-3") : "px-4 py-3",
         className,
       )}
@@ -77,7 +76,7 @@ export function StatStrip({
        * 삐져나온 마지막 줄·마지막 칸의 선을 껍데기의 overflow-hidden이 자른다.
        * 몇 줄로 접히든 안쪽에만 선이 남는다.
        */}
-      <div className="ui-card overflow-hidden rounded-card border border-line bg-surface">
+      <div className="overflow-hidden rounded-card border border-line bg-surface">
         <div
           className={cn(
             "-mr-px -mb-px grid",

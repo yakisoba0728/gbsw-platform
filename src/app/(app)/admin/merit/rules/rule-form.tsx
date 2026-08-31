@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useActionState } from "react";
 import { ConfirmSubmit } from "@/components/ui/confirm-submit";
 import { Input, Label } from "@/components/ui/input";
@@ -11,7 +12,13 @@ import { EMPTY_RULE_FORM_STATE } from "./action-state";
 import { createRuleAction } from "./actions";
 
 /** 규정 추가 카드. 넓으면 한 줄에 나란히 서고, 좁으면 칸마다 한 줄을 쓴다. */
-export function RuleForm({ track }: { track: MeritTrack }) {
+export function RuleForm({
+  track,
+  trackTabs,
+}: {
+  track: MeritTrack;
+  trackTabs: ReactNode;
+}) {
   const [state, formAction, pending] = useActionState(
     createRuleAction,
     EMPTY_RULE_FORM_STATE,
@@ -30,6 +37,7 @@ export function RuleForm({ track }: { track: MeritTrack }) {
     <SectionCard
       variant="panel"
       title="규정 추가"
+      aside={trackTabs}
       className="@container"
     >
       <form

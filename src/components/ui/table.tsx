@@ -1,5 +1,4 @@
 import type { AriaAttributes, ReactNode } from "react";
-import { HorizontalScrollRegion } from "@/components/ui/horizontal-scroll-region";
 import { cn } from "@/lib/cn";
 
 /**
@@ -15,7 +14,6 @@ export function TableFrame({
   minWidth,
   cols,
   headers,
-  ariaLabel,
   sort,
   fixed = false,
   gutter = true,
@@ -27,8 +25,6 @@ export function TableFrame({
   /** `<colgroup>`의 열별 클래스. `undefined`면 폭을 지정하지 않는 열이다. */
   cols?: readonly (string | undefined)[];
   headers: readonly ReactNode[];
-  /** 가로 스크롤 영역을 키보드와 보조기술에서 구분하는 이름. */
-  ariaLabel: string;
   /**
    * 열별 `aria-sort`. headers와 같은 순서로 늘어놓는다. 보조기술은 헤더 셀에서
    * 이 값을 읽으므로 headers 안의 `<button>`으로 내려보낼 수 없다.
@@ -56,7 +52,7 @@ export function TableFrame({
     // 장치다), 카드 바닥에 붙으면 그 사각형이 카드의 둥근 모서리를 덮어 모서리가
     // 잘린 것처럼 보인다. 카드 중간에 있을 때는 양끝 32px 그라디언트에만 닿아
     // 눈에 띄지 않으므로, 자리를 따지지 않고 늘 둥글린다.
-    <HorizontalScrollRegion ariaLabel={ariaLabel} className={className}>
+    <div className={cn("scroll-x-hint overflow-x-auto rounded-b-card", className)}>
       <table
         className={cn(
           "w-full text-left text-sm",
@@ -93,7 +89,7 @@ export function TableFrame({
         </thead>
         {children}
       </table>
-    </HorizontalScrollRegion>
+    </div>
   );
 }
 
@@ -142,7 +138,6 @@ export type Column<Row> = {
  * 굽히는 방식은 표의 의미(행↔열 관계)를 파괴하므로 쓰지 않는다.
  */
 export function DataTable<Row>({
-  ariaLabel,
   minWidth,
   rows,
   rowKey,
@@ -152,8 +147,6 @@ export function DataTable<Row>({
   className,
   rowClassName,
 }: {
-  /** 표마다 고유한 이름. 같은 화면의 여러 region을 보조기술에서 구분한다. */
-  ariaLabel: string;
   minWidth: number;
   rows: readonly Row[];
   rowKey: (row: Row) => string;
@@ -166,7 +159,6 @@ export function DataTable<Row>({
 }) {
   const table = (
     <TableFrame
-      ariaLabel={ariaLabel}
       minWidth={minWidth}
       cols={columns.map((c) => c.width)}
       headers={columns.map((c) =>
@@ -223,10 +215,10 @@ export function DataTable<Row>({
   );
 
   return (
-    <div className="@container">
-      <div className="@4xl:hidden">{cards}</div>
-      <div className="hidden @4xl:block">{table}</div>
-    </div>
+    <>
+      <div className="lg:hidden">{cards}</div>
+      <div className="hidden lg:block">{table}</div>
+    </>
   );
 }
 

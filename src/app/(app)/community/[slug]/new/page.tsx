@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { BackLink } from "@/components/ui/back-link";
-import { PageScaffold } from "@/components/ui/page-scaffold";
 import { requireAuth } from "@/core/auth/session";
 import { getWritableBySlug } from "@/modules/community/board.service";
 import { PostForm } from "../post-form";
@@ -19,18 +18,14 @@ export default async function NewPostPage({
   const community = await orDenied(getWritableBySlug(actor, slug));
 
   return (
-    <PageScaffold
-      eyebrow={<BackLink href={`/community/${slug}`}>{community.name}으로 돌아가기</BackLink>}
-      title="새 글 쓰기"
-      description={community.anonymous ? "작성자 정보가 화면에 공개되지 않는 게시판입니다." : `${community.name} 구성원에게 새 글을 공유합니다.`}
-      width="form"
-    >
+    <div className="mx-auto max-w-3xl space-y-4">
+      <BackLink href={`/community/${slug}`}>{community.name}</BackLink>
       <PostForm
         slug={slug}
         boardName={community.name}
         anonymous={community.anonymous}
         allowAttachments={community.allowAttachments}
       />
-    </PageScaffold>
+    </div>
   );
 }
