@@ -12,6 +12,7 @@ import { AttachmentPicker, type PickedAttachment } from "./attachment-picker";
 import {
   createPostDraftNonce,
   parsePostDraft,
+  postDraftNonceAfterSubmission,
   serializePostDraft,
 } from "./post-draft";
 
@@ -52,6 +53,7 @@ export function PostForm({
   const formRef = useRef<HTMLFormElement>(null);
   const draftNonceInputRef = useRef<HTMLInputElement>(null);
   const draftNonceRef = useRef<string | null>(null);
+  const submittedDraftNonceRef = useRef<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingDraft = useRef<{
     title: string;
@@ -155,10 +157,20 @@ export function PostForm({
       return;
     }
 
+    const currentNonce = ensureDraftNonce();
+    const nonce = postDraftNonceAfterSubmission(
+      currentNonce,
+      submittedDraftNonceRef.current,
+    );
+    if (nonce !== currentNonce) {
+      setDraftNonce(nonce);
+      submittedDraftNonceRef.current = null;
+    }
+
     const values = {
       title: title.value,
       body: body.value,
-      nonce: ensureDraftNonce(),
+      nonce,
     };
     pendingDraft.current = values;
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -197,6 +209,9 @@ export function PostForm({
         ref={formRef}
         action={formAction}
         onInput={(event) => saveDraft(event.currentTarget)}
+        onSubmit={() => {
+          if (!editing) submittedDraftNonceRef.current = ensureDraftNonce();
+        }}
         className="space-y-3"
       >
         {editing ? (

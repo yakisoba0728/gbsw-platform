@@ -4,6 +4,7 @@ import {
   parsePostDraft,
   POST_DRAFT_MAX_AGE_MS,
   postDraftMatchesCompletion,
+  postDraftNonceAfterSubmission,
   postDraftKey,
   serializePostDraft,
 } from "@/app/(app)/community/[slug]/post-draft";
@@ -74,5 +75,16 @@ describe("커뮤니티 새 글 초안", () => {
     expect(parsePostDraftNonce(NONCE)).toBe(NONCE);
     expect(parsePostDraftNonce("short")).toBeNull();
     expect(parsePostDraftNonce(`${NONCE}00`)).toBeNull();
+  });
+
+  it("제출 뒤 추가 입력은 새 난수로 갈라 성공 cleanup에서 보존한다", () => {
+    const nextNonce = "fedcba9876543210fedcba9876543210";
+
+    expect(postDraftNonceAfterSubmission(NONCE, NONCE, () => nextNonce)).toBe(
+      nextNonce,
+    );
+    expect(postDraftNonceAfterSubmission(nextNonce, NONCE, () => "unused")).toBe(
+      nextNonce,
+    );
   });
 });

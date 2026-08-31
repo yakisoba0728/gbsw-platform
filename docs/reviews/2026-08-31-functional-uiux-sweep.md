@@ -317,8 +317,7 @@ U-01~U-08을 모두 처리했다.
 
 | 명령 | 결과 |
 |---|---|
-| `npm run verify` | PASS — unit 139 files / 2,200 tests, integration 22 files / 81 tests, production build |
-| 외박 DB 왕복 추가 후 `npm run test:integration` | PASS — 22 files / 82 tests |
+| `npm run verify` | PASS — unit 139 files / 2,201 tests, integration 22 files / 82 tests, production build |
 | `npm run test:e2e` | PASS — Chromium 5/5 (health, JS/무JS 로그인, 한국어 404, 첨부 왕복) |
 | standalone 검사 | PASS — 2,054 files |
 

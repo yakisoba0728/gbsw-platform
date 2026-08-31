@@ -26,6 +26,15 @@ export function createPostDraftNonce(): string {
   return crypto.randomUUID().replaceAll("-", "");
 }
 
+/** 제출 뒤 입력에는 새 난수를 붙여 이전 제출의 성공 cleanup과 갈라 놓는다. */
+export function postDraftNonceAfterSubmission(
+  currentNonce: string,
+  submittedNonce: string | null,
+  createNonce: () => string = createPostDraftNonce,
+): string {
+  return currentNonce === submittedNonce ? createNonce() : currentNonce;
+}
+
 export function parsePostDraftNonce(value: unknown): string | null {
   return typeof value === "string" && POST_DRAFT_NONCE_PATTERN.test(value)
     ? value
