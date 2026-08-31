@@ -3,6 +3,8 @@ import {
   parsePostDraftNonce,
   parsePostDraft,
   POST_DRAFT_MAX_AGE_MS,
+  postDraftForRestore,
+  postDraftIsNewerThanSubmission,
   postDraftMatchesCompletion,
   postDraftNonceAfterSubmission,
   postDraftKey,
@@ -86,5 +88,37 @@ describe("커뮤니티 새 글 초안", () => {
     expect(postDraftNonceAfterSubmission(nextNonce, NONCE, () => "unused")).toBe(
       nextNonce,
     );
+    expect(postDraftIsNewerThanSubmission(nextNonce, NONCE)).toBe(true);
+    expect(postDraftIsNewerThanSubmission(NONCE, NONCE)).toBe(false);
+    expect(postDraftIsNewerThanSubmission(nextNonce, null)).toBe(false);
+
+    const stored = parsePostDraft(
+      serializePostDraft({ title: "제출값", body: "A", nonce: NONCE }, 1_000),
+      1_100,
+    );
+    expect(
+      postDraftForRestore(
+        stored,
+        { title: "제출 뒤 입력", body: "B", nonce: nextNonce },
+        1_200,
+      ),
+    ).toEqual({
+      title: "제출 뒤 입력",
+      body: "B",
+      nonce: nextNonce,
+      savedAt: 1_200,
+    });
+    expect(
+      postDraftForRestore(
+        null,
+        { title: "저장소 차단 뒤 입력", body: "B", nonce: nextNonce },
+        1_300,
+      ),
+    ).toEqual({
+      title: "저장소 차단 뒤 입력",
+      body: "B",
+      nonce: nextNonce,
+      savedAt: 1_300,
+    });
   });
 });

@@ -12,6 +12,8 @@ import { AttachmentPicker, type PickedAttachment } from "./attachment-picker";
 import {
   createPostDraftNonce,
   parsePostDraft,
+  postDraftForRestore,
+  postDraftIsNewerThanSubmission,
   postDraftNonceAfterSubmission,
   serializePostDraft,
 } from "./post-draft";
@@ -104,20 +106,21 @@ export function PostForm({
     try {
       raw = window.sessionStorage.getItem(draftKey);
     } catch {
-      return;
+      // 저장소를 읽을 수 없어도 같은 화면에 남아 있는 메모리 초안은 복원한다.
     }
-    if (!raw) {
-      ensureDraftNonce();
-      return;
-    }
-
-    const draft = parsePostDraft(raw);
-    if (!draft) {
+    const storedDraft = raw ? parsePostDraft(raw) : null;
+    if (raw && !storedDraft) {
       try {
         window.sessionStorage.removeItem(draftKey);
       } catch {
         // 읽은 뒤 저장소 정책이 바뀌어도 글쓰기 자체는 계속한다.
       }
+    }
+
+    // 입력 직후 250ms 저장 대기 중에 액션이 실패할 수 있다. 그때는 저장소의
+    // 이전 값보다 메모리에 남아 있는 최신 입력을 우선해야 난수와 본문이 어긋나지 않는다.
+    const draft = postDraftForRestore(storedDraft, pendingDraft.current);
+    if (!draft) {
       ensureDraftNonce();
       return;
     }
@@ -130,8 +133,17 @@ export function PostForm({
       return;
     }
 
-    // 서버 액션 실패가 돌려준 값이 있으면 그것이 더 최신이다.
-    if (state.values) return;
+    // 보통은 서버 액션 실패가 돌려준 제출값이 최신이다. 다만 제출 뒤 사용자가
+    // 더 입력해 난수가 갈린 초안은 그보다 새 것이므로 화면에도 복원한다.
+    if (
+      state.values &&
+      !postDraftIsNewerThanSubmission(
+        draft.nonce,
+        submittedDraftNonceRef.current,
+      )
+    ) {
+      return;
+    }
     title.value = draft.title;
     body.value = draft.body;
 
@@ -164,7 +176,6 @@ export function PostForm({
     );
     if (nonce !== currentNonce) {
       setDraftNonce(nonce);
-      submittedDraftNonceRef.current = null;
     }
 
     const values = {
@@ -183,8 +194,6 @@ export function PostForm({
         }
       } catch {
         // 사생활 보호 모드 등에서 저장소가 막혀도 글쓰기는 그대로 동작해야 한다.
-      } finally {
-        pendingDraft.current = null;
       }
     }, 250);
   }

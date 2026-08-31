@@ -35,6 +35,23 @@ export function postDraftNonceAfterSubmission(
   return currentNonce === submittedNonce ? createNonce() : currentNonce;
 }
 
+/** 실패 응답이 돌려준 값보다 제출 뒤 따로 저장된 초안이 최신인지 판별한다. */
+export function postDraftIsNewerThanSubmission(
+  draftNonce: string,
+  submittedNonce: string | null,
+): boolean {
+  return submittedNonce !== null && draftNonce !== submittedNonce;
+}
+
+/** 저장 지연 중인 값은 sessionStorage에 남은 이전 값보다 항상 최신이다. */
+export function postDraftForRestore(
+  storedDraft: PostDraft | null,
+  pendingDraft: Pick<PostDraft, "title" | "body" | "nonce"> | null,
+  now = Date.now(),
+): PostDraft | null {
+  return pendingDraft ? { ...pendingDraft, savedAt: now } : storedDraft;
+}
+
 export function parsePostDraftNonce(value: unknown): string | null {
   return typeof value === "string" && POST_DRAFT_NONCE_PATTERN.test(value)
     ? value
