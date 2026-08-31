@@ -20,7 +20,8 @@ import {
   type NavItem,
 } from "./nav";
 
-const ITEM = "flex items-center gap-3 rounded-btn px-3 py-2 text-sm transition-colors";
+const ITEM =
+  "flex min-h-11 items-center gap-3 rounded-btn px-3 py-2 text-sm transition-colors";
 const IDLE = "font-normal text-mut hover:bg-soft hover:text-ink";
 
 /** 현재 항목 왼쪽의 에메랄드 막대. 화면 안에서 브랜드색이 나오는 유일한 자리다. */
@@ -130,7 +131,7 @@ function NavGroup({
                 href={child.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "relative rounded-btn px-3 py-1.5 text-caption transition-colors",
+                  "relative flex min-h-9 items-center rounded-btn px-3 py-1.5 text-caption transition-colors",
                   active ? "bg-soft font-medium text-ink" : IDLE,
                 )}
               >
@@ -184,20 +185,24 @@ export function Sidebar({ name, role }: { name: string; role: Role | null }) {
   }
 
   return (
-    <aside className="hidden w-60 flex-none flex-col border-r border-line bg-surface px-3 py-5 lg:flex print:hidden">
-      <div className="flex items-center gap-2.5 px-3 pb-6">
-        <Image src="/brand/gbsw-logo.webp" alt="" width={30} height={30} />
-        <span>
-          <span className="block text-sm font-semibold tracking-tight text-ink">
-            GBSW
+    <aside className="workspace-sidebar sticky top-0 hidden h-dvh w-[17rem] flex-none flex-col border-r border-line bg-surface px-4 py-5 lg:flex print:hidden">
+      <div className="flex items-center gap-3 px-2 pb-7">
+        <span className="grid size-11 place-items-center rounded-[14px] bg-white shadow-sm">
+          <Image src="/brand/gbsw-logo.webp" alt="" width={34} height={34} />
+        </span>
+        <span className="min-w-0">
+          <span className="block text-base font-semibold tracking-tight text-ink">
+            GBSW Campus
           </span>
-          <span className="block text-xs text-mut">통합관리시스템</span>
+          <span className="mt-0.5 block text-xs tracking-wide text-mut">
+            통합관리시스템
+          </span>
         </span>
       </div>
 
       {/* 메뉴가 길어지면 여기서만 스크롤한다 — aside 전체가 흐르면 계정 블록이
           바닥에서 떨어져 나간다. */}
-      <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto">
+      <nav className="flex flex-1 flex-col gap-1 overflow-y-auto pr-1">
         {items.map(render)}
 
         {adminItems.length > 0 && (
@@ -218,10 +223,16 @@ export function Sidebar({ name, role }: { name: string; role: Role | null }) {
        *
        * **폰에는 사이드바가 없다.** 그쪽은 상단바가 같은 것을 그린다.
        */}
-      <div className="mt-3 flex items-center gap-2 border-t border-line pt-3">
+      <div className="mt-4 flex items-center gap-2 rounded-[14px] border border-line bg-soft p-2">
+        <span
+          className="grid size-9 shrink-0 place-items-center rounded-[11px] bg-pri text-sm font-semibold text-[#102a23]"
+          aria-hidden
+        >
+          {name.slice(0, 1)}
+        </span>
         <TruncatedText
           full={`${name}${honorificSuffix(role)}`}
-          className="min-w-0 flex-1 px-3 text-caption"
+          className="min-w-0 flex-1 text-caption"
         >
           <span className="font-medium text-ink">{name}</span>
           <span className="text-mut">{honorificSuffix(role)}</span>

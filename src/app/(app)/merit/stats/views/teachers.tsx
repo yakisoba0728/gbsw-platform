@@ -189,6 +189,7 @@ function TeacherTable({ rows }: { rows: Row[] }) {
       hint="비중은 전체 부여 건수에서 차지하는 몫입니다."
     >
       <DataTable
+        ariaLabel="부여자별 상벌점 합계"
         minWidth={640}
         narrow="cards"
         rows={rows}

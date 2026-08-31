@@ -33,6 +33,21 @@ export function EmptyState({
         className,
       )}
     >
+      <span className="ui-empty-icon" aria-hidden>
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M5 7.5A2.5 2.5 0 0 1 7.5 5h9A2.5 2.5 0 0 1 19 7.5v9a2.5 2.5 0 0 1-2.5 2.5h-9A2.5 2.5 0 0 1 5 16.5z" />
+          <path d="M9 12h6M12 9v6" />
+        </svg>
+      </span>
       <p className="text-caption text-mut">{children}</p>
       {action}
     </div>

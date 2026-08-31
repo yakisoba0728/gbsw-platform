@@ -61,7 +61,7 @@ const COLUMNS: readonly Column<ManagedBoard>[] = [
   },
   {
     key: "actions",
-    header: "",
+    header: <span className="sr-only">작업</span>,
     card: "actions",
     className: "text-right",
     // 없앤 게시판은 고칠 것이 없다 — 셀이 null이면 카드 모드에서 자리도 안 생긴다.
@@ -80,6 +80,7 @@ const COLUMNS: readonly Column<ManagedBoard>[] = [
 export function CommunityList({ boards }: { boards: readonly ManagedBoard[] }) {
   return (
     <DataTable
+      ariaLabel="커뮤니티 목록"
       minWidth={720}
       rows={boards}
       rowKey={(board) => board.id}

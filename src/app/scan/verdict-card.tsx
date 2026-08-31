@@ -11,15 +11,30 @@ import type { VerifyResult } from "@/modules/pass/verify.service";
 import { honorificName } from "@/core/authz/roles";
 
 /** 정문에서 팔 뻗은 거리로 읽는 화면이라 배지가 크다. */
-export function VerdictCard({ result }: { result: VerifyResult }) {
+export function VerdictCard({
+  result,
+  headingLevel = 2,
+}: {
+  result: VerifyResult;
+  headingLevel?: 2 | 3;
+}) {
   const { verdict, student, pass, detailed } = result;
+  const Heading = headingLevel === 3 ? "h3" : "h2";
 
   return (
-    <section className={cardClass("page")}>
+    <section
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      aria-label="학생증 판정 결과"
+      className={cardClass("page")}
+    >
       <div className="text-center">
-        <Badge tone={VERDICT_TONES[verdict]} className="px-4 py-2 text-lg">
-          {VERDICT_LABELS[verdict]}
-        </Badge>
+        <Heading>
+          <Badge tone={VERDICT_TONES[verdict]} className="px-4 py-2 text-lg">
+            {VERDICT_LABELS[verdict]}
+          </Badge>
+        </Heading>
         <p className="mt-3 text-caption text-mut">{VERDICT_HINTS[verdict]}</p>
       </div>
 

@@ -114,6 +114,7 @@ export function RuleCategoryCard({ stats }: { stats: RuleStats }) {
             </summary>
 
             <RuleTable
+              ariaLabel={`${group.category} 규정별 부여`}
               rows={group.rows}
               total={stats.totalCount}
               barWidth={barWidth}
@@ -126,10 +127,12 @@ export function RuleCategoryCard({ stats }: { stats: RuleStats }) {
 }
 
 function RuleTable({
+  ariaLabel,
   rows,
   total,
   barWidth,
 }: {
+  ariaLabel: string;
   rows: RuleStatRow[];
   total: number;
   barWidth: Map<string, number>;
@@ -197,6 +200,7 @@ function RuleTable({
 
   return (
     <DataTable
+      ariaLabel={ariaLabel}
       minWidth={560}
       narrow="cards"
       rows={rows}

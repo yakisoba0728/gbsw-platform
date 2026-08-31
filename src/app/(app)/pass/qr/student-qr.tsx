@@ -79,10 +79,10 @@ export function StudentQr({ initial }: { initial: QrPayload }) {
     <div className="flex flex-col items-center">
       {/* p-4는 카드 여백이 아니라 QR의 여백(quiet zone)이다 — 흰 테두리가 없으면
           스캐너가 코드의 경계를 못 찾는다. 껍데기는 cardClass가 그대로 소유한다. */}
-      <div className={cardClass("flush", "p-4")}>
+      <div className={cardClass("flush", "max-w-full p-3 sm:p-4")}>
         <svg
           viewBox={`0 0 ${payload.qr.size} ${payload.qr.size}`}
-          className="size-52 text-ink"
+          className="size-48 max-w-full text-ink sm:size-56"
           shapeRendering="crispEdges"
           role="img"
           aria-label="학생증 QR 코드"
@@ -94,7 +94,7 @@ export function StudentQr({ initial }: { initial: QrPayload }) {
       {/* 남은 시간. key가 바뀌면 애니메이션이 처음부터 다시 돈다. 지속시간은
           서버가 준 validUntil에서 나오므로 코드 주기가 바뀌어도 따라간다. */}
       <div
-        className="mt-3 h-1 w-52 overflow-hidden rounded-full bg-mut-soft"
+        className="mt-3 h-1 w-48 max-w-full overflow-hidden rounded-full bg-mut-soft sm:w-56"
         aria-hidden
       >
         {barMs !== null && (

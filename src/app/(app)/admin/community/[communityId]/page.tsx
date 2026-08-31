@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { BackLink } from "@/components/ui/back-link";
 import { Note } from "@/components/ui/note";
+import { PageScaffold } from "@/components/ui/page-scaffold";
 import { SectionCard } from "@/components/ui/section-card";
 import { requirePermission } from "@/core/auth/session";
 import { listForManage } from "@/modules/community/board.service";
@@ -25,9 +26,12 @@ export default async function CommunityDetailPage({
   if (!board) notFound();
 
   return (
-    <div className="mx-auto max-w-5xl space-y-4">
-      <BackLink href="/admin/community">커뮤니티 관리</BackLink>
-
+    <PageScaffold
+      width="form"
+      eyebrow={<BackLink href="/admin/community">커뮤니티 관리</BackLink>}
+      title={board.name}
+      description={`게시판 설정 · /community/${board.slug}`}
+    >
       {board.active ? (
         <>
           <CommunityForm
@@ -62,6 +66,6 @@ export default async function CommunityDetailPage({
           제거된 게시판입니다. 설정을 바꿀 수 없고 되살릴 수도 없습니다.
         </Note>
       )}
-    </div>
+    </PageScaffold>
   );
 }

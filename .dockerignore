@@ -18,6 +18,9 @@
 !src/**
 
 !scripts
+# `!scripts`가 디렉터리 전체를 다시 포함시키지 않도록 자식은 한 번 더 기본
+# 거부한다. 아래 standalone 런타임 스크립트만 이미지 빌드에 필요하다.
+scripts/**
 !scripts/check-standalone.mjs
 !scripts/prepare-standalone.mjs
 !scripts/sanitize-standalone.mjs

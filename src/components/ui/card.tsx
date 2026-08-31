@@ -22,7 +22,7 @@ const PADS: Record<CardPad, string> = {
 
 export function cardClass(pad: CardPad = "panel", className?: string): string {
   return cn(
-    "rounded-card border border-line bg-surface",
+    "ui-card rounded-card border border-line bg-surface",
     PADS[pad],
     className,
   );

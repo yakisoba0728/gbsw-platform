@@ -3,10 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
-import { cardClass } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
+import { PageScaffold } from "@/components/ui/page-scaffold";
 import { SectionCard } from "@/components/ui/section-card";
 import { requirePermission } from "@/core/auth/session";
 import { honorificName, isRole, ROLE_LABELS } from "@/core/authz/roles";
@@ -47,7 +47,17 @@ export default async function UserDetailPage({
     if (error instanceof AdminUserError) notFound();
     // getUserDetail도 getCurrentYear()를 부른다. 현재 학년도가 없으면 목록 화면과
     // 같은 안내로 떨어뜨린다 — 여기만 오류 화면이 뜰 이유가 없다.
-    if (error instanceof AcademicYearError) return <NoAcademicYearNotice />;
+    if (error instanceof AcademicYearError) {
+      return (
+        <PageScaffold
+          width="standard"
+          eyebrow={<BackLink href="/admin/users">계정 목록</BackLink>}
+          title="계정 상세"
+        >
+          <NoAcademicYearNotice />
+        </PageScaffold>
+      );
+    }
     throw error;
   }
 
@@ -76,31 +86,28 @@ export default async function UserDetailPage({
   };
 
   return (
-    <div className="@container mx-auto max-w-5xl">
-      <BackLink href="/admin/users" className="mb-3">
-        계정 목록
-      </BackLink>
-
-      {/* 카드가 두 규격이다. SectionCard는 머리글 띠를 가진 내용 섹션(활동 기록),
-          variant="panel"은 테두리 한 겹짜리 폼·안내 패널이다. */}
+    <PageScaffold
+      width="standard"
+      eyebrow={<BackLink href="/admin/users">계정 목록</BackLink>}
+      title={honorificName(user.name, isRole(user.role) ? user.role : null)}
+      description="계정 정보와 최근 활동, 관리 조치를 확인합니다."
+      actions={
+        <>
+          {deleted && <Badge tone="rejected">삭제됨</Badge>}
+          <Badge tone={active ? "approved" : "cancelled"}>
+            {active ? "활성" : "비활성"}
+          </Badge>
+          {user.mustChangePassword && (
+            <Badge tone="pending">비밀번호 변경 대기</Badge>
+          )}
+        </>
+      }
+      className="@container"
+    >
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 @2xl:grid-cols-[1fr_340px]">
         <div className="flex flex-col gap-4">
-          <section className={cardClass("panel", "@container")}>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-              {/* h1은 상단바가 모든 화면에 이미 그린다. */}
-              <h2 className="text-title font-semibold text-ink">
-                {honorificName(user.name, isRole(user.role) ? user.role : null)}
-              </h2>
-              {deleted && <Badge tone="rejected">삭제됨</Badge>}
-              <Badge tone={active ? "approved" : "cancelled"}>
-                {active ? "활성" : "비활성"}
-              </Badge>
-              {user.mustChangePassword && (
-                <Badge tone="pending">비밀번호 변경 대기</Badge>
-              )}
-            </div>
-
-            <dl className="mt-4 grid gap-x-6 gap-y-3 text-sm @md:grid-cols-2">
+          <SectionCard variant="panel" title="계정 정보" className="@container">
+            <dl className="grid gap-x-6 gap-y-3 text-sm @md:grid-cols-2">
               <Field label="이메일">{user.email}</Field>
               <Field label="역할">
                 {isRole(user.role) ? ROLE_LABELS[user.role] : "역할 미지정"}
@@ -108,7 +115,7 @@ export default async function UserDetailPage({
               <Field label="전화번호">{user.phone ?? "—"}</Field>
               <Field label="가입일">{formatDate(user.createdAt)}</Field>
               {deleted && user.deletedAt && (
-              <Field label="삭제 표시일">{formatDate(user.deletedAt)}</Field>
+                <Field label="삭제 표시일">{formatDate(user.deletedAt)}</Field>
               )}
 
               {profile && (
@@ -156,10 +163,9 @@ export default async function UserDetailPage({
                 </Field>
               )}
             </dl>
-          </section>
+          </SectionCard>
 
           <SectionCard
-            headingLevel={3}
             title="활동 기록"
             hint="이 계정이 한 일과 이 계정을 대상으로 한 일 최근 20건"
             flush
@@ -208,7 +214,6 @@ export default async function UserDetailPage({
             <>
               <SectionCard
                 variant="panel"
-                headingLevel={3}
                 title="삭제 표시된 계정"
               >
                 <p className="text-caption text-mut">
@@ -221,7 +226,6 @@ export default async function UserDetailPage({
                 <SectionCard
                   variant="panel"
                   tone="danger"
-                  headingLevel={3}
                   title="완전 삭제"
                 >
                   <HardDeleteForm user={editable} />
@@ -230,13 +234,12 @@ export default async function UserDetailPage({
             </>
           ) : (
             <>
-              <SectionCard variant="panel" headingLevel={3} title="정보 수정">
+              <SectionCard variant="panel" title="정보 수정">
                 <EditUserForm user={editable} />
               </SectionCard>
 
               <SectionCard
                 variant="panel"
-                headingLevel={3}
                 title="계정 조치"
                 hint="둘 다 로그인 세션을 끊습니다."
               >
@@ -250,7 +253,6 @@ export default async function UserDetailPage({
                 <SectionCard
                   variant="panel"
                   tone="danger"
-                  headingLevel={3}
                   title="완전 삭제"
                 >
                   <HardDeleteForm user={editable} />
@@ -260,6 +262,6 @@ export default async function UserDetailPage({
           )}
         </div>
       </div>
-    </div>
+    </PageScaffold>
   );
 }

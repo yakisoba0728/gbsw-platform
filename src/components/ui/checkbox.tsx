@@ -19,7 +19,7 @@ export function Checkbox({
   label: string;
 }) {
   return (
-    <label className={cn("-m-2.5 inline-flex cursor-pointer p-2.5", className)}>
+    <label className={cn("-m-3.5 inline-flex cursor-pointer p-3.5", className)}>
       <input
         type="checkbox"
         aria-label={label}
@@ -42,7 +42,7 @@ export function CheckboxField({
   return (
     <label
       className={cn(
-        "inline-flex cursor-pointer items-center gap-2 py-2.5 text-xs font-medium text-mut",
+        "inline-flex min-h-11 cursor-pointer items-center gap-2 py-2.5 text-xs font-medium text-mut",
         className,
       )}
     >

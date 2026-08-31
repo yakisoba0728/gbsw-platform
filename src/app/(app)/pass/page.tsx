@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PageScaffold } from "@/components/ui/page-scaffold";
 import { SectionCard } from "@/components/ui/section-card";
 import { requireAuth } from "@/core/auth/session";
 import { passHistoryQuerySchema } from "@/modules/pass/pass.schema";
@@ -26,8 +27,15 @@ export default async function PassPage({
   if (actor.role === "PARENT") return <ParentView actor={actor} page={page} />;
 
   return (
-    <SectionCard title="출입증" className="mx-auto max-w-3xl" variant="panel">
-      <EmptyState variant="inside">이 계정에서는 쓸 수 없습니다.</EmptyState>
-    </SectionCard>
+    <PageScaffold
+      eyebrow="출입 관리"
+      title="출입증"
+      description="이 계정에는 출입증 업무 권한이 없습니다."
+      width="form"
+    >
+      <SectionCard title="이용 안내" variant="panel">
+        <EmptyState variant="inside">이 계정에서는 쓸 수 없습니다.</EmptyState>
+      </SectionCard>
+    </PageScaffold>
   );
 }

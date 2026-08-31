@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonClass } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pagination } from "@/components/ui/pagination";
+import { PageScaffold } from "@/components/ui/page-scaffold";
 import { SectionCard } from "@/components/ui/section-card";
 import type { SessionUser } from "@/core/auth/session";
 import { getMyPasses } from "@/modules/pass/request.service";
@@ -42,29 +43,34 @@ export async function StudentView({
   const now = new Date();
 
   return (
-    <div className="@container mx-auto max-w-3xl">
+    <PageScaffold
+      eyebrow="출입 관리"
+      title="내 출입증"
+      description="신청 상태를 확인하고, 정문에서 사용할 학생증 QR을 열 수 있습니다."
+      width="form"
+      actions={
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/scan"
+            className={buttonClass({ variant: "secondary" })}
+          >
+            QR 스캔
+          </Link>
+          <Link
+            href="/pass/qr"
+            className={buttonClass({ variant: "secondary" })}
+          >
+            학생증 QR
+          </Link>
+          <Link href="/pass/new" className={buttonClass()}>
+            새 신청
+          </Link>
+        </div>
+      }
+    >
       <SectionCard
-        title="내 출입증"
+        title="신청 내역"
         hint={`전체 ${result.total}건`}
-        aside={
-          <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href="/scan"
-              className={buttonClass({ variant: "secondary", size: "sm" })}
-            >
-              스캔
-            </Link>
-            <Link
-              href="/pass/qr"
-              className={buttonClass({ variant: "secondary", size: "sm" })}
-            >
-              학생증
-            </Link>
-            <Link href="/pass/new" className={buttonClass({ size: "sm" })}>
-              신청
-            </Link>
-          </div>
-        }
         flush
       >
         {passes.length === 0 ? (
@@ -96,6 +102,6 @@ export async function StudentView({
           href={(next) => `/pass?page=${next}`}
         />
       </SectionCard>
-    </div>
+    </PageScaffold>
   );
 }

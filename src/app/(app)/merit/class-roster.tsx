@@ -329,6 +329,7 @@ export function ClassRoster({
           }
         >
           <DataTable
+            ariaLabel={`${scopeLabel} 학생 명단`}
             minWidth={548}
             narrow="cards"
             rows={sorted}
@@ -346,7 +347,7 @@ export function ClassRoster({
       */}
       <div className="order-3 @4xl:col-start-2 @4xl:row-start-1 @4xl:row-span-2 @4xl:sticky @4xl:top-4">
         {viewingPast ? (
-          <SectionCard variant="panel" title="상벌점 부여" headingLevel={3}>
+          <SectionCard variant="panel" title="상벌점 부여">
             {/* 지난 학년도를 보고 있으면 폼을 감춘다 — 부여는 현재 학년도로만 들어간다. */}
             <Note tone="warn">부여는 현재 학년도에만 할 수 있습니다.</Note>
           </SectionCard>
@@ -354,7 +355,6 @@ export function ClassRoster({
           <SectionCard
             variant="panel"
             title="상벌점 부여"
-            headingLevel={3}
             aside={
               <span className="text-xs font-medium text-mut">
                 {selected.size}명 선택됨

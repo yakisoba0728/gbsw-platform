@@ -3,7 +3,7 @@ import Link from "next/link";
 import { buttonClass } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Note } from "@/components/ui/note";
-import { PageHeader } from "@/components/ui/page-header";
+import { PageScaffold } from "@/components/ui/page-scaffold";
 import { Pagination } from "@/components/ui/pagination";
 import { cardClass } from "@/components/ui/card";
 import { requireAuth } from "@/core/auth/session";
@@ -29,24 +29,19 @@ export default async function BoardPage({
   const view = await orDenied(listPostPage(actor, slug, parsePage(query.page)));
 
   return (
-    <div className="mx-auto max-w-5xl">
-
-      {/*
-       * 게시판 이름은 페이지 제목이지 카드 제목이 아니다. 카드에 담으면 그
-       * 테두리가 목록을 감싸면서 「게시판이라는 상자」가 하나 더 생기고, 상단바의
-       * 「커뮤니티」와 두 겹으로 겹친다. 제목은 바탕 위에 서고 상자는 목록만 갖는다.
-       */}
-      <PageHeader
+    <PageScaffold
+        eyebrow="커뮤니티 게시판"
         title={view.community.name}
         description={view.community.description ?? undefined}
+        width="data"
         actions={
           view.canWrite ? (
-            <Link href={`/community/${slug}/new`} className={buttonClass({ size: "sm" })}>
-              글쓰기
+            <Link href={`/community/${slug}/new`} className={buttonClass()}>
+              새 글 쓰기
             </Link>
           ) : undefined
         }
-      />
+      >
 
       {view.community.anonymous && (
         <Note tone="warn" className="mb-4">
@@ -88,6 +83,6 @@ export default async function BoardPage({
           label={`${view.community.name} 글 목록`}
         />
       </div>
-    </div>
+    </PageScaffold>
   );
 }
