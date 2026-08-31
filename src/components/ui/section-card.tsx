@@ -26,7 +26,7 @@ export function SectionCard({
   aside?: ReactNode;
   /** 제목 줄 아래 — 필터 칩·검색칸처럼 카드에 딸린 조작부. */
   controls?: ReactNode;
-  /** 상단바 `<h1>`과 페이지 `<h2>` 아래에 놓이는 카드는 3을 쓴다. */
+  /** PageScaffold의 `<h1>` 바로 아래면 2, 카드 안의 하위 구획이면 3을 쓴다. */
   headingLevel?: 2 | 3;
   /** `section` 머리글에서 제목과 우측 조작부의 세로 정렬. */
   headerAlign?: "start" | "center";

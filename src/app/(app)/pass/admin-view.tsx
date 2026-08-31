@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { buttonClass } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PageScaffold } from "@/components/ui/page-scaffold";
 import { SectionCard } from "@/components/ui/section-card";
 import type { SessionUser } from "@/core/auth/session";
 import { requiresConsent } from "@/core/authz/pass-type";
@@ -29,36 +30,37 @@ export async function AdminView({ actor }: { actor: SessionUser }) {
   const active = activeResult.entries;
 
   return (
-    <div className="@container mx-auto max-w-5xl space-y-4">
+    <PageScaffold
+      eyebrow="출입 관리"
+      title="출입증 운영"
+      description="결재 대기 신청과 현재 교외에 있는 학생을 확인하고 출입증을 바로 부여합니다."
+      width="data"
+      actions={
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/pass/history"
+            className={buttonClass({ variant: "secondary" })}
+          >
+            전체 내역
+          </Link>
+          <Link href="/scan" className={buttonClass()}>
+            QR 스캔
+          </Link>
+        </div>
+      }
+    >
+      <div className="@container">
       {/*
        * 합계 칸 둘을 뺐다. 「결재 대기 0건」이라 적힌 상자 바로 아래에 「결재
        * 대기」 카드가 서고 그 안에 다시 「결재할 신청이 없습니다」가 있어서,
        * 같은 사실이 한 화면에 세 번 적혔다. 건수는 카드 제목 옆이 제자리다 —
        * 목록과 같은 것을 세는 숫자라 목록에서 떨어져 있을 이유가 없다.
        */}
-      <div className="grid gap-4 @4xl:grid-cols-[1fr_20rem]">
-        <div className="space-y-4">
+      <div className="grid items-start gap-5 @4xl:grid-cols-[minmax(0,1fr)_22rem] lg:gap-6">
+        <div className="space-y-5 lg:space-y-6">
           <SectionCard
             title="결재 대기"
             hint={`${pendingResult.total}건`}
-            aside={
-              // 이 카드도 아래 카드도 「지금」만 답한다 — 어제 나간 것을 되짚을
-              // 길은 전체 내역뿐이라 결재 대기 옆에 세운다.
-              <div className="flex flex-wrap gap-2">
-                <Link
-                  href="/pass/history"
-                  className={buttonClass({ variant: "secondary", size: "sm" })}
-                >
-                  전체 내역
-                </Link>
-                <Link
-                  href="/scan"
-                  className={buttonClass({ variant: "secondary", size: "sm" })}
-                >
-                  스캔
-                </Link>
-              </div>
-            }
             flush
           >
             {pending.length === 0 ? (
@@ -119,7 +121,8 @@ export async function AdminView({ actor }: { actor: SessionUser }) {
           <IssueForm students={students} today={formatDateInput(now)} />
         </SectionCard>
       </div>
-    </div>
+      </div>
+    </PageScaffold>
   );
 }
 

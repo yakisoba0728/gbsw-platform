@@ -5,6 +5,7 @@ import { formatDateTime } from "@/lib/datetime";
 import { honorificName, isRole, ROLE_LABELS } from "@/core/authz/roles";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PageScaffold } from "@/components/ui/page-scaffold";
 import { SectionCard } from "@/components/ui/section-card";
 import {
   Skeleton,
@@ -150,30 +151,35 @@ export default async function LogsPage({
   const boundaryKey = JSON.stringify(query);
 
   return (
-    <SectionCard
+    <PageScaffold
+      width="data"
       title="감사로그"
-      aside={
-        // 건수는 조회 결과다 — 조건이 바뀌면 표와 함께 뼈대가 된다.
-        <Suspense key={`total:${boundaryKey}`} fallback={<Skeleton className="h-4 w-10" />}>
-          <LogTotal promise={resultPromise} />
-        </Suspense>
-      }
-      controls={
-        // 동작 칩의 목록은 쌓인 로그에서 나오지 지금 고른 조건에서 나오지 않는다.
-        // **key를 주지 않는다** — 주면 칩을 누를 때마다 조작부가 통째로 뼈대가 되어
-        // 고치려던 증상이 그대로 남는다. key 없는 경계는 다시 매달려도 옛 내용을 그대로
-        // 세워 두므로 검색칸의 글자와 포커스가 살아남는다.
-        <Suspense fallback={<LogFiltersSkeleton />}>
-          <LogFilterBar promise={resultPromise} query={query} />
-        </Suspense>
-      }
-      flush
-      className="mx-auto max-w-6xl"
+      description="관리자 작업과 주요 변경 기록을 조회합니다."
     >
-      <Suspense key={`rows:${boundaryKey}`} fallback={<SkeletonRows rows={10} />}>
-        <LogRows promise={resultPromise} params={raw} />
-      </Suspense>
-    </SectionCard>
+      <SectionCard
+        title="기록"
+        aside={
+          // 건수는 조회 결과다 — 조건이 바뀌면 표와 함께 뼈대가 된다.
+          <Suspense key={`total:${boundaryKey}`} fallback={<Skeleton className="h-4 w-10" />}>
+            <LogTotal promise={resultPromise} />
+          </Suspense>
+        }
+        controls={
+          // 동작 칩의 목록은 쌓인 로그에서 나오지 지금 고른 조건에서 나오지 않는다.
+          // **key를 주지 않는다** — 주면 칩을 누를 때마다 조작부가 통째로 뼈대가 되어
+          // 고치려던 증상이 그대로 남는다. key 없는 경계는 다시 매달려도 옛 내용을 그대로
+          // 세워 두므로 검색칸의 글자와 포커스가 살아남는다.
+          <Suspense fallback={<LogFiltersSkeleton />}>
+            <LogFilterBar promise={resultPromise} query={query} />
+          </Suspense>
+        }
+        flush
+      >
+        <Suspense key={`rows:${boundaryKey}`} fallback={<SkeletonRows rows={10} />}>
+          <LogRows promise={resultPromise} params={raw} />
+        </Suspense>
+      </SectionCard>
+    </PageScaffold>
   );
 }
 
@@ -234,6 +240,7 @@ async function LogRows({
         <EmptyState variant="inside">조건에 맞는 기록이 없습니다.</EmptyState>
       ) : (
         <DataTable
+          ariaLabel="감사로그 목록"
           minWidth={700}
           narrow="cards"
           fixed
@@ -252,4 +259,3 @@ async function LogRows({
     </>
   );
 }
-

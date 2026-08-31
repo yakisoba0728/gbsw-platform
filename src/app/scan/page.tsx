@@ -54,18 +54,48 @@ export default async function ScanPage({
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-4 p-4">
-      <h1 className="text-center text-lg font-semibold text-ink">학생증 확인</h1>
+    <main className="min-h-dvh bg-[radial-gradient(130%_90%_at_50%_0%,var(--color-pri-soft)_0%,var(--color-bg)_52%)] px-4 py-6 sm:px-6 sm:py-10">
+      <div className="mx-auto flex min-h-[calc(100dvh-3rem)] w-full max-w-md flex-col justify-center sm:min-h-[calc(100dvh-5rem)]">
+        <header className="mb-5 text-center">
+          <p className="mb-2 text-xs font-semibold tracking-[0.12em] text-pri-ink uppercase">
+            출입 확인
+          </p>
+          <h1 className="text-title font-semibold text-ink">학생증 확인</h1>
+          <p className="mt-2 text-caption text-mut">
+            학생증 QR을 카메라 프레임 안에 맞춰 주세요.
+          </p>
+        </header>
 
-      {error && <Note tone="error">{error}</Note>}
-      {result && <VerdictCard result={result} />}
+        <div className="space-y-4">
+          {error && <Note tone="error">{error}</Note>}
+          {result && <VerdictCard result={result} />}
 
-      {/* 코드를 들고 왔어도 스캐너를 함께 띄운다 — 정문은 다음 학생이 바로 온다. */}
-      <Scanner origin={scanOrigin()} />
+          <section aria-labelledby="scanner-title" className="space-y-3">
+            <div>
+              <h2 id="scanner-title" className="text-lg font-semibold text-ink">
+                QR 스캔
+              </h2>
+              <p className="mt-1 text-caption text-mut">
+                판정 후에도 카메라가 유지되어 다음 학생을 바로 확인할 수 있습니다.
+              </p>
+            </div>
 
-      <Link href="/pass" className={buttonClass({ variant: "secondary", full: true })}>
-        출입증으로
-      </Link>
+            {/* 코드를 들고 왔어도 스캐너를 함께 띄운다 — 정문은 다음 학생이 바로 온다. */}
+            <Scanner origin={scanOrigin()} />
+          </section>
+
+          <Link
+            href="/pass"
+            className={buttonClass({
+              variant: "secondary",
+              size: "lg",
+              full: true,
+            })}
+          >
+            출입증으로
+          </Link>
+        </div>
+      </div>
     </main>
   );
 }

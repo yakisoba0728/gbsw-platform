@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
+import { PageScaffold } from "@/components/ui/page-scaffold";
 import { SectionCard } from "@/components/ui/section-card";
 import { requireAuth } from "@/core/auth/session";
 import { can } from "@/core/authz/can";
@@ -64,21 +65,23 @@ export default async function PassDetailPage({
   });
 
   return (
-    <div className="@container mx-auto max-w-2xl">
-      <BackLink href="/pass">출입증</BackLink>
-
+    <PageScaffold
+      eyebrow={<BackLink href="/pass">출입증으로 돌아가기</BackLink>}
+      title={isPassType(pass.type) ? PASS_TYPE_LABELS[pass.type] : pass.type}
+      description={`${seat ?? "미배정"} · ${honorificName(pass.studentProfile.user.name, "STUDENT")}`}
+      width="form"
+      actions={
+        isPassStatus(pass.status) ? (
+          <Badge tone={PASS_STATUS_TONES[pass.status]}>
+            {PASS_STATUS_LABELS[pass.status]}
+          </Badge>
+        ) : null
+      }
+    >
+      <div className="@container">
       <SectionCard
-        title={isPassType(pass.type) ? PASS_TYPE_LABELS[pass.type] : pass.type}
-        hint={`${seat ?? "미배정"} ${honorificName(pass.studentProfile.user.name, "STUDENT")}`}
-        aside={
-          isPassStatus(pass.status) ? (
-            <Badge tone={PASS_STATUS_TONES[pass.status]}>
-              {PASS_STATUS_LABELS[pass.status]}
-            </Badge>
-          ) : null
-        }
+        title="출입 정보"
         variant="panel"
-        className="mt-3"
       >
         <dl className="grid gap-3 @sm:grid-cols-[7rem_1fr]">
           <Row label="기간" value={passPeriod(pass)} numeric />
@@ -114,7 +117,8 @@ export default async function PassDetailPage({
 
         {canCancel && <CancelButton passId={pass.id} />}
       </SectionCard>
-    </div>
+      </div>
+    </PageScaffold>
   );
 }
 

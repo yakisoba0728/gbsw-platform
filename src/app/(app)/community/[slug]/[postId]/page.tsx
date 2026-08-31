@@ -5,6 +5,7 @@ import { BackLink } from "@/components/ui/back-link";
 import { buttonClass } from "@/components/ui/button";
 import { cardClass } from "@/components/ui/card";
 import { Markdown } from "@/components/ui/markdown";
+import { PageScaffold } from "@/components/ui/page-scaffold";
 import { SectionCard } from "@/components/ui/section-card";
 import { requireAuth } from "@/core/auth/session";
 import { orDenied } from "../../guard";
@@ -40,22 +41,13 @@ export default async function PostPage({
   const { post } = view;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
-      <BackLink href={`/community/${slug}`}>{view.community.name}</BackLink>
-
-      {/* 제목 앞뒤로 다른 것이 오는 카드라 SectionCard로는 표현할 수 없다. */}
-      <article className={cardClass("page")}>
-        <h2 className="text-xl font-semibold text-ink">{post.title}</h2>
-
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-caption text-mut">
-            {post.author?.display ?? "익명"}
-            {" · "}
-            {formatDateTime(post.createdAt)}
-            {post.updatedAt.getTime() !== post.createdAt.getTime() && " · 수정됨"}
-          </p>
-
-          <span className="flex gap-1">
+    <PageScaffold
+      eyebrow={<BackLink href={`/community/${slug}`}>{view.community.name}으로 돌아가기</BackLink>}
+      title={post.title}
+      description={`${post.author?.display ?? "익명"} · ${formatDateTime(post.createdAt)}${post.updatedAt.getTime() !== post.createdAt.getTime() ? " · 수정됨" : ""}`}
+      width="form"
+      actions={
+        <span className="flex gap-1">
             {post.canEdit && (
               <Link
                 href={`/community/${slug}/${postId}/edit`}
@@ -67,11 +59,18 @@ export default async function PostPage({
             {post.canDelete && (
               <DeletePost postId={postId} byModerator={!post.isMine} />
             )}
-          </span>
-        </div>
-
+        </span>
+      }
+    >
+      <article
+        aria-labelledby="post-body-heading"
+        className={cardClass("page", "min-h-52")}
+      >
+        <h2 id="post-body-heading" className="sr-only">
+          게시글 본문
+        </h2>
         {/* 마크다운. 날 HTML은 파싱하지 않고 허용 목록으로 한 번 더 거른다. */}
-        <Markdown className="mt-5 text-ink">{post.body}</Markdown>
+        <Markdown className="text-ink">{post.body}</Markdown>
 
         <AttachmentList attachments={view.attachments} />
       </article>
@@ -84,6 +83,6 @@ export default async function PostPage({
         <CommentList comments={comments} />
         {view.canWrite && <CommentForm postId={postId} />}
       </SectionCard>
-    </div>
+    </PageScaffold>
   );
 }

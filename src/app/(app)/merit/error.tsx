@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { Button, buttonClass } from "@/components/ui/button";
 import { cardClass } from "@/components/ui/card";
+import { PageScaffold } from "@/components/ui/page-scaffold";
 
 /**
  * 상벌점 화면이 던졌을 때의 안내. 이 파일이 없으면 앱 셸까지 사라진다.
@@ -22,29 +23,28 @@ export default function MeritError({
   }, [error]);
 
   return (
-    <div className={cardClass("page", "mx-auto max-w-[420px] text-center")}>
-      <p className="text-caption font-medium text-rose">오류</p>
-      <h2 className="mt-1 text-title font-semibold text-ink">
-        상벌점을 불러오지 못했습니다
-      </h2>
-      <p className="mt-2 text-sm text-mut">
-        계속 같은 화면이 나오면 선생님께 알려 주세요.
-      </p>
+    <PageScaffold
+      eyebrow="오류"
+      title="상벌점을 불러오지 못했습니다"
+      description="계속 같은 화면이 나오면 선생님께 알려 주세요."
+      width="compact"
+    >
+      <div className={cardClass("panel")}>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" onClick={retry}>
+            다시 시도
+          </Button>
+          <Link href="/" className={buttonClass({ variant: "secondary" })}>
+            대시보드
+          </Link>
+        </div>
 
-      <div className="mt-6 flex justify-center gap-2">
-        <Button type="button" onClick={retry}>
-          다시 시도
-        </Button>
-        <Link href="/" className={buttonClass({ variant: "secondary" })}>
-          대시보드
-        </Link>
+        {error.digest && (
+          <p className="mt-4 text-xs text-mut2">
+            오류 번호 <span className="font-mono">{error.digest}</span>
+          </p>
+        )}
       </div>
-
-      {error.digest && (
-        <p className="mt-4 text-xs text-mut2">
-          오류 번호 <span className="font-mono">{error.digest}</span>
-        </p>
-      )}
-    </div>
+    </PageScaffold>
   );
 }

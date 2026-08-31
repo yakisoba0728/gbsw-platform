@@ -91,6 +91,7 @@ export function StudentSearchResults({
         <EmptyState variant="inside">검색 결과가 없습니다.</EmptyState>
       ) : (
         <DataTable
+          ariaLabel="학생 검색 결과"
           minWidth={460}
           narrow="cards"
           rows={rows}

@@ -67,7 +67,7 @@ export function SummaryRow({
     </>
   );
 
-  const shape = "flex items-center gap-3 px-5 py-2.5";
+  const shape = "ui-summary-row flex items-center gap-3 px-5 py-2.5";
 
   return (
     <li>

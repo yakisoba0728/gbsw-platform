@@ -1,5 +1,5 @@
-import { cardClass } from "@/components/ui/card";
-import { Skeleton, SkeletonScreen, SkeletonTabs } from "@/components/ui/skeleton";
+import { PageScaffold } from "@/components/ui/page-scaffold";
+import { Skeleton, SkeletonTabs } from "@/components/ui/skeleton";
 
 /**
  * `/merit/stats`의 로딩 뼈대 — **머리글까지만 그린다.**
@@ -14,20 +14,20 @@ import { Skeleton, SkeletonScreen, SkeletonTabs } from "@/components/ui/skeleton
  */
 export default function Loading() {
   return (
-    <SkeletonScreen>
-      <div className={cardClass("panel")}>
-        {/* 제목 · 집계 범위 · 트랙 탭 */}
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-2">
-            <Skeleton className="h-5 w-40 rounded-btn" />
-            <Skeleton className="h-4 w-64 rounded-btn" />
-          </div>
+    <PageScaffold
+      width="data"
+      title="상벌점 통계"
+      description={<Skeleton as="span" className="inline-block h-4 w-64 max-w-full" />}
+      tabs={
+        <div className="flex flex-wrap items-center gap-2">
           <SkeletonTabs size="sm" />
+          <SkeletonTabs count={4} size="sm" className="flex-wrap" />
         </div>
-
-        {/* 갈래 탭 — 개요 · 순위·현황 · 교사별 · 규정별 */}
-        <SkeletonTabs count={4} size="sm" className="mt-3 flex-wrap" />
-      </div>
-    </SkeletonScreen>
+      }
+    >
+      <span className="sr-only" aria-live="polite">
+        불러오는 중
+      </span>
+    </PageScaffold>
   );
 }

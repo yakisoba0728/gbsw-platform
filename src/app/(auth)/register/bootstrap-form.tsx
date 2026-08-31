@@ -20,13 +20,23 @@ export function BootstrapForm({ token }: { token: string }) {
   );
 
   return (
-    <form action={formAction} className="animate-auth-in">
+    <form
+      action={formAction}
+      aria-labelledby="bootstrap-title"
+      aria-describedby="bootstrap-description"
+      className="animate-auth-in"
+    >
       <input type="hidden" name="token" value={token} />
 
-      <h1 className="mb-2 text-title font-semibold text-ink">
+      <p className="mb-2 text-xs font-semibold tracking-[0.12em] text-pri-ink uppercase">
+        초기 설정
+      </p>
+      <h1 id="bootstrap-title" className="text-title font-semibold text-ink">
         첫 교사 계정
       </h1>
-      <p className="mb-8 text-caption text-mut">이 화면은 한 번만 열립니다.</p>
+      <p id="bootstrap-description" className="mt-2 mb-8 text-caption text-mut">
+        이 화면은 한 번만 열립니다.
+      </p>
 
       {/*
         비제어 칸이라 실패 뒤 폼 자동 리셋(React 19)에 지워진다. 액션이 되돌려준
@@ -34,7 +44,8 @@ export function BootstrapForm({ token }: { token: string }) {
         끝난 뒤에 돌아서 새 defaultValue를 본다. 비밀번호 두 칸은 일부러 뺐다.
       */}
       <Label htmlFor="name">이름</Label>
-      <Input size="lg"
+      <Input
+        size="lg"
         id="name"
         name="name"
         autoComplete="name"
@@ -45,7 +56,8 @@ export function BootstrapForm({ token }: { token: string }) {
       />
 
       <Label htmlFor="email">이메일</Label>
-      <Input size="lg"
+      <Input
+        size="lg"
         id="email"
         name="email"
         type="email"
@@ -57,7 +69,8 @@ export function BootstrapForm({ token }: { token: string }) {
       />
 
       <Label htmlFor="phone">전화번호</Label>
-      <MaskedInput size="lg"
+      <MaskedInput
+        size="lg"
         id="phone"
         name="phone"
         type="tel"
@@ -72,7 +85,8 @@ export function BootstrapForm({ token }: { token: string }) {
       <Label htmlFor="password">
         비밀번호 <span className="font-normal text-mut">(10자 이상)</span>
       </Label>
-      <Input size="lg"
+      <Input
+        size="lg"
         id="password"
         name="password"
         type="password"
@@ -83,7 +97,8 @@ export function BootstrapForm({ token }: { token: string }) {
       />
 
       <Label htmlFor="confirmPassword">비밀번호 확인</Label>
-      <Input size="lg"
+      <Input
+        size="lg"
         id="confirmPassword"
         name="confirmPassword"
         type="password"

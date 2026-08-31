@@ -15,16 +15,27 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
   );
 
   return (
-    <form action={formAction}>
-      <h1 className="mb-2 text-title font-semibold text-ink">비밀번호 변경</h1>
-      <p className="mb-8 text-caption text-mut">
+    <form
+      action={formAction}
+      aria-labelledby="change-password-title"
+      aria-describedby="change-password-description"
+      className="animate-auth-in"
+    >
+      <p className="mb-2 text-xs font-semibold tracking-[0.12em] text-pri-ink uppercase">
+        계정 보안
+      </p>
+      <h1 id="change-password-title" className="text-title font-semibold text-ink">
+        비밀번호 변경
+      </h1>
+      <p id="change-password-description" className="mt-2 mb-8 text-caption text-mut">
         {forced
           ? "계속하려면 새 비밀번호를 정해야 합니다. 변경 후 다시 로그인합니다."
           : "변경 후 다시 로그인합니다."}
       </p>
 
       <Label htmlFor="currentPassword">현재 비밀번호</Label>
-      <Input size="lg"
+      <Input
+        size="lg"
         id="currentPassword"
         name="currentPassword"
         type="password"
@@ -36,7 +47,8 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
       <Label htmlFor="newPassword">
         새 비밀번호 <span className="font-normal text-mut">(10자 이상)</span>
       </Label>
-      <Input size="lg"
+      <Input
+        size="lg"
         id="newPassword"
         name="newPassword"
         type="password"
@@ -47,7 +59,8 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
       />
 
       <Label htmlFor="confirmPassword">새 비밀번호 확인</Label>
-      <Input size="lg"
+      <Input
+        size="lg"
         id="confirmPassword"
         name="confirmPassword"
         type="password"

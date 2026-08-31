@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { buttonClass } from "@/components/ui/button";
+import { PageScaffold } from "@/components/ui/page-scaffold";
 import { requireAuth } from "@/core/auth/session";
 import { InvitesPanel } from "../invites/panel";
 import { StudentsPanel } from "../students/panel";
@@ -33,14 +36,26 @@ export default async function AdminUsersPage({
   const tab = parseAdminTab((await searchParams).tab);
 
   return (
-    // 세 탭이 같은 자리에 선다 — 폭을 여기서 한 번만 정한다. 탭마다 다르면
-    // 탭을 누를 때마다 카드 가장자리가 좌우로 흔들린다.
-    <div className="@container mx-auto max-w-7xl space-y-4">
-      <AdminTabs current={tab} />
-
+    <PageScaffold
+      width="data"
+      title="계정 관리"
+      description="계정, 초대코드, 학생 재적 정보를 한곳에서 관리합니다."
+      actions={
+        tab === "students" ? (
+          <Link
+            href="/admin/students/import"
+            className={buttonClass({ variant: "secondary", size: "sm" })}
+          >
+            명단 반영
+          </Link>
+        ) : undefined
+      }
+      tabs={<AdminTabs current={tab} />}
+      className="@container"
+    >
       {tab === "invites" && <InvitesPanel />}
       {tab === "students" && <StudentsPanel />}
       {tab === "accounts" && <AccountsPanel />}
-    </div>
+    </PageScaffold>
   );
 }

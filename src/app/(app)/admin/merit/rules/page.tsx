@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { FilterRow } from "@/components/ui/filter-row";
 import { requirePermission } from "@/core/auth/session";
 import {
   isMeritKind,
@@ -13,6 +12,7 @@ import {
 } from "@/core/authz/merit-track";
 import { ChipLink } from "@/components/ui/chip-link";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PageScaffold } from "@/components/ui/page-scaffold";
 import { SearchForm } from "@/components/ui/search-form";
 import { SectionCard } from "@/components/ui/section-card";
 import { Skeleton, SkeletonTable } from "@/components/ui/skeleton";
@@ -67,17 +67,19 @@ export default async function RulesPage({
   const boundaryKey = JSON.stringify({ track, q, kind });
 
   return (
-    <div className="mx-auto max-w-5xl space-y-4">
-      <RuleForm
-        track={track}
-        trackTabs={
-          <TrackTabs
-            current={track}
-            // 트랙을 바꾸면 검색 조건은 버린다 — 목록 자체가 달라 0건이 빈 화면처럼 읽힌다.
-            hrefFor={(nextTrack) => `${BASE_PATH}?track=${nextTrack}`}
-          />
-        }
-      />
+    <PageScaffold
+      width="standard"
+      title="상벌점 규정"
+      description="상·벌점 항목과 점수를 교내·기숙사별로 관리합니다."
+      tabs={
+        <TrackTabs
+          current={track}
+          // 트랙을 바꾸면 검색 조건은 버린다 — 목록 자체가 달라 0건이 빈 화면처럼 읽힌다.
+          hrefFor={(nextTrack) => `${BASE_PATH}?track=${nextTrack}`}
+        />
+      }
+    >
+      <RuleForm track={track} />
 
       <SectionCard variant="panel" title="규정 찾기">
         {/* 지금 보는 트랙·종류를 함께 실어야 검색과 동시에 필터가 풀리지 않는다. */}
@@ -89,7 +91,17 @@ export default async function RulesPage({
           hidden={{ track, kind }}
         />
 
-        <FilterRow label="종류" className="mt-3">
+        <div
+          role="group"
+          aria-labelledby="rule-kind-filter-label"
+          className="mt-3 flex flex-wrap items-center gap-1.5"
+        >
+          <span
+            id="rule-kind-filter-label"
+            className="mr-1 min-w-8 shrink-0 text-xs font-medium text-mut"
+          >
+            종류
+          </span>
           <ChipLink
             href={hrefWith(BASE_PATH, raw, { kind: null })}
             active={kind === null}
@@ -107,7 +119,7 @@ export default async function RulesPage({
               {MERIT_KIND_LABELS[k]}
             </ChipLink>
           ))}
-        </FilterRow>
+        </div>
 
         {/* 건수는 조회 결과에서 나온다 — 검색칸·필터를 붙잡아 두려면 여기만 따로 기다린다. */}
         <Suspense
@@ -132,7 +144,7 @@ export default async function RulesPage({
           filtering={filtering}
         />
       </Suspense>
-    </div>
+    </PageScaffold>
   );
 }
 

@@ -153,6 +153,7 @@ export function AwardHistory({
         <EmptyState variant="inside">내역이 없습니다.</EmptyState>
       ) : (
         <DataTable
+          ariaLabel="학생 상벌점 부여 내역"
           minWidth={canCancel ? 604 : 560}
           narrow="cards"
           rows={awards}

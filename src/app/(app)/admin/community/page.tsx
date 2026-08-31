@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PageScaffold } from "@/components/ui/page-scaffold";
 import { SectionCard } from "@/components/ui/section-card";
 import { requirePermission } from "@/core/auth/session";
 import { listForManage } from "@/modules/community/board.service";
@@ -14,7 +15,11 @@ export default async function AdminCommunityPage() {
   const boards = await listForManage(actor);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-4">
+    <PageScaffold
+      width="standard"
+      title="커뮤니티 관리"
+      description="게시판을 만들고 역할별 읽기·쓰기 권한을 관리합니다."
+    >
       <CommunityForm />
 
       <SectionCard
@@ -28,6 +33,6 @@ export default async function AdminCommunityPage() {
           <CommunityList boards={boards} />
         )}
       </SectionCard>
-    </div>
+    </PageScaffold>
   );
 }

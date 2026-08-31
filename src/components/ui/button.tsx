@@ -94,7 +94,7 @@ export function buttonClass({
   const isChip = variant === "chip";
 
   return cn(
-    "inline-flex items-center justify-center gap-1.5 border font-medium leading-none whitespace-nowrap",
+    "ui-button inline-flex items-center justify-center gap-1.5 border font-medium leading-none whitespace-nowrap",
     "transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
     "disabled:pointer-events-none",
     isChip ? "rounded-full" : "rounded-btn",

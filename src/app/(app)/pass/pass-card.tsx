@@ -33,7 +33,7 @@ export function PassCard({
   return (
     // relative — 아래 링크가 이 줄 전체를 덮는다. 유형 글자에만 걸면 표적이
     // 20px밖에 안 돼 폰에서 눌리지 않는다(최소 36px).
-    <li className="group relative border-b border-line px-5 py-4 last:border-b-0">
+    <li className="group relative border-b border-line px-5 py-4 transition-colors last:border-b-0 hover:bg-soft/80 sm:px-6 sm:py-5">
       {/*
         줄 전체를 덮는 링크. **children(버튼)보다 먼저 그린다** — 뒤에 그리면
         버튼 위를 덮어 취소·QR 보기가 안 눌린다. children 쪽에 z-10을 주어
@@ -44,7 +44,7 @@ export function PassCard({
       <Link
         href={`/pass/${pass.id}`}
         aria-label={`${type} 상세`}
-        className="absolute inset-0 rounded-btn focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ink"
+        className="absolute inset-1 rounded-btn focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pri"
       />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
@@ -83,4 +83,3 @@ export function PassCard({
     </li>
   );
 }
-

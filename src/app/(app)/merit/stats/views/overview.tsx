@@ -2,8 +2,10 @@ import Link from "next/link";
 import type { SessionUser } from "@/core/auth/session";
 import {
   isYearScoped,
+  MERIT_KIND_LABELS,
   signedNet,
   type DemeritThresholds,
+  type MeritKind,
   type MeritTrack,
 } from "@/core/authz/merit-track";
 import { KindBadge, kindColorClass, signedPoints } from "@/components/merit/kind-badge";
@@ -24,6 +26,7 @@ import {
 import { getMeritStats, type MeritStats } from "@/modules/merit/stats.service";
 import { formatSeat } from "@/lib/student-number";
 import { honorificName } from "@/core/authz/roles";
+import { ChartDataSummary } from "./chart-data-summary";
 
 export type OverviewPromise = Promise<MeritStats | null>;
 
@@ -114,24 +117,62 @@ export async function OverviewBody({
         />
       </StatStrip>
 
-      <MonthlyChart points={stats.monthly} axisLabel={stats.axisLabel} />
+      <div>
+        <ChartDataSummary
+          label={`월별 추이 · ${stats.axisLabel}`}
+          rows={stats.monthly.map(
+            (point) =>
+              `${point.label}: 상점 ${point.merit}점, 벌점 ${point.demerit}점, 상쇄점 ${point.offset}점, 순점수 ${signedNet(point.net)}`,
+          )}
+        />
+        <MonthlyChart points={stats.monthly} axisLabel={stats.axisLabel} />
+      </div>
 
       {stats.scope && stats.students ? (
-        <StudentNetChart
-          rows={stats.students}
-          thresholds={stats.thresholds}
-          hrefFor={(id) => `/students/${id}?track=${track}`}
-        />
+        <div>
+          <ChartDataSummary
+            label={`${stats.scope.grade}학년 ${stats.scope.classNo}반 학생별 순점수`}
+            rows={[...stats.students]
+              .sort((a, b) => a.net - b.net)
+              .map(
+                (student) =>
+                  `${student.number === null ? "번호 없음" : `${student.number}번`} ${honorificName(student.name, "STUDENT")}: 상점 ${student.merit}점, 벌점 ${student.demerit}점, 상쇄점 ${student.offset}점, 순점수 ${signedNet(student.net)}`,
+              )}
+          />
+          <StudentNetChart
+            rows={stats.students}
+            thresholds={stats.thresholds}
+            hrefFor={(id) => `/students/${id}?track=${track}`}
+          />
+        </div>
       ) : (
-        <ClassNetChart
-          rows={stats.classes}
-          hrefFor={(row) =>
-            statsHref({ grade: String(row.grade), classNo: String(row.classNo) })
-          }
-        />
+        <div>
+          <ChartDataSummary
+            label="반별 순점수"
+            rows={stats.classes.map(
+              (row) =>
+                `${row.grade}학년 ${row.classNo}반 ${row.students}명: 상점 ${row.merit}점, 벌점 ${row.demerit}점, 상쇄점 ${row.offset}점, 순점수 ${signedNet(row.net)}, 1인 평균 ${signedNet(row.avgNet)}`,
+            )}
+          />
+          <ClassNetChart
+            rows={stats.classes}
+            hrefFor={(row) =>
+              statsHref({ grade: String(row.grade), classNo: String(row.classNo) })
+            }
+          />
+        </div>
       )}
 
-      <CategoryChart slices={stats.categories} scopeLabel={stats.chartRange} />
+      <div>
+        <ChartDataSummary
+          label={`분류별 분포 · ${stats.chartRange}`}
+          rows={stats.categories.map(
+            (slice) =>
+              `${slice.category}: ${MERIT_KIND_LABELS[slice.kind as MeritKind] ?? slice.kind} ${slice.count}건, ${slice.points}점`,
+          )}
+        />
+        <CategoryChart slices={stats.categories} scopeLabel={stats.chartRange} />
+      </div>
 
       <WatchList
         rows={stats.watchList}
@@ -265,6 +306,7 @@ function WatchList({
         </EmptyState>
       ) : (
         <DataTable
+          ariaLabel="기준 초과 학생"
           minWidth={440}
           narrow="cards"
           rows={ranked}
@@ -353,6 +395,7 @@ function ClassTable({ rows }: { rows: MeritStats["classes"] }) {
         <EmptyState variant="inside">배정된 반이 없습니다.</EmptyState>
       ) : (
         <DataTable
+          ariaLabel="반별 현황"
           minWidth={520}
           narrow="cards"
           rows={rows}
@@ -411,6 +454,7 @@ function TopRules({ rows }: { rows: MeritStats["topRules"] }) {
         <EmptyState variant="inside">부여된 상벌점이 없습니다.</EmptyState>
       ) : (
         <DataTable
+          ariaLabel="많이 나온 상벌점 항목"
           minWidth={480}
           narrow="cards"
           rows={rows}
@@ -421,4 +465,3 @@ function TopRules({ rows }: { rows: MeritStats["topRules"] }) {
     </SectionCard>
   );
 }
-

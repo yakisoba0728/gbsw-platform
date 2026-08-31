@@ -159,6 +159,7 @@ function UnusedRules({ stats, track }: { stats: RuleStats; track: MeritTrack }) 
         <EmptyState variant="inside">안 쓰인 규정이 없습니다.</EmptyState>
       ) : (
         <DataTable
+          ariaLabel="안 쓰인 상벌점 규정"
           minWidth={480}
           narrow="cards"
           rows={rows}

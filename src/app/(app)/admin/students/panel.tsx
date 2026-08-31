@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { EmptyState } from "@/components/ui/empty-state";
 import { requirePermission } from "@/core/auth/session";
 import {
@@ -46,14 +45,6 @@ export async function StudentsPanel() {
   return (
     // grid로 두면 암시적 열이 max-content라 표의 minWidth가 페이지를 밀어낸다.
     <div className="flex flex-col gap-4">
-      <div className="flex justify-end">
-        <Link
-          href="/admin/students/import"
-          className="text-caption font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
-        >
-          명단 반영
-        </Link>
-      </div>
       <YearSwitcher years={years} />
       {rows && currentYear !== undefined ? (
         <StudentTable key={currentYear} rows={rows} year={currentYear} />

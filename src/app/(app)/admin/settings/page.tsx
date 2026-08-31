@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { requirePermission } from "@/core/auth/session";
+import { PageScaffold } from "@/components/ui/page-scaffold";
 import { SectionCard } from "@/components/ui/section-card";
 import { formatDateTime } from "@/lib/datetime";
 import { listThresholdSettings } from "@/modules/merit/threshold.service";
@@ -18,7 +19,11 @@ export default async function SettingsPage() {
   const thresholds = await listThresholdSettings(actor);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <PageScaffold
+      width="form"
+      title="설정"
+      description="학교 전체에 적용되는 운영 기준을 관리합니다."
+    >
       <SectionCard
         flush
         title="벌점 기준"
@@ -48,6 +53,6 @@ export default async function SettingsPage() {
           />
         ))}
       </SectionCard>
-    </div>
+    </PageScaffold>
   );
 }

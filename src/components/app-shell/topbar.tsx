@@ -114,18 +114,21 @@ export function Topbar({ name, role }: { name: string; role: Role | null }) {
 
   return (
     // print:hidden — 확인서 화면이 자기 <h1>을 그린다. 빼지 않으면 제목이 둘 찍힌다.
-    <header className="flex h-14 flex-none items-center justify-between gap-3 border-b border-line bg-surface px-4 lg:h-15 lg:px-7 print:hidden">
+    <header className="workspace-topbar sticky top-0 z-30 flex h-16 flex-none items-center justify-between gap-3 border-b border-line px-4 sm:px-5 lg:h-[4.5rem] lg:px-8 xl:px-10 print:hidden">
       <div className="flex min-w-0 items-center gap-2.5">
         {/* 390px 폭에 로고와 메뉴 버튼을 둘 다 두면 제목이 잘린다. */}
         <MobileNav role={role} />
-        {/* 제목은 <h1>로 남기고 자르는 일만 안에 맡긴다 — TruncatedText가 그리는
-            것은 span이라 제목 계층을 대신할 수 없다. `truncate`를 뺀 자리에는
-            `min-w-0`을 넣는다: 지금 제목이 줄어드는 것은 overflow-hidden이 flex
-            최소 폭을 0으로 만들어 준 덕이라, 그냥 빼면 긴 제목이 오른쪽 것들을
-            화면 밖으로 밀어낸다. */}
-        <h1 className="min-w-0 text-base font-semibold tracking-tight text-ink lg:text-lg">
-          <TruncatedText full={title}>{title}</TruncatedText>
-        </h1>
+        {/* 이 줄은 내비게이션의 현재 위치다. 업무 화면의 유일한 h1은 PageScaffold가
+            맡는다. `min-w-0`이 있어야 긴 위치 이름이 오른쪽 계정·시계를 화면 밖으로
+            밀지 않고 TruncatedText 안에서 줄어든다. */}
+        <div className="min-w-0" aria-label={`현재 위치: ${title}`}>
+          <span className="hidden text-[11px] font-medium tracking-[0.14em] text-mut2 uppercase lg:block">
+            Workspace
+          </span>
+          <p className="min-w-0 text-base font-semibold tracking-tight text-ink lg:text-lg">
+            <TruncatedText full={title}>{title}</TruncatedText>
+          </p>
+        </div>
       </div>
 
       {/*
@@ -139,7 +142,9 @@ export function Topbar({ name, role }: { name: string; role: Role | null }) {
        * **폰** — 사이드바가 없다. 계정과 나가기를 이 줄이 대신 진다.
        */}
       <div className="flex min-w-0 items-center">
-        <Clock />
+        <span className="hidden items-center rounded-full border border-line bg-surface px-3 py-1.5 shadow-sm lg:flex">
+          <Clock />
+        </span>
 
         <TruncatedText
           full={honorificName(name, role)}

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { BackLink } from "@/components/ui/back-link";
+import { PageScaffold } from "@/components/ui/page-scaffold";
 import { requireAuth } from "@/core/auth/session";
 import { getPost } from "@/modules/community/post.service";
 import { PostForm } from "../../post-form";
@@ -30,8 +31,12 @@ export default async function EditPostPage({
   if (!view.post.canEdit) redirect("/forbidden");
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
-      <BackLink href={`/community/${slug}/${postId}`}>글로 돌아가기</BackLink>
+    <PageScaffold
+      eyebrow={<BackLink href={`/community/${slug}/${postId}`}>글로 돌아가기</BackLink>}
+      title="글 수정"
+      description={`${view.community.name}에 올린 글의 내용과 첨부파일을 수정합니다.`}
+      width="form"
+    >
       <PostForm
         slug={slug}
         boardName={view.community.name}
@@ -49,6 +54,6 @@ export default async function EditPostPage({
           })),
         }}
       />
-    </div>
+    </PageScaffold>
   );
 }

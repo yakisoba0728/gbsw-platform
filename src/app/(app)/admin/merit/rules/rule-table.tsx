@@ -100,6 +100,7 @@ export function RuleTable({ rules }: { rules: RuleRow[] }) {
       )}
 
       <TableFrame
+        ariaLabel="상벌점 규정 목록"
         minWidth={640}
         cols={["w-[76px]", "w-[128px]", undefined, "w-[92px]", "w-[150px]"]}
         headers={HEADERS}
