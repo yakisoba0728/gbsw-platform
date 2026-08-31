@@ -25,6 +25,23 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "html", "json-summary"],
+      // 실행 중 우연히 import된 파일만 세면 새 무테스트 모듈이 지표에서
+      // 사라진다. 생성물을 제외한 production source 전체를 분모에 둔다.
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: ["src/generated/**", "src/**/*.d.ts"],
+      thresholds: {
+        // 전체 production source 기준 현재 baseline(51.52/40.70/39.13/51.29)을
+        // 내림한 값이다. 새 파일도 0%로 포함되므로 무테스트 코드 추가가 이
+        // gate를 우회하지 못한다.
+        statements: 51,
+        branches: 40,
+        functions: 39,
+        lines: 51,
+      },
+    },
     projects: [
       {
         // 기본(단위) 스위트. `npm test`/`npm run verify:unit`이 도는 대상이다.

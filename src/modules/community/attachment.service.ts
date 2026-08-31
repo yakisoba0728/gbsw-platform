@@ -59,9 +59,6 @@ export async function uploadAttachment(
 
   // ③ 미결 수. 정리를 먼저 돌려 방금 만료된 것이 상한을 차지하지 않게 한다.
   await sweepMyOrphans(actor.id);
-  if ((await repo.countPending(actor.id)) >= MAX_PENDING_ATTACHMENTS) {
-    throw new CommunityError("ATTACHMENT_PENDING_LIMIT");
-  }
 
   const storageKey = newStorageKey();
 
@@ -74,6 +71,13 @@ export async function uploadAttachment(
   // 라우트가 ENOENT → 404로 정직하게 답한다. 5MB 쓰기가 Postgres 커넥션을 쥔
   // 채 돌지 않는 것은 덤이다.
   const { id, createdAt } = await withTransaction(async (tx) => {
+    // 같은 사용자의 count+create를 한 줄로 세운다. 상한 검사를 트랜잭션 밖에서
+    // 하면 9개에서 들어온 병렬 요청들이 모두 통과해 디스크 한도를 우회한다.
+    await repo.lockAttachmentUploader(actor.id, tx);
+    if ((await repo.countPending(actor.id, tx)) >= MAX_PENDING_ATTACHMENTS) {
+      throw new CommunityError("ATTACHMENT_PENDING_LIMIT");
+    }
+
     const created = await repo.createAttachment(
       {
         uploaderUserId: actor.id,

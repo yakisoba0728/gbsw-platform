@@ -23,7 +23,7 @@ beforeEach(() => {
 });
 
 describe("lockStudentForParentInvite()", () => {
-  it("학생 프로필 행을 트랜잭션 잠금하고 존재 여부를 반환한다", async () => {
+  it("User 다음 StudentProfile 순으로 잠그고 존재 여부를 반환한다", async () => {
     const tx = {
       $queryRaw: queryRaw,
     };
@@ -32,7 +32,9 @@ describe("lockStudentForParentInvite()", () => {
       lockStudentForParentInvite("sp-1", tx as never),
     ).resolves.toBe(true);
 
-    expect(queryRaw).toHaveBeenCalledTimes(1);
+    expect(queryRaw).toHaveBeenCalledTimes(2);
+    expect(queryRaw.mock.calls[0]![0].join(" ")).toContain('FROM "user"');
+    expect(queryRaw.mock.calls[1]![0].join(" ")).toContain('FROM "StudentProfile"');
   });
 
   it("잠글 학생이 없으면 false다", async () => {

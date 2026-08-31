@@ -191,6 +191,19 @@ describe("여러 건을 고르는 순서", () => {
     expect(result.verdict).toBe("EXPIRED");
   });
 
+  it("종료 시각과 정확히 같으면 더는 유효하지 않고 EXPIRED다", async () => {
+    listForVerify.mockResolvedValue([
+      pass({
+        startAt: new Date("2026-08-26T23:00:00.000Z"),
+        endAt: NOW,
+      }),
+    ]);
+
+    const result = await service.verifyStudentQr(admin, code(), NOW);
+
+    expect(result.verdict).toBe("EXPIRED");
+  });
+
   // 승인 건이 하나라도 있으면 그쪽이 이긴다 — 결재 대기는 정문에서 답이 아니다.
   it("결재 대기만 있으면 NOT_APPROVED", async () => {
     listForVerify.mockResolvedValue([pass({ status: "REQUESTED" })]);

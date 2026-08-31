@@ -20,11 +20,13 @@ import { PassCard, passEndLabel } from "./pass-card";
 export async function AdminView({ actor }: { actor: SessionUser }) {
   const now = new Date();
   // 셋은 서로를 안 기다린다.
-  const [pending, active, students] = await Promise.all([
+  const [pendingResult, activeResult, students] = await Promise.all([
     listPendingPasses(actor, now),
     listActivePasses(actor, now),
     listStudentsForIssue(actor),
   ]);
+  const pending = pendingResult.entries;
+  const active = activeResult.entries;
 
   return (
     <div className="@container mx-auto max-w-5xl space-y-4">
@@ -38,7 +40,7 @@ export async function AdminView({ actor }: { actor: SessionUser }) {
         <div className="space-y-4">
           <SectionCard
             title="결재 대기"
-            hint={`${pending.length}건`}
+            hint={`${pendingResult.total}건`}
             aside={
               // 이 카드도 아래 카드도 「지금」만 답한다 — 어제 나간 것을 되짚을
               // 길은 전체 내역뿐이라 결재 대기 옆에 세운다.
@@ -85,7 +87,7 @@ export async function AdminView({ actor }: { actor: SessionUser }) {
 
           <SectionCard
             title="지금 나가 있는 학생"
-            hint={`${active.length}명`}
+            hint={`${activeResult.total}명`}
             flush
           >
             {active.length === 0 ? (

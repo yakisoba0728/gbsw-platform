@@ -35,11 +35,13 @@ const CANCELLABLE: readonly PassStatus[] = ["REQUESTED", "CONSENTED", "APPROVED"
 export async function approvePass(
   actor: SessionUser,
   input: ApprovePassInput,
+  now: Date = new Date(),
 ): Promise<void> {
   await assertCan(actor, "pass:approve");
 
   const pass = await repo.findPass(input.passId);
   if (!pass) throw new PassError("PASS_NOT_FOUND");
+  if (pass.endAt.getTime() <= now.getTime()) throw new PassError("PASS_EXPIRED");
 
   const byProxy = input.byProxy === "on";
   const consented = pass.consentedAt !== null || pass.consentByProxy;
@@ -49,7 +51,6 @@ export async function approvePass(
     throw new PassError("CONSENT_REQUIRED");
   }
 
-  const now = new Date();
   const proxyFields = byProxy
     ? {
         consentByProxy: true,
@@ -61,9 +62,10 @@ export async function approvePass(
     : {};
 
   await withTransaction(async (tx) => {
-    const changed = await repo.transition(
+    const outcome = await repo.transitionUnexpired(
       input.passId,
       DECIDABLE_STATUSES,
+      now,
       {
         status: "APPROVED",
         decidedByUserId: actor.id,
@@ -74,7 +76,8 @@ export async function approvePass(
       },
       tx,
     );
-    if (changed === 0) throw new PassError("ALREADY_DECIDED");
+    if (outcome === "EXPIRED") throw new PassError("PASS_EXPIRED");
+    if (outcome !== "UPDATED") throw new PassError("ALREADY_DECIDED");
 
     await recordAudit(
       {
@@ -145,63 +148,102 @@ export async function issuePass(
 ): Promise<{ id: string }> {
   await assertCan(actor, "pass:issue");
 
-  const { startAt, endAt } = issueWindow(input, now);
+  // 종료 시각은 제출 당시 달력 날짜에 고정한다. 잠금 대기가 자정을 넘었다고
+  // 외출 종료일을 다음 날로 밀면 사용자가 내지 않은 하루짜리 출입증이 된다.
+  const { endAt } = issueWindow(input, now);
 
-  const overlapping = await repo.findOverlapping(input.studentId, startAt, endAt);
-  if (overlapping) throw new PassError("OVERLAPPING_PASS");
+  try {
+    return await withTransaction(
+      async (tx) => {
+        const year = await repo.findCurrentYearForUpdate(tx);
+        const eligible =
+          year !== null &&
+          (await repo.lockEligibleStudentForPassCreation(input.studentId, year, tx));
+        if (!eligible) throw new PassError("STUDENT_NOT_ELIGIBLE");
 
-  // 외박이면 스키마가 guardianConfirmed를 이미 강제했다 — 여기서는 기록만 한다.
-  const consentFields =
-    input.type === "OVERNIGHT"
-      ? {
-          consentByProxy: true,
-          consentedByUserId: actor.id,
-          consentedByName: actor.name,
-          consentedAt: now,
-          consentNote: input.consentNote,
+        // AcademicYear/User/Profile/Enrollment 잠금을 기다리는 동안 호출자의 `now`는
+        // 최대 2분 넘게 낡을 수 있다. 잠금을 모두 얻은 뒤 DB 시각으로 시작을 다시
+        // 잡고, 이미 끝난 창은 APPROVED 행을 만들기 전에 거부한다.
+        const issuedAt = await repo.currentDatabaseTime(tx);
+        if (endAt.getTime() <= issuedAt.getTime()) {
+          throw new PassError("PASS_EXPIRED");
         }
-      : {};
+        const startAt = issuedAt;
 
-  return withTransaction(async (tx) => {
-    const created = await repo.createPass(
-      {
-        studentProfileId: input.studentId,
-        type: input.type,
-        status: "APPROVED",
-        startAt,
-        endAt,
-        destination: input.destination,
-        reason: input.reason,
-        requestedByUserId: actor.id,
-        requestedByName: actor.name,
-        decidedByUserId: actor.id,
-        decidedByName: actor.name,
-        decidedAt: now,
-        ...consentFields,
+        // 외박이면 스키마가 guardianConfirmed를 이미 강제했다 — 여기서는 기록만 한다.
+        const consentFields =
+          input.type === "OVERNIGHT"
+            ? {
+                consentByProxy: true,
+                consentedByUserId: actor.id,
+                consentedByName: actor.name,
+                consentedAt: issuedAt,
+                consentNote: input.consentNote,
+              }
+            : {};
+
+        const overlapping = await repo.findOverlapping(
+          input.studentId,
+          startAt,
+          endAt,
+          tx,
+        );
+        if (overlapping) throw new PassError("OVERLAPPING_PASS");
+
+        const created = await repo.createPass(
+          {
+            studentProfileId: input.studentId,
+            type: input.type,
+            status: "APPROVED",
+            startAt,
+            endAt,
+            destination: input.destination,
+            reason: input.reason,
+            requestedByUserId: actor.id,
+            requestedByName: actor.name,
+            decidedByUserId: actor.id,
+            decidedByName: actor.name,
+            decidedAt: issuedAt,
+            ...consentFields,
+          },
+          tx,
+        );
+
+        await recordAudit(
+          {
+            actorUserId: actor.id,
+            actorName: actor.name,
+            action: "pass:issue",
+            targetType: "Pass",
+            targetId: created.id,
+            metadata: {
+              type: input.type,
+              startAt: startAt.toISOString(),
+              endAt: endAt.toISOString(),
+              destination: input.destination,
+              byProxy: input.type === "OVERNIGHT",
+            },
+          },
+          tx,
+        );
+
+        return created;
       },
-      tx,
+      // 명단 반영은 같은 AcademicYear 잠금을 최대 120초 쥔다. 그 정상 대기를
+      // 기본 ITX 제한(5초)이 업무 실패로 바꾸지 않도록 여유를 둔다.
+      { timeout: 130_000, maxWait: 10_000 },
     );
-
-    await recordAudit(
-      {
-        actorUserId: actor.id,
-        actorName: actor.name,
-        action: "pass:issue",
-        targetType: "Pass",
-        targetId: created.id,
-        metadata: {
-          type: input.type,
-          startAt: startAt.toISOString(),
-          endAt: endAt.toISOString(),
-          destination: input.destination,
-          byProxy: input.type === "OVERNIGHT",
-        },
-      },
-      tx,
-    );
-
-    return created;
-  });
+  } catch (error) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "P2028"
+    ) {
+      throw new PassError("PASS_BUSY");
+    }
+    throw error;
+  }
 }
 
 export async function cancelPass(

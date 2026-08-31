@@ -158,7 +158,9 @@ export function listPosts(
 ) {
   return db.communityPost.findMany({
     where: { communityId, deletedAt: null },
-    orderBy: { createdAt: "desc" },
+    // offset 페이지는 정렬키가 유일해야 페이지 경계가 고정된다. 같은 트랜잭션에서
+    // 만든 글은 createdAt이 모두 같을 수 있으므로 id로 동점을 끊는다.
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     skip,
     take,
     ...POST_WITH_COUNTS,
@@ -358,6 +360,26 @@ export function countPending(
   db: DbClient = prisma,
 ): Promise<number> {
   return db.communityAttachment.count({ where: { uploaderUserId, postId: null } });
+}
+
+/**
+ * 미결 첨부 상한 판정의 직렬화 지점.
+ *
+ * 같은 사용자의 업로드는 이 User 행을 트랜잭션 끝까지 잠근 뒤 count+insert한다.
+ * 그렇지 않으면 9개에서 시작한 병렬 요청들이 모두 10개 미만을 보고 각각 행을
+ * 만들 수 있다. 첨부 행 자체를 잠그는 것으로는 아직 생기지 않은 다음 행을 막을
+ * 수 없으므로, 모든 업로드가 반드시 가지고 있는 사용자 행을 잠근다.
+ */
+export async function lockAttachmentUploader(
+  uploaderUserId: string,
+  db: DbClient,
+): Promise<void> {
+  await db.$queryRaw<Array<{ id: string }>>`
+    SELECT "id"
+    FROM "user"
+    WHERE "id" = ${uploaderUserId}
+    FOR UPDATE
+  `;
 }
 
 /**

@@ -11,6 +11,9 @@ const eslintConfig = defineConfig([
     ".next/**",
     "out/**",
     "build/**",
+    "coverage/**",
+    "playwright-report/**",
+    "test-results/**",
     "next-env.d.ts",
     // 브라우저 도구가 남기는 스크린샷·조사 스크립트. gitignore에도 있다 —
     // 저장소 코드가 아니므로 lint 대상이 아니고, 여기 없으면 그 스크립트의

@@ -32,6 +32,9 @@ const MESSAGES: Record<string, string> = {
   PERIOD_TOO_LONG: `외박은 한 번에 ${MAX_OVERNIGHT_DAYS}일까지입니다.`,
   START_IN_PAST: "시작 시각이 지났습니다.",
   OVERLAPPING_PASS: "같은 기간에 이미 신청한 출입증이 있습니다.",
+  PASS_EXPIRED: "이미 종료된 신청은 처리할 수 없습니다.",
+  STUDENT_NOT_ELIGIBLE: "현재 학년도에 재학 중인 활성 학생에게만 부여할 수 있습니다.",
+  PASS_BUSY: "명단 반영 중일 수 있습니다. 잠시 후 다시 시도해 주세요.",
   PASS_NOT_ACTIVE: "지금 쓸 수 있는 출입증이 아닙니다.",
 };
 

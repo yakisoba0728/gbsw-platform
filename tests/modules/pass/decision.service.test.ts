@@ -10,7 +10,12 @@ const listActiveNow = vi.fn();
 const listHistory = vi.fn();
 const listForParent = vi.fn();
 const findOverlapping = vi.fn();
+const lockStudentForPassCreation = vi.fn();
+const findCurrentYearForUpdate = vi.fn();
+const lockEligibleStudentForPassCreation = vi.fn();
+const currentDatabaseTime = vi.fn();
 const transition = vi.fn();
+const transitionUnexpired = vi.fn();
 const findStudentProfileByUserId = vi.fn();
 const isParentOf = vi.fn();
 const displayYear = vi.fn();
@@ -30,7 +35,12 @@ vi.mock("@/modules/pass/pass.repo", () => ({
   listHistory,
   listForParent,
   findOverlapping,
+  lockStudentForPassCreation,
+  findCurrentYearForUpdate,
+  lockEligibleStudentForPassCreation,
+  currentDatabaseTime,
   transition,
+  transitionUnexpired,
   findStudentProfileByUserId,
   isParentOf,
   displayYear,
@@ -76,7 +86,12 @@ beforeEach(() => {
   listHistory.mockReset().mockResolvedValue({ entries: [], total: 0 });
   listForParent.mockReset().mockResolvedValue([]);
   findOverlapping.mockReset().mockResolvedValue(null);
+  lockStudentForPassCreation.mockReset().mockResolvedValue(true);
+  findCurrentYearForUpdate.mockReset().mockResolvedValue(2026);
+  lockEligibleStudentForPassCreation.mockReset().mockResolvedValue(true);
+  currentDatabaseTime.mockReset().mockResolvedValue(NOW);
   transition.mockReset().mockResolvedValue(1);
+  transitionUnexpired.mockReset().mockResolvedValue("UPDATED");
   findStudentProfileByUserId.mockReset().mockResolvedValue({ id: "sp-1" });
   isParentOf.mockReset().mockResolvedValue(true);
   displayYear.mockReset().mockResolvedValue(2026);
@@ -103,13 +118,24 @@ function pending(over: Record<string, unknown> = {}) {
 }
 
 describe("approvePass", () => {
+  it("종료 시각에 도달한 신청은 승인할 수 없다", async () => {
+    findPass.mockResolvedValue(pending({ endAt: NOW }));
+
+    await expect(
+      service.approvePass(admin, { passId: "p-1", consentNote: null }, NOW),
+    ).rejects.toThrow(new PassError("PASS_EXPIRED"));
+    expect(transition).not.toHaveBeenCalled();
+    expect(transitionUnexpired).not.toHaveBeenCalled();
+  });
+
   it("외출은 그대로 승인된다", async () => {
     findPass.mockResolvedValue(pending());
-    await service.approvePass(admin, { passId: "p-1", consentNote: null });
+    await service.approvePass(admin, { passId: "p-1", consentNote: null }, NOW);
 
-    expect(transition).toHaveBeenCalledWith(
+    expect(transitionUnexpired).toHaveBeenCalledWith(
       "p-1",
       ["REQUESTED", "CONSENTED"],
+      NOW,
       expect.objectContaining({
         status: "APPROVED",
         decidedByUserId: "u-admin",
@@ -128,9 +154,9 @@ describe("approvePass", () => {
   it("외박인데 동의도 대행도 없으면 CONSENT_REQUIRED", async () => {
     findPass.mockResolvedValue(pending({ type: "OVERNIGHT" }));
     await expect(
-      service.approvePass(admin, { passId: "p-1", consentNote: null }),
+      service.approvePass(admin, { passId: "p-1", consentNote: null }, NOW),
     ).rejects.toThrow(new PassError("CONSENT_REQUIRED"));
-    expect(transition).not.toHaveBeenCalled();
+    expect(transitionUnexpired).not.toHaveBeenCalled();
   });
 
   it("보호자가 이미 동의했으면 그대로 승인된다", async () => {
@@ -138,21 +164,26 @@ describe("approvePass", () => {
       pending({ type: "OVERNIGHT", status: "CONSENTED", consentedAt: new Date() }),
     );
     await expect(
-      service.approvePass(admin, { passId: "p-1", consentNote: null }),
+      service.approvePass(admin, { passId: "p-1", consentNote: null }, NOW),
     ).resolves.toBeUndefined();
   });
 
   it("대행 체크가 있으면 교사 이름으로 보호자 확인이 함께 찍힌다", async () => {
     findPass.mockResolvedValue(pending({ type: "OVERNIGHT" }));
-    await service.approvePass(admin, {
-      passId: "p-1",
-      byProxy: "on",
-      consentNote: "어머니와 전화 확인",
-    });
+    await service.approvePass(
+      admin,
+      {
+        passId: "p-1",
+        byProxy: "on",
+        consentNote: "어머니와 전화 확인",
+      },
+      NOW,
+    );
 
-    expect(transition).toHaveBeenCalledWith(
+    expect(transitionUnexpired).toHaveBeenCalledWith(
       "p-1",
       ["REQUESTED", "CONSENTED"],
+      NOW,
       expect.objectContaining({
         status: "APPROVED",
         consentByProxy: true,
@@ -169,10 +200,20 @@ describe("approvePass", () => {
 
   it("이미 처리된 신청은 ALREADY_DECIDED이고 감사로그가 두 줄 남지 않는다", async () => {
     findPass.mockResolvedValue(pending());
-    transition.mockResolvedValue(0);
+    transitionUnexpired.mockResolvedValue("UNCHANGED");
     await expect(
-      service.approvePass(admin, { passId: "p-1", consentNote: null }),
+      service.approvePass(admin, { passId: "p-1", consentNote: null }, NOW),
     ).rejects.toThrow(new PassError("ALREADY_DECIDED"));
+    expect(auditEntries()).toEqual([]);
+  });
+
+  it("원자 전이가 DB 시각 만료를 알리면 PASS_EXPIRED로 옮긴다", async () => {
+    findPass.mockResolvedValue(pending());
+    transitionUnexpired.mockResolvedValue("EXPIRED");
+
+    await expect(
+      service.approvePass(admin, { passId: "p-1", consentNote: null }, NOW),
+    ).rejects.toThrow(new PassError("PASS_EXPIRED"));
     expect(auditEntries()).toEqual([]);
   });
 
@@ -236,6 +277,10 @@ describe("issuePass", () => {
     expect(auditEntries()).toEqual([
       expect.objectContaining({ action: "pass:issue", targetId: "p-1" }),
     ]);
+    expect(withTransaction).toHaveBeenCalledWith(expect.any(Function), {
+      timeout: 130_000,
+      maxWait: 10_000,
+    });
   });
 
   it("외박은 보호자 확인이 함께 찍힌다", async () => {
@@ -269,6 +314,33 @@ describe("issuePass", () => {
     findOverlapping.mockResolvedValue({ id: "p-other" });
     await expect(service.issuePass(admin, OUTING, NOW)).rejects.toThrow(
       new PassError("OVERLAPPING_PASS"),
+    );
+  });
+
+  it("현재 학년도 재학생이 아니거나 계정이 비활성이면 직접 부여할 수 없다", async () => {
+    lockEligibleStudentForPassCreation.mockResolvedValue(false);
+
+    await expect(service.issuePass(admin, OUTING, NOW)).rejects.toThrow(
+      new PassError("STUDENT_NOT_ELIGIBLE"),
+    );
+    expect(createPass).not.toHaveBeenCalled();
+  });
+
+  it("잠금을 얻은 DB 시각에 이미 끝났으면 승인 출입증을 만들지 않는다", async () => {
+    currentDatabaseTime.mockResolvedValue(new Date("2026-08-27T09:00:00.000Z"));
+
+    await expect(service.issuePass(admin, OUTING, NOW)).rejects.toThrow(
+      new PassError("PASS_EXPIRED"),
+    );
+    expect(findOverlapping).not.toHaveBeenCalled();
+    expect(createPass).not.toHaveBeenCalled();
+  });
+
+  it("명단 반영 잠금이 제한을 넘기면 재시도 가능한 업무 오류로 옮긴다", async () => {
+    withTransaction.mockRejectedValueOnce(Object.assign(new Error("timeout"), { code: "P2028" }));
+
+    await expect(service.issuePass(admin, OUTING, NOW)).rejects.toThrow(
+      new PassError("PASS_BUSY"),
     );
   });
 

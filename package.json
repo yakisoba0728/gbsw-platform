@@ -4,13 +4,19 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && npm run sanitize:standalone && npm run prepare:standalone && npm run verify:standalone",
     "start": "next start",
+    "start:standalone": "node scripts/start-standalone.mjs",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run --project unit",
+    "test:coverage": "vitest run --project unit --coverage",
     "test:watch": "vitest --project unit",
     "test:integration": "vitest run --project integration",
+    "test:e2e": "playwright test",
+    "sanitize:standalone": "node scripts/sanitize-standalone.mjs",
+    "prepare:standalone": "node scripts/prepare-standalone.mjs",
+    "verify:standalone": "node scripts/check-standalone.mjs",
     "db:up": "docker compose up -d db",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
@@ -20,7 +26,7 @@
     "seed:demo": "tsx --conditions=react-server scripts/seed-demo.ts",
     "auth:generate": "npx @better-auth/cli generate --config src/core/auth/auth.ts",
     "postinstall": "prisma generate",
-    "verify:unit": "npm run typecheck && npm run lint && npm test",
+    "verify:unit": "npm run typecheck && npm run lint && npm run test:coverage",
     "verify": "npm run verify:unit && npm run db:test:setup && npm run test:integration && npm run build"
   },
   "dependencies": {
@@ -42,11 +48,13 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/pg": "^8.21.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
     "prisma": "^7.9.1",
@@ -54,5 +62,8 @@
     "tsx": "^4.23.12",
     "typescript": "^5",
     "vitest": "^4.1.10"
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.2"
   }
 }

@@ -85,13 +85,29 @@ jobs:
         run: npm run test:integration
 
   build:
-    name: Production Build
+    name: Production Build & Browser Smoke
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        # postgres:18 OCI index digest resolved 2026-08-19:
+        image: postgres:18@sha256:06cad38a5d9f5d24b4d83d86def30795d5e4b757fedbf5281172b576dedcd941
+        env:
+          POSTGRES_USER: gbsw
+          POSTGRES_PASSWORD: gbsw
+          POSTGRES_DB: gbsw_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gbsw -d gbsw_e2e"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     env:
-      DATABASE_URL: postgresql://gbsw:gbsw@localhost:5432/gbsw
+      E2E_DATABASE_URL: postgresql://gbsw:gbsw@localhost:5432/gbsw_e2e
       BETTER_AUTH_SECRET: ci-only-secret-ci-only-secret-ci-only
-      BETTER_AUTH_URL: http://localhost:3000
+      BETTER_AUTH_URL: http://127.0.0.1:3100
 
     steps:
       # actions/checkout v4 tag resolved 2026-08-19:
@@ -109,6 +125,24 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+        env:
+          DATABASE_URL: ${{ env.E2E_DATABASE_URL }}
+
+      - name: Prepare browser test database
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ env.E2E_DATABASE_URL }}
 
       - name: Build
         run: npm run build
+        env:
+          DATABASE_URL: ${{ env.E2E_DATABASE_URL }}
+
+      - name: Build Docker runner
+        run: docker build --target runner --tag gbsw-platform:ci .
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser smoke tests
+        run: npm run test:e2e

@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const user = await getSessionUser();
-  if (!user || user.status !== "ACTIVE" || user.deletedAt) {
+  if (!user || user.status !== "ACTIVE" || user.deletedAt || user.mustChangePassword) {
     return json({ error: "UNAUTHORIZED" }, 401);
   }
 

@@ -106,7 +106,10 @@ export function storagePath(key: string, at: Date): string {
   }
   const year = String(at.getUTCFullYear());
   const month = String(at.getUTCMonth() + 1).padStart(2, "0");
-  return path.join(UPLOAD_ROOT, year, month, key);
+  // 이 경로는 배포 산출물이 아니라 런타임의 가변 볼륨이다. Turbopack이 동적
+  // 경로를 프로젝트 파일 탐색으로 오인하면 저장소 전체(.env 포함)를 standalone에
+  // 복사하므로, 공식 ignore 표식으로 output tracing에서 명시적으로 제외한다.
+  return path.join(/* turbopackIgnore: true */ UPLOAD_ROOT, year, month, key);
 }
 
 export async function writeAttachment(
@@ -120,7 +123,9 @@ export async function writeAttachment(
 }
 
 export function readAttachment(key: string, at: Date): Promise<Buffer> {
-  return readFile(storagePath(key, at));
+  // 저장 파일은 이미지에 들어가는 정적 자산이 아니다. 운영에서는 /app/uploads
+  // 볼륨에서 읽으므로 빌드 시점 파일 추적 대상에서 뺀다.
+  return readFile(/* turbopackIgnore: true */ storagePath(key, at));
 }
 
 /**

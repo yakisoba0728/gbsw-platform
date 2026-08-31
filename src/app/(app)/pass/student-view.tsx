@@ -2,13 +2,14 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { buttonClass } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Pagination } from "@/components/ui/pagination";
 import { SectionCard } from "@/components/ui/section-card";
 import type { SessionUser } from "@/core/auth/session";
 import { getMyPasses } from "@/modules/pass/request.service";
 import { PassCard } from "./pass-card";
 import { WithdrawButton } from "./withdraw-button";
 
-type MyPass = Awaited<ReturnType<typeof getMyPasses>>[number];
+type MyPass = Awaited<ReturnType<typeof getMyPasses>>["entries"][number];
 
 /**
  * 지금 이 순간 문 앞에서 통하는 것. 승인만으로는 모자라 시작 시각도 지나야 한다 —
@@ -18,7 +19,7 @@ function isUsableNow(pass: MyPass, now: Date): boolean {
   return (
     pass.status === "APPROVED" &&
     pass.startAt.getTime() <= now.getTime() &&
-    pass.endAt.getTime() >= now.getTime()
+    pass.endAt.getTime() > now.getTime()
   );
 }
 
@@ -29,22 +30,22 @@ function isUsableNow(pass: MyPass, now: Date): boolean {
  * 누를 자리는 이제 목록이 아니라 머리글의 「학생증」 한 곳이다. QR이 출입증
  * 한 건이 아니라 사람에 붙게 되면서, 줄마다 따로 열 것이 없어졌다.
  */
-export async function StudentView({ actor }: { actor: SessionUser }) {
-  const passes = await getMyPasses(actor);
+export async function StudentView({
+  actor,
+  page,
+}: {
+  actor: SessionUser;
+  page: number;
+}) {
+  const result = await getMyPasses(actor, page);
+  const passes = result.entries;
   const now = new Date();
-  const hasUsable = passes.some((pass) => isUsableNow(pass, now));
 
   return (
     <div className="@container mx-auto max-w-3xl">
       <SectionCard
         title="내 출입증"
-        // 목록에서 줄을 찾기 전에 카드 머리글이 먼저 답한다 — 정문 앞에서 묻는
-        // 것은 「지금 쓸 것이 있나」 하나다.
-        hint={
-          hasUsable
-            ? "지금 유효한 출입증이 있습니다."
-            : "지금 유효한 출입증이 없습니다."
-        }
+        hint={`전체 ${result.total}건`}
         aside={
           <div className="flex flex-wrap items-center gap-2">
             <Link
@@ -88,6 +89,12 @@ export async function StudentView({ actor }: { actor: SessionUser }) {
             })}
           </ul>
         )}
+        <Pagination
+          label="내 출입증 내역 페이지"
+          page={result.page}
+          pageCount={result.pageCount}
+          href={(next) => `/pass?page=${next}`}
+        />
       </SectionCard>
     </div>
   );

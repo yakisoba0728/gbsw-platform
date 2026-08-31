@@ -70,6 +70,30 @@ const ATTACHMENT_HEADERS = [
 const nextConfig: NextConfig = {
   // Docker 멀티스테이지 빌드에서 최소 런타임 이미지를 만들기 위해 필요.
   output: "standalone",
+  // 첨부는 런타임 볼륨에서 읽는다. 동적 fs 경로를 정적 자산으로 오인하는 추적이
+  // 다시 생겨도 로컬 비밀·테스트 산출물이 서버 이미지로 넘어가지 않게 막는다.
+  // 실제 산출물은 scripts/check-standalone.mjs가 한 번 더 검증한다.
+  outputFileTracingExcludes: {
+    "/*": [
+      ".env",
+      ".env.*",
+      ".git/**/*",
+      ".gitattributes",
+      ".gitignore",
+      ".uploads/**/*",
+      ".playwright-mcp/**/*",
+      ".superpowers/**/*",
+      "AGENTS.md",
+      "CLAUDE.md",
+      "README.md",
+      "coverage/**/*",
+      "dev-local/**/*",
+      "docs/**/*",
+      "playwright-report/**/*",
+      "test-results/**/*",
+      "tests/**/*",
+    ],
+  },
   // 응답에서 X-Powered-By: Next.js를 뺀다 — 서버 기술 스택을 광고하지 않는다.
   poweredByHeader: false,
   experimental: {

@@ -9,7 +9,7 @@
 | | |
 |---|---|
 | **규모** | TypeScript 약 2만 줄 · 화면 20개 · 도메인 모듈 10개 · DB 모델 15개 |
-| **테스트** | 78개 파일 / **1,191개** (단위) + 실 DB를 쓰는 통합 테스트 |
+| **테스트** | 단위 121개 파일 / **2,132개** + 실 DB 통합 80개 + 브라우저 E2E 3개 |
 | **대상** | 전교 200~300명 · 역할 3종 (교사=교직원 / 학생 / 학부모) |
 | **운영** | 교내 서버 자체 호스팅. 외부 SaaS 의존 없음, SMTP 불필요 |
 
@@ -43,7 +43,7 @@
 | DB | **PostgreSQL** | 18 | 부분 유니크 인덱스로 "현재 학년도는 하나뿐"을 DB가 보장한다 |
 | 인증 | **Better Auth** | 1.6 | 세션 쿠키 기반. 이메일 링크가 필요 없어 SMTP 없이 돈다 |
 | 검증 | **zod** | 4.4 | 경계에서 한 번만 검증하고 서비스는 타입이 맞는 입력을 신뢰한다 |
-| 테스트 | **Vitest** | 4.1 | 단위(목)와 통합(실 Postgres)을 프로젝트로 분리 |
+| 테스트 | **Vitest / Playwright** | 4.1 / 1.62 | 단위(목)·통합(실 Postgres)·브라우저 스모크를 분리 |
 | 엑셀 | write-excel-file / read-excel-file | — | 명단 가져오기·내보내기, 상벌점 내역 내보내기 |
 | 배포 | **Docker Compose** | — | `db` → `migrate` → `app` 순서로 뜬다 |
 
@@ -193,10 +193,13 @@ npm run dev                    # http://localhost:3000
 | 명령 | 설명 |
 |---|---|
 | `npm run dev` | 개발 서버 |
-| `npm run verify:unit` | 빠른 검증 — `next typegen` 기반 타입체크 + 린트 + 단위 테스트 |
-| `npm run verify` | 완전 검증 — 빠른 검증 + 테스트 DB 준비 + 통합 테스트 + 프로덕션 빌드 |
+| `npm run verify:unit` | 빠른 검증 — `next typegen` 기반 타입체크 + 린트 + 커버리지 기준을 적용한 단위 테스트 |
+| `npm run verify` | 완전 검증 — 빠른 검증 + 테스트 DB 준비 + 통합 테스트 + 프로덕션 빌드·standalone 누출 검사 |
 | `npm test` | Vitest 단위 테스트 — 실 DB 없이 돈다. CI의 단위 검증 job이 도는 대상 |
+| `npm run test:coverage` | 단위 테스트 커버리지 측정과 최소 기준 검사 |
 | `npm run test:integration` | repo 계층 통합 테스트 (실 Postgres) |
+| `npm run test:e2e` | Chromium 브라우저 스모크 테스트 (로컬 개발 서버 자동 실행) |
+| `npm run verify:standalone` | standalone 산출물에 환경파일·업로드·소스·테스트가 섞이지 않았는지 검사 |
 | `npm run db:up` / `db:migrate` / `db:studio` | Postgres 컨테이너 · 마이그레이션 · Prisma Studio |
 | `npm run db:test:setup` | 통합 테스트 전용 DB(`gbsw_test`) 생성 + 마이그레이션 |
 | `npm run seed:merit` | 상벌점 규정 초기 투입 (멱등) |
@@ -212,11 +215,18 @@ npm run dev                    # http://localhost:3000
 **통합 테스트**는 목으로 검증할 수 없는 것만 실 Postgres에 대고 확인한다 — 트랜잭션 롤백이
 실제로 도는지, 초대코드 동시 사용에서 하나만 통과하는지, 유일 제약이 실제로 걸리는지.
 
+**브라우저 스모크 테스트**는 실제 Next 서버와 Chromium을 띄워 헬스체크, 비로그인 리다이렉트,
+로그인 실패 흐름, 로그인한 교사의 첨부 업로드→디스크 저장→인증 다운로드를 확인한다. CI에서는
+검사를 끝낸 production standalone 산출물을 그대로 실행한다. 커버리지는 실행 중 import된 파일만이
+아니라 생성물을 제외한 `src` 전체를 집계하며, 현재 기준을 내림한 문장 51%, 분기 40%, 함수 39%,
+라인 51%를 최소 회귀 방지선으로 적용한다.
+
 ```bash
 npm run verify:unit         # 빠른 로컬 확인: DB 컨테이너 없이 돈다
 npm run db:test:setup       # gbsw_test 생성 (개발 DB와 완전히 분리)
 npm run test:integration
 npm run verify              # 완전 검증: Docker로 gbsw-db가 떠 있어야 한다
+npm run test:e2e            # 로컬 Chromium 스모크: 서버는 자동으로 뜬다
 ```
 
 개발 DB(`gbsw`)와 **데이터베이스 이름 자체가 다르다.** 통합 테스트가 실 계정·감사로그를

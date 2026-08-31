@@ -351,7 +351,12 @@ describe("폐기", () => {
   });
 
   it("학생은 자기 학부모 코드만 폐기할 수 있다", async () => {
-    findById.mockResolvedValue({ id: "inv1", studentId: "student-1" });
+    findById.mockResolvedValue({
+      id: "inv1",
+      role: "PARENT",
+      studentId: "student-1",
+      createdById: student.id,
+    });
     getStudentProfileByUserId.mockResolvedValue({ id: "student-1" });
 
     await revokeInvite(student, { inviteId: "inv1", reason: "잘못 발급" });
@@ -421,8 +426,8 @@ describe("listMyParentInvites() — 세션에서만 유도한다", () => {
     );
 
     expect(getStudentProfileByUserId).toHaveBeenCalledWith(student.id);
-    expect(listByStudent).toHaveBeenCalledWith("sp-mine");
-    expect(listByStudent).not.toHaveBeenCalledWith("sp-남의학생");
+    expect(listByStudent).toHaveBeenCalledWith("sp-mine", student.id);
+    expect(listByStudent).not.toHaveBeenCalledWith("sp-남의학생", student.id);
   });
 
   it("학생 프로필이 없으면 빈 목록이다 — 코드가 새지 않는다", async () => {

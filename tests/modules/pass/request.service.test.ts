@@ -10,11 +10,15 @@ const createPass = vi.fn();
 const findPass = vi.fn();
 const findPassForVerify = vi.fn();
 const listForStudent = vi.fn();
+const listLiveForStudent = vi.fn();
 const listPendingForAdmin = vi.fn();
 const listActiveNow = vi.fn();
 const listForParent = vi.fn();
+const listAwaitingParentConsent = vi.fn();
 const findOverlapping = vi.fn();
+const lockStudentForPassCreation = vi.fn();
 const transition = vi.fn();
+const transitionUnexpired = vi.fn();
 const findStudentProfileByUserId = vi.fn();
 const isParentOf = vi.fn();
 const displayYear = vi.fn();
@@ -29,11 +33,15 @@ vi.mock("@/modules/pass/pass.repo", () => ({
   findPass,
   findPassForVerify,
   listForStudent,
+  listLiveForStudent,
   listPendingForAdmin,
   listActiveNow,
   listForParent,
+  listAwaitingParentConsent,
   findOverlapping,
+  lockStudentForPassCreation,
   transition,
+  transitionUnexpired,
   findStudentProfileByUserId,
   isParentOf,
   displayYear,
@@ -92,12 +100,16 @@ beforeEach(() => {
   createPass.mockReset().mockResolvedValue({ id: "p-1" });
   findPass.mockReset();
   findPassForVerify.mockReset();
-  listForStudent.mockReset().mockResolvedValue([]);
+  listForStudent.mockReset().mockResolvedValue({ entries: [], total: 0 });
+  listLiveForStudent.mockReset().mockResolvedValue([]);
   listPendingForAdmin.mockReset().mockResolvedValue([]);
   listActiveNow.mockReset().mockResolvedValue([]);
-  listForParent.mockReset().mockResolvedValue([]);
+  listForParent.mockReset().mockResolvedValue({ entries: [], total: 0 });
+  listAwaitingParentConsent.mockReset().mockResolvedValue([]);
   findOverlapping.mockReset().mockResolvedValue(null);
+  lockStudentForPassCreation.mockReset().mockResolvedValue(true);
   transition.mockReset().mockResolvedValue(1);
+  transitionUnexpired.mockReset().mockResolvedValue("UPDATED");
   findStudentProfileByUserId.mockReset().mockResolvedValue({ id: "sp-1" });
   isParentOf.mockReset().mockResolvedValue(true);
   displayYear.mockReset().mockResolvedValue(2026);
@@ -262,15 +274,34 @@ describe("consentPass", () => {
       studentProfileId: "sp-1",
       type: "OVERNIGHT",
       status: "REQUESTED",
+      endAt: new Date("2026-08-27T09:00:00.000Z"),
     });
   });
 
-  it("보호자가 동의하면 CONSENTED가 되고 감사로그를 남긴다", async () => {
-    await service.consentPass(parent, { passId: "p-1", consentNote: null });
+  it("종료 시각에 도달한 신청에는 동의할 수 없다", async () => {
+    findPass.mockResolvedValue({
+      id: "p-1",
+      studentProfileId: "sp-1",
+      type: "OVERNIGHT",
+      status: "REQUESTED",
+      endAt: NOW,
+    });
 
-    expect(transition).toHaveBeenCalledWith(
+    await expect(
+      service.consentPass(parent, { passId: "p-1", consentNote: null }, NOW),
+    ).rejects.toThrow(new PassError("PASS_EXPIRED"));
+    expect(transition).not.toHaveBeenCalled();
+    expect(transitionUnexpired).not.toHaveBeenCalled();
+    expect(auditEntries()).toEqual([]);
+  });
+
+  it("보호자가 동의하면 CONSENTED가 되고 감사로그를 남긴다", async () => {
+    await service.consentPass(parent, { passId: "p-1", consentNote: null }, NOW);
+
+    expect(transitionUnexpired).toHaveBeenCalledWith(
       "p-1",
       ["REQUESTED"],
+      NOW,
       expect.objectContaining({
         status: "CONSENTED",
         consentedByUserId: "u-parent",
@@ -306,10 +337,19 @@ describe("consentPass", () => {
   });
 
   it("이미 처리된 신청이면 ALREADY_DECIDED", async () => {
-    transition.mockResolvedValue(0);
+    transitionUnexpired.mockResolvedValue("UNCHANGED");
     await expect(
-      service.consentPass(parent, { passId: "p-1", consentNote: null }),
+      service.consentPass(parent, { passId: "p-1", consentNote: null }, NOW),
     ).rejects.toThrow(new PassError("ALREADY_DECIDED"));
+    expect(auditEntries()).toEqual([]);
+  });
+
+  it("원자 전이가 DB 시각 만료를 알리면 PASS_EXPIRED로 옮긴다", async () => {
+    transitionUnexpired.mockResolvedValue("EXPIRED");
+
+    await expect(
+      service.consentPass(parent, { passId: "p-1", consentNote: null }, NOW),
+    ).rejects.toThrow(new PassError("PASS_EXPIRED"));
     expect(auditEntries()).toEqual([]);
   });
 
@@ -324,13 +364,53 @@ describe("getMyPasses", () => {
   it("studentId를 인자로 받지 않는다 — 세션에서 유도한다", async () => {
     await service.getMyPasses(student);
     expect(findStudentProfileByUserId).toHaveBeenCalledWith("u-student");
-    expect(listForStudent).toHaveBeenCalledWith("sp-1", 2026);
+    expect(listForStudent).toHaveBeenCalledWith("sp-1", 2026, {
+      page: 1,
+      skip: 0,
+      take: 20,
+    });
   });
 
   it("학생 계정이 아니면 NO_STUDENT_PROFILE", async () => {
     findStudentProfileByUserId.mockResolvedValue(null);
     await expect(service.getMyPasses(student)).rejects.toThrow(
       new PassError("NO_STUDENT_PROFILE"),
+    );
+  });
+
+  it("마지막 페이지보다 큰 요청은 실제 마지막 페이지로 보정해 다시 읽는다", async () => {
+    listForStudent
+      .mockResolvedValueOnce({ entries: [], total: 21 })
+      .mockResolvedValueOnce({ entries: [{ id: "p-last" }], total: 21 });
+
+    const result = await service.getMyPasses(student, 999);
+
+    expect(listForStudent).toHaveBeenNthCalledWith(2, "sp-1", 2026, {
+      page: 2,
+      skip: 20,
+      take: 20,
+    });
+    expect(result).toMatchObject({ page: 2, pageCount: 2, total: 21 });
+    expect(result.entries).toEqual([{ id: "p-last" }]);
+  });
+});
+
+describe("대시보드 출입증", () => {
+  it("전체 내역 첫 페이지를 자르지 않고 DB의 유효 목록 전용 질의를 쓴다", async () => {
+    await service.getMyLivePasses(student, NOW);
+
+    expect(listLiveForStudent).toHaveBeenCalledWith("sp-1", NOW, 2026, 5);
+    expect(listForStudent).not.toHaveBeenCalled();
+  });
+
+  it("보호자 동의 대기는 화면이 쓸 상한을 repo까지 전달한다", async () => {
+    await service.getMyChildPassesAwaitingConsent(parent, NOW, 5);
+
+    expect(listAwaitingParentConsent).toHaveBeenCalledWith(
+      "u-parent",
+      NOW,
+      2026,
+      5,
     );
   });
 });
