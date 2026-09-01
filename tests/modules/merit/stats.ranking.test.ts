@@ -10,7 +10,7 @@ const listClassRoster = vi.fn();
 // 같은 모듈의 나머지 export — 팩토리에 없으면 undefined가 되어 다른 서비스가 깨진다.
 const trackTotals = vi.fn();
 const trackTotalsBetween = vi.fn();
-const topRules = vi.fn();
+const awardsByRule = vi.fn();
 const listAwardsForChart = vi.fn();
 const demeritTotalsByStudent = vi.fn();
 const findStudentsWithClass = vi.fn();
@@ -19,7 +19,7 @@ vi.mock("@/modules/merit/merit.repo", () => ({
   listClassRoster,
   trackTotals,
   trackTotalsBetween,
-  topRules,
+  awardsByRule,
   listAwardsForChart,
   demeritTotalsByStudent,
   findStudentsWithClass,

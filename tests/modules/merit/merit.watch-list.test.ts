@@ -13,7 +13,7 @@ const DANGER = 18;
 const getDemeritThresholds = vi.fn();
 
 const trackTotals = vi.fn();
-const topRules = vi.fn();
+const awardsByRule = vi.fn();
 const listAwardsForChart = vi.fn();
 const listClassRoster = vi.fn();
 const demeritTotalsByStudent = vi.fn();
@@ -21,7 +21,7 @@ const findStudentsWithClass = vi.fn();
 
 vi.mock("@/modules/merit/merit.repo", () => ({
   trackTotals,
-  topRules,
+  awardsByRule,
   listAwardsForChart,
   listClassRoster,
   demeritTotalsByStudent,
@@ -60,7 +60,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   getDemeritThresholds.mockResolvedValue({ warn: WARN, danger: DANGER });
   trackTotals.mockResolvedValue([]);
-  topRules.mockResolvedValue([]);
+  awardsByRule.mockResolvedValue({ rows: [], rules: [] });
   listAwardsForChart.mockResolvedValue([]);
   listClassRoster.mockResolvedValue([]);
   demeritTotalsByStudent.mockResolvedValue([]);
@@ -265,6 +265,12 @@ describe("기준 초과 명단 — 집계 범위", () => {
     expect(demeritTotalsByStudent).toHaveBeenCalledWith(
       expect.objectContaining({ studentProfileIds: ["sp-1", "sp-2"] }),
     );
+    expect(awardsByRule).toHaveBeenCalledWith({
+      track: "SCHOOL",
+      totalsYear: 2026,
+      rosterYear: 2026,
+      studentProfileIds: ["sp-1", "sp-2"],
+    });
     expect(stats.classes).toEqual([
       {
         grade: 2,
@@ -287,6 +293,20 @@ describe("기준 초과 명단 — 집계 범위", () => {
     });
     expect(listClassRoster.mock.calls[0][0]).not.toHaveProperty("grade");
     expect(listClassRoster.mock.calls[0][0]).not.toHaveProperty("classNo");
+  });
+
+  it("빈 반도 빈 학생 목록을 넘겨 전교 집계로 넓어지지 않게 한다", async () => {
+    await service.getMeritStats(admin, "SCHOOL", undefined, NOW, {
+      grade: 2,
+      classNo: 3,
+    });
+
+    expect(awardsByRule).toHaveBeenCalledWith({
+      track: "SCHOOL",
+      totalsYear: 2026,
+      rosterYear: 2026,
+      studentProfileIds: [],
+    });
   });
 
   it("전교로 보면 명단을 한 번 접고 학생 목록 조건은 넘기지 않는다", async () => {

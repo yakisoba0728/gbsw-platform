@@ -883,10 +883,11 @@ export async function findRecentAwardsForExport(filter: RecentAwardFilter) {
  * 통계 화면이 세는 학생 — **모집단을 정하는 유일한 자리다.**
  *
  * 한 화면 안에서 머리글 합계와 「반별 현황」이 다른 학생을 세면 둘을 더해 맞춰
- * 보는 교사에게 설명할 자리가 없다. 그래서 아래 세 집계(trackTotals·topRules·
- * listAwardsForChart)는 학생을 명시로 받지 않았을 때 listClassRoster와 **같은**
- * 술어를 쓴다 — 그 학년도 재학(ENROLLED). 계정 쪽 조건은 없다: 퇴학·전학이
- * 계정에 나타나지 않아 아무것도 거르지 못했다.
+ * 보는 교사에게 설명할 자리가 없다. 그래서 현황 화면은 아래 세 집계
+ * (trackTotals·awardsByRule·listAwardsForChart)에 명단 학년도나 학생 목록을 넘겨
+ * listClassRoster와 **같은** 재학(ENROLLED) 모집단을 쓴다. 규정별 상세 화면은 아직
+ * 인자를 넘기지 않아 기존 전체 학생 집계를 유지한다 — 그 동작 변경은 다음 단계다.
+ * 계정 쪽 조건은 없다: 퇴학·전학이 계정에 나타나지 않아 아무것도 거르지 못했다.
  *
  * 반 배정은 여기서 보지 않는다. 반별 요약은 listClassRoster 결과를 접을 때
  * `grade`와 `classNo`가 모두 있는 학생만 담는다 — 반 미배정 학생은 머리글에는
@@ -903,7 +904,8 @@ function enrolledStudentScope(rosterYear: number): Prisma.MeritAwardWhereInput {
 /**
  * 학생 조건 한 조각. 목록을 명시로 받았으면 그 목록이 곧 모집단이라 명단 술어를
  * 겹쳐 걸지 않는다 (반을 골라 보는 화면이 이미 명단에서 뽑아 넘긴다).
- * 둘 다 없으면 조건이 없다 — 학년도가 없는 옛 호출부가 그대로 돌아간다.
+ * 둘 다 없으면 전체 학생이다 — 규정별 상세 화면의 기존 모집단을 보존하는
+ * 의도적인 갈래이며, 모집단 통일 단계에서 없앤다.
  */
 function studentScope(params: {
   rosterYear?: number;
@@ -916,15 +918,15 @@ function studentScope(params: {
 }
 
 /**
- * 많이 나온 항목 순위의 재료. 어떤 규정이 실제로 쓰이는지 보여준다.
+ * 규정별 집계의 공통 원자료. 「많이 나온 항목」과 규정별 통계가 함께 쓴다.
  *
  * **ruleId로 묶고 자르지 않는다.** 기록의 label은 부여 시점 스냅샷이라 규정 이름을
  * 고치면 같은 규정이 이름별로 나뉜 채 오는데(updateRuleSchema가 label을 받는다),
  * 여기서 상위 N개로 잘라 버리면 그 규정이 두 칸을 차지한 채 잘려 순위가 틀린다 —
  * 6건짜리 두 줄로 갈라진 12건 규정이 10건 규정에게 진다. 접는 일도 자르는 일도
- * 서비스가 접은 뒤에 해야 한다.
+ * 서비스가 해야 한다. repo는 스냅샷별 집계와 현재 규정 메타데이터만 함께 돌려준다.
  */
-export async function topRules(params: {
+export async function awardsByRule(params: {
   track: MeritTrack;
   totalsYear: number | null;
   /** 모집단을 정할 명단 학년도. studentScope 주석을 볼 것. */
@@ -943,28 +945,17 @@ export async function topRules(params: {
     _sum: { points: true },
   });
 
-  // 보여줄 이름은 규정의 **현재** 이름이다 — 이름을 고친 직후 옛 스냅샷을 띄우면
-  // 방금 고친 사람이 자기가 고친 항목을 못 찾는다. 규정 행은 지우는 경로가 없어
-  // (onDelete: Restrict) 언제나 찾히지만, 못 찾으면 스냅샷으로 떨어진다.
-  const nameById = await currentRuleNames(rows.map((r) => r.ruleId));
+  // 분류·활성 상태는 부여 기록에 복사되지 않는다. 현재 이름도 함께 읽어 서비스가
+  // 이름 변경 전후 스냅샷을 한 규정으로 접게 한다. 빈 집계면 두 번째 질의를 생략한다.
+  const rules =
+    rows.length === 0
+      ? []
+      : await prisma.meritRule.findMany({
+          where: { id: { in: [...new Set(rows.map((row) => row.ruleId))] } },
+          select: { id: true, label: true, category: true, active: true },
+        });
 
-  return rows.map((row) => ({
-    ruleId: row.ruleId,
-    label: nameById.get(row.ruleId) ?? row.label,
-    kind: row.kind,
-    count: row._count._all,
-    points: row._sum.points ?? 0,
-  }));
-}
-
-/** 규정 id → 지금 이름. 빈 목록이면 질의하지 않는다. */
-async function currentRuleNames(ids: string[]): Promise<Map<string, string>> {
-  if (ids.length === 0) return new Map();
-  const rules = await prisma.meritRule.findMany({
-    where: { id: { in: ids } },
-    select: { id: true, label: true },
-  });
-  return new Map(rules.map((r) => [r.id, r.label]));
+  return { rows, rules };
 }
 
 /**
@@ -1010,36 +1001,6 @@ export async function findUserNames(ids: string[]) {
     where: { id: { in: ids } },
     select: { id: true, name: true },
   });
-}
-
-/**
- * 규정별 집계 — 전체 목록이다(「많이 나온 항목」의 상위 10개와 달리 자르지 않는다).
- * 분류까지 함께 묶어 화면이 분류로 접을 수 있게 한다.
- */
-export async function ruleStats(params: {
-  track: MeritTrack;
-  totalsYear: number | null;
-}) {
-  const rows = await prisma.meritAward.groupBy({
-    by: ["ruleId", "label", "kind"],
-    where: {
-      track: params.track,
-      status: "ACTIVE",
-      ...(params.totalsYear === null ? {} : { year: params.totalsYear }),
-    },
-    _count: { _all: true },
-    _sum: { points: true },
-  });
-
-  // 분류는 부여 기록에 복사돼 있지 않다(규정이 갖는다) — 규정 쪽에서 가져와 붙인다.
-  // label도 함께 읽는다: 기록의 label은 부여 시점 스냅샷이라 이름을 고친 직후에는
-  // 옛 이름이 뜬다. 규정의 현재 이름이 옳다.
-  const rules = await prisma.meritRule.findMany({
-    where: { id: { in: rows.map((r) => r.ruleId) } },
-    select: { id: true, label: true, category: true, active: true },
-  });
-
-  return { rows, rules };
 }
 
 /**

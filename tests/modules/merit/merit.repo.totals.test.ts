@@ -14,12 +14,11 @@ vi.mock("@/core/db/client", () => ({
 }));
 
 const {
+  awardsByRule,
   demeritTotalsByStudent,
   listAwardsForChart,
   listClassRoster,
-  ruleStats,
   teacherTotals,
-  topRules,
   trackTotals,
   trackTotalsBetween,
   unusedRules,
@@ -292,6 +291,53 @@ describe("demeritTotalsByStudent — 기준 초과 명단의 원자료", () => {
   });
 });
 
+describe("awardsByRule — 규정별 집계 원자료", () => {
+  it("스냅샷별 groupBy 결과와 현재 규정 메타데이터를 그대로 돌려준다", async () => {
+    const rows = [
+      {
+        ruleId: "rule-1",
+        label: "지각",
+        kind: "DEMERIT",
+        _count: { _all: 3 },
+        _sum: { points: 6 },
+      },
+    ];
+    const rules = [
+      {
+        id: "rule-1",
+        label: "등교 지각",
+        category: "생활",
+        active: true,
+      },
+    ];
+    meritAwardGroupBy.mockResolvedValue(rows);
+    meritRuleFindMany.mockResolvedValue(rules);
+
+    const result = await awardsByRule({ track: "SCHOOL", totalsYear: 2026 });
+
+    expect(meritAwardGroupBy).toHaveBeenCalledWith({
+      by: ["ruleId", "label", "kind"],
+      where: { track: "SCHOOL", status: "ACTIVE", year: 2026 },
+      _count: { _all: true },
+      _sum: { points: true },
+    });
+    expect(meritRuleFindMany).toHaveBeenCalledWith({
+      where: { id: { in: ["rule-1"] } },
+      select: { id: true, label: true, category: true, active: true },
+    });
+    // repo는 현재 이름으로 바꾸거나 접지 않는다. 두 화면이 같은 원자료를 받아
+    // 각자의 표시 규칙대로 접는 것이 새 계약이다.
+    expect(result).toEqual({ rows, rules });
+  });
+
+  it("집계 행이 없으면 규정 조회를 생략한다", async () => {
+    expect(
+      await awardsByRule({ track: "DORM", totalsYear: null }),
+    ).toEqual({ rows: [], rules: [] });
+    expect(meritRuleFindMany).not.toHaveBeenCalled();
+  });
+});
+
 /**
  * 창 집계의 조건. 서비스 쪽 테스트는 인자가 넘어가는 것까지만 보므로,
  * 그 인자가 실제로 어느 칸에 걸리는지는 여기서 못 박는다 — occurredOn을
@@ -374,8 +420,8 @@ describe("취소된 기록은 어느 집계에도 안 든다", () => {
       track: "DORM",
     },
     {
-      name: "topRules",
-      run: () => topRules({ track: "SCHOOL", totalsYear: 2026 }),
+      name: "awardsByRule",
+      run: () => awardsByRule({ track: "SCHOOL", totalsYear: 2026 }),
       mock: meritAwardGroupBy,
       track: "SCHOOL",
     },
@@ -384,12 +430,6 @@ describe("취소된 기록은 어느 집계에도 안 든다", () => {
       run: () => teacherTotals({ track: "DORM", totalsYear: 2026 }),
       mock: meritAwardGroupBy,
       track: "DORM",
-    },
-    {
-      name: "ruleStats",
-      run: () => ruleStats({ track: "SCHOOL", totalsYear: 2026 }),
-      mock: meritAwardGroupBy,
-      track: "SCHOOL",
     },
     {
       name: "listAwardsForChart",
@@ -468,11 +508,11 @@ describe("통계 화면 집계의 학생 모집단", () => {
       mock: meritAwardGroupBy,
     },
     {
-      name: "topRules",
+      name: "awardsByRule",
       runWithRoster: () =>
-        topRules({ track: "SCHOOL", totalsYear: 2026, rosterYear: 2026 }),
+        awardsByRule({ track: "SCHOOL", totalsYear: 2026, rosterYear: 2026 }),
       runWithIds: () =>
-        topRules({
+        awardsByRule({
           track: "SCHOOL",
           totalsYear: 2026,
           rosterYear: 2026,

@@ -9,7 +9,7 @@ import { user } from "../../helpers/session";
 
 const trackTotals = vi.fn();
 const trackTotalsBetween = vi.fn();
-const topRules = vi.fn();
+const awardsByRule = vi.fn();
 const listAwardsForChart = vi.fn();
 const listClassRoster = vi.fn();
 const demeritTotalsByStudent = vi.fn();
@@ -18,7 +18,7 @@ const findStudentsWithClass = vi.fn();
 vi.mock("@/modules/merit/merit.repo", () => ({
   trackTotals,
   trackTotalsBetween,
-  topRules,
+  awardsByRule,
   listAwardsForChart,
   listClassRoster,
   demeritTotalsByStudent,
@@ -49,7 +49,7 @@ beforeEach(() => {
   trackTotals.mockResolvedValue([]);
   trackTotalsBetween.mockResolvedValue([]);
   getCurrentYear.mockResolvedValue(2026);
-  topRules.mockResolvedValue([]);
+  awardsByRule.mockResolvedValue({ rows: [], rules: [] });
   listAwardsForChart.mockResolvedValue([]);
   listClassRoster.mockResolvedValue([]);
   demeritTotalsByStudent.mockResolvedValue([]);
@@ -70,9 +70,9 @@ describe("getMeritStats — 기숙사(누적 트랙)", () => {
     await service.getMeritStats(admin, "DORM", undefined, NOW);
 
     expect(trackTotals.mock.calls[0][0]).not.toHaveProperty("since");
-    expect(topRules.mock.calls[0][0]).not.toHaveProperty("since");
+    expect(awardsByRule.mock.calls[0][0]).not.toHaveProperty("since");
     expect(trackTotals.mock.calls[0][0].totalsYear).toBeNull();
-    expect(topRules.mock.calls[0][0].totalsYear).toBeNull();
+    expect(awardsByRule.mock.calls[0][0].totalsYear).toBeNull();
   });
 
   it("그래프가 덮는 기간을 화면에 적을 수 있게 내보낸다", async () => {
@@ -86,16 +86,37 @@ describe("getMeritStats — 기숙사(누적 트랙)", () => {
 });
 
 describe("getMeritStats — 「많이 나온 항목」 접기", () => {
-  /**
-   * repo는 (ruleId·label 스냅샷·kind)로 묶어 오면서 label 자리에 규정의 **현재**
-   * 이름을 넣어 준다. 접는 일도 자르는 일도 서비스 몫이다.
-   */
+  /** repo는 스냅샷별 raw 집계와 현재 규정을 함께 내고, 해석·접기·자르기는 서비스 몫이다. */
   it("이름을 고쳐 갈라진 규정을 한 줄로 접는다", async () => {
-    topRules.mockResolvedValue([
-      { ruleId: "r-1", label: "무단지각", kind: "DEMERIT", count: 5, points: 10 },
-      { ruleId: "r-1", label: "무단지각", kind: "DEMERIT", count: 2, points: 4 },
-      { ruleId: "r-2", label: "봉사", kind: "MERIT", count: 3, points: 6 },
-    ]);
+    awardsByRule.mockResolvedValue({
+      rows: [
+        {
+          ruleId: "r-1",
+          label: "지각",
+          kind: "DEMERIT",
+          _count: { _all: 5 },
+          _sum: { points: 10 },
+        },
+        {
+          ruleId: "r-1",
+          label: "무단지각",
+          kind: "DEMERIT",
+          _count: { _all: 2 },
+          _sum: { points: 4 },
+        },
+        {
+          ruleId: "r-2",
+          label: "봉사",
+          kind: "MERIT",
+          _count: { _all: 3 },
+          _sum: { points: 6 },
+        },
+      ],
+      rules: [
+        { id: "r-1", label: "무단지각", category: "생활", active: true },
+        { id: "r-2", label: "봉사", category: null, active: true },
+      ],
+    });
 
     const stats = await service.getMeritStats(admin, "SCHOOL", undefined, NOW);
 
@@ -107,11 +128,35 @@ describe("getMeritStats — 「많이 나온 항목」 접기", () => {
 
   it("자르기는 접은 뒤다 — 갈라진 규정이 순위에서 밀리면 안 된다", async () => {
     // 6건짜리 두 줄로 갈라진 12건 규정이 10건 규정에게 지는 것이 옛 결함이다.
-    topRules.mockResolvedValue([
-      { ruleId: "r-big", label: "가", kind: "DEMERIT", count: 6, points: 6 },
-      { ruleId: "r-big", label: "가", kind: "DEMERIT", count: 6, points: 6 },
-      { ruleId: "r-one", label: "나", kind: "DEMERIT", count: 10, points: 10 },
-    ]);
+    awardsByRule.mockResolvedValue({
+      rows: [
+        {
+          ruleId: "r-big",
+          label: "옛 가",
+          kind: "DEMERIT",
+          _count: { _all: 6 },
+          _sum: { points: 6 },
+        },
+        {
+          ruleId: "r-big",
+          label: "가",
+          kind: "DEMERIT",
+          _count: { _all: 6 },
+          _sum: { points: 6 },
+        },
+        {
+          ruleId: "r-one",
+          label: "나",
+          kind: "DEMERIT",
+          _count: { _all: 10 },
+          _sum: { points: 10 },
+        },
+      ],
+      rules: [
+        { id: "r-big", label: "가", category: null, active: true },
+        { id: "r-one", label: "나", category: null, active: true },
+      ],
+    });
 
     const stats = await service.getMeritStats(admin, "SCHOOL", undefined, NOW);
 
@@ -120,16 +165,34 @@ describe("getMeritStats — 「많이 나온 항목」 접기", () => {
       ["나", 10],
     ]);
     // 자르기가 repo로 새면 접기가 무의미해진다.
-    expect(topRules.mock.calls[0][0]).not.toHaveProperty("limit");
+    expect(awardsByRule.mock.calls[0][0]).not.toHaveProperty("limit");
   });
 
-  it("이름이 같은 별개 규정도 한 줄이다 — 화면 행 key가 (구분·항목)이다", async () => {
+  it("현재 이름이 같은 별개 규정도 한 줄이다 — 화면 행 key가 (구분·항목)이다", async () => {
     // MeritRule.label에 유일 제약이 없어 같은 이름이 둘 있을 수 있다. 따로 내면
     // 같은 key가 두 번 나오고, 화면에서 구분되지도 않는다.
-    topRules.mockResolvedValue([
-      { ruleId: "r-1", label: "지각", kind: "DEMERIT", count: 4, points: 8 },
-      { ruleId: "r-2", label: "지각", kind: "DEMERIT", count: 1, points: 2 },
-    ]);
+    awardsByRule.mockResolvedValue({
+      rows: [
+        {
+          ruleId: "r-1",
+          label: "옛 지각 A",
+          kind: "DEMERIT",
+          _count: { _all: 4 },
+          _sum: { points: 8 },
+        },
+        {
+          ruleId: "r-2",
+          label: "옛 지각 B",
+          kind: "DEMERIT",
+          _count: { _all: 1 },
+          _sum: { points: 2 },
+        },
+      ],
+      rules: [
+        { id: "r-1", label: "지각", category: "생활", active: true },
+        { id: "r-2", label: "지각", category: "출결", active: true },
+      ],
+    });
 
     const stats = await service.getMeritStats(admin, "SCHOOL", undefined, NOW);
 
@@ -138,16 +201,43 @@ describe("getMeritStats — 「많이 나온 항목」 접기", () => {
     ]);
   });
 
+  it("현재 규정을 찾지 못하면 부여 시점 이름으로 표시한다", async () => {
+    awardsByRule.mockResolvedValue({
+      rows: [
+        {
+          ruleId: "r-gone",
+          label: "남은 스냅샷",
+          kind: "MERIT",
+          _count: { _all: 2 },
+          _sum: { points: null },
+        },
+      ],
+      rules: [],
+    });
+
+    const stats = await service.getMeritStats(admin, "SCHOOL", undefined, NOW);
+
+    expect(stats.topRules).toEqual([
+      { label: "남은 스냅샷", kind: "MERIT", count: 2, points: 0 },
+    ]);
+  });
+
   it("상위 10개까지만 낸다", async () => {
-    topRules.mockResolvedValue(
-      Array.from({ length: 12 }, (_, i) => ({
+    awardsByRule.mockResolvedValue({
+      rows: Array.from({ length: 12 }, (_, i) => ({
         ruleId: `r-${i}`,
-        label: `항목${i}`,
+        label: `옛 항목${i}`,
         kind: "DEMERIT",
-        count: 12 - i,
-        points: 12 - i,
+        _count: { _all: 12 - i },
+        _sum: { points: 12 - i },
       })),
-    );
+      rules: Array.from({ length: 12 }, (_, i) => ({
+        id: `r-${i}`,
+        label: `항목${i}`,
+        category: null,
+        active: true,
+      })),
+    });
 
     const stats = await service.getMeritStats(admin, "SCHOOL", undefined, NOW);
 
@@ -164,7 +254,12 @@ describe("getMeritStats — 교내(학년도 트랙)", () => {
     expect(listAwardsForChart.mock.calls[0][0].since).toBeUndefined();
     expect(listAwardsForChart.mock.calls[0][0].year).toBe(2026);
     expect(trackTotals.mock.calls[0][0].totalsYear).toBe(2026);
-    expect(topRules.mock.calls[0][0].totalsYear).toBe(2026);
+    expect(awardsByRule.mock.calls[0][0]).toEqual({
+      track: "SCHOOL",
+      totalsYear: 2026,
+      rosterYear: 2026,
+      studentProfileIds: undefined,
+    });
   });
 
   it("범위가 하나뿐이라 그래프 설명도 그 학년도다", async () => {
@@ -253,7 +348,7 @@ describe("getMeritSummary — 대시보드 최근 활동", () => {
     expect(trackTotals).not.toHaveBeenCalled();
     expect(listAwardsForChart).not.toHaveBeenCalled();
     expect(listClassRoster).not.toHaveBeenCalled();
-    expect(topRules).not.toHaveBeenCalled();
+    expect(awardsByRule).not.toHaveBeenCalled();
   });
 
   it("권한이 없으면 거부한다", async () => {

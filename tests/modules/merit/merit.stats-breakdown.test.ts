@@ -8,18 +8,17 @@ import { user } from "../../helpers/session";
 
 const teacherTotals = vi.fn();
 const findUserNames = vi.fn();
-const ruleStats = vi.fn();
+const awardsByRule = vi.fn();
 const unusedRules = vi.fn();
 
 vi.mock("@/modules/merit/merit.repo", () => ({
   teacherTotals,
   findUserNames,
-  ruleStats,
+  awardsByRule,
   unusedRules,
   // 같은 모듈의 나머지 export — 팩토리에 없으면 undefined가 되어 다른 서비스가 깨진다.
   trackTotals: vi.fn(),
   trackTotalsBetween: vi.fn(),
-  topRules: vi.fn(),
   listAwardsForChart: vi.fn(),
   listClassRoster: vi.fn(),
   demeritTotalsByStudent: vi.fn(),
@@ -47,7 +46,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   teacherTotals.mockResolvedValue({ byUser: [], byName: [] });
   findUserNames.mockResolvedValue([]);
-  ruleStats.mockResolvedValue({ rows: [], rules: [] });
+  awardsByRule.mockResolvedValue({ rows: [], rules: [] });
   unusedRules.mockResolvedValue([]);
 });
 
@@ -138,34 +137,64 @@ describe("getTeacherStats", () => {
 describe("getRuleStats", () => {
   it("권한이 없으면 거부하고 조회하지 않는다", async () => {
     await expect(service.getRuleStats(student, "SCHOOL")).rejects.toThrow();
-    expect(ruleStats).not.toHaveBeenCalled();
+    expect(awardsByRule).not.toHaveBeenCalled();
+  });
+
+  it("이 단계에서는 명단 범위를 넘기지 않아 기존 전체 모집단을 유지한다", async () => {
+    await service.getRuleStats(admin, "SCHOOL");
+
+    expect(awardsByRule).toHaveBeenCalledWith({ track: "SCHOOL", totalsYear: 2026 });
+    expect(awardsByRule.mock.calls[0][0]).not.toHaveProperty("rosterYear");
+    expect(awardsByRule.mock.calls[0][0]).not.toHaveProperty("studentProfileIds");
   });
 
   it("분류를 규정에서 붙이고, 지워진 규정도 표시해 낸다", async () => {
-    ruleStats.mockResolvedValue({
+    awardsByRule.mockResolvedValue({
       rows: [
-        { ruleId: "r-1", label: "지각", kind: "DEMERIT", _count: { _all: 5 }, _sum: { points: 10 } },
-        { ruleId: "r-2", label: "봉사", kind: "MERIT", _count: { _all: 2 }, _sum: { points: 4 } },
+        {
+          ruleId: "r-1",
+          label: "옛 지각",
+          kind: "DEMERIT",
+          _count: { _all: 5 },
+          _sum: { points: 10 },
+        },
+        {
+          ruleId: "r-2",
+          label: "옛 봉사",
+          kind: "MERIT",
+          _count: { _all: 2 },
+          _sum: { points: 4 },
+        },
       ],
       rules: [
-        { id: "r-1", label: "지각", category: "생활", active: true },
+        { id: "r-1", label: "등교 지각", category: "생활", active: true },
         // 규정 관리에서 지웠지만 이미 나간 기록은 남는다.
-        { id: "r-2", label: "봉사", category: null, active: false },
+        { id: "r-2", label: "봉사", category: "봉사", active: false },
       ],
     });
 
     const { rows, totalCount } = await service.getRuleStats(admin, "SCHOOL");
 
     expect(totalCount).toBe(7);
-    expect(rows[0]).toMatchObject({ label: "지각", category: "생활", deleted: false, count: 5 });
-    expect(rows[1]).toMatchObject({ label: "봉사", category: null, deleted: true, count: 2 });
+    expect(rows[0]).toMatchObject({
+      label: "등교 지각",
+      category: "생활",
+      deleted: false,
+      count: 5,
+    });
+    expect(rows[1]).toMatchObject({
+      label: "봉사",
+      category: "봉사",
+      deleted: true,
+      count: 2,
+    });
   });
 
   it("이름이 바뀐 규정을 한 줄로 접고 건수를 합친다", async () => {
     // 부여 기록의 label은 부여 시점 스냅샷이라, 규정 이름을 고친 뒤 다시 부여하면
     // 같은 ruleId가 이름별로 나뉜 채 온다. 접지 않으면 화면이 ruleId를 막대 폭과
     // 행 key로 쓰므로 뒤 줄이 앞 줄을 덮고, 「쓰인 규정」이 규정 수를 세지 않는다.
-    ruleStats.mockResolvedValue({
+    awardsByRule.mockResolvedValue({
       rows: [
         { ruleId: "r-1", label: "지각", kind: "DEMERIT", _count: { _all: 5 }, _sum: { points: 10 } },
         {
@@ -188,6 +217,35 @@ describe("getRuleStats", () => {
     // 남기면 방금 이름을 고친 사람이 자기가 고친 항목을 못 찾는다.
     expect(rows[0].label).toBe("등교 지각");
     expect(totalCount).toBe(7);
+  });
+
+  it("현재 규정을 찾지 못하면 스냅샷 이름과 빈 분류로 남긴다", async () => {
+    awardsByRule.mockResolvedValue({
+      rows: [
+        {
+          ruleId: "r-gone",
+          label: "남은 스냅샷",
+          kind: "DEMERIT",
+          _count: { _all: 3 },
+          _sum: { points: 6 },
+        },
+      ],
+      rules: [],
+    });
+
+    const { rows } = await service.getRuleStats(admin, "SCHOOL");
+
+    expect(rows).toEqual([
+      {
+        ruleId: "r-gone",
+        label: "남은 스냅샷",
+        kind: "DEMERIT",
+        category: null,
+        deleted: false,
+        count: 3,
+        points: 6,
+      },
+    ]);
   });
 
   it("한 번도 안 쓰인 규정을 함께 낸다 — 규정표를 다듬는 자료다", async () => {
