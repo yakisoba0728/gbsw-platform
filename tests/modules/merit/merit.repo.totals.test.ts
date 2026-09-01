@@ -23,6 +23,7 @@ const {
   topRules,
   trackTotals,
   trackTotalsBetween,
+  unusedRules,
 } = await import("@/modules/merit/merit.repo");
 
 /**
@@ -463,51 +464,73 @@ describe("취소된 기록은 어느 집계에도 안 든다", () => {
   const CASES = [
     {
       name: "trackTotals",
-      run: () => trackTotals({ track: "SCHOOL", totalsYear: 2026 }),
+      run: () => trackTotals({ track: "DORM", totalsYear: 2026 }),
       mock: meritAwardGroupBy,
+      track: "DORM",
     },
     {
       name: "topRules",
       run: () => topRules({ track: "SCHOOL", totalsYear: 2026 }),
       mock: meritAwardGroupBy,
+      track: "SCHOOL",
     },
     {
       name: "teacherTotals",
-      run: () => teacherTotals({ track: "SCHOOL", totalsYear: 2026 }),
+      run: () => teacherTotals({ track: "DORM", totalsYear: 2026 }),
       mock: meritAwardGroupBy,
+      track: "DORM",
     },
     {
       name: "ruleStats",
       run: () => ruleStats({ track: "SCHOOL", totalsYear: 2026 }),
       mock: meritAwardGroupBy,
+      track: "SCHOOL",
     },
     {
       name: "listAwardsForChart",
-      run: () => listAwardsForChart({ track: "SCHOOL", year: 2026 }),
+      run: () => listAwardsForChart({ track: "DORM", year: 2026 }),
       mock: meritAwardFindMany,
+      track: "DORM",
     },
     {
       name: "listClassRoster",
-      run: () => listClassRoster({ ...roster, totalsYear: 2026 }),
+      run: () => listClassRoster({ ...roster, track: "DORM", totalsYear: 2026 }),
       mock: meritAwardGroupBy,
+      track: "DORM",
     },
     {
       name: "classSummaries",
       run: () => classSummaries({ year: 2026, track: "SCHOOL", totalsYear: 2026 }),
       mock: meritAwardGroupBy,
+      track: "SCHOOL",
     },
     {
       name: "listClassRoster (전교)",
       run: () => listClassRoster({ year: 2026, track: "SCHOOL", totalsYear: 2026 }),
       mock: meritAwardGroupBy,
+      track: "SCHOOL",
     },
   ];
 
-  it.each(CASES)("$name", async ({ run, mock }) => {
+  it.each(CASES)("$name", async ({ run, mock, track }) => {
     await run();
 
     expect(mock).toHaveBeenCalled();
-    expect(mock.mock.calls[0][0].where.status).toBe("ACTIVE");
+    expect(mock.mock.calls[0][0].where).toMatchObject({
+      track,
+      status: "ACTIVE",
+      year: 2026,
+    });
+  });
+
+  it("unusedRules도 같은 트랙·상태·학년도의 부여 기록만 대조한다", async () => {
+    await unusedRules({ track: "DORM", totalsYear: 2026 });
+
+    expect(meritRuleFindMany.mock.calls[0][0].where).toEqual({
+      track: "DORM",
+      active: true,
+      awards: { none: { status: "ACTIVE", year: 2026 } },
+    });
   });
 
   /**
@@ -528,4 +551,72 @@ describe("취소된 기록은 어느 집계에도 안 든다", () => {
     });
     expect(meritAwardGroupBy.mock.calls[1][0].where.awardedByUserId).toBeNull();
   });
+});
+
+describe("통계 화면 집계의 학생 모집단", () => {
+  const POPULATION_CASES = [
+    {
+      name: "trackTotals",
+      runWithRoster: () =>
+        trackTotals({ track: "SCHOOL", totalsYear: 2026, rosterYear: 2026 }),
+      runWithIds: () =>
+        trackTotals({
+          track: "SCHOOL",
+          totalsYear: 2026,
+          rosterYear: 2026,
+          studentProfileIds: ["sp-1", "sp-2"],
+        }),
+      mock: meritAwardGroupBy,
+    },
+    {
+      name: "topRules",
+      runWithRoster: () =>
+        topRules({ track: "SCHOOL", totalsYear: 2026, rosterYear: 2026 }),
+      runWithIds: () =>
+        topRules({
+          track: "SCHOOL",
+          totalsYear: 2026,
+          rosterYear: 2026,
+          studentProfileIds: ["sp-1", "sp-2"],
+        }),
+      mock: meritAwardGroupBy,
+    },
+    {
+      name: "listAwardsForChart",
+      runWithRoster: () =>
+        listAwardsForChart({ track: "SCHOOL", year: 2026, rosterYear: 2026 }),
+      runWithIds: () =>
+        listAwardsForChart({
+          track: "SCHOOL",
+          year: 2026,
+          rosterYear: 2026,
+          studentProfileIds: ["sp-1", "sp-2"],
+        }),
+      mock: meritAwardFindMany,
+    },
+  ];
+
+  it.each(POPULATION_CASES)(
+    "$name — 명단 학년도를 주면 그 해 재학생만 센다",
+    async ({ runWithRoster, mock }) => {
+      await runWithRoster();
+
+      const where = mock.mock.calls.at(-1)![0].where;
+      expect(where.studentProfile).toEqual({
+        enrollments: { some: { year: 2026, status: "ENROLLED" } },
+      });
+      expect(where).not.toHaveProperty("studentProfileId");
+    },
+  );
+
+  it.each(POPULATION_CASES)(
+    "$name — 학생 목록을 주면 그 목록이 모집단을 대신한다",
+    async ({ runWithIds, mock }) => {
+      await runWithIds();
+
+      const where = mock.mock.calls.at(-1)![0].where;
+      expect(where.studentProfileId).toEqual({ in: ["sp-1", "sp-2"] });
+      expect(where).not.toHaveProperty("studentProfile");
+    },
+  );
 });

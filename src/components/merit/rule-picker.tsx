@@ -36,7 +36,9 @@ export function RulePicker({
 
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
-  const [active, setActive] = useState(0);
+  // 포커스만 들어온 상태는 아직 사용자가 목록을 고른 것이 아니다. 방향키·검색·
+  // 마우스로 실제로 움직인 뒤에만 숫자가 생기고, 그때만 Tab이 항목을 확정한다.
+  const [active, setActive] = useState<number | null>(null);
   const [selected, setSelected] = useState<RuleOption | null>(null);
 
   const filtered = useMemo(() => filterRules(rules, query), [rules, query]);
@@ -44,7 +46,8 @@ export function RulePicker({
 
   // 걸러낸 결과가 짧아지면 active가 목록 밖을 가리킬 수 있다. 상태를 되돌리는
   // 대신 렌더 때 잘라 쓴다 — 여분의 리렌더가 없다.
-  const activeIndex = Math.min(active, Math.max(filtered.length - 1, 0));
+  const activeIndex =
+    active === null ? null : Math.min(active, Math.max(filtered.length - 1, 0));
 
   /**
    * 목록을 연다. 검색어를 비우고 여는 이유: 닫혀 있을 때 칸의 값은 "고른 항목"이라
@@ -52,7 +55,7 @@ export function RulePicker({
    */
   function openList() {
     setQuery("");
-    setActive(0);
+    setActive(null);
     setOpen(true);
   }
 
@@ -60,7 +63,7 @@ export function RulePicker({
     setSelected(rule);
     onChange?.(rule);
     setQuery("");
-    setActive(0);
+    setActive(null);
     setOpen(false);
   }
 
@@ -75,15 +78,16 @@ export function RulePicker({
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       // 목록을 움직이는 키다 — 막지 않으면 뒤에서 페이지가 함께 스크롤된다.
       event.preventDefault();
-      if (!open) {
-        setOpen(true);
-        return;
-      }
+      if (!open) setOpen(true);
       if (filtered.length === 0) return;
-      const next =
-        event.key === "ArrowDown"
-          ? Math.min(activeIndex + 1, filtered.length - 1)
-          : Math.max(activeIndex - 1, 0);
+      let next: number;
+      if (activeIndex === null) {
+        next = event.key === "ArrowDown" ? 0 : filtered.length - 1;
+      } else if (event.key === "ArrowDown") {
+        next = Math.min(activeIndex + 1, filtered.length - 1);
+      } else {
+        next = Math.max(activeIndex - 1, 0);
+      }
       setActive(next);
       reveal(next);
       return;
@@ -98,7 +102,7 @@ export function RulePicker({
       // "고른다"는 뜻이므로 막지 않으면 고르는 손짓이 그대로 부여가 된다.
       if (!open) return;
       event.preventDefault();
-      const rule = filtered[activeIndex];
+      const rule = activeIndex === null ? undefined : filtered[activeIndex];
       if (rule) choose(rule);
       return;
     }
@@ -111,8 +115,9 @@ export function RulePicker({
     }
 
     if (event.key === "Tab" && open) {
-      // Tab은 막지 않는다 — 고르고 나서 다음 칸(메모)으로 그대로 넘어간다.
-      const rule = filtered[activeIndex];
+      // Tab은 막지 않는다 — 사용자가 목록을 움직여 고른 뒤에만 확정하고 다음 칸
+      // (메모)으로 넘어간다. 포커스만 스쳐 갔으면 아무것도 고르지 않는다.
+      const rule = activeIndex === null ? undefined : filtered[activeIndex];
       if (rule) choose(rule);
     }
   }
@@ -137,7 +142,9 @@ export function RulePicker({
           aria-expanded={open}
           aria-controls={`${baseId}-list`}
           aria-activedescendant={
-            open && filtered[activeIndex] ? `${baseId}-opt-${activeIndex}` : undefined
+            open && activeIndex !== null && filtered[activeIndex]
+              ? `${baseId}-opt-${activeIndex}`
+              : undefined
           }
           aria-autocomplete="list"
           aria-label={label}

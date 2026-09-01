@@ -81,21 +81,23 @@ describe("최근 부여 repo", () => {
   it("필터와 페이지 범위를 DB 쿼리에 적용한다", async () => {
     const rows = await findRecentAwardPage(filter, 20, 20);
 
-    expect(findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          track: "DORM",
-          kind: "DEMERIT",
-          status: "ACTIVE",
-          OR: expect.arrayContaining([
-            { label: { contains: "점호", mode: "insensitive" } },
-            { awardedByName: { contains: "점호", mode: "insensitive" } },
-          ]),
-        }),
-        skip: 20,
-        take: 20,
-      }),
-    );
+    const call = findMany.mock.calls[0][0];
+    expect(call.where).toEqual({
+      track: "DORM",
+      kind: "DEMERIT",
+      status: "ACTIVE",
+      OR: [
+        { label: { contains: "점호", mode: "insensitive" } },
+        { note: { contains: "점호", mode: "insensitive" } },
+        { awardedByName: { contains: "점호", mode: "insensitive" } },
+        {
+          studentProfile: {
+            user: { name: { contains: "점호", mode: "insensitive" } },
+          },
+        },
+      ],
+    });
+    expect(call).toMatchObject({ skip: 20, take: 20 });
     // 쪽을 나누는 질의다 — 여기서 정렬키가 하나뿐이면 쪽 경계에서 줄이 사라진다.
     expectStableOrder();
     expect(rows[0]).toMatchObject({
@@ -143,11 +145,12 @@ describe("최근 부여 repo", () => {
   });
 
   it("총 건수에도 화면과 같은 필터를 적용한다", async () => {
+    await findRecentAwardPage(filter, 0, 20);
+    const pageWhere = findMany.mock.calls.at(-1)![0].where;
+
     await countRecentAwards(filter);
 
-    expect(count).toHaveBeenCalledWith({
-      where: expect.objectContaining({ track: "DORM", kind: "DEMERIT" }),
-    });
+    expect(count.mock.calls.at(-1)![0].where).toEqual(pageWhere);
   });
 
   it("내보내기는 같은 필터를 쓰되 take로 자르지 않는다", async () => {

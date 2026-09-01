@@ -224,12 +224,18 @@ describe("기준 초과 명단 — 집계 범위", () => {
   });
 
   it("반을 골랐으면 그 반 학생만 본다", async () => {
-    listClassRoster.mockResolvedValue([
+    const students = [
       { studentProfileId: "sp-1" },
       { studentProfileId: "sp-2" },
+    ];
+    const selectedClass = { grade: 2, classNo: 3, students: 2 };
+    listClassRoster.mockResolvedValue(students);
+    classSummaries.mockResolvedValue([
+      { grade: 1, classNo: 1, students: 30 },
+      selectedClass,
     ]);
 
-    await service.getMeritStats(admin, "SCHOOL", undefined, NOW, {
+    const stats = await service.getMeritStats(admin, "SCHOOL", undefined, NOW, {
       grade: 2,
       classNo: 3,
     });
@@ -237,6 +243,9 @@ describe("기준 초과 명단 — 집계 범위", () => {
     expect(demeritTotalsByStudent).toHaveBeenCalledWith(
       expect.objectContaining({ studentProfileIds: ["sp-1", "sp-2"] }),
     );
+    expect(stats.classes).toEqual([selectedClass]);
+    expect(stats.scope).toEqual({ grade: 2, classNo: 3 });
+    expect(stats.students).toEqual(students);
   });
 
   it("전교로 보면 학생 목록 조건 없이 부른다", async () => {

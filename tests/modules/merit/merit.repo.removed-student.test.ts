@@ -106,6 +106,61 @@ describe("findStudentHeader — 상세는 명단에서 빠진 학생도 보여�
     expect(whereOf(studentProfileFindFirst)).toEqual({ id: "sp-1" });
   });
 
+  it("머리글 학적은 요청한 학년도의 한 줄로 좁힌다", async () => {
+    const histories = [
+      {
+        year: 2025,
+        number: 3,
+        status: "ENROLLED",
+        schoolClass: { grade: 1, classNo: 1 },
+      },
+      {
+        year: 2026,
+        number: 7,
+        status: "EXPELLED",
+        schoolClass: { grade: 2, classNo: 3 },
+      },
+    ];
+    studentProfileFindFirst.mockImplementation(
+      (args: {
+        select: { enrollments: { where?: { year?: number }; take: number } };
+      }) => {
+        const requestedYear = args.select.enrollments.where?.year;
+        const selected = (requestedYear === undefined
+          ? histories
+          : histories.filter((row) => row.year === requestedYear)
+        ).slice(0, args.select.enrollments.take);
+
+        return {
+          id: "sp-1",
+          studentCode: "K7M2XQ4A",
+          user: { name: "김민준" },
+          enrollments: selected.map((row) => ({
+            number: row.number,
+            status: row.status,
+            schoolClass: row.schoolClass,
+          })),
+        };
+      },
+    );
+
+    const header = await repo.findStudentHeader("sp-1", 2026);
+    const enrollmentSelect = studentProfileFindFirst.mock.calls[0][0].select.enrollments;
+
+    expect(enrollmentSelect).toEqual(
+      expect.objectContaining({ where: { year: 2026 }, take: 1 }),
+    );
+    expect(header).toEqual(
+      expect.objectContaining({
+        grade: 2,
+        classNo: 3,
+        number: 7,
+        status: "EXPELLED",
+        removed: true,
+      }),
+    );
+  });
+
   it("재적이 아니면 removed가 true다", async () => {
     studentProfileFindFirst.mockResolvedValue({
       id: "sp-1",
