@@ -17,6 +17,9 @@ describe("loginErrorMessage", () => {
 
   it("알 수 없거나 배열인 값은 무시한다", () => {
     expect(loginErrorMessage("forged-message")).toBeNull();
+    expect(loginErrorMessage("constructor")).toBeNull();
+    expect(loginErrorMessage("toString")).toBeNull();
+    expect(loginErrorMessage("__proto__")).toBeNull();
     expect(loginErrorMessage(["credentials"])).toBeNull();
   });
 });

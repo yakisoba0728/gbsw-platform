@@ -33,7 +33,7 @@ vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("@/core/auth/session", () => ({ requireAuth }));
 vi.mock("@/modules/invites/invite.service", () => ({
   InviteError: class InviteError extends Error {},
-  MAX_ACTIVE_PARENT_INVITES: 3,
+  MAX_ACTIVE_PARENT_INVITES: 2,
   createStudentInvite,
   createAdminInvite,
   createParentInviteFor,
@@ -306,6 +306,19 @@ describe("createAdminInviteAction — 경계 검증", () => {
   });
 });
 
+describe("초대 목록 재검증", () => {
+  it.each([
+    ["학생", createStudentInviteAction, studentForm],
+    ["교사", createAdminInviteAction, adminForm],
+    ["학부모", createParentInviteForAction, parentForm],
+  ])("%s 코드 발급 뒤 실제 목록 경로를 다시 그린다", async (_label, action, makeForm) => {
+    await action(INITIAL, makeForm());
+
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/users");
+    expect(revalidatePath).not.toHaveBeenCalledWith("/admin/invites");
+  });
+});
+
 describe("createParentInviteForAction — 경계 검증", () => {
   it("폼이 보내는 값 그대로면 서비스까지 도달한다", async () => {
     const state = await createParentInviteForAction(INITIAL, parentForm());
@@ -336,7 +349,7 @@ describe("createParentInviteForAction — 경계 검증", () => {
 
     const state = await createParentInviteForAction(INITIAL, parentForm());
 
-    expect(state.error).toBe("이 학생에게 쓰지 않은 코드가 3개 있습니다.");
+    expect(state.error).toBe("이 학생에게 쓰지 않은 코드가 2개 있습니다.");
   });
 
   /*
@@ -394,7 +407,8 @@ describe("revokeInviteAction — 경계 검증", () => {
   it("관리자 목록과 학생 화면을 함께 다시 그린다 — 같은 액션을 둘이 쓴다", async () => {
     await revokeInviteAction(REVOKE, form({ inviteId: "inv-1", reason: "잘못 발급" }));
 
-    expect(revalidatePath).toHaveBeenCalledWith("/admin/invites");
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/users");
+    expect(revalidatePath).not.toHaveBeenCalledWith("/admin/invites");
     expect(revalidatePath).toHaveBeenCalledWith("/parent-invite");
   });
 

@@ -107,6 +107,17 @@ describe("changeOwnPassword()", () => {
     expect(recordAudit).not.toHaveBeenCalled();
   });
 
+  it("현재 비밀번호 검증이 status false를 돌려줘도 저장하지 않는다", async () => {
+    verifyPassword.mockResolvedValue({ status: false });
+
+    await expect(
+      changeOwnPassword(actor, input, new Headers()),
+    ).rejects.toThrow(InvalidCurrentPasswordError);
+
+    expect(updateOwnPassword).not.toHaveBeenCalled();
+    expect(recordAudit).not.toHaveBeenCalled();
+  });
+
   it("현재 Better Auth 세션이 행위자와 다르면 저장하지 않는다", async () => {
     getSession.mockResolvedValue({
       session: { id: "session-current" },

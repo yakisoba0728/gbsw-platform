@@ -61,9 +61,9 @@ export async function listAll(year: number) {
   });
 }
 
-export async function listByStudent(studentId: string, createdById: string) {
+export async function listByStudent(studentId: string) {
   return prisma.invite.findMany({
-    where: { studentId, createdById, role: "PARENT" },
+    where: { studentId, role: "PARENT" },
     // 같은 이유로 보조 정렬키를 둔다 (listAll 참고). 한 학생에게 학부모 코드를
     // 한 번에 여러 개 발급하면 그 코드들이 밀리초까지 같은 createdAt을 갖는다.
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -75,7 +75,7 @@ export async function listByStudent(studentId: string, createdById: string) {
  *
  * 판정 규칙은 `lib/invite-code.ts`의 `isInviteUsable`과 같아야 한다 — 거기서는
  * 만료된 코드를 못 쓴다고 보는데 여기서만 안 봤다. 그 결과 학생이 쓸 수 없는
- * 코드 3개가 한도를 계속 차지해 새 코드를 만들지 못하고, 교사가 손으로 셋을
+ * 코드들이 한도를 계속 차지해 새 코드를 만들지 못하고, 교사가 손으로
  * 폐기해야만 풀렸다. `expiresAt`이 null이면 무기한이라 항상 센다.
  *
  * now를 인자로 받는다 — 테스트가 "지금"을 고정할 수 있어야 경계를 검증할 수 있다.

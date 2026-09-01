@@ -15,7 +15,7 @@ vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("@/core/auth/session", () => ({ requireAuth }));
 vi.mock("@/modules/invites/invite.service", () => ({
   InviteError: class InviteError extends Error {},
-  MAX_ACTIVE_PARENT_INVITES: 3,
+  MAX_ACTIVE_PARENT_INVITES: 2,
   createParentInvite,
 }));
 
@@ -97,7 +97,7 @@ describe("createParentInviteAction — 경계 검증", () => {
 
     const state = await createParentInviteAction(INITIAL, form({ name: "홍부모" }));
 
-    expect(state.error).toContain("쓰지 않은 코드가 3개 있습니다");
+    expect(state.error).toContain("쓰지 않은 코드가 2개 있습니다");
   });
 
   it("권한 거부를 코드 생성 실패로 덮지 않는다", async () => {

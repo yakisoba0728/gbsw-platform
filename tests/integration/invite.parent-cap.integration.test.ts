@@ -57,14 +57,17 @@ describe("학부모 초대 활성 상한 경쟁", () => {
     studentProfileId = student.studentProfile!.id;
 
     await prisma.invite.createMany({
-      data: [0, 1].map((index) => ({
-        code: `CAP-${suffix}-${index}`,
-        role: "PARENT",
-        status: "PENDING",
-        metadata: { name: `기존 보호자 ${index}` },
-        studentId: studentProfileId,
-        createdById: adminId,
-      })),
+      data: Array.from(
+        { length: MAX_ACTIVE_PARENT_INVITES - 1 },
+        (_, index) => ({
+          code: `CAP-${suffix}-${index}`,
+          role: "PARENT",
+          status: "PENDING",
+          metadata: { name: `기존 보호자 ${index}` },
+          studentId: studentProfileId,
+          createdById: adminId,
+        }),
+      ),
     });
   });
 
@@ -76,7 +79,7 @@ describe("학부모 초대 활성 상한 경쟁", () => {
     });
   });
 
-  it("활성 2개에서 병렬 발급해도 하나만 성공해 최종 3개다", async () => {
+  it("한도 바로 아래에서 병렬 발급해도 하나만 성공해 최종 2개다", async () => {
     const results = await Promise.allSettled([
       createParentInviteFor(actor, {
         studentId: studentProfileId,

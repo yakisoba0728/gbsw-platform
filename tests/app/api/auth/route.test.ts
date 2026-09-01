@@ -23,10 +23,7 @@ beforeEach(() => {
 });
 
 describe("/api/auth/[...all] route policy", () => {
-  it("preserves the app's Better Auth login/session/logout endpoints", async () => {
-    await expect(
-      isAllowedAuthEndpoint("POST", context(["sign-in", "email"])),
-    ).resolves.toBe(true);
+  it("preserves the app's Better Auth session/logout endpoints", async () => {
     await expect(
       isAllowedAuthEndpoint("GET", context(["get-session"])),
     ).resolves.toBe(true);
@@ -37,12 +34,25 @@ describe("/api/auth/[...all] route policy", () => {
 
   it("passes allowed endpoints through to Better Auth", async () => {
     const response = await POST(
-      new Request("https://example.test/api/auth/sign-in/email") as never,
-      context(["sign-in", "email"]),
+      new Request("https://example.test/api/auth/sign-out") as never,
+      context(["sign-out"]),
     );
 
     expect(await response.text()).toBe("passed");
     expect(handler).toHaveBeenCalledOnce();
+  });
+
+  it("blocks raw email login so sessions only start through the audited login route", async () => {
+    const response = await POST(
+      new Request("https://example.test/api/auth/sign-in/email") as never,
+      context(["sign-in", "email"]),
+    );
+
+    expect(response.status).toBe(404);
+    await expect(
+      isAllowedAuthEndpoint("POST", context(["sign-in", "email"])),
+    ).resolves.toBe(false);
+    expect(handler).not.toHaveBeenCalled();
   });
 
   it("blocks raw user mutation endpoints that bypass app services", async () => {
@@ -85,14 +95,14 @@ describe("/api/auth/[...all] route policy", () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
-  it("keeps POST get-session available for Better Auth's locked behavior", async () => {
+  it("blocks the nonexistent POST get-session endpoint", async () => {
     const response = await POST(
       new Request("https://example.test/api/auth/get-session") as never,
       context(["get-session"]),
     );
 
-    expect(response.status).toBe(200);
-    expect(handler).toHaveBeenCalledOnce();
+    expect(response.status).toBe(404);
+    expect(handler).not.toHaveBeenCalled();
   });
 
   it("does not expose unknown Better Auth routes by default", async () => {

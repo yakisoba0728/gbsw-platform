@@ -2,24 +2,43 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const studentProfileFindMany = vi.fn();
 const inviteCount = vi.fn();
+const inviteFindMany = vi.fn();
 const queryRaw = vi.fn();
 
 vi.mock("@/core/db/client", () => ({
   prisma: {
     studentProfile: { findMany: studentProfileFindMany },
-    invite: { count: inviteCount },
+    invite: { count: inviteCount, findMany: inviteFindMany },
     $queryRaw: queryRaw,
   },
 }));
 
-const { countActiveByStudent, listStudents, lockStudentForParentInvite } = await import(
-  "@/modules/invites/invite.repo"
-);
+const {
+  countActiveByStudent,
+  listByStudent,
+  listStudents,
+  lockStudentForParentInvite,
+} = await import("@/modules/invites/invite.repo");
 
 beforeEach(() => {
   studentProfileFindMany.mockReset().mockResolvedValue([]);
   inviteCount.mockReset().mockResolvedValue(0);
+  inviteFindMany.mockReset().mockResolvedValue([]);
   queryRaw.mockReset().mockResolvedValue([{ id: "sp-1" }]);
+});
+
+describe("listByStudent()", () => {
+  it("학생에게 귀속된 학부모 코드는 발급자를 가리지 않고 모두 보여준다", async () => {
+    await listByStudent("sp-1");
+
+    expect(inviteFindMany).toHaveBeenCalledWith({
+      where: { studentId: "sp-1", role: "PARENT" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    });
+    expect(inviteFindMany.mock.calls[0]![0].where).not.toHaveProperty(
+      "createdById",
+    );
+  });
 });
 
 describe("lockStudentForParentInvite()", () => {

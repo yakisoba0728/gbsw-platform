@@ -97,7 +97,7 @@ export async function createStudentInviteAction(
 
   try {
     const invite = await createStudentInvite(actor, parsed.data);
-    revalidatePath("/admin/invites");
+    revalidatePath("/admin/users");
     return { error: null, code: formatInviteCode(invite.code) };
   } catch (error) {
     return {
@@ -134,7 +134,7 @@ export async function createAdminInviteAction(
 
   try {
     const invite = await createAdminInvite(actor, parsed.data);
-    revalidatePath("/admin/invites");
+    revalidatePath("/admin/users");
     return { error: null, code: formatInviteCode(invite.code) };
   } catch (error) {
     return {
@@ -174,7 +174,7 @@ export async function createParentInviteForAction(
 
   try {
     const invite = await createParentInviteFor(actor, parsed.data);
-    revalidatePath("/admin/invites");
+    revalidatePath("/admin/users");
     return { error: null, code: formatInviteCode(invite.code) };
   } catch (error) {
     return {
@@ -202,7 +202,7 @@ export async function revokeInviteAction(
   try {
     await revokeInvite(actor, parsed.data);
     // 교사 목록과 학생의 학부모 코드 목록 양쪽에서 쓰인다.
-    revalidatePath("/admin/invites");
+    revalidatePath("/admin/users");
     revalidatePath("/parent-invite");
     return { ok: true, error: null };
   } catch (error) {

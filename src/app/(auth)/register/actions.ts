@@ -88,22 +88,38 @@ export type CheckInviteState = {
   code: string | null;
   role: Role | null;
   error: string | null;
+  values?: { code: string };
 };
 
 export async function checkInviteAction(
   _prev: CheckInviteState,
   formData: FormData,
 ): Promise<CheckInviteState> {
+  const values = { code: String(formData.get("code") ?? "") };
   const parsed = inviteCodeSchema.safeParse(formData.get("code"));
   if (!parsed.success) {
-    return { code: null, role: null, error: "가입코드를 입력해 주세요." };
+    return {
+      code: null,
+      role: null,
+      error: "가입코드를 입력해 주세요.",
+      values,
+    };
   }
 
   try {
     const { role } = await checkInvite(parsed.data);
     return { code: parsed.data, role, error: null };
-  } catch {
-    return { code: null, role: null, error: "쓸 수 없는 가입코드입니다." };
+  } catch (error) {
+    if (error instanceof RegistrationError) {
+      return { code: null, role: null, error: error.message, values };
+    }
+    console.error("[registration] 가입코드를 확인하지 못했습니다.", error);
+    return {
+      code: null,
+      role: null,
+      error: "쓸 수 없는 가입코드입니다.",
+      values,
+    };
   }
 }
 

@@ -102,21 +102,29 @@ describe("학생 학부모 초대 소유권", () => {
     });
   });
 
-  it("내 화면에는 내가 만든 PARENT 코드만 보인다", async () => {
+  it("내 화면에는 내게 귀속된 PARENT 코드가 발급자와 무관하게 보인다", async () => {
     const visible = await listMyParentInvites(student);
 
-    expect(visible.map((invite) => invite.code)).toEqual([codes.mine]);
+    expect(visible.map((invite) => invite.code)).toHaveLength(2);
+    expect(visible.map((invite) => invite.code)).toEqual(
+      expect.arrayContaining([codes.mine, codes.admin]),
+    );
   });
 
-  it("교사가 같은 학생에게 만든 PARENT 코드는 학생이 폐기할 수 없다", async () => {
+  it("교사가 같은 학생에게 만든 PARENT 코드도 학생이 폐기할 수 있다", async () => {
     const invite = await prisma.invite.findUniqueOrThrow({
       where: { code: codes.admin },
       select: { id: true },
     });
 
+    await revokeInvite(student, { inviteId: invite.id, reason: "다시 발급" });
+
     await expect(
-      revokeInvite(student, { inviteId: invite.id, reason: "내 코드가 아님" }),
-    ).rejects.toBeInstanceOf(ForbiddenError);
+      prisma.invite.findUniqueOrThrow({
+        where: { id: invite.id },
+        select: { status: true },
+      }),
+    ).resolves.toEqual({ status: "REVOKED" });
   });
 
   it("내가 만든 코드라도 PARENT 역할이 아니면 폐기할 수 없다", async () => {
@@ -139,7 +147,9 @@ describe("학생 학부모 초대 소유권", () => {
     await revokeInvite(student, { inviteId: invite.id, reason: "다시 발급" });
 
     const visible = await listMyParentInvites(student);
-    expect(visible).toHaveLength(1);
-    expect(visible[0]).toMatchObject({ code: codes.mine, status: "REVOKED" });
+    expect(visible).toHaveLength(2);
+    expect(visible.find((item) => item.code === codes.mine)).toMatchObject({
+      status: "REVOKED",
+    });
   });
 });
