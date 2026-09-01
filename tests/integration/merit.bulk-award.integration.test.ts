@@ -45,6 +45,11 @@ const admin = {
   mustChangePassword: false,
 };
 
+/**
+ * 통합 테스트용 학생. **그 학년도 재적(ENROLLED) 줄을 함께 만든다** — 부여
+ * 게이트(`findAwardableStudent`)와 기준 초과 명단이 그것을 술어로 쓴다.
+ * 반은 붙이지 않는다: 반 미배정도 재적이고, 그 학생에게도 부여할 수 있어야 한다.
+ */
 async function makeStudent(suffix: string) {
   const user = await prisma.user.create({
     data: {
@@ -60,6 +65,15 @@ async function makeStudent(suffix: string) {
       userId: user.id,
       studentCode: `MTEST${suffix}`,
       birthDate: new Date("2009-03-02"),
+    },
+  });
+  await prisma.enrollment.create({
+    data: {
+      studentProfileId: profile.id,
+      year: YEAR,
+      classId: null,
+      number: null,
+      status: "ENROLLED",
     },
   });
   made.users.push(user.id);
@@ -199,6 +213,9 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await prisma.meritAward.deleteMany({
+    where: { studentProfileId: { in: made.profiles } },
+  });
+  await prisma.enrollment.deleteMany({
     where: { studentProfileId: { in: made.profiles } },
   });
   await prisma.studentProfile.deleteMany({ where: { id: { in: made.profiles } } });
@@ -619,6 +636,7 @@ describe("repo.demeritTotalsByStudent — 취소·종류 거르기", () => {
     const rows = await repo.demeritTotalsByStudent({
       track: "SCHOOL",
       totalsYear: YEAR,
+      rosterYear: YEAR,
       studentProfileIds: [student],
     });
 

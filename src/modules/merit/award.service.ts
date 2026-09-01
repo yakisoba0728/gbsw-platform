@@ -111,10 +111,6 @@ export async function awardMerit(
 ): Promise<void> {
   await assertCan(actor, "merit:award");
 
-  // 부여는 명단에 있는 학생에게만 한다 — 조회는 빠진 학생도 열려 있지만 부여는 아니다.
-  const student = await repo.findAwardableStudent(input.studentProfileId);
-  if (!student) throw new MeritError("STUDENT_NOT_FOUND");
-
   // 발생일은 입력이 아니라 오늘이다. 소급 입력 경로는 없앴다.
   const occurredOn = kstDayStart(now);
 
@@ -122,6 +118,12 @@ export async function awardMerit(
     const year = await repo.findCurrentYearForUpdate(tx);
     if (year === null) throw new AcademicYearError("NO_CURRENT_YEAR");
     assertOccurredOn(occurredOn, year, now);
+
+    // 부여는 그 학년도에 재적 중인 학생에게만 한다 — 조회는 명단에서 빠진 학생도
+    // 열려 있지만 부여는 아니다. **잠근 학년도를 넘겨 같은 트랜잭션 안에서 본다**:
+    // 밖에서 검사하면 그 사이 학년도가 바뀌어, 작년 재적을 보고 올해에 저장한다.
+    const student = await repo.findAwardableStudent(input.studentProfileId, year, tx);
+    if (!student) throw new MeritError("STUDENT_NOT_FOUND");
 
     const rule = await repo.findRuleForUpdate(input.ruleId, tx);
     if (!rule) throw new MeritError("RULE_NOT_FOUND");
@@ -226,7 +228,7 @@ export async function getStudentMerit(
 /**
  * 화면 머리글용 신원. 학급은 현재 학년도 기준이다 — 지난 기록을 보고 있어도
  * 사람을 식별하는 것은 "지금 몇 반인가"다. 명단에서 빠진 학생도 돌려주고
- * (removedAt이 그 날짜를 싣는다) 화면이 "삭제됨"을 알린다.
+ * (`removed`가 그 사실을, `status`가 학적을 싣는다) 화면이 부여를 닫는다.
  */
 export async function getStudentHeader(
   actor: SessionUser,
@@ -286,14 +288,6 @@ export async function bulkAwardMerit(
   // zod가 이미 막지만 업무 규칙이라 서비스에서도 센다.
   if (ids.length > BULK_AWARD_LIMIT) throw new MeritError("TOO_MANY_STUDENTS");
 
-  // DB에 쓰기 전에 전부 확인한다 — 한 명이라도 명단에 없으면 아무도 받지 않는다.
-  const found = await repo.findAwardableStudents(ids);
-  if (found.length !== ids.length) throw new MeritError("STUDENT_NOT_FOUND");
-
-  // 넘어온 순서를 지킨다 — 감사로그를 이 순서로 남기므로 화면 선택 순서와 맞는다.
-  const byId = new Map(found.map((s) => [s.id, s]));
-  const students = ids.map((id) => byId.get(id)!);
-
   const occurredOn = kstDayStart(now);
 
   const created = await withTransaction(
@@ -301,6 +295,15 @@ export async function bulkAwardMerit(
       const year = await repo.findCurrentYearForUpdate(tx);
       if (year === null) throw new AcademicYearError("NO_CURRENT_YEAR");
       assertOccurredOn(occurredOn, year, now);
+
+      // 쓰기 전에 전부 확인한다 — 한 명이라도 그 학년도 재적이 아니면 아무도 받지
+      // 않는다. 단건 부여와 같은 이유로 잠근 학년도를 같은 트랜잭션에서 본다.
+      const found = await repo.findAwardableStudents(ids, year, tx);
+      if (found.length !== ids.length) throw new MeritError("STUDENT_NOT_FOUND");
+
+      // 넘어온 순서를 지킨다 — 감사로그를 이 순서로 남기므로 화면 선택 순서와 맞는다.
+      const byId = new Map(found.map((s) => [s.id, s]));
+      const students = ids.map((id) => byId.get(id)!);
 
       const rule = await repo.findRuleForUpdate(input.ruleId, tx);
       if (!rule) throw new MeritError("RULE_NOT_FOUND");
@@ -369,7 +372,8 @@ export async function getClassRoster(actor: SessionUser, params: ClassRosterInpu
 
 /**
  * 이름 또는 학생코드로 찾는다. 반·번호·학적은 현재 학년도 기준이다.
- * 학적을 함께 내는 것은 부여가 학적을 보지 않기 때문이다 — 막는 대신 보이게 한다.
+ * 학적을 함께 내는 것은 **부여를 막는 근거가 그 값**이기 때문이다 — 화면이 학급
+ * 자리에 학적을 적어, 고르기 전에 부여할 수 없는 학생임을 알 수 있게 한다.
  * 소속은 재학인 줄에서만 쓴다. 빠진 학생은 includeRemoved를 켜야 나온다.
  */
 export async function searchStudents(
@@ -402,9 +406,9 @@ export async function searchStudents(
       number: enrolled?.number ?? null,
       // 그 학년도 재적 줄이 아예 없으면 null이다.
       status: enrollment?.status ?? null,
-      // 명단에서 빠진 날. 이 학생들은 소속·학적이 비어 있어 화면이 그 빈칸을
-      // "삭제됨"으로 설명할 유일한 재료다.
-      removedAt: row.user.deletedAt,
+      // 명단에서 빠졌는가 — 재적이 아니면 true다. 이 학생들은 소속이 비어 있어
+      // 화면이 그 빈칸을 학적으로 설명한다. 판정은 부여 게이트와 같은 술어다.
+      removed: enrollment?.status !== "ENROLLED",
     };
   });
 }

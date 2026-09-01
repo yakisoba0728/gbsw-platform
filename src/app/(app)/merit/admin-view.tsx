@@ -175,10 +175,10 @@ type RosterPromise = ReturnType<typeof loadRoster>;
  */
 async function loadSearch(actor: SessionUser, q: string) {
   try {
-    // 명단에서 빠진 학생도 함께 낸다. 화면을 따로 두었더니 "명단에서 빠진 학생까지
-    // 찾기"라는 링크가 무슨 뜻인지 아무도 몰랐고, 그 화면이 빠진 학생을 찾을 수 있는
-    // 유일한 길이었다(계정 관리 목록도 deletedAt으로 거른다). 결과에 「삭제됨」이
-    // 붙고 부여는 서비스가 막으므로, 한 칸에서 찾아도 잘못 줄 수 없다.
+    // 재학 중이 아닌 학생도 함께 낸다. 화면을 따로 두었더니 "명단에서 빠진 학생까지
+    // 찾기"라는 링크가 무슨 뜻인지 아무도 몰랐고, 그 화면이 빠진 학생의 지난 기록을
+    // 찾을 수 있는 유일한 길이었다. 결과에 학적이 함께 서고 부여는 서비스가
+    // 재적으로 막으므로, 한 칸에서 찾아도 잘못 줄 수 없다.
     return await searchStudents(actor, q, { includeRemoved: true });
   } catch (error) {
     if (!(error instanceof AcademicYearError)) throw error;

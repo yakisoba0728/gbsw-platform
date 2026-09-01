@@ -62,8 +62,9 @@ export type MeritStats = {
 };
 
 /**
- * 기준 초과 명단의 한 줄. 소속이 없을 수 있다 (반 미배정·학적 변동 중) —
- * 그래도 명단에는 오른다.
+ * 기준 초과 명단의 한 줄. 소속이 없을 수 있다 — **반 미배정**이 그렇다.
+ * 그래도 명단에는 오른다: 놓치기 가장 쉬운 자리가 그쪽이다.
+ * 명단에서 빠진 학생(재적 아님)은 아예 오르지 않는다 — 아래 readWatchList를 볼 것.
  */
 export type WatchListRow = {
   studentProfileId: string;
@@ -89,9 +90,12 @@ async function readWatchList(
 ): Promise<WatchListRow[]> {
   const { warn } = thresholds;
 
+  // rosterYear를 넘겨야 그 학년도 재적만 센다. 기숙사는 누적이라 이 조건이
+  // 없으면 졸업생이 명단에 영원히 남는다 — repo 쪽 주석에 자세히 적었다.
   const sums = await repo.demeritTotalsByStudent({
     track,
     totalsYear,
+    rosterYear,
     studentProfileIds,
   });
 

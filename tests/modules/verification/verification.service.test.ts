@@ -43,6 +43,7 @@ const {
   confirmCode,
   consumeVerifications,
   createTemporaryVerifiedProof,
+  MAX_SENDS_PER_HOUR_PER_IP,
   requestCode,
   requireVerified,
 } = await import("@/modules/verification/verification.service");
@@ -135,7 +136,7 @@ describe("requestCode()", () => {
   describe("IP별 제한 (I4)", () => {
     it("같은 접속 IP에서 너무 자주 보내면 막는다 — 대상만 바꿔가며 도는 공격 방어", async () => {
       readRequestContext.mockResolvedValue({ ip: "203.0.113.9", userAgent: null });
-      countRecentSendsByIp.mockResolvedValue(20);
+      countRecentSendsByIp.mockResolvedValue(MAX_SENDS_PER_HOUR_PER_IP);
 
       await expect(requestCode("EMAIL", "a@b.kr")).rejects.toThrow("너무 많이");
       expect(sendVerification).not.toHaveBeenCalled();
@@ -208,7 +209,7 @@ describe("createTemporaryVerifiedProof()", () => {
 
   it("같은 접속 IP에서 너무 자주 proof를 만들면 막는다", async () => {
     readRequestContext.mockResolvedValue({ ip: "203.0.113.9", userAgent: null });
-    countRecentSendsByIp.mockResolvedValue(20);
+    countRecentSendsByIp.mockResolvedValue(MAX_SENDS_PER_HOUR_PER_IP);
 
     await expect(createTemporaryVerifiedProof("EMAIL", "a@b.kr")).rejects.toThrow(
       "너무 많이",

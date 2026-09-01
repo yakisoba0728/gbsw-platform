@@ -155,7 +155,7 @@ beforeEach(() => {
   findStudentHeader.mockReset().mockResolvedValue(HEADER);
 });
 
-/** 화면 머리글. removedAt이 null이면 명단에 남아 있는 학생이다. */
+/** 화면 머리글. removed가 false면 그 학년도 명단에 남아 있는 학생이다. */
 const HEADER = {
   studentProfileId: "sp-1",
   studentCode: "K7M2XQ4A",
@@ -164,7 +164,7 @@ const HEADER = {
   classNo: 3,
   number: 7,
   status: "ENROLLED",
-  removedAt: null,
+  removed: false,
 };
 
 /**
@@ -280,6 +280,16 @@ describe("awardMerit", () => {
       "STUDENT_NOT_FOUND",
     );
     expect(createAward).not.toHaveBeenCalled();
+  });
+
+  /**
+   * 재적 검사는 **잠근 학년도**로 해야 한다. 트랜잭션 밖에서 물으면 그 사이
+   * 학년도가 넘어갔을 때 작년 재적을 보고 올해 기록을 넣는다.
+   */
+  it("부여 대상 검사는 잠근 학년도로, 같은 트랜잭션 안에서 한다", async () => {
+    await service.awardMerit(admin, awardInput, NOW);
+
+    expect(findAwardableStudent).toHaveBeenCalledWith("sp-1", 2026, txClient);
   });
 
   it("학생은 상벌점을 줄 수 없다", async () => {
@@ -677,11 +687,11 @@ describe("bulkAwardMerit", () => {
     expect(createAwards).not.toHaveBeenCalled();
   });
 
-  it("학생 조회는 한 번만 한다", async () => {
+  it("학생 조회는 한 번만, 잠근 학년도로 같은 트랜잭션 안에서 한다", async () => {
     await service.bulkAwardMerit(admin, bulk, NOW);
 
     expect(findAwardableStudents).toHaveBeenCalledTimes(1);
-    expect(findAwardableStudents).toHaveBeenCalledWith(["sp-1", "sp-2"]);
+    expect(findAwardableStudents).toHaveBeenCalledWith(["sp-1", "sp-2"], 2026, txClient);
     expect(findAwardableStudent).not.toHaveBeenCalled();
   });
 
@@ -751,7 +761,7 @@ describe("bulkAwardMerit", () => {
         service.bulkAwardMerit(admin, { ...bulk, studentProfileIds: [...ids, "sp-0"] }, NOW),
       ).resolves.toBeDefined();
 
-      expect(findAwardableStudents).toHaveBeenCalledWith(ids);
+      expect(findAwardableStudents).toHaveBeenCalledWith(ids, 2026, txClient);
     });
 
     it("상한 정확히면 통과한다", async () => {
@@ -902,15 +912,15 @@ describe("listRecentAwards", () => {
 });
 
 /**
- * 검색 결과. 학적을 함께 내보낸다 — 부여는 학적을 안 보므로, 주는 사람이
- * 그 사실을 미리 알 수 있어야 한다.
+ * 검색 결과. 학적과 removed를 함께 내보낸다 — 부여를 막는 근거가 그 값이라,
+ * 주는 사람이 고르기 전에 알 수 있어야 한다.
  */
 describe("searchStudents", () => {
   function found(over: Record<string, unknown> = {}) {
     return {
       id: "sp-1",
       studentCode: "K7M2XQ4A",
-      user: { name: "김민준", deletedAt: null },
+      user: { name: "김민준" },
       enrollments: [
         { number: 7, status: "ENROLLED", schoolClass: { grade: 2, classNo: 3 } },
       ],
@@ -930,7 +940,7 @@ describe("searchStudents", () => {
         classNo: 3,
         number: 7,
         status: "ENROLLED",
-        removedAt: null,
+        removed: false,
       },
     ]);
   });
@@ -1055,19 +1065,32 @@ describe("searchStudents", () => {
       });
     });
 
-    it("명단 제외일을 removedAt으로 낸다", async () => {
-      const removedAt = new Date("2026-08-01T00:00:00Z");
+    /** 화면은 이 값으로 학급 자리에 학적을 세운다 — 부여 게이트와 같은 술어다. */
+    it("재적이 아니면 removed가 true다", async () => {
       searchStudents.mockResolvedValue([
-        found({ user: { name: "김민준", deletedAt: removedAt }, enrollments: [] }),
+        found({
+          enrollments: [{ number: null, status: "GRADUATED", schoolClass: null }],
+        }),
       ]);
 
       const [row] = await service.searchStudents(admin, "김민준", {
         includeRemoved: true,
       });
 
-      expect(row.removedAt).toEqual(removedAt);
-      // 소프트 삭제는 그 학년도 Enrollment를 실제로 지운다 — 소속은 비어 있다.
+      expect(row.removed).toBe(true);
+      // 소속은 재학인 줄에서만 쓴다 — 마지막 자리를 그대로 보이면 안 된다.
       expect(row.grade).toBeNull();
+      expect(row.status).toBe("GRADUATED");
+    });
+
+    it("그 학년도 재적 줄이 아예 없어도 removed다", async () => {
+      searchStudents.mockResolvedValue([found({ enrollments: [] })]);
+
+      const [row] = await service.searchStudents(admin, "김민준", {
+        includeRemoved: true,
+      });
+
+      expect(row.removed).toBe(true);
       expect(row.status).toBeNull();
     });
 
@@ -1103,13 +1126,17 @@ describe("getStudentHeader", () => {
     expect(findStudentHeader).toHaveBeenCalledWith("sp-1", 2026);
   });
 
-  it("명단에서 빠진 학생도 removedAt과 함께 돌아온다", async () => {
-    const removedAt = new Date("2026-08-01T00:00:00Z");
-    findStudentHeader.mockResolvedValue({ ...HEADER, status: null, removedAt });
+  it("명단에서 빠진 학생도 removed와 함께 돌아온다", async () => {
+    findStudentHeader.mockResolvedValue({
+      ...HEADER,
+      status: "TRANSFERRED",
+      removed: true,
+    });
 
     const header = await service.getStudentHeader(admin, "sp-1");
 
-    expect(header?.removedAt).toEqual(removedAt);
+    expect(header?.removed).toBe(true);
+    expect(header?.status).toBe("TRANSFERRED");
   });
 });
 
@@ -1347,8 +1374,8 @@ describe("exportStudentHistory", () => {
   it("명단에서 빠진 학생도 내려받을 수 있다", async () => {
     findStudentHeader.mockResolvedValue({
       ...HEADER,
-      status: null,
-      removedAt: new Date("2026-05-01T00:00:00+09:00"),
+      status: "GRADUATED",
+      removed: true,
     });
 
     const result = await service.exportStudentHistory(admin, {

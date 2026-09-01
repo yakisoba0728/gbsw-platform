@@ -56,6 +56,20 @@ function uploadRequest(body: Uint8Array): Request {
   });
 }
 
+/**
+ * 진짜 multipart 본문. 서비스까지 닿는 경로를 보려면 파싱이 통과해야 해서
+ * `uploadRequest`와 따로 둔다 — 그쪽은 파싱 앞에서 막히는 문들을 본다.
+ */
+function multipartRequest(filename: string, bytes: Uint8Array): Request {
+  const form = new FormData();
+  // Uint8Array<ArrayBufferLike>는 BlobPart에 안 맞는다 — 뒷받침 버퍼를 넘긴다.
+  form.append("file", new File([bytes.buffer as ArrayBuffer], filename));
+  return new Request("http://localhost/api/community/attachments?slug=secret", {
+    method: "POST",
+    body: form,
+  });
+}
+
 /** 아무 바이트나 조금. 파싱까지 가는 경로는 여기서 보지 않는다. */
 function smallBody(): Uint8Array {
   return new Uint8Array([1, 2, 3]);
@@ -115,6 +129,22 @@ describe("POST /api/community/attachments", () => {
     // 권한 판정이 바이트보다 먼저다 — 순서가 뒤집히면 여기가 true가 된다.
     expect(request.bodyUsed).toBe(false);
     expect(uploadAttachment).not.toHaveBeenCalled();
+  });
+
+  /**
+   * 익명 게시판의 사진에서 메타데이터를 못 벗기면 서비스가 던지는 코드다.
+   * **사전에 빠지면 학생이 「올리지 못했습니다」만 보고 이유를 모른다** — 다시
+   * 눌러도 결과가 같은 실패라 그 한 줄로는 할 수 있는 일이 없다.
+   */
+  it("메타데이터를 못 벗기면 422이고 사유가 한글로 나간다", async () => {
+    uploadAttachment.mockRejectedValue(new CommunityError("ATTACHMENT_METADATA"));
+
+    const response = await POST(multipartRequest("사진.jpg", new Uint8Array([1, 2])));
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toEqual({
+      error: "익명 게시판에는 위치·기기 정보를 지울 수 있는 사진만 올릴 수 있습니다.",
+    });
   });
 
   it("첨부를 받지 않는 게시판이면 400이고 사유가 한글로 나간다", async () => {

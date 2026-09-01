@@ -399,22 +399,42 @@ export async function totals(params: {
 
 // ── 학생 찾기 ─────────────────────────────────────────────────
 
-/** 세션 userId → 학생 신원. 소프트 삭제된 계정은 없는 것으로 친다. */
+/**
+ * 세션 userId → 학생 신원. **계정 상태로도 재적으로도 거르지 않는다.**
+ * 로그인 자체를 `core/auth/login-eligibility`가 막으므로 여기까지 온 사람은 이미
+ * 활성 계정이고, 재적을 겹쳐 걸면 학적이 흔들리는 동안 학생이 자기 기록을 통째로
+ * 못 본다 — 본인 기록을 보는 일은 명단에 있는지와 다른 질문이다.
+ */
 export async function findStudentProfileByUserId(userId: string) {
   return prisma.studentProfile.findFirst({
-    where: { userId, user: { deletedAt: null } },
+    where: { userId },
     select: { id: true, user: { select: { name: true } } },
   });
 }
 
 /**
- * 부여 대상을 찾는다 — 명단에 남아 있는 학생만. 조회 경로는 빠진 학생도 보지만
- * 부여는 열지 않으며, 그 경계가 이 where 절이다. 서버 액션을 직접 부르면 아무
- * id나 보낼 수 있으므로 마지막 방어선은 여기다.
+ * 부여 대상을 찾는다 — **그 학년도에 재적(ENROLLED) 중인 학생만.** 조회 경로는
+ * 명단에서 빠진 학생도 보지만 부여는 열지 않으며, 그 경계가 이 where 절이다.
+ * 서버 액션을 직접 부르면 아무 id나 보낼 수 있으므로 마지막 방어선은 여기다.
+ *
+ * 술어가 `Enrollment`인 것이 요점이다. 퇴학·전학은 `user.deletedAt`을 채우지
+ * 않는다 — 명단 반영은 학적을 비재학으로 바꾸고 계정을 INACTIVE로 내릴 뿐이다
+ * (`roster.repo.applyRoster`). 계정 쪽을 보던 옛 조건은 어떤 퇴학생도 막지 못했다.
+ *
+ * 반 명단(`listClassRoster`)·통계 모집단(`enrolledStudentScope`)과 **같은 술어**를
+ * 쓴다: 부여할 수 있는 학생과 명단에 있는 학생은 같은 집합이어야 한다. 반이 없어도
+ * (ENROLLED · classId null) 통과한다 — 반 미배정은 재적이 아닌 것과 다르다.
+ *
+ * 학년도를 인자로 받는다. 호출부는 `findCurrentYearForUpdate`로 잠그고 읽은 값을
+ * 같은 트랜잭션에서 넘긴다 — 검사와 저장이 다른 학년도를 보면 안 된다.
  */
-export async function findAwardableStudent(id: string) {
-  return prisma.studentProfile.findFirst({
-    where: { id, user: { deletedAt: null } },
+export async function findAwardableStudent(
+  id: string,
+  year: number,
+  db: DbClient = prisma,
+) {
+  return db.studentProfile.findFirst({
+    where: { id, enrollments: { some: { year, status: "ENROLLED" } } },
     // 부여가 쓰는 것은 id(존재 확인)와 이름(감사로그)뿐이다.
     select: { id: true, user: { select: { name: true } } },
   });
@@ -465,9 +485,16 @@ export async function createAwards(
  * 여러 부여 대상을 한 번에 찾는다. 조건은 단건과 같다.
  * 못 찾은 id가 있으면 결과 길이가 줄어든다 — 호출부가 길이로 판별한다.
  */
-export async function findAwardableStudents(ids: string[]) {
-  return prisma.studentProfile.findMany({
-    where: { id: { in: ids }, user: { deletedAt: null } },
+export async function findAwardableStudents(
+  ids: string[],
+  year: number,
+  db: DbClient = prisma,
+) {
+  return db.studentProfile.findMany({
+    where: {
+      id: { in: ids },
+      enrollments: { some: { year, status: "ENROLLED" } },
+    },
     // 단건 부여와 같은 것만 쓴다 — id와 감사로그용 이름.
     select: { id: true, user: { select: { name: true } } },
   });
@@ -524,9 +551,10 @@ export async function listClassRoster(params: {
   const enrollments = await prisma.enrollment.findMany({
     where: {
       year: params.year,
+      // 재적 그 자체가 명단 술어다 — 계정 쪽 조건을 겹쳐 걸지 않는다.
+      // 퇴학·전학은 계정이 아니라 이 status에 나타난다.
       status: "ENROLLED",
       ...inClass,
-      studentProfile: { user: { deletedAt: null } },
     },
     // 한 반만 볼 때는 번호순이 곧 명단 순서다. 전교를 훑을 때는 학년·반이 앞에
     // 서야 읽힌다 — 번호만으로 세우면 1학년 1번 다음에 3학년 1번이 온다.
@@ -575,6 +603,10 @@ export async function listClassRoster(params: {
 /**
  * 이름 또는 학생코드로 찾는다. 30명에서 자른다. 명단에서 빠진 학생은 옵트인해야
  * 나온다 — 옵션에 기본값을 두지 않아 호출부가 매번 어느 쪽인지 적게 한다.
+ *
+ * 「빠졌다」는 **그 학년도 재적이 아니다**라는 뜻이고, 부여 게이트
+ * (`findAwardableStudent`)와 같은 술어다 — 기본 검색에서 나온 학생에게는
+ * 반드시 부여할 수 있어야 한다.
  */
 export async function searchStudents(
   query: string,
@@ -589,10 +621,11 @@ export async function searchStudents(
 
   return prisma.studentProfile.findMany({
     where: {
-      user: {
-        ...(options.includeRemoved ? {} : { deletedAt: null }),
-        role: "STUDENT",
-      },
+      user: { role: "STUDENT" },
+      // 옵트인하면 조건을 통째로 뺀다 — 졸업·퇴학·전출까지 한 칸에서 찾는다.
+      ...(options.includeRemoved
+        ? {}
+        : { enrollments: { some: { year, status: "ENROLLED" } } }),
       OR: [
         { user: { name: { contains: query, mode: "insensitive" } } },
         { studentCode: { contains: query, mode: "insensitive" } },
@@ -624,10 +657,9 @@ export async function searchStudents(
     select: {
       id: true,
       studentCode: true,
-      // deletedAt은 옵트인 여부와 상관없이 낸다 — 조건부 select는 타입이 갈린다.
-      user: { select: { name: true, deletedAt: true } },
+      user: { select: { name: true } },
       // 학적으로 거르지 않는다 — 재학인 줄만 가져오면 화면이 "반 미배정"과
-      // "졸업"을 구분할 수 없다. 소속을 재학인 줄에서만 쓰는 규칙은 서비스가 지킨다.
+      // "졸업"을 구분할 수 없다. 명단에서 빠졌는지도 이 줄이 답한다(서비스가 접는다).
       enrollments: {
         where: { year },
         take: 1,
@@ -654,12 +686,14 @@ export async function listAwardYears(studentProfileId: string): Promise<number[]
 }
 
 /**
- * 학부모의 자녀들. 명단에서 빠진 자녀는 빼고 낸다 — "지금 누구를 고를 수 있나"에
- * 답하는 자리다. 아래 isChildOf는 다른 질문이라 일부러 이 조건이 없다.
+ * 학부모의 자녀들. **거르지 않는다** — 아래 isChildOf와 같은 판단이다.
+ * 졸업했다고 부모가 아니게 되지 않고, 이 목록이 자녀 기록에 닿는 유일한 입구라
+ * 재적으로 거르면 졸업한 자녀의 상벌점을 부모가 다시 볼 길이 없어진다.
+ * (오등록 정리는 계정을 행째 지우고, ParentStudent는 그때 Cascade로 함께 사라진다.)
  */
 export async function listChildren(parentUserId: string) {
   return prisma.parentStudent.findMany({
-    where: { parentUserId, student: { user: { deletedAt: null } } },
+    where: { parentUserId },
     // 대시보드가 첫 자녀의 상벌점을 요약하므로 첫 행은 새로고침마다 같아야 한다.
     // 동명이인은 불변 식별자인 학생 프로필 id로 동점을 끊는다.
     orderBy: [
@@ -674,7 +708,7 @@ export async function listChildren(parentUserId: string) {
 
 /**
  * 이 학부모와 이 학생이 연결되어 있는가. 소유권 검사의 전부다.
- * `deletedAt` 필터가 없는 것은 의도다 — 명단에서 빠졌다고 부모가 아니게 되지 않는다.
+ * 연결만 본다 — 명단에서 빠졌다고 부모가 아니게 되지 않는다 (listChildren과 같다).
  */
 export async function isChildOf(
   parentUserId: string,
@@ -689,7 +723,9 @@ export async function isChildOf(
 
 /**
  * 화면 머리글용 신원 — 이름·학생코드와 그 학년도의 학급(스냅샷이 아니라 조인이다).
- * deletedAt으로 거르지 않는다 — 걸러 버리면 빠진 학생의 기록에 닿는 경로가 없어진다.
+ * **재적으로 거르지 않는다** — 걸러 버리면 명단에서 빠진 학생의 기록에 닿는 경로가
+ * 없어진다. 빠졌다는 사실은 아래 `removed`가 싣고, 화면은 그것으로 부여 폼을 감춘다.
+ * 실제로 막는 것은 화면이 아니라 위의 `findAwardableStudent`다.
  */
 export async function findStudentHeader(id: string, year: number) {
   const profile = await prisma.studentProfile.findFirst({
@@ -697,7 +733,7 @@ export async function findStudentHeader(id: string, year: number) {
     select: {
       id: true,
       studentCode: true,
-      user: { select: { name: true, deletedAt: true } },
+      user: { select: { name: true } },
       enrollments: {
         where: { year },
         take: 1,
@@ -720,8 +756,14 @@ export async function findStudentHeader(id: string, year: number) {
     classNo: enrollment?.schoolClass?.classNo ?? null,
     number: enrollment?.number ?? null,
     status: enrollment?.status ?? null,
-    /** 명단에서 빠진 날. null이면 명단에 남아 있는 학생이다. */
-    removedAt: profile.user.deletedAt,
+    /**
+     * 그 학년도 명단에서 빠졌는가 — 재적(ENROLLED)이 아니면 true다. 재적 줄이
+     * 아예 없는 경우(학년도가 막 넘어간 직후)도 여기 든다.
+     *
+     * 날짜가 아니라 참·거짓인 이유: 학적에는 "언제 바뀌었나"가 없다. 날짜를 싣던
+     * 옛 값(`user.deletedAt`)은 아무도 채우지 않아 화면이 늘 꺼져 있었다.
+     */
+    removed: enrollment?.status !== "ENROLLED",
   };
 }
 
@@ -862,7 +904,8 @@ export async function findRecentAwardsForExport(filter: RecentAwardFilter) {
  * 한 화면 안에서 머리글 합계와 「반별 현황」이 다른 학생을 세면 둘을 더해 맞춰
  * 보는 교사에게 설명할 자리가 없다. 그래서 아래 세 집계(trackTotals·topRules·
  * listAwardsForChart)는 학생을 명시로 받지 않았을 때 classSummaries와 **같은**
- * 술어를 쓴다 — 그 학년도 재학 + 지워지지 않은 계정.
+ * 술어를 쓴다 — 그 학년도 재학(ENROLLED). 계정 쪽 조건은 없다: 퇴학·전학이
+ * 계정에 나타나지 않아 아무것도 거르지 못했다.
  *
  * 반 배정은 여기서 보지 않는다. classSummaries만 `classId: { not: null }`을
  * 더 거는데, 반이 없으면 담을 줄이 없어서다 — 반 미배정 학생은 머리글에는 들고
@@ -871,7 +914,6 @@ export async function findRecentAwardsForExport(filter: RecentAwardFilter) {
 function enrolledStudentScope(rosterYear: number): Prisma.MeritAwardWhereInput {
   return {
     studentProfile: {
-      user: { deletedAt: null },
       enrollments: { some: { year: rosterYear, status: "ENROLLED" } },
     },
   };
@@ -904,8 +946,8 @@ export async function classSummaries(params: {
   const enrollments = await prisma.enrollment.findMany({
     where: {
       year: params.year,
+      // listClassRoster와 같은 술어다. 반이 없는 학생만 더 뺀다 — 담을 줄이 없어서다.
       status: "ENROLLED",
-      studentProfile: { user: { deletedAt: null } },
       classId: { not: null },
     },
     select: {
@@ -1053,7 +1095,7 @@ export async function findUserNames(ids: string[]) {
   if (ids.length === 0) return [];
   return prisma.user.findMany({
     where: { id: { in: ids } },
-    select: { id: true, name: true, email: true, deletedAt: true },
+    select: { id: true, name: true, email: true },
   });
 }
 
@@ -1164,14 +1206,22 @@ export async function trackTotalsBetween(params: {
 }
 
 /**
- * 학생별 벌점 합계. 재적이 아니라 부여 쪽에서 모은다 — 명단에서 시작하면 재적
- * 행이 없는 학생(반 미배정)이 빠지는데, 그쪽이야말로 놓치면 안 되는 사람이다.
+ * 학생별 벌점 합계. 줄은 재적이 아니라 **부여 쪽에서** 모은다 — 이 명단이 답할
+ * 것은 "벌점이 기준을 넘은 사람"이고, 기록이 없는 학생은 셀 이유가 없다.
  * 순점수가 아니라 벌점 총합만 센다.
+ *
+ * 모집단은 `rosterYear`의 재적으로 자른다. **기숙사는 누적(totalsYear = null)이라
+ * 이 조건이 없으면 졸업생이 기준 초과 명단에 영원히 남는다** — 사감이 오늘 볼
+ * 명단에 3년 전 졸업생이 섞이면 명단 자체를 안 믿게 된다. 반 미배정
+ * (ENROLLED · classId null)은 그대로 남는다: 술어는 반이 아니라 재적이고,
+ * 놓치면 안 되는 쪽이 그쪽이다.
  */
 export async function demeritTotalsByStudent(params: {
   track: MeritTrack;
   /** null이면 전체 누적(기숙사). */
   totalsYear: number | null;
+  /** 모집단을 정할 명단 학년도. 합계 범위(totalsYear)와 별개다. */
+  rosterYear: number;
   /** 주면 이 학생들 것만. 반을 골라 보는 화면이 쓴다. */
   studentProfileIds?: string[];
 }) {
@@ -1181,8 +1231,10 @@ export async function demeritTotalsByStudent(params: {
       track: params.track,
       kind: "DEMERIT",
       status: "ACTIVE",
-      // 지워진 계정은 명단에 올리지 않는다. groupBy도 관계 조건을 받는다.
-      studentProfile: { user: { deletedAt: null } },
+      // 명단에서 빠진 학생은 올리지 않는다. groupBy도 관계 조건을 받는다.
+      studentProfile: {
+        enrollments: { some: { year: params.rosterYear, status: "ENROLLED" } },
+      },
       ...(params.totalsYear === null ? {} : { year: params.totalsYear }),
       ...(params.studentProfileIds
         ? { studentProfileId: { in: params.studentProfileIds } }
@@ -1192,12 +1244,16 @@ export async function demeritTotalsByStudent(params: {
   });
 }
 
-/** 이름·학생코드와 그 학년도의 소속. 기준 초과 명단이 id 목록에 신원을 붙인다. */
+/**
+ * 이름·학생코드와 그 학년도의 소속. 기준 초과 명단이 id 목록에 신원을 붙인다.
+ * **거르지 않는다** — 모집단은 위 `demeritTotalsByStudent`가 이미 재적으로
+ * 잘랐고, 여기서 한 번 더 걸면 같은 규칙이 두 곳에 생겨 언젠가 갈린다.
+ */
 export async function findStudentsWithClass(ids: string[], year: number) {
   if (ids.length === 0) return [];
 
   return prisma.studentProfile.findMany({
-    where: { id: { in: ids }, user: { deletedAt: null } },
+    where: { id: { in: ids } },
     select: {
       id: true,
       studentCode: true,

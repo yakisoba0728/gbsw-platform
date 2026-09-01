@@ -423,7 +423,7 @@ describe("exportStudentHistoryAction — 경계 검증", () => {
       track: "SCHOOL",
     });
 
-    expect(result.error).toContain("학생을 찾을 수 없습니다");
+    expect(result.error).toContain("재학 중인 학생이 아닙니다");
     expect(result.rows).toEqual([]);
     expect(result.filename).toBe("");
   });

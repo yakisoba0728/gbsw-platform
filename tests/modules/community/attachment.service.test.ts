@@ -71,11 +71,17 @@ const board = {
   writeRoles: ["STUDENT"],
 };
 
+/**
+ * 문(門)들을 시험하는 기본 업로드. **사진이 아니라 문서다** — 이제 모든 이미지가
+ * 메타데이터 제거를 지나므로, 여기에 가짜 PNG 바이트를 두면 권한·상한·정리를
+ * 보려는 테스트가 전부 ATTACHMENT_METADATA로 죽는다. 사진 경로는 아래
+ * 「사진의 메타데이터」 묶음이 진짜 바이트로 따로 본다.
+ */
 const upload = {
   slug: "free",
-  filename: "사진.png",
-  mimeType: "image/png",
-  bytes: Buffer.from("PNG"),
+  filename: "가정통신문.pdf",
+  mimeType: "application/pdf",
+  bytes: Buffer.from("%PDF-1.7\n(본문)"),
 };
 
 beforeEach(() => {
@@ -101,7 +107,11 @@ describe("uploadAttachment — 문 ①: 권한", () => {
 
     expect(getWritableBySlug).toHaveBeenCalledWith(student, "free");
     expect(writeAttachment).toHaveBeenCalled();
-    expect(result).toMatchObject({ id: "a1", filename: "사진.png", size: 3 });
+    expect(result).toMatchObject({
+      id: "a1",
+      filename: "가정통신문.pdf",
+      size: upload.bytes.length,
+    });
   });
 
   it("**쓸 수 없으면 바이트 하나 쓰기 전에 막는다**", async () => {
@@ -154,6 +164,116 @@ describe("uploadAttachment — 문 ②: 형식과 용량", () => {
   });
 });
 
+describe("uploadAttachment — 익명 게시판의 메타데이터 벗기기", () => {
+  /**
+   * 바이트 규격 자체는 `exif.test.ts`가 본다. 여기서 볼 것은 하나다 —
+   * **게시판이 익명인가로 갈리는가, 그리고 갈린 결과가 size·감사로그·응답까지
+   * 따라가는가.** 벗긴 뒤에도 원본 길이를 적으면 DB가 말하는 크기와 디스크의
+   * 파일이 어긋난다.
+   */
+  const EXIF = Buffer.from("Exif\0\0II*\0GPSLatitude=36.11", "utf8");
+
+  /** EXIF 하나가 든 최소 JPEG. 벗기면 SOI·SOS·화소·EOI만 남는다. */
+  function jpegWithExif(): Buffer {
+    const app1 = Buffer.alloc(4);
+    app1.writeUInt8(0xff, 0);
+    app1.writeUInt8(0xe1, 1);
+    app1.writeUInt16BE(EXIF.length + 2, 2);
+    return Buffer.concat([
+      Buffer.from([0xff, 0xd8]), // SOI
+      app1,
+      EXIF,
+      Buffer.from([0xff, 0xda, 0x00, 0x03, 0x01]), // SOS 머리
+      Buffer.from([0xaa, 0xbb]), // 화소
+      Buffer.from([0xff, 0xd9]), // EOI
+    ]);
+  }
+
+  const STRIPPED = Buffer.from([
+    0xff, 0xd8, 0xff, 0xda, 0x00, 0x03, 0x01, 0xaa, 0xbb, 0xff, 0xd9,
+  ]);
+
+  const anonymous = { ...board, slug: "secret", anonymous: true };
+  const photo = { ...upload, filename: "사진.jpg", mimeType: "image/jpeg" };
+
+  it("**벗긴 바이트를 저장한다**", async () => {
+    getWritableBySlug.mockResolvedValue(anonymous);
+
+    await service.uploadAttachment(student, { ...photo, bytes: jpegWithExif() });
+
+    const written = writeAttachment.mock.calls[0][2] as Buffer;
+    expect(written.equals(STRIPPED)).toBe(true);
+    // 화소는 그대로고 촬영 위치만 사라졌다.
+    expect(written.includes(Buffer.from("GPS"))).toBe(false);
+    expect(written.includes(Buffer.from([0xaa, 0xbb]))).toBe(true);
+  });
+
+  it("**줄어든 길이가 size·감사로그·응답에 함께 간다**", async () => {
+
+    const result = await service.uploadAttachment(student, {
+      ...photo,
+      bytes: jpegWithExif(),
+    });
+
+    expect(result.size).toBe(STRIPPED.length);
+    expect(createAttachment).toHaveBeenCalledWith(
+      expect.objectContaining({ size: STRIPPED.length }),
+      txClient,
+    );
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ size: STRIPPED.length }),
+      }),
+      txClient,
+    );
+  });
+
+  it("**실명 게시판도 벗긴다** — 익명만 벗기면 실명에 올려 그 id를 익명 글에 실으면 그만이다", async () => {
+    // 첨부는 글보다 먼저 올라가고 attachToPost는 올린 사람과 postId: null만 본다.
+    // 게시판으로 가르면 그 사이가 우회로가 된다.
+    await service.uploadAttachment(student, { ...photo, bytes: jpegWithExif() });
+
+    const written = writeAttachment.mock.calls[0][2] as Buffer;
+    expect(written.equals(STRIPPED)).toBe(true);
+  });
+
+  it("벗길 것이 없는 사진은 복사조차 하지 않는다 — 모든 사진을 태우는 값이 여기서 나온다", async () => {
+    const bytes = Buffer.from(STRIPPED);
+
+    await service.uploadAttachment(student, { ...photo, bytes });
+
+    // 같은 내용이 아니라 **같은 버퍼**여야 한다.
+    expect(writeAttachment.mock.calls[0][2]).toBe(bytes);
+  });
+
+  it("**못 알아본 사진은 거부한다** — 조용히 원본을 저장하지 않는다", async () => {
+    await expect(
+      service.uploadAttachment(student, {
+        ...photo,
+        filename: "사진.png",
+        bytes: Buffer.from("PNG가 아닌 바이트"),
+      }),
+    ).rejects.toThrow(new CommunityError("ATTACHMENT_METADATA"));
+
+    // 행도 파일도 남기지 않는다 — 벗기기는 DB보다 앞이다.
+    expect(createAttachment).not.toHaveBeenCalled();
+    expect(writeAttachment).not.toHaveBeenCalled();
+  });
+
+  it("문서는 벗기지 않는다 — 사진이 아닌 것을 사진으로 읽지 않는다", async () => {
+    const bytes = Buffer.from("%PDF-1.7\n(가정통신문)");
+
+    await service.uploadAttachment(student, {
+      ...upload,
+      filename: "가정통신문.pdf",
+      mimeType: "application/pdf",
+      bytes,
+    });
+
+    expect(writeAttachment.mock.calls[0][2]).toBe(bytes);
+  });
+});
+
 describe("uploadAttachment — 문 ③: 미결 첨부 수", () => {
   it("10개를 넘으면 거부한다", async () => {
     countPending.mockResolvedValue(10);
@@ -196,7 +316,10 @@ describe("uploadAttachment — 감사로그", () => {
       expect.objectContaining({
         action: "community:attachment:create",
         targetId: "a1",
-        metadata: expect.objectContaining({ filename: "사진.png", size: 3 }),
+        metadata: expect.objectContaining({
+          filename: "가정통신문.pdf",
+          size: upload.bytes.length,
+        }),
       }),
       txClient,
     );

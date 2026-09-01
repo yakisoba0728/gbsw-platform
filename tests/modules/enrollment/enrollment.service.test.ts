@@ -476,7 +476,7 @@ describe("학생 상세", () => {
     classNo: 3,
     number: 3,
     status: "ENROLLED",
-    removedAt: null,
+    removed: false,
     birthDate: new Date("2010-03-02"),
     email: "donghyeok@gbsw.hs.kr",
   };

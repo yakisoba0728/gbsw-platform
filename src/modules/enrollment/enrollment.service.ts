@@ -84,7 +84,7 @@ export async function getStudentIdentity(
     classNo: detail.classNo,
     number: detail.number,
     status: detail.status,
-    removedAt: detail.removedAt,
+    removed: detail.removed,
   };
 }
 

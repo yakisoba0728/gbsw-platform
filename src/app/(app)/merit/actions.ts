@@ -25,7 +25,7 @@ const MESSAGES: Record<string, string> = {
   RULE_INACTIVE: "삭제된 규정입니다.",
   AWARD_NOT_FOUND: "기록을 찾을 수 없습니다.",
   ALREADY_CANCELLED: "이미 취소된 기록입니다.",
-  STUDENT_NOT_FOUND: "학생을 찾을 수 없습니다.",
+  STUDENT_NOT_FOUND: "재학 중인 학생이 아닙니다.",
   NO_STUDENTS: "학생을 선택해 주세요.",
   TOO_MANY_STUDENTS: `한 번에 ${BULK_AWARD_LIMIT}명까지 줄 수 있습니다.`,
   // 발생일은 화면 입력이 아니라 오늘(KST)이다 — 날짜를 고르라고 안내하면 없는 칸을 찾게 된다.

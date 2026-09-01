@@ -45,6 +45,9 @@ const MESSAGES: Record<string, string> = {
   ATTACHMENT_NOT_ALLOWED: "이 게시판은 첨부를 받지 않습니다.",
   ATTACHMENT_TYPE: "올릴 수 없는 형식입니다.",
   ATTACHMENT_TOO_LARGE: "파일은 20MB를 넘을 수 없습니다.",
+  // 익명 게시판에서만 난다. 「지우지 못했습니다」로 끝내면 무엇을 하라는 것인지
+  // 알 수 없어, 올릴 수 있는 것이 무엇인지로 적는다.
+  ATTACHMENT_METADATA: "익명 게시판에는 위치·기기 정보를 지울 수 있는 사진만 올릴 수 있습니다.",
   ATTACHMENT_PENDING_LIMIT:
     "글에 붙이지 않은 첨부가 너무 많습니다. 쓰던 글을 저장하거나 잠시 후 다시 시도해 주세요.",
 };
@@ -55,6 +58,10 @@ const STATUS: Record<string, number> = {
   ATTACHMENT_NOT_ALLOWED: 400,
   ATTACHMENT_TYPE: 415,
   ATTACHMENT_TOO_LARGE: 413,
+  // 형식 자체는 허용 목록에 있으니 415가 아니다 — 받을 수 있는 종류인데 이
+  // 파일을 처리하지 못한 것이라 422다. 다시 보내도 결과가 같으므로 재시도 안내는
+  // 하지 않는다.
+  ATTACHMENT_METADATA: 422,
   ATTACHMENT_PENDING_LIMIT: 429,
 };
 

@@ -10,7 +10,7 @@ import {
   ENROLLMENT_STATUS_LABELS,
   isEnrollmentStatus,
 } from "@/core/authz/enrollment-status";
-import { formatDate, formatDateInput } from "@/lib/datetime";
+import { formatDateInput } from "@/lib/datetime";
 import { formatStudentNumber } from "@/lib/student-number";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import { getStudentProfile } from "@/modules/enrollment/enrollment.service";
@@ -84,6 +84,8 @@ async function ProfileBody({
               }`
             : "미배정"}
         </Field>
+        {/* 명단에서 빠졌다는 사실이 이 탭에서 서는 자리다 — 졸업·퇴학·전출을
+            가려서 적는다. 「언제 빠졌나」는 적지 않는다: 학적에 그 날짜가 없다. */}
         <Field label="학적">
           {isEnrollmentStatus(profile.status)
             ? ENROLLMENT_STATUS_LABELS[profile.status]
@@ -101,11 +103,6 @@ async function ProfileBody({
           <span className="tabular-nums">{formatDateInput(profile.birthDate)}</span>
         </Field>
         <Field label="이메일">{profile.email}</Field>
-        {profile.removedAt && (
-          <Field label="명단 제외일">
-            <span className="tabular-nums">{formatDate(profile.removedAt)}</span>
-          </Field>
-        )}
         <Field label="계정">
           <Link
             href={`/admin/users/${profile.userId}`}
