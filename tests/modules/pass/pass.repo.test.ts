@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { DECIDABLE_STATUSES, LIVE_STATUSES } from "@/core/authz/pass-type";
 
 vi.mock("@/core/db/client", () => ({
   prisma: {},
@@ -16,6 +17,59 @@ beforeEach(() => {
 function sqlAt(index: number): string {
   return queryRaw.mock.calls[index]![0].join(" ");
 }
+
+describe("출입증 상태 집합", () => {
+  const now = new Date("2026-09-02T12:00:00+09:00");
+
+  it("살아 있는 상태는 신청·동의·승인 세 가지다", () => {
+    expect(LIVE_STATUSES).toEqual(["REQUESTED", "CONSENTED", "APPROVED"]);
+  });
+
+  it("정문 판정은 LIVE_STATUSES와 같은 상태를 쓴다", async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+
+    await repo.listForVerify("sp-1", now, 2026, {
+      pass: { findMany },
+    } as never);
+
+    expect(findMany.mock.calls[0]![0].where.status.in).toEqual([...LIVE_STATUSES]);
+  });
+
+  it("학생 대시보드는 LIVE_STATUSES와 같은 상태를 쓴다", async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+
+    await repo.listLiveForStudent("sp-1", now, 2026, 5, {
+      pass: { findMany },
+    } as never);
+
+    expect(findMany.mock.calls[0]![0].where.status.in).toEqual([...LIVE_STATUSES]);
+  });
+
+  it("겹침 검사는 LIVE_STATUSES와 같은 상태를 쓴다", async () => {
+    const findFirst = vi.fn().mockResolvedValue(null);
+
+    await repo.findOverlapping(
+      "sp-1",
+      new Date("2026-09-02T13:00:00+09:00"),
+      new Date("2026-09-02T14:00:00+09:00"),
+      { pass: { findFirst } } as never,
+    );
+
+    expect(findFirst.mock.calls[0]![0].where.status.in).toEqual([...LIVE_STATUSES]);
+  });
+
+  it("교사 결재 대기는 DECIDABLE_STATUSES와 같은 상태를 쓴다", async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const count = vi.fn().mockResolvedValue(0);
+
+    await repo.listPendingForAdmin(now, 2026, {
+      pass: { findMany, count },
+    } as never);
+
+    expect(findMany.mock.calls[0]![0].where.status.in).toEqual([...DECIDABLE_STATUSES]);
+    expect(count.mock.calls[0]![0].where.status.in).toEqual([...DECIDABLE_STATUSES]);
+  });
+});
 
 describe("출입증 생성 잠금 순서", () => {
   it("학생 신청은 User를 먼저 잠그고 StudentProfile을 잠근다", async () => {

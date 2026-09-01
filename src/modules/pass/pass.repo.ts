@@ -1,5 +1,10 @@
 import { prisma, type DbClient, withTransaction } from "@/core/db/client";
-import type { PassStatus, PassType } from "@/core/authz/pass-type";
+import {
+  DECIDABLE_STATUSES,
+  LIVE_STATUSES,
+  type PassStatus,
+  type PassType,
+} from "@/core/authz/pass-type";
 import { Prisma } from "@/generated/prisma/client";
 
 /** Prisma 호출만 둔다. 권한 검사도, 업무 규칙도 여기 두지 않는다. */
@@ -90,7 +95,7 @@ export async function listForVerify(
     where: {
       studentProfileId,
       endAt: { gte: new Date(now.getTime() - DAY_MS) },
-      status: { in: ["REQUESTED", "CONSENTED", "APPROVED"] },
+      status: { in: [...LIVE_STATUSES] },
     },
     include: { studentProfile: studentInclude(year) },
     orderBy: { startAt: "asc" },
@@ -142,7 +147,7 @@ export async function listLiveForStudent(
   return db.pass.findMany({
     where: {
       studentProfileId,
-      status: { in: ["REQUESTED", "CONSENTED", "APPROVED"] },
+      status: { in: [...LIVE_STATUSES] },
       endAt: { gt: now },
     },
     include: { studentProfile: studentInclude(year) },
@@ -158,7 +163,7 @@ export async function listPendingForAdmin(
   db: DbClient = prisma,
 ): Promise<{ entries: PassWithStudent[]; total: number }> {
   const where = {
-    status: { in: ["REQUESTED", "CONSENTED"] },
+    status: { in: [...DECIDABLE_STATUSES] },
     endAt: { gt: now },
   } satisfies Prisma.PassWhereInput;
   const [entries, total] = await Promise.all([
@@ -291,7 +296,7 @@ export async function findOverlapping(
   return db.pass.findFirst({
     where: {
       studentProfileId,
-      status: { in: ["REQUESTED", "CONSENTED", "APPROVED"] },
+      status: { in: [...LIVE_STATUSES] },
       startAt: { lt: endAt },
       endAt: { gt: startAt },
     },

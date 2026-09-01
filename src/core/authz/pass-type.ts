@@ -64,6 +64,16 @@ export function requiresConsent(type: string): boolean {
 export const DECIDABLE_STATUSES: readonly PassStatus[] = ["REQUESTED", "CONSENTED"];
 
 /**
+ * 아직 끝나지 않아 목록·겹침 검사에서 살아 있는 출입증 상태.
+ * 취소 가능한 상태(CANCELLABLE)와 오늘 값은 같지만 서로 다른 정책이다.
+ */
+export const LIVE_STATUSES: readonly PassStatus[] = [
+  "REQUESTED",
+  "CONSENTED",
+  "APPROVED",
+];
+
+/**
  * **무를 값어치가 남아 있는 출입증인가.** 화면에 취소 자리를 낼지 정한다.
  *
  * 서비스의 `CANCELLABLE`(`REQUESTED`·`CONSENTED`·`APPROVED`)보다 좁다. 앞의 둘은
