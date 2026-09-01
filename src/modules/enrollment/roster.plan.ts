@@ -22,8 +22,6 @@ export type ExistingStudent = {
   hasGraduatedEnrollment: boolean;
   /** 이번 반영 전, 계정이 로그인 가능한 상태였는가. */
   accountActive: boolean;
-  /** 예전 deletedAt 표시. 새 명단 삭제 경로는 이 값을 만들지 않는다. */
-  deleted?: boolean;
 };
 
 export type PlannedRow = RosterRow & {

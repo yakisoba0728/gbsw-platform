@@ -338,15 +338,6 @@ describe("planRoster()", () => {
     expect(plan.hasBlockingError).toBe(false);
   });
 
-  describe("예전 deletedAt 표시가 남아 있는 입력", () => {
-    it("명단에 없으면 deleted 표시와 무관하게 missingFromFile에 들어간다", () => {
-      const 예전삭제표시 = { ...재학생, deleted: true };
-      const plan = planRoster([], [예전삭제표시]);
-
-      expect(plan.missingFromFile).toHaveLength(1);
-      expect(plan.missingFromFile[0]!.studentProfileId).toBe("sp-1");
-    });
-  });
 });
 
 /*

@@ -5,6 +5,7 @@ import { coreMocks } from "../../helpers/core-mocks";
 import { user } from "../../helpers/session";
 
 const listExisting = vi.fn();
+const listForExport = vi.fn();
 const applyRoster = vi.fn();
 const findCurrentYearForUpdate = vi.fn();
 const findCurrentYear = vi.fn();
@@ -40,6 +41,7 @@ class NumberTakenError extends Error {}
 
 vi.mock("@/modules/enrollment/roster.repo", () => ({
   listExisting,
+  listForExport,
   applyRoster,
   findCurrentYearForUpdate,
   findCurrentYear,
@@ -157,6 +159,9 @@ let codeCounter = 0;
 
 beforeEach(() => {
   listExisting.mockReset().mockResolvedValue([재학생]);
+  listForExport.mockReset().mockResolvedValue([
+    { ...재학생, entryClassNo: 3, entryNumber: 3 },
+  ]);
   applyRoster.mockReset().mockResolvedValue({ invites: [], revokedInvites: [] });
   findCurrentYearForUpdate.mockReset().mockResolvedValue(2026);
   findCurrentYear.mockReset().mockResolvedValue(2026);
@@ -168,6 +173,24 @@ beforeEach(() => {
   codeCounter = 0;
   generateUniqueCode.mockReset().mockImplementation(async () => `GBSWCODE${++codeCounter}`);
   toExpiresAt.mockReset().mockReturnValue(new Date("2099-01-01"));
+});
+
+describe("createRosterFingerprint()", () => {
+  it("내보내기 전용 필드를 떼어도 기존 미리보기 지문이 바뀌지 않는다", () => {
+    const legacyShape = {
+      ...재학생,
+      deleted: false,
+      entryClassNo: 3,
+      entryNumber: 3,
+    };
+
+    expect(createRosterFingerprint([legacyShape])).toBe(
+      "GgxlFVODrgh-hxzFlhX9W5uE2yIWGVQjvmvFsGMx5C4",
+    );
+    expect(createRosterFingerprint([재학생])).toBe(
+      createRosterFingerprint([legacyShape]),
+    );
+  });
 });
 
 describe("applyRosterPlan()", () => {
@@ -206,6 +229,7 @@ describe("applyRosterPlan()", () => {
     await applyRosterPlan(admin, 2026, [row], fingerprint(), [], null);
 
     expect(applyRoster).toHaveBeenCalledTimes(1);
+    expect(listForExport).not.toHaveBeenCalled();
     expect(withTransaction).toHaveBeenCalledWith(expect.any(Function), {
       timeout: 120_000,
       maxWait: 10_000,
@@ -825,12 +849,14 @@ describe("exportRoster()", () => {
   it("관리자가 아니면 내보내지 못한다", async () => {
     await expect(exportRoster(student)).rejects.toThrow("FORBIDDEN");
     expect(listExisting).not.toHaveBeenCalled();
+    expect(listForExport).not.toHaveBeenCalled();
   });
 
   it("현재 학년도 명단을 머리글 + 학생 행으로 만든다", async () => {
     const result = await exportRoster(admin);
 
-    expect(listExisting).toHaveBeenCalledWith(2026);
+    expect(listForExport).toHaveBeenCalledWith(2026);
+    expect(listExisting).not.toHaveBeenCalled();
     expect(result.year).toBe(2026);
     expect(result.rows[0]).toEqual([...ROSTER_COLUMNS, ...ROSTER_INFO_COLUMNS]);
     expect(result.rows[1]![0]).toBe("AAAA2345");
@@ -941,6 +967,7 @@ describe("previewRoster()", () => {
     const preview = await previewRoster(admin, file);
 
     expect(preview.rosterFingerprint).toBe(createRosterFingerprint(existing));
+    expect(listForExport).not.toHaveBeenCalled();
   });
 
   it("전교생 개인정보를 돌려준 사실은 건수만 감사로그에 남긴다", async () => {

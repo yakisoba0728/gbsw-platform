@@ -34,7 +34,7 @@ export const ROSTER_COLUMN_WIDTHS: number[] = [
   8, // 입학번호 (참고)
 ];
 
-/** 내보내기 대상 학생 한 명. listExisting()이 주는 모양의 부분집합이다. */
+/** 내보내기 대상 학생 한 명. listForExport()가 주는 모양의 부분집합이다. */
 export type ExportStudent = {
   studentCode: string;
   name: string;

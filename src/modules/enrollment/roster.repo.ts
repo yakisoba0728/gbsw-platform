@@ -34,32 +34,28 @@ export async function findCurrentYear(db: DbClient = prisma): Promise<number | n
 }
 
 export async function listExisting(year: number, db: DbClient = prisma) {
-  const [profiles, entryByProfile] = await Promise.all([
-    db.studentProfile.findMany({
-      where: { user: { role: "STUDENT", deletedAt: null } },
-      select: {
-        id: true,
-        studentCode: true,
-        birthDate: true,
-        user: { select: { id: true, name: true, status: true, deletedAt: true } },
-        enrollments: {
-          where: { OR: [{ year }, { status: "GRADUATED" }] },
-          select: {
-            year: true,
-            grade: true,
-            classNo: true,
-            number: true,
-            status: true,
-          },
+  const profiles = await db.studentProfile.findMany({
+    where: { user: { role: "STUDENT", deletedAt: null } },
+    select: {
+      id: true,
+      studentCode: true,
+      birthDate: true,
+      user: { select: { id: true, name: true, status: true } },
+      enrollments: {
+        where: { OR: [{ year }, { status: "GRADUATED" }] },
+        select: {
+          year: true,
+          grade: true,
+          classNo: true,
+          number: true,
+          status: true,
         },
       },
-    }),
-    entrySeats(db),
-  ]);
+    },
+  });
 
   return profiles.map((p) => {
     const e = p.enrollments.find((enrollment) => enrollment.year === year);
-    const entry = entryByProfile.get(p.id);
     return {
       studentProfileId: p.id,
       userId: p.user.id,
@@ -79,8 +75,23 @@ export async function listExisting(year: number, db: DbClient = prisma) {
         (enrollment) => enrollment.status === "GRADUATED",
       ),
       accountActive: p.user.status === "ACTIVE",
-      deleted: p.user.deletedAt !== null,
-      // 참고 열(입학반·입학번호)용. 내보내기만 쓴다.
+    };
+  });
+}
+
+/** 내보내기에서만 필요한 입학반·입학번호를 기존 명단에 붙인다. */
+export async function listForExport(year: number) {
+  // entrySeats는 전 학년도를 훑는다. 미리보기·확정 경로에서 빼고, 특히 확정이
+  // 잡는 AcademicYear 잠금 안에 다시 넣지 못하도록 이 함수는 tx 인자를 받지 않는다.
+  const [students, entryByProfile] = await Promise.all([
+    listExisting(year),
+    entrySeats(prisma),
+  ]);
+
+  return students.map((student) => {
+    const entry = entryByProfile.get(student.studentProfileId);
+    return {
+      ...student,
       entryClassNo: entry?.classNo ?? null,
       entryNumber: entry?.number ?? null,
     };

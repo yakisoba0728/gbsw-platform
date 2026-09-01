@@ -57,7 +57,7 @@ model User {
   ///      `app/api/community/attachments/**`.
   ///   2. 계정 관리: `admin-users/admin-user.repo.ts`(목록 필터·상세 select)와
   ///      `admin-user.service.ts`의 `ACCOUNT_DELETED`, 사용자 상세의 「삭제 표시일」.
-  ///   3. 명단·초대: `enrollment/roster.repo.ts`(기존 명단 조회와 `deleted` 표시),
+  ///   3. 명단·초대: `enrollment/roster.repo.ts`(기존 명단 조회),
   ///      `enrollment/enrollment.repo.ts`의 `listByYear`, `invites/invite.repo.ts`.
   ///   4. 전자출입증: `pass/pass.repo.ts`(부여 선택지·QR 조회).
   /// 즉 값을 채우는 날 소프트 삭제는 그대로 동작한다.

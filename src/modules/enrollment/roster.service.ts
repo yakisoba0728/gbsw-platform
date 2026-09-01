@@ -127,9 +127,7 @@ export async function exportRoster(
   await assertCan(actor, "student:manage");
 
   const year = await getCurrentYear();
-  const existing = await repo.listExisting(year);
-  // legacy deletedAt 표시가 남은 계정은 listExisting()에서 이미 빠진다.
-  const students = existing.filter((s) => !s.deleted);
+  const students = await repo.listForExport(year);
   const rows = buildExportRows(students);
 
   await recordAudit({
