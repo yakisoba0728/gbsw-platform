@@ -43,7 +43,6 @@ export async function AccountsPanel() {
         number: enrollment?.number ?? null,
       }),
       createdAt: formatDate(u.createdAt),
-      isSelf: u.id === actor.id,
     };
   });
 

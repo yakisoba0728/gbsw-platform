@@ -30,7 +30,6 @@ export type RuleRow = {
   points: number;
   category: string | null;
   description: string | null;
-  active: boolean;
   updatedAt: string;
 };
 

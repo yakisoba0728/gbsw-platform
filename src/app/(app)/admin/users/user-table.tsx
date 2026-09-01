@@ -22,8 +22,6 @@ export type UserRow = {
   mustChangePassword: boolean;
   classLabel: string | null;
   createdAt: string;
-  /** 지금 로그인한 교사 본인인가 */
-  isSelf: boolean;
 };
 
 const STATUS_FILTERS = [
@@ -202,4 +200,3 @@ export function UserTable({ rows }: { rows: UserRow[] }) {
     </SectionCard>
   );
 }
-

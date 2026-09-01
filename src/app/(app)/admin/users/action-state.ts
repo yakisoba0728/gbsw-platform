@@ -16,14 +16,12 @@ export type UserActionState = {
   error: string | null;
   /** 비밀번호 초기화 결과 — 화면에 한 번만 보여준다. */
   tempPassword: string | null;
-  targetId: string | null;
 };
 
 export const USER_ACTION_INITIAL: UserActionState = {
   ok: false,
   error: null,
   tempPassword: null,
-  targetId: null,
 };
 
 /**

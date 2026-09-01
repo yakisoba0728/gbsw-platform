@@ -53,7 +53,7 @@ function messageFor(error: unknown, fallback: string): string {
 }
 
 function fail(error: string): UserActionState {
-  return { ok: false, error, tempPassword: null, targetId: null };
+  return { ok: false, error, tempPassword: null };
 }
 
 /** 경계 검증 실패 → 화면 문구. 스키마가 문구를 갖고 있어 첫 issue를 그대로 쓴다. */
@@ -96,7 +96,7 @@ export async function setUserActiveAction(
   // 매번 새 객체를 돌려준다. 확인 모달은 상태의 **동일성**으로 결과가 왔음을
   // 아는데, 고정 객체(USER_ACTION_INITIAL)를 다시 주면 두 번째 성공에서
   // 모달이 열린 채 남는다.
-  return { ok: true, error: null, tempPassword: null, targetId: null };
+  return { ok: true, error: null, tempPassword: null };
 }
 
 export async function resetPasswordAction(
@@ -117,7 +117,7 @@ export async function resetPasswordAction(
   try {
     const { tempPassword } = await resetPassword(actor, userId, reason);
     revalidate(userId);
-    return { ok: true, error: null, tempPassword, targetId: userId };
+    return { ok: true, error: null, tempPassword };
   } catch (error) {
     return fail(messageFor(error, "비밀번호를 초기화하지 못했습니다."));
   }

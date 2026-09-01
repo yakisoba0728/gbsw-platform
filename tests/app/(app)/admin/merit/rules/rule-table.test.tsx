@@ -10,7 +10,6 @@ const RULES: RuleRow[] = [
     label: "교내 청소",
     points: 2,
     description: null,
-    active: true,
     updatedAt: "2026-08-31T00:00:00.000Z",
   },
   {
@@ -20,7 +19,6 @@ const RULES: RuleRow[] = [
     label: "학교 홍보",
     points: 5,
     description: null,
-    active: true,
     updatedAt: "2026-08-31T00:00:00.000Z",
   },
   {
@@ -30,7 +28,6 @@ const RULES: RuleRow[] = [
     label: "소란 행위",
     points: 2,
     description: null,
-    active: true,
     updatedAt: "2026-08-31T00:00:00.000Z",
   },
 ];

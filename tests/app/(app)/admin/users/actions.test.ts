@@ -83,7 +83,7 @@ function adminForm(over: Record<string, string> = {}): FormData {
   });
 }
 
-const USER_INITIAL = { ok: false, error: null, tempPassword: null, targetId: null };
+const USER_INITIAL = { ok: false, error: null, tempPassword: null };
 const UPDATE_INITIAL = { error: null, changed: null, values: null };
 
 beforeEach(() => {
@@ -404,8 +404,6 @@ describe("resetPasswordAction — 경계 검증", () => {
 
     expect(resetPassword).toHaveBeenCalledWith(expect.anything(), "u-1", undefined);
     expect(state.tempPassword).toBe("temp-1234-abcd");
-    // 화면이 "누구의 임시 비밀번호인지" 가릴 수 있어야 한다.
-    expect(state.targetId).toBe("u-1");
   });
 
   // 확인 모달이 받은 사유. 담을 자리가 없어 감사로그 metadata로만 간다.
