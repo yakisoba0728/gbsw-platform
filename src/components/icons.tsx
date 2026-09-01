@@ -59,34 +59,6 @@ export function QrIcon(props: IconProps) {
   );
 }
 
-/**
- * QR 스캔 메뉴. 출입증(QrIcon)의 그림을 다시 쓰지 않는다 — 둘은 최상위 메뉴에서
- * 나란히 서므로 같은 그림이면 목록을 훑을 때 두 줄을 구분하지 못한다.
- * 코드 자체가 아니라 **조준틀**을 그린다: 여기서 하는 일은 코드를 보여주는 것이
- * 아니라 남의 코드를 카메라에 맞추는 것이다.
- */
-export function ScanIcon(props: IconProps) {
-  return (
-    <Icon strokeWidth={1.7} {...props}>
-      <path d="M3.5 8.5V5.5a2 2 0 0 1 2-2h3" />
-      <path d="M15.5 3.5h3a2 2 0 0 1 2 2v3" />
-      <path d="M20.5 15.5v3a2 2 0 0 1-2 2h-3" />
-      <path d="M8.5 20.5h-3a2 2 0 0 1-2-2v-3" />
-      <path d="M3.5 12h17" />
-    </Icon>
-  );
-}
-
-export function InviteIcon(props: IconProps) {
-  return (
-    <Icon strokeWidth={1.7} {...props}>
-      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="3" />
-      <path d="M19 8v6M22 11h-6" />
-    </Icon>
-  );
-}
-
 export function UsersIcon(props: IconProps) {
   return (
     <Icon strokeWidth={1.7} {...props}>
@@ -107,19 +79,9 @@ export function LogIcon(props: IconProps) {
   );
 }
 
-export function SettingsIcon(props: IconProps) {
-  return (
-    <Icon strokeWidth={1.7} {...props}>
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.08A1.65 1.65 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.08a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-    </Icon>
-  );
-}
-
 /**
- * 설정 메뉴. 톱니바퀴(SettingsIcon)를 다시 쓰지 않는다 — 교사 섹션에서
- * 이미 "사용자 관리"가 그 그림을 쓰고 있어, 같은 섹션에 같은 아이콘이 둘이면
- * 목록을 훑을 때 두 줄을 구분하지 못한다.
+ * 설정과 사용자 관리는 관리자 섹션에 나란히 선다.
+ * 서로 다른 그림을 써야 목록을 훑을 때 두 줄을 구분할 수 있다.
  */
 export function SlidersIcon(props: IconProps) {
   return (

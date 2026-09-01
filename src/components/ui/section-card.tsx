@@ -12,7 +12,6 @@ export function SectionCard({
   aside,
   controls,
   headingLevel = 2,
-  headerAlign = "center",
   flush = false,
   variant = "section",
   tone = "default",
@@ -28,8 +27,6 @@ export function SectionCard({
   controls?: ReactNode;
   /** 상단바 `<h1>`과 페이지 `<h2>` 아래에 놓이는 카드는 3을 쓴다. */
   headingLevel?: 2 | 3;
-  /** `section` 머리글에서 제목과 우측 조작부의 세로 정렬. */
-  headerAlign?: "start" | "center";
   /** 표를 바로 넣는 호출부. 본문 패딩을 없앤다. */
   flush?: boolean;
   /**
@@ -81,12 +78,7 @@ export function SectionCard({
       <header className={cn("border-b px-5 py-4", danger ? "border-rose-line" : "border-line")}>
         <div
           className={
-            aside
-              ? cn(
-                  "flex flex-wrap justify-between gap-3",
-                  headerAlign === "start" ? "items-start" : "items-center",
-                )
-              : undefined
+            aside ? "flex flex-wrap items-center justify-between gap-3" : undefined
           }
         >
           <div className="min-w-0">

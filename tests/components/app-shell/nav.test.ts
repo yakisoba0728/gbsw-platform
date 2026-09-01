@@ -124,12 +124,6 @@ describe("QR 스캔은 메뉴에 없다", () => {
     expect(pass.children?.some((child) => child.href === "/scan")).toBe(false);
   });
 
-  // 메뉴에서 뺐다고 이름까지 없어지면 그 화면만 제목이 시스템 이름으로 떨어진다.
-  it("상단바 제목은 그대로 나온다", () => {
-    expect(titleForPath("/scan")).toBe("QR 스캔");
-    // /pass와 경로가 안 겹친다 — 겹치면 제목이 뒤바뀐다.
-    expect(titleForPath("/pass")).toBe("출입증");
-  });
 });
 
 describe("바텀탭 — 다섯 칸이 상한이다", () => {
@@ -256,6 +250,7 @@ describe("titleForPath — 하위 메뉴까지 훑는다", () => {
 
   it("기존 화면들의 제목이 그대로다", () => {
     expect(titleForPath("/")).toBe("대시보드");
+    expect(titleForPath("/pass")).toBe("출입증");
     expect(titleForPath("/admin/users")).toBe("계정 관리");
     expect(titleForPath("/admin/logs")).toBe("감사로그");
   });
@@ -288,12 +283,9 @@ describe("메뉴 링크가 실제 화면을 가리킨다", () => {
     ),
   ];
 
-  /** 앱 셸 라우트 그룹 `(app)` 아래에서 이 경로를 그리는 파일. */
   /**
-   * 메뉴가 가리키는 라우트 파일의 후보들. 대부분 앱 셸(`(app)`) 안이지만
-   * **전부는 아니다** — 출입증 판독(`/scan`)은 셸 밖에 산다(로그인 후 돌아올 주소를
-   * 들고 가야 해서다). 그래서 셸 밖도 함께 본다: 예외 목록으로 빼면 그 항목의
-   * 오타를 영영 못 잡는다.
+   * 메뉴가 가리키는 라우트 파일의 후보들. 현재 메뉴는 앱 셸 안에 있지만,
+   * 라우트 그룹 이동을 오탐지하지 않도록 루트 후보도 함께 본다.
    */
   const pageFiles = (path: string) =>
     path === "/"
