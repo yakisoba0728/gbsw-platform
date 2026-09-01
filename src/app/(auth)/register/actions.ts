@@ -2,6 +2,7 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { recordAudit } from "@/core/audit/audit";
 import { auth } from "@/core/auth/auth";
 import type { Role } from "@/core/authz/roles";
 import {
@@ -262,14 +263,40 @@ export async function confirmVerificationAction(
   }
 }
 
+/** `/login/submit`과 같은 규칙으로 감사로그에 남길 이메일을 가린다. */
+function maskEmail(email: string): string {
+  const at = email.indexOf("@");
+  if (at < 0) return "***";
+
+  const local = email.slice(0, at);
+  const domain = email.slice(at + 1);
+  return local.length <= 2 ? `***@${domain}` : `${local.slice(0, 2)}***@${domain}`;
+}
+
 /** 방금 만든 계정으로 바로 로그인시킨다. 실패해도 가입 자체는 성공이라 삼킨다. */
 async function signInSilently(email: string, password: string): Promise<void> {
+  let userId: string;
   try {
-    await auth.api.signInEmail({
+    const result = await auth.api.signInEmail({
       body: { email, password },
       headers: await headers(),
     });
+    userId = result.user.id;
   } catch {
     // 로그인만 실패했으면 사용자가 /login에서 직접 하면 된다.
+    return;
+  }
+
+  try {
+    await recordAudit({
+      actorUserId: userId,
+      action: "auth:login",
+      targetType: "User",
+      targetId: userId,
+      metadata: { email: maskEmail(email) },
+    });
+  } catch (error) {
+    // 세션 발급과 같은 트랜잭션에 묶을 수 없어 기록 실패가 가입을 뒤집지 않는다.
+    console.error("[auth] 자동 로그인 기록을 남기지 못했습니다.", error);
   }
 }
