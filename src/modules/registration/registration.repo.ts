@@ -112,7 +112,7 @@ async function createUserWithCredential(
 async function consumeInvite(tx: DbClient, inviteId: string, userId: string) {
   const { count } = await tx.invite.updateMany({
     where: { id: inviteId, status: "PENDING" },
-    data: { status: "USED", usedAt: new Date(), usedById: userId },
+    data: { status: "USED", usedById: userId },
   });
   if (count !== 1) throw new InviteRaceError("ALREADY_USED");
 }

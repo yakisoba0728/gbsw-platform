@@ -177,11 +177,17 @@ describe("deleteComment", () => {
   it("본인은 지운다 — byModerator는 false", async () => {
     await service.deleteComment(student, input);
 
-    expect(markCommentDeleted).toHaveBeenCalledWith("cm1", "s-1", null, txClient);
+    expect(markCommentDeleted).toHaveBeenCalledWith("cm1", txClient);
     expect(recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
+        actorUserId: "s-1",
+        actorName: "김민준",
         action: "community:comment:delete",
-        metadata: expect.objectContaining({ byModerator: false, postId: "p1" }),
+        metadata: expect.objectContaining({
+          byModerator: false,
+          postId: "p1",
+          reason: null,
+        }),
       }),
       txClient,
     );

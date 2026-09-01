@@ -227,13 +227,11 @@ export async function updatePost(
 /** 이미 지운 글이면 0. 감사로그가 두 줄 쌓이지 않게 서비스가 이 값을 본다. */
 export async function markPostDeleted(
   id: string,
-  actorUserId: string,
-  reason: string | null,
   db: DbClient = prisma,
 ): Promise<number> {
   const result = await db.communityPost.updateMany({
     where: { id, deletedAt: null },
-    data: { deletedAt: new Date(), deletedByUserId: actorUserId, deletedReason: reason },
+    data: { deletedAt: new Date() },
   });
   return result.count;
 }
@@ -334,13 +332,11 @@ export async function createComment(
 
 export async function markCommentDeleted(
   id: string,
-  actorUserId: string,
-  reason: string | null,
   db: DbClient = prisma,
 ): Promise<number> {
   const result = await db.communityComment.updateMany({
     where: { id, deletedAt: null },
-    data: { deletedAt: new Date(), deletedByUserId: actorUserId, deletedReason: reason },
+    data: { deletedAt: new Date() },
   });
   return result.count;
 }

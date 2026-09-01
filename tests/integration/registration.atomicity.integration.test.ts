@@ -140,7 +140,6 @@ describe("completeRegistration() — 가입 원자성", () => {
 
     expect(invite).toMatchObject({
       status: "PENDING",
-      usedAt: null,
       usedById: null,
     });
     expect(user).toBeNull();

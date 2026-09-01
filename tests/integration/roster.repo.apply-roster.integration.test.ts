@@ -122,7 +122,6 @@ describe("applyRoster() — 명단에서 빠진 학생은 DB에서 영구 삭제
           createdById: adminId,
           studentId: studentProfileId,
           usedById: parentUserId,
-          usedAt: new Date(),
         },
       ],
     });

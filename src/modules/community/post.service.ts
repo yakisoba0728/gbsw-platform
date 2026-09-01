@@ -377,7 +377,7 @@ export async function deletePost(
   if (!isMine && !input.reason) throw new CommunityError("REASON_REQUIRED");
 
   await withTransaction(async (tx) => {
-    const removed = await repo.markPostDeleted(input.postId, actor.id, input.reason, tx);
+    const removed = await repo.markPostDeleted(input.postId, tx);
     // 이미 지운 글에 사유만 새로 남기지 않는다 — 삭제는 한 번만 일어난 일이다.
     if (removed === 0) return;
 

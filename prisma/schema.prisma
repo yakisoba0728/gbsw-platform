@@ -325,7 +325,6 @@ model Invite {
   /// 코드 하나는 계정 하나만 만든다.
   usedById String?   @unique
   usedBy   User?     @relation("InviteUsedBy", fields: [usedById], references: [id], onDelete: SetNull)
-  usedAt   DateTime?
 
   createdAt DateTime @default(now())
 
@@ -657,9 +656,7 @@ model CommunityPost {
   authorRole String
 
   /// 삭제는 행을 지우지 않는다. 댓글이 매달려 있다.
-  deletedAt       DateTime?
-  deletedByUserId String?
-  deletedReason   String?
+  deletedAt DateTime?
 
   comments    CommunityComment[]
   attachments CommunityAttachment[]
@@ -684,9 +681,7 @@ model CommunityComment {
   authorName   String
   authorRole   String
 
-  deletedAt       DateTime?
-  deletedByUserId String?
-  deletedReason   String?
+  deletedAt DateTime?
 
   createdAt DateTime @default(now())
 

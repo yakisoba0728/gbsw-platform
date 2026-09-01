@@ -225,7 +225,7 @@ describe("completeStudentRegistration()", () => {
     });
     expect(inviteUpdateMany).toHaveBeenCalledWith({
       where: { id: "inv-1", status: "PENDING" },
-      data: expect.objectContaining({ status: "USED" }),
+      data: { status: "USED", usedById: "u-1" },
     });
 
     // 학생코드는 여기서 직접 부여한다 — student-code.ts의 형식(8자리, 문자로 시작)을 따른다.
