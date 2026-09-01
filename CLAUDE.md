@@ -113,7 +113,9 @@ src/
     api/auth/[...all]/  Better Auth 핸들러
     api/health/         컨테이너 헬스체크
   components/           ui/ (Button·Badge·Input) · app-shell/ · icons.tsx
-tests/                  core/ · modules/ — 구조를 src/와 맞춘다
+tests/
+  core/ · modules/      구조를 src/와 맞춘다
+  helpers/              공용 테스트 픽스처 — src/에 짝이 없는 예외
 ```
 
 **파일 구성은 `src/modules/account/`를 복사한다** — `<모듈>.schema.ts` ·
