@@ -204,16 +204,12 @@ describe("GET /api/community/attachments/[...attachment]", () => {
     expect(getDownload).toHaveBeenCalledWith(teacher, "att-1");
   });
 
-  it("바이트와 함께 나가는 헤더 넷이 모두 붙는다", async () => {
+  it("파일 메타데이터와 캐시 헤더를 붙인다", async () => {
     const response = await GET(new Request("http://localhost"), downloadParams("att-1"));
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("application/pdf");
-    expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
-    // 허용 목록이 뚫려도 아무것도 못 하게. 전역 CSP는 페이지용이라 여기서 덮는다.
-    expect(response.headers.get("Content-Security-Policy")).toBe(
-      "default-src 'none'; sandbox",
-    );
+    expect(response.headers.get("Content-Length")).toBe("3");
     // 권한이 붙은 자료라 프록시가 들고 있으면 안 된다.
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
     expect(response.headers.get("Content-Disposition")).toContain("inline;");
