@@ -47,7 +47,7 @@ cp .env.example .env
 
 ```bash
 # 비밀번호와 세션 키는 반드시 새로 만든다
-openssl rand -base64 24    # POSTGRES_PASSWORD 에 넣는다
+openssl rand -hex 24       # POSTGRES_PASSWORD 에 넣는다
 openssl rand -base64 32    # BETTER_AUTH_SECRET 에 넣는다
 ```
 
