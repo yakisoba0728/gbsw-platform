@@ -58,7 +58,7 @@ function databaseHost(databaseUrl: string): string {
 
 function isLocalDatabaseUrl(databaseUrl: string): boolean {
   const host = databaseHost(databaseUrl);
-  return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
+  return host === "localhost" || host === "127.0.0.1" || host === "[::1]";
 }
 
 export function assertDemoSeedAllowed({
