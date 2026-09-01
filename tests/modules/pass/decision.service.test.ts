@@ -290,17 +290,10 @@ describe("approvePass", () => {
       }),
       txClient,
     );
-    expect(transitionUnexpired).toHaveBeenNthCalledWith(
-      2,
-      "p-1",
-      ["CONSENTED"],
-      NOW,
-      expect.not.objectContaining({
-        consentByProxy: true,
-        consentNote: "어머니와 전화 확인",
-      }),
-      txClient,
-    );
+    const secondUpdate = transitionUnexpired.mock.calls[1]![3];
+    expect(secondUpdate).not.toHaveProperty("consentByProxy");
+    expect(secondUpdate).not.toHaveProperty("consentedByUserId");
+    expect(secondUpdate).not.toHaveProperty("consentNote");
     expect(auditEntries()).toEqual([
       expect.objectContaining({
         metadata: expect.objectContaining({
@@ -415,6 +408,12 @@ describe("issuePass", () => {
       timeout: 130_000,
       maxWait: 10_000,
     });
+    expect(findOverlapping).toHaveBeenCalledWith(
+      "sp-1",
+      new Date("2026-08-26T23:00:00.000Z"),
+      new Date("2026-08-27T10:00:00.000Z"),
+      txClient,
+    );
   });
 
   it("외박은 보호자 확인이 함께 찍힌다", async () => {

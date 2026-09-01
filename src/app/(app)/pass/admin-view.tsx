@@ -54,7 +54,7 @@ export async function AdminView({
         <div className="space-y-4">
           <SectionCard
             title="결재 대기"
-            hint={`${pendingResult.total}건`}
+            hint={countHint(pending.length, pendingResult.total, "건")}
             aside={
               // 이 카드도 아래 카드도 「지금」만 답한다 — 어제 나간 것을 되짚을
               // 길은 전체 내역뿐이라 결재 대기 옆에 세운다.
@@ -101,7 +101,7 @@ export async function AdminView({
 
           <SectionCard
             title="지금 나가 있는 학생"
-            hint={`${activeResult.total}명`}
+            hint={countHint(active.length, activeResult.total, "명")}
             flush
           >
             {active.length === 0 ? (
@@ -135,6 +135,12 @@ export async function AdminView({
       </div>
     </div>
   );
+}
+
+function countHint(visible: number, total: number, unit: "건" | "명"): string {
+  return visible < total
+    ? `${visible}${unit} 표시 / 전체 ${total}${unit}`
+    : `${total}${unit}`;
 }
 
 function seatOf(pass: {

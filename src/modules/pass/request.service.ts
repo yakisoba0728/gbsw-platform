@@ -32,56 +32,73 @@ export async function requestPass(
 
   const { startAt, endAt } = requestWindow(input, now);
 
-  return withTransaction(async (tx) => {
-    const exists = await repo.lockStudentForPassCreation(profile.id, tx);
-    if (!exists) throw new PassError("NO_STUDENT_PROFILE");
+  try {
+    return await withTransaction(
+      async (tx) => {
+        const exists = await repo.lockStudentForPassCreation(profile.id, tx);
+        if (!exists) throw new PassError("NO_STUDENT_PROFILE");
 
-    // 유효 창이 아니라 conflictWindow로 묻는다 — 맞닿은 신청을 이어 붙여
-    // 보호자 확인을 건너뛰는 길을 막는 것이 이 여백이다.
-    const conflict = conflictWindow({ startAt, endAt });
-    const overlapping = await repo.findOverlapping(
-      profile.id,
-      conflict.startAt,
-      conflict.endAt,
-      tx,
-    );
-    if (overlapping) throw new PassError("OVERLAPPING_PASS");
+        // 유효 창이 아니라 conflictWindow로 묻는다 — 맞닿은 신청을 이어 붙여
+        // 보호자 확인을 건너뛰는 길을 막는 것이 이 여백이다.
+        const conflict = conflictWindow({ startAt, endAt });
+        const overlapping = await repo.findOverlapping(
+          profile.id,
+          conflict.startAt,
+          conflict.endAt,
+          tx,
+        );
+        if (overlapping) throw new PassError("OVERLAPPING_PASS");
 
-    const created = await repo.createPass(
-      {
-        studentProfileId: profile.id,
-        type: input.type,
-        status: "REQUESTED",
-        startAt,
-        endAt,
-        destination: input.destination,
-        reason: input.reason,
-        requestedByUserId: actor.id,
-        requestedByName: actor.name,
+        const created = await repo.createPass(
+          {
+            studentProfileId: profile.id,
+            type: input.type,
+            status: "REQUESTED",
+            startAt,
+            endAt,
+            destination: input.destination,
+            reason: input.reason,
+            requestedByUserId: actor.id,
+            requestedByName: actor.name,
+          },
+          tx,
+        );
+
+        await recordAudit(
+          {
+            actorUserId: actor.id,
+            actorName: actor.name,
+            action: "pass:request",
+            targetType: "Pass",
+            targetId: created.id,
+            // metadata는 JSON 열이다 — Date를 그대로 넣으면 직렬화 모양이 갈린다.
+            metadata: {
+              type: input.type,
+              startAt: startAt.toISOString(),
+              endAt: endAt.toISOString(),
+              destination: input.destination,
+            },
+          },
+          tx,
+        );
+
+        return created;
       },
-      tx,
+      // 명단 반영은 같은 User 행 잠금을 최대 120초 쥔다. 그 정상 대기를
+      // 기본 ITX 제한(5초)이 업무 실패로 바꾸지 않도록 직접 부여와 맞춘다.
+      { timeout: 130_000, maxWait: 10_000 },
     );
-
-    await recordAudit(
-      {
-        actorUserId: actor.id,
-        actorName: actor.name,
-        action: "pass:request",
-        targetType: "Pass",
-        targetId: created.id,
-        // metadata는 JSON 열이다 — Date를 그대로 넣으면 직렬화 모양이 갈린다.
-        metadata: {
-          type: input.type,
-          startAt: startAt.toISOString(),
-          endAt: endAt.toISOString(),
-          destination: input.destination,
-        },
-      },
-      tx,
-    );
-
-    return created;
-  });
+  } catch (error) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "P2028"
+    ) {
+      throw new PassError("PASS_BUSY");
+    }
+    throw error;
+  }
 }
 
 export async function withdrawPass(

@@ -23,6 +23,7 @@ const findStudentProfileByUserId = vi.fn();
 const isParentOf = vi.fn();
 const displayYear = vi.fn();
 const recordAudit = vi.fn();
+const toQrPath = vi.fn((text: string) => ({ size: 24, d: `M${text}` }));
 const txClient = { tx: "pass-request-service-test" };
 const withTransaction = vi.fn(
   async <T>(fn: (tx: typeof txClient) => Promise<T>) => fn(txClient),
@@ -48,9 +49,12 @@ vi.mock("@/modules/pass/pass.repo", () => ({
 }));
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
 vi.mock("@/core/db/client", () => ({ withTransaction }));
+vi.mock("@/modules/pass/pass.qr", () => ({ toQrPath }));
 
 const { PassError } = await import("@/modules/pass/pass.error");
 const { ForbiddenError } = await import("@/core/authz/errors");
+const { verifyStudentCode } = await import("@/modules/pass/pass.token");
+const { scanOrigin, tokenFromScanUrl } = await import("@/modules/pass/pass.url");
 const service = await import("@/modules/pass/request.service");
 
 function user(role: SessionUser["role"], id: string): SessionUser {
@@ -114,6 +118,10 @@ beforeEach(() => {
   isParentOf.mockReset().mockResolvedValue(true);
   displayYear.mockReset().mockResolvedValue(2026);
   recordAudit.mockReset().mockResolvedValue(undefined);
+  toQrPath.mockReset().mockImplementation((text: string) => ({
+    size: 24,
+    d: `M${text}`,
+  }));
   withTransaction
     .mockReset()
     .mockImplementation(async <T>(fn: (tx: typeof txClient) => Promise<T>) => fn(txClient));
@@ -137,6 +145,16 @@ describe("requestPass", () => {
     expect(auditEntries()).toEqual([
       expect.objectContaining({ action: "pass:request", targetId: "p-1" }),
     ]);
+    expect(findOverlapping).toHaveBeenCalledWith(
+      "sp-1",
+      new Date("2026-08-27T04:00:00.000Z"),
+      new Date("2026-08-27T10:00:00.000Z"),
+      txClient,
+    );
+    expect(withTransaction).toHaveBeenCalledWith(expect.any(Function), {
+      timeout: 130_000,
+      maxWait: 10_000,
+    });
   });
 
   it("외박도 REQUESTED다 — 동의는 그다음 단계다", async () => {
@@ -171,6 +189,16 @@ describe("requestPass", () => {
     await expect(
       service.requestPass(student, { ...OUTING, endTime: "13:00" }, NOW),
     ).rejects.toThrow(new PassError("INVALID_PERIOD"));
+  });
+
+  it("명단 반영 잠금이 제한을 넘기면 재시도 가능한 업무 오류로 옮긴다", async () => {
+    withTransaction.mockRejectedValueOnce(
+      Object.assign(new Error("timeout"), { code: "P2028" }),
+    );
+
+    await expect(service.requestPass(student, OUTING, NOW)).rejects.toThrow(
+      new PassError("PASS_BUSY"),
+    );
   });
 
   it("감사 metadata의 날짜는 문자열이다 — JSON 열이라 Date를 넣으면 안 된다", async () => {
@@ -490,11 +518,18 @@ describe("getMyStudentQr", () => {
   });
 
   it("학생 본인에게 QR과 주소를 준다", async () => {
-    const result = await service.getMyStudentQr(student);
+    const at = new Date("2026-08-27T05:30:00.000Z");
+    findStudentProfileByUserId.mockResolvedValue({ id: "student0001" });
+
+    const result = await service.getMyStudentQr(student, at);
+    const text = toQrPath.mock.calls[0]?.[0];
+    const token = typeof text === "string" ? tokenFromScanUrl(text, scanOrigin()) : null;
 
     expect(result.qr.size).toBeGreaterThan(20);
     expect(result.qr.d.startsWith("M")).toBe(true);
     expect(typeof result.validUntil).toBe("string");
+    expect(token).not.toBeNull();
+    expect(verifyStudentCode(token!, at)).toEqual({ studentProfileId: "student0001" });
   });
 
   // **학생증의 성질이다.** 승인된 출입증이 하나도 없어도 나온다 — 학생증은
