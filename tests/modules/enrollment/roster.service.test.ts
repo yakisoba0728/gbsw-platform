@@ -256,7 +256,16 @@ describe("applyRosterPlan()", () => {
   it("신규 학생 수만큼 초대코드를 만들어 돌려준다", async () => {
     listExisting.mockResolvedValue([]);
     applyRoster.mockResolvedValue({
-      invites: [{ name: "김동혁", code: "GBSWCODE1", grade: 1, classNo: 5, number: 7 }],
+      invites: [
+        {
+          id: "inv-new-1",
+          name: "김동혁",
+          code: "GBSWCODE1",
+          grade: 1,
+          classNo: 5,
+          number: 7,
+        },
+      ],
       revokedInvites: [],
     });
 
@@ -264,7 +273,18 @@ describe("applyRosterPlan()", () => {
     const result = await applyRosterPlan(admin, 2026, [newRow], fingerprint([]), [], null);
 
     expect(result.invites).toHaveLength(1);
+    expect(result.saved).toBe(0);
+    expect(result.invitesIssued).toBe(1);
     expect(applyRoster.mock.calls[0]![1].newStudents).toHaveLength(1);
+
+    const inviteLogs = auditEntries().filter((entry) => entry.action === "invite:create");
+    expect(inviteLogs).toHaveLength(1);
+    expect(inviteLogs[0]).toMatchObject({
+      targetType: "Invite",
+      targetId: "inv-new-1",
+      metadata: { role: "STUDENT" },
+    });
+    expect(JSON.stringify(inviteLogs[0])).not.toContain("GBSWCODE1");
   });
 
   it("발급 코드에 기본 만료를 둔다 — 종이로 나눠주는 코드를 무기한으로 두지 않는다", async () => {
@@ -418,7 +438,14 @@ describe("applyRosterPlan()", () => {
     ];
     listExisting.mockResolvedValue(existing);
 
-    await applyRosterPlan(admin, 2026, rows, fingerprint(existing), [], null);
+    const result = await applyRosterPlan(
+      admin,
+      2026,
+      rows,
+      fingerprint(existing),
+      [],
+      null,
+    );
 
     const assignments: { studentProfileId: string; statusChanged: boolean }[] =
       applyRoster.mock.calls[0]![1].assignments;
@@ -428,6 +455,14 @@ describe("applyRosterPlan()", () => {
     expect(byId.get("sp-reassign")).toBe(false);
     expect(byId.get("sp-statuschange")).toBe(true);
     expect(byId.get("sp-newassign")).toBe(true);
+    expect(result.saved).toBe(3);
+    expect(applyRoster.mock.calls[0]![1].managedStudentProfileIds).toEqual([
+      "sp-untouched",
+      "sp-reassign",
+      "sp-statuschange",
+      "sp-newassign",
+    ]);
+    expect(applyRoster.mock.calls[0]![1].createdById).toBe(admin.id);
   });
 
   it("자기 자신을 비재학으로 돌리는 반영은 거부한다 (자기 잠금 방어)", async () => {

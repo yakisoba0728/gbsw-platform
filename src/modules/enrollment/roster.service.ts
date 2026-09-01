@@ -147,6 +147,7 @@ export async function applyRosterPlan(
   previewToken: string,
 ): Promise<{
   saved: number;
+  invitesIssued: number;
   deleted: number;
   invites: Awaited<ReturnType<typeof repo.applyRoster>>["invites"];
   /** 신규로 잡혔지만 재학이 아니라 아무것도 만들어지지 않은 줄. 화면이 따로 알린다. */
@@ -410,7 +411,11 @@ export async function applyRosterPlan(
   // deleted는 화면이 "N명 제외"를 따로 알리는 데 쓴다 — 반영 건수 하나만 주면
   // 몇 명이 명단에서 빠졌는지가 묻힌다.
   return {
-    saved: assignments.length,
+    saved:
+      plan.reassign.length +
+      plan.statusChange.length +
+      plan.newAssignment.length,
+    invitesIssued: invites.length,
     deleted: plan.missingFromFile.length,
     invites,
     excludedNewStudents,

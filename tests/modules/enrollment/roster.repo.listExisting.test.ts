@@ -37,6 +37,7 @@ describe("listExisting() — 이름을 NFC로 정규화한다 (I8)", () => {
 
     expect(result[0]!.name).toBe("김동혁".normalize("NFC"));
     expect(result[0]!.name).not.toBe(nfdName);
+    expect(result[0]!.birthDate).toBe("2010-07-28");
     expect(result[0]!.hasGraduatedEnrollment).toBe(false);
   });
 });

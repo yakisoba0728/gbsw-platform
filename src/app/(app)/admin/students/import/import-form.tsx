@@ -24,7 +24,11 @@ import type { RosterRow } from "@/modules/enrollment/roster.parse";
 import type { RosterPlan } from "@/modules/enrollment/roster.plan";
 import { ROSTER_FILE_MAX_BYTES } from "@/modules/enrollment/roster.schema";
 import { formatSeat } from "@/lib/student-number";
-import { APPLY_INITIAL, PREVIEW_INITIAL } from "./action-state";
+import {
+  APPLY_INITIAL,
+  PREVIEW_INITIAL,
+  applySuccessMessage,
+} from "./action-state";
 import { applyRosterAction, exportRosterAction, previewRosterAction } from "./actions";
 import { previewFingerprintFor } from "./preview-fingerprint";
 
@@ -278,7 +282,8 @@ function PreviewCard({
   // 교사가 직접 적는 인원 수. 입력 중간값도 그대로 보여야 해서 문자열로 든다.
   const [typedDeleteCount, setTypedDeleteCount] = useState("");
 
-  const applied = applyState.saved !== null && !applyState.error;
+  const successMessage = applySuccessMessage(applyState);
+  const applied = successMessage !== null && !applyState.error;
   const issueCount = plan.errorRows.length + plan.needsAttention.length;
   const deleteCount = plan.missingFromFile.length;
   const countConfirmationMatches = Number(typedDeleteCount) === deleteCount;
@@ -423,9 +428,7 @@ function PreviewCard({
                 영역으로 묶어 한 번에 읽히게 한다. */}
             <div role="status">
               <Note tone="success">
-                {applyState.deleted && applyState.deleted > 0
-                  ? `${applyState.saved}건 반영, ${applyState.deleted}명 명단에서 뺐습니다.`
-                  : `${applyState.saved}건 반영했습니다.`}
+                {successMessage}
               </Note>
 
               {applyState.excludedNew.length > 0 && (

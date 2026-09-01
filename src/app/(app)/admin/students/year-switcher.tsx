@@ -17,7 +17,9 @@ export function YearSwitcher({
   years: { year: number; isCurrent: boolean }[];
 }) {
   const current = years.find((y) => y.isCurrent)?.year;
-  const [selected, setSelected] = useState(String(current ?? ""));
+  const [selected, setSelected] = useState(
+    String(current ?? years[0]?.year ?? ""),
+  );
   const [switchState, switchAction, switching] = useActionState(
     setCurrentYearAction,
     YEAR_INITIAL,
@@ -55,7 +57,7 @@ export function YearSwitcher({
             confirmLabel="지정"
             pendingLabel="바꾸는 중…"
             pending={switching}
-            disabled={Number(selected) === current}
+            disabled={years.length === 0 || Number(selected) === current}
             variant="secondary"
             size="sm"
             full={false}

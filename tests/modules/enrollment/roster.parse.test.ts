@@ -88,6 +88,21 @@ describe("normalizeRows()", () => {
     expect(rows[0]!.name).not.toBe(nfdName);
   });
 
+  it("조합형(NFD) 머리글도 NFC로 맞춰 열을 찾고 학생코드 안내를 만들지 않는다", () => {
+    const header = ["학생코드", ...HEADER].map((cell) => cell.normalize("NFD"));
+    const table = [
+      header,
+      ["ABCD2345", "김동혁", "2010-07-28", "1", "3", "3", "재학"],
+    ];
+
+    expect(normalizeRows(table)[0]).toMatchObject({
+      studentCode: "ABCD2345",
+      name: "김동혁",
+      errors: [],
+    });
+    expect(fileNotices(table)).toEqual([]);
+  });
+
   it("재학인데 학년·반·번호가 비면 오류다", () => {
     const rows = normalizeRows([HEADER, ["김동혁", "2010-07-28", "", "", "", "재학"]]);
     expect(rows[0]!.errors.length).toBeGreaterThan(0);

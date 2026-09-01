@@ -118,7 +118,11 @@ function input(overrides: Partial<ApplyInput> = {}): ApplyInput {
 beforeEach(() => {
   enrollmentDeleteMany.mockReset().mockResolvedValue({ count: 0 });
   enrollmentCreateMany.mockReset().mockResolvedValue({ count: 0 });
-  schoolClassUpsert.mockReset().mockResolvedValue({ id: "class-1" });
+  schoolClassUpsert.mockReset().mockImplementation(
+    async ({ where: { year_grade_classNo: key } }) => ({
+      id: `cls-${key.grade}-${key.classNo}`,
+    }),
+  );
   studentProfileFindMany.mockReset().mockResolvedValue([]);
   userUpdateMany.mockReset().mockResolvedValue({ count: 0 });
   userDeleteMany.mockReset().mockResolvedValue({ count: 0 });
@@ -397,6 +401,41 @@ describe("applyRoster()", () => {
 
     // 학생은 3명이지만 (학년,반) 쌍은 (1,3)과 (2,1) 둘뿐이다.
     expect(schoolClassUpsert).toHaveBeenCalledTimes(2);
+    expect(schoolClassUpsert).toHaveBeenNthCalledWith(1, {
+      where: { year_grade_classNo: { year: 2026, grade: 1, classNo: 3 } },
+      create: { year: 2026, grade: 1, classNo: 3 },
+      update: {},
+    });
+    expect(schoolClassUpsert).toHaveBeenNthCalledWith(2, {
+      where: { year_grade_classNo: { year: 2026, grade: 2, classNo: 1 } },
+      create: { year: 2026, grade: 2, classNo: 1 },
+      update: {},
+    });
+    expect(enrollmentCreateMany).toHaveBeenCalledWith({
+      data: [
+        {
+          studentProfileId: "sp-1",
+          year: 2026,
+          classId: "cls-1-3",
+          number: 1,
+          status: "ENROLLED",
+        },
+        {
+          studentProfileId: "sp-2",
+          year: 2026,
+          classId: "cls-1-3",
+          number: 2,
+          status: "ENROLLED",
+        },
+        {
+          studentProfileId: "sp-3",
+          year: 2026,
+          classId: "cls-2-1",
+          number: 1,
+          status: "ENROLLED",
+        },
+      ],
+    });
   });
 
   it("newStudents는 만료 시각과 함께 초대코드를 만든다", async () => {

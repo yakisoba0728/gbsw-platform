@@ -459,7 +459,7 @@ export function normalizeRows(table: string[][]): RosterRow[] {
     throw new RosterParseError("TOO_MANY_ROWS");
   }
 
-  const header = table[0]!.map((h) => h.trim());
+  const header = table[0]!.map((h) => h.trim().normalize("NFC"));
   const at = (name: string) => header.indexOf(name);
   // 학생코드 열은 없어도 오류가 아니다 — 그 경우 전 줄이 신규로 분류된다.
   const missing = ROSTER_COLUMNS.filter((c) => c !== "학생코드" && at(c) === -1);
@@ -558,7 +558,7 @@ export function normalizeRows(table: string[][]): RosterRow[] {
 export function fileNotices(table: string[][]): string[] {
   if (table.length === 0) return [];
 
-  const header = table[0]!.map((h) => h.trim());
+  const header = table[0]!.map((h) => h.trim().normalize("NFC"));
   const notices: string[] = [];
 
   if (!header.includes("학생코드")) {

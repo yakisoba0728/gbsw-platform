@@ -60,7 +60,14 @@ function emptyPreview(error: string): PreviewState {
 }
 
 function applyError(error: string): ApplyState {
-  return { error, saved: null, deleted: null, excludedNew: [], invites: [] };
+  return {
+    error,
+    saved: null,
+    invitesIssued: null,
+    deleted: null,
+    excludedNew: [],
+    invites: [],
+  };
 }
 
 function sortedDeletionIds(ids: string[]): string[] {
@@ -149,6 +156,7 @@ export async function applyRosterAction(
     return {
       error: rowsParsed.error.issues[0]?.message ?? "반영할 내용을 확인해 주세요.",
       saved: null,
+      invitesIssued: null,
       deleted: null,
       excludedNew: [],
       invites: [],
@@ -197,7 +205,13 @@ export async function applyRosterAction(
 
   try {
     // 봉인 검증은 서비스가 한다 — 액션에 두면 진입점이 바뀔 때 이 보증만 사라진다.
-    const { saved, deleted, invites, excludedNewStudents } = await applyRosterPlan(
+    const {
+      saved,
+      invitesIssued,
+      deleted,
+      invites,
+      excludedNewStudents,
+    } = await applyRosterPlan(
       actor,
       yearParsed.data.year,
       rowsParsed.data,
@@ -210,6 +224,7 @@ export async function applyRosterAction(
     return {
       error: null,
       saved,
+      invitesIssued,
       deleted,
       excludedNew: excludedNewStudents,
       invites,

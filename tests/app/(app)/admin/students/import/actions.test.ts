@@ -144,6 +144,7 @@ const PREVIEW_INITIAL = {
 const APPLY_INITIAL = {
   error: null,
   saved: null,
+  invitesIssued: null,
   deleted: null,
   excludedNew: [],
   invites: [],
@@ -163,6 +164,7 @@ beforeEach(() => {
   });
   applyRosterPlan.mockResolvedValue({
     saved: 2,
+    invitesIssued: 0,
     deleted: 0,
     invites: [],
     excludedNewStudents: [],
@@ -264,6 +266,7 @@ describe("applyRosterAction — 경계 검증", () => {
     expect(state).toEqual({
       error: null,
       saved: 2,
+      invitesIssued: 0,
       deleted: 0,
       excludedNew: [],
       invites: [],
@@ -450,6 +453,7 @@ describe("applyRosterAction — 경계 검증", () => {
   it("계정이 안 만들어진 신규 줄을 화면까지 전달한다", async () => {
     applyRosterPlan.mockResolvedValueOnce({
       saved: 3,
+      invitesIssued: 1,
       deleted: 1,
       invites: [{ code: "GBSWAAAA1111" }],
       excludedNewStudents: [{ line: 7, name: "김철수" }],
@@ -459,6 +463,7 @@ describe("applyRosterAction — 경계 검증", () => {
 
     expect(state.excludedNew).toEqual([{ line: 7, name: "김철수" }]);
     expect(state.invites).toHaveLength(1);
+    expect(state.invitesIssued).toBe(1);
     expect(state.deleted).toBe(1);
   });
 

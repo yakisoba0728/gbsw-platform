@@ -28,9 +28,11 @@ export const PREVIEW_INITIAL: PreviewState = {
 
 export type ApplyState = {
   error: string | null;
+  /** 실제로 달라진 재배정·학적변동·새 학년도 배정 줄 수. */
   saved: number | null;
-  /** 반영 건수(saved) 중 계정째 삭제된 학생 수 (Minor-4) — "250건 반영, 50명 삭제"처럼
-   * 성공 문구에 삭제 사실이 묻히지 않게 따로 보여준다. */
+  /** 이번 반영에서 새로 발급한 학생 초대코드 수. */
+  invitesIssued: number | null;
+  /** 명단에서 빠져 계정째 삭제된 학생 수. saved와 겹치지 않는 별도 집합이다. */
   deleted: number | null;
   /**
    * 신규로 잡혔지만 재학이 아니라 **아무것도 만들어지지 않은** 줄 (I1).
@@ -46,7 +48,22 @@ export type ApplyState = {
 export const APPLY_INITIAL: ApplyState = {
   error: null,
   saved: null,
+  invitesIssued: null,
   deleted: null,
   excludedNew: [],
   invites: [],
 };
+
+/** 확정 결과의 서로 다른 세 건수를 한 문장에 섞지 않고 그대로 보여준다. */
+export function applySuccessMessage({
+  saved,
+  invitesIssued,
+  deleted,
+}: Pick<ApplyState, "saved" | "invitesIssued" | "deleted">): string | null {
+  if (saved === null || invitesIssued === null) return null;
+
+  const applied = `${saved}건 반영, 초대코드 ${invitesIssued}장 발급`;
+  return deleted && deleted > 0
+    ? `${applied}, ${deleted}명 명단에서 뺐습니다.`
+    : `${applied}했습니다.`;
+}
