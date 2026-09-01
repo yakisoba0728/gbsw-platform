@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAuth } from "@/core/auth/session";
-import { ForbiddenError } from "@/core/authz/errors";
+import { actionMessage, firstIssue } from "@/lib/action-message";
 import {
   type UpdateUserState,
   type UpdateUserValues,
@@ -24,7 +24,7 @@ import {
 } from "@/modules/admin-users/admin-user.service";
 
 /** 서비스가 던지는 오류 코드를 화면 문구로 옮긴다. */
-const MESSAGES: Record<string, string> = {
+const MESSAGES = {
   FORBIDDEN: "권한이 없습니다.",
   NOT_FOUND: "계정을 찾을 수 없습니다.",
   ACCOUNT_DELETED: "명단에서 빠진 계정에는 할 수 없습니다.",
@@ -39,29 +39,13 @@ const MESSAGES: Record<string, string> = {
   INCOMPLETE_STUDENT_INPUT: "학년·반·번호·생년월일을 모두 채워 주세요.",
   EMAIL_TAKEN: "이미 쓰이고 있는 이메일입니다.",
   NUMBER_TAKEN: "같은 반에 같은 번호가 있습니다.",
-};
+} satisfies Record<string, string>;
 
 /** 코드로 가를 수 있는 오류는 사전에서, 나머지는 액션별 폴백으로. */
-function messageFor(error: unknown, fallback: string): string {
-  if (error instanceof AdminUserError || error instanceof ForbiddenError) {
-    return MESSAGES[error.message] ?? fallback;
-  }
-  // 예상 못 한 오류는 서버 콘솔에 남긴다. 화면에는 일반 문구만 나가므로
-  // 여기서 안 남기면 원인이 어디에도 없다.
-  console.error("[admin-users] 예상 못 한 오류", error);
-  return fallback;
-}
+const messageFor = actionMessage(AdminUserError, MESSAGES, "[admin-users]");
 
 function fail(error: string): UserActionState {
   return { ok: false, error, tempPassword: null };
-}
-
-/** 경계 검증 실패 → 화면 문구. 스키마가 문구를 갖고 있어 첫 issue를 그대로 쓴다. */
-function firstIssue(
-  error: { issues: { message: string }[] },
-  fallback: string,
-): string {
-  return error.issues[0]?.message ?? fallback;
 }
 
 /** 목록과 상세가 같은 데이터를 보므로 둘 다 새로 그린다. */

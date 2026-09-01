@@ -5,6 +5,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireAuth } from "@/core/auth/session";
 import { ForbiddenError } from "@/core/authz/errors";
+import { firstIssue } from "@/lib/action-message";
 import * as decision from "@/modules/pass/decision.service";
 import { PassError } from "@/modules/pass/pass.error";
 import {
@@ -50,17 +51,6 @@ const UNKNOWN_MESSAGE = "처리하지 못했습니다.";
 
 function fail(error: string): PassActionState {
   return { error, ok: false };
-}
-
-/**
- * zod가 낸 첫 문제의 문구. **한글이 아니면 기본 문구로 떨어뜨린다** —
- * discriminatedUnion의 유형 판별 실패는 영문 그대로 나온다
- * (「Invalid discriminator value. Expected 'OUTING' | 'OVERNIGHT'」).
- * 폼이 성한 한 닿지 않는 경로지만, 사용자 화면에 영문이 뜨는 길을 열어 둘 이유가 없다.
- */
-function firstIssue(error: { issues: { message: string }[] }, fallback: string): string {
-  const message = error.issues[0]?.message;
-  return message && /[가-힣]/.test(message) ? message : fallback;
 }
 
 function toState(error: unknown): PassActionState {

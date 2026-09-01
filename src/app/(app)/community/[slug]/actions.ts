@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAuth } from "@/core/auth/session";
-import { ForbiddenError } from "@/core/authz/errors";
+import { actionMessage } from "@/lib/action-message";
 import * as commentService from "@/modules/community/comment.service";
 import { CommunityError } from "@/modules/community/community.error";
 import {
@@ -20,7 +20,8 @@ import {
   postDraftCompletionHash,
 } from "./post-draft";
 
-const MESSAGES: Record<string, string> = {
+const MESSAGES = {
+  FORBIDDEN: "이 작업을 할 권한이 없습니다.",
   COMMUNITY_NOT_FOUND: "게시판을 찾을 수 없습니다.",
   POST_NOT_FOUND: "글을 찾을 수 없습니다.",
   POST_CONFLICT: "다른 곳에서 글이 바뀌었습니다. 새로고침 후 다시 저장해 주세요.",
@@ -28,24 +29,13 @@ const MESSAGES: Record<string, string> = {
   ATTACHMENT_NOT_FOUND: "첨부한 파일을 찾을 수 없습니다. 다시 올려 주세요.",
   ATTACHMENT_NOT_ALLOWED: "이 게시판은 첨부를 받지 않습니다.",
   REASON_REQUIRED: "다른 사람의 글·댓글을 지울 때는 사유를 적어야 합니다.",
-};
+} satisfies Record<string, string>;
 
 function fail(error: string, values?: PostFormValues): PostFormState {
   return { ok: false, error, values };
 }
 
-function toMessage(error: unknown): string {
-  // 권한 거부를 일반 폴백에 섞지 않는다 — 「처리하지 못했습니다」로 보이면
-  // 권한이 없어서 막힌 사람이 일시적 장애로 알고 계속 다시 누른다.
-  if (error instanceof ForbiddenError) return "이 작업을 할 권한이 없습니다.";
-  if (error instanceof CommunityError) {
-    return MESSAGES[error.message] ?? "처리하지 못했습니다.";
-  }
-  // 예상 못 한 오류는 서버 콘솔에 남긴다. 화면에는 일반 문구만 나가므로
-  // 여기서 안 남기면 원인이 어디에도 없다.
-  console.error("[community] 예상 못 한 오류", error);
-  return "처리하지 못했습니다.";
-}
+const messageFor = actionMessage(CommunityError, MESSAGES, "[community]");
 
 /** 폼이 보낸 문자열 그대로. **본문은 다듬지 않는다** — 줄바꿈이 글쓴이의 모양이다. */
 function values(formData: FormData): PostFormValues {
@@ -77,7 +67,7 @@ export async function createPostAction(
   try {
     created = await service.createPost(actor, parsed.data);
   } catch (error) {
-    return fail(toMessage(error), submitted);
+    return fail(messageFor(error, "처리하지 못했습니다."), submitted);
   }
 
   revalidatePath(`/community/${created.slug}`);
@@ -112,7 +102,7 @@ export async function updatePostAction(
   try {
     result = await service.updatePost(actor, parsed.data);
   } catch (error) {
-    return fail(toMessage(error), submitted);
+    return fail(messageFor(error, "처리하지 못했습니다."), submitted);
   }
 
   revalidatePath(`/community/${result.slug}`);
@@ -138,7 +128,7 @@ export async function deletePostAction(
   try {
     result = await service.deletePost(actor, parsed.data);
   } catch (error) {
-    return fail(toMessage(error));
+    return fail(messageFor(error, "처리하지 못했습니다."));
   }
 
   revalidatePath(`/community/${result.slug}`);
@@ -164,7 +154,7 @@ export async function createCommentAction(
   try {
     result = await commentService.createComment(actor, parsed.data);
   } catch (error) {
-    return fail(toMessage(error), submitted);
+    return fail(messageFor(error, "처리하지 못했습니다."), submitted);
   }
 
   revalidatePath(`/community/${result.slug}/${result.postId}`);
@@ -191,7 +181,7 @@ export async function deleteCommentAction(
   try {
     result = await commentService.deleteComment(actor, parsed.data);
   } catch (error) {
-    return fail(toMessage(error));
+    return fail(messageFor(error, "처리하지 못했습니다."));
   }
 
   revalidatePath(`/community/${result.slug}/${result.postId}`);

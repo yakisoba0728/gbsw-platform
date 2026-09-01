@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireAuth } from "@/core/auth/session";
 import { ForbiddenError } from "@/core/authz/errors";
 import type { MeritTrack } from "@/core/authz/merit-track";
+import { actionMessage } from "@/lib/action-message";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import * as service from "@/modules/merit/award.service";
 import { MeritError } from "@/modules/merit/merit.error";
@@ -19,7 +20,8 @@ import {
 import type { RecentAwardsExportInput } from "@/modules/merit/merit.schema";
 import type { MeritActionState } from "./action-state";
 
-const MESSAGES: Record<string, string> = {
+const MESSAGES: Record<string, string> & { FORBIDDEN: string } = {
+  FORBIDDEN: "이 작업을 할 권한이 없습니다.",
   RULE_NOT_FOUND: "규정을 찾을 수 없습니다.",
   // 화면은 규정을 "삭제"로 부른다 — 여기만 "비활성"이면 겪은 적 없는 상태가 된다.
   RULE_INACTIVE: "삭제된 규정입니다.",
@@ -65,6 +67,8 @@ function isTransactionTimeout(error: unknown): boolean {
   );
 }
 
+const messageFor = actionMessage(MeritError, MESSAGES, "[merit]");
+
 function toState(error: unknown, note?: string): MeritActionState {
   if (error instanceof AcademicYearError) {
     return fail(NO_CURRENT_YEAR_MESSAGE, note);
@@ -74,18 +78,7 @@ function toState(error: unknown, note?: string): MeritActionState {
     console.error("[merit] 트랜잭션이 예산 안에 끝나지 않았습니다.", error);
     return fail("다른 작업이 학년도를 쓰고 있습니다. 잠시 뒤 다시 부여하세요.", note);
   }
-  // 권한 거부를 일반 폴백에 섞지 않는다. 화면이 "처리하지 못했습니다"라고 하면
-  // 권한이 없어서 막힌 사람이 일시적 장애로 알고 계속 다시 누른다.
-  if (error instanceof ForbiddenError) {
-    return fail("이 작업을 할 권한이 없습니다.", note);
-  }
-  if (error instanceof MeritError) {
-    return fail(MESSAGES[error.message] ?? "처리하지 못했습니다.", note);
-  }
-  // 예상 못 한 오류는 서버 콘솔에 남긴다. 화면에는 일반 문구만 나가므로
-  // 여기서 안 남기면 원인이 어디에도 없다.
-  console.error("[merit] 예상 못 한 오류", error);
-  return fail("처리하지 못했습니다.", note);
+  return fail(messageFor(error, "처리하지 못했습니다."), note);
 }
 
 export async function awardAction(

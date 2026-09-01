@@ -2,17 +2,18 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAuth } from "@/core/auth/session";
-import { ForbiddenError } from "@/core/authz/errors";
+import { actionMessage } from "@/lib/action-message";
 import { MeritError } from "@/modules/merit/merit.error";
 import { thresholdSchema } from "@/modules/merit/merit.schema";
 import { setDemeritThresholds } from "@/modules/merit/threshold.service";
 import type { ThresholdFormState } from "./action-state";
 
 /** 서비스가 던지는 오류 코드를 화면 문구로 옮긴다. */
-const MESSAGES: Record<string, string> = {
+const MESSAGES = {
+  FORBIDDEN: "이 작업을 할 권한이 없습니다.",
   INVALID_THRESHOLD_ORDER: "위험 기준은 경고 기준보다 커야 합니다.",
   THRESHOLD_CONFLICT: "다른 교사가 기준을 바꿨습니다. 새로고침 후 다시 저장해 주세요.",
-};
+} satisfies Record<string, string>;
 
 /**
  * 실패 상태에 제출값을 함께 싣는다. 저장이 거부돼도 폼은 자동 리셋되므로,
@@ -30,18 +31,7 @@ function fail(error: string, formData: FormData): ThresholdFormState {
   };
 }
 
-function toMessage(error: unknown): string {
-  // 권한 거부를 일반 폴백에 섞지 않는다 — 화면이 「저장하지 못했습니다」라고 하면
-  // 권한이 없어서 막힌 사람이 일시적 장애로 알고 계속 다시 누른다.
-  if (error instanceof ForbiddenError) return "이 작업을 할 권한이 없습니다.";
-  if (error instanceof MeritError) {
-    return MESSAGES[error.message] ?? "저장하지 못했습니다.";
-  }
-  // 예상 못 한 오류는 서버 콘솔에 남긴다. 화면에는 일반 문구만 나가므로
-  // 여기서 안 남기면 원인이 어디에도 없다.
-  console.error("[merit] 예상 못 한 오류", error);
-  return "저장하지 못했습니다.";
-}
+const messageFor = actionMessage(MeritError, MESSAGES, "[merit]");
 
 export async function saveThresholdAction(
   _prev: ThresholdFormState,
@@ -62,7 +52,7 @@ export async function saveThresholdAction(
   try {
     await setDemeritThresholds(actor, parsed.data);
   } catch (error) {
-    return fail(toMessage(error), formData);
+    return fail(messageFor(error, "저장하지 못했습니다."), formData);
   }
 
   revalidatePath("/admin/settings");
