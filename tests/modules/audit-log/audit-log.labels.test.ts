@@ -138,6 +138,34 @@ describe("formatAuditMetadata()", () => {
     ).toBe("생년월일 · 학년 바뀜");
   });
 
+  it("계정 수정·상태 변경·비밀번호 초기화 사유를 한글로 그린다", () => {
+    expect(
+      formatAuditMetadata("user:update", {
+        changed: ["name"],
+        reason: "전학",
+      }),
+    ).toBe("이름 바뀜 · 사유: 전학");
+    expect(formatAuditMetadata("user:activate", { reason: "복학" })).toBe(
+      "사유: 복학",
+    );
+    expect(formatAuditMetadata("user:deactivate", { reason: "전학" })).toBe(
+      "사유: 전학",
+    );
+    expect(formatAuditMetadata("user:reset-password", { reason: "분실" })).toBe(
+      "사유: 분실",
+    );
+  });
+
+  it("community:delete — 게시판 제거 사유를 한글로 그린다", () => {
+    expect(
+      formatAuditMetadata("community:delete", {
+        slug: "notice",
+        name: "공지사항",
+        reason: "게시판 통합",
+      }),
+    ).toBe("사유: 게시판 통합");
+  });
+
   it("user:update — 모르는 필드 키는 원본 그대로 섞어 보여준다", () => {
     expect(formatAuditMetadata("user:update", { changed: ["foo", "name"] })).toBe(
       "foo · 이름 바뀜",

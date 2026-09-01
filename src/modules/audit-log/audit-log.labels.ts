@@ -401,6 +401,14 @@ function reasonSummary(metadata: Record<string, unknown>): string | null {
   return reasonPart(metadata);
 }
 
+/** user:update — 바뀐 항목과 조치 사유를 함께 남긴다. */
+function userUpdateSummary(metadata: Record<string, unknown>): string | null {
+  const parts = [changedSummary(metadata.changed), reasonPart(metadata)].filter(
+    (part): part is string => part !== null,
+  );
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
 /** merit:rule:update — 바뀐 필드 요약 + 점수 전/후. 점수가 그대로면 생략한다. */
 function meritRuleUpdateSummary(metadata: Record<string, unknown>): string | null {
   const summary = changedSummary(metadata.changed);
@@ -486,7 +494,10 @@ function passSummary(metadata: Record<string, unknown>): string | null {
 const METADATA_FORMATTERS: Partial<
   Record<AuditAction, (metadata: Record<string, unknown>) => string | null>
 > = {
-  "user:update": (m) => changedSummary(m.changed),
+  "user:update": userUpdateSummary,
+  "user:activate": reasonSummary,
+  "user:deactivate": reasonSummary,
+  "user:reset-password": reasonSummary,
   "enrollment:update": enrollmentUpdateSummary,
   "enrollment:import": importSummary,
   "roster:export": exportSummary,
@@ -508,6 +519,7 @@ const METADATA_FORMATTERS: Partial<
   "pass:reject": passSummary,
   "pass:issue": passSummary,
   "pass:cancel": passSummary,
+  "community:delete": reasonSummary,
 };
 
 /**
