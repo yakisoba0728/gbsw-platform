@@ -533,14 +533,29 @@ describe("getMyStudentQr", () => {
     expect(a.validUntil).not.toBe(b.validUntil);
   });
 
+  it("학생 역할인데 프로필 행이 없으면 User를 대상으로 거부를 기록한다", async () => {
+    findStudentProfileByUserId.mockResolvedValue(null);
+
+    await expect(service.getMyStudentQr(student)).rejects.toThrow(ForbiddenError);
+
+    expect(auditEntries()).toEqual([
+      expect.objectContaining({
+        actorUserId: "u-student",
+        action: "authz:denied",
+        targetType: "User",
+        targetId: "u-student",
+        metadata: { action: "pass:request" },
+      }),
+    ]);
+  });
+
   // 교사·보호자에게는 없다. 남이 대신 띄울 수 있으면 학생증이 아니게 된다.
   it.each([
-    ["교사", "admin"],
-    ["학부모", "parent"],
-  ])("%s는 학생 프로필이 없어 ForbiddenError다", async (_label, who) => {
-    findStudentProfileByUserId.mockResolvedValue(null);
-    const actor = who === "admin" ? admin : parent;
+    ["교사", admin],
+    ["학부모", parent],
+  ])("%s는 학생 프로필을 조회하기 전에 막힌다", async (_label, actor) => {
     await expect(service.getMyStudentQr(actor)).rejects.toThrow(ForbiddenError);
+    expect(findStudentProfileByUserId).not.toHaveBeenCalled();
     expect(recordAudit).toHaveBeenCalled();
   });
 });

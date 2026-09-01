@@ -318,9 +318,18 @@ export async function getMyStudentQr(
   actor: SessionUser,
   now: Date = new Date(),
 ): Promise<{ qr: { size: number; d: string }; validUntil: string }> {
+  await assertCan(actor, "pass:request");
+
+  // ADMIN의 전역 우회는 교사 업무용 권한이다. 학생 본인의 신원을
+  // 나타내는 QR은 교사도 대신 받을 수 없다.
+  if (actor.role !== "STUDENT") {
+    await recordDenied(actor, "pass:request", actor.id, "User");
+    throw new ForbiddenError("pass:request");
+  }
+
   const profile = await repo.findStudentProfileByUserId(actor.id);
   if (!profile) {
-    await recordDenied(actor, "pass:request", actor.id);
+    await recordDenied(actor, "pass:request", actor.id, "User");
     throw new ForbiddenError("pass:request");
   }
 
@@ -348,14 +357,15 @@ async function assertOwnStudent(
 async function recordDenied(
   actor: SessionUser,
   action: string,
-  passId: string,
+  targetId: string,
+  targetType: "Pass" | "User" = "Pass",
 ): Promise<void> {
   try {
     await recordAudit({
       actorUserId: actor.id,
       action: "authz:denied",
-      targetType: "Pass",
-      targetId: passId,
+      targetType,
+      targetId,
       metadata: { action },
     });
   } catch {
