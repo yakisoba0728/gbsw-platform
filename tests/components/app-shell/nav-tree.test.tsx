@@ -115,8 +115,10 @@ describe("앱 메뉴 나무 렌더", () => {
     expect(currentLabels(view.container)).toEqual(["통계"]);
   });
 
-  it("모바일에서 접은 묶음도 pathname이 그 안으로 바뀌면 다시 편다", async () => {
-    navigation.pathname = "/admin/logs";
+  it("모바일에서 접은 묶음도 pathname이 그 안에서 바뀌면 다시 편다", async () => {
+    // 두 경로 모두 inGroup=true다. pathname 대신 사이드바처럼 inGroup만 감시하면
+    // 이 전환을 놓치고 손으로 접은 상태가 그대로 굳는다.
+    navigation.pathname = "/merit";
     const view = await mount(<MobileNav role="ADMIN" />);
     const merit = button(view.container, "상벌점");
 
