@@ -329,7 +329,6 @@ describe("consentPass", () => {
     expect(transitionUnexpired).toHaveBeenCalledWith(
       "p-1",
       ["REQUESTED"],
-      NOW,
       expect.objectContaining({
         status: "CONSENTED",
         consentedByUserId: "u-parent",

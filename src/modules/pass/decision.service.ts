@@ -76,7 +76,6 @@ export async function approvePass(
       outcome = await repo.transitionUnexpired(
         input.passId,
         ["REQUESTED"],
-        now,
         {
           ...decisionFields,
           decisionNote,
@@ -98,7 +97,6 @@ export async function approvePass(
         outcome = await repo.transitionUnexpired(
           input.passId,
           ["CONSENTED"],
-          now,
           { ...decisionFields, decisionNote },
           tx,
         );
@@ -107,7 +105,6 @@ export async function approvePass(
       outcome = await repo.transitionUnexpired(
         input.passId,
         DECIDABLE_STATUSES,
-        now,
         { ...decisionFields, decisionNote },
         tx,
       );

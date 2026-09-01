@@ -169,7 +169,6 @@ export async function consentPass(
     const outcome = await repo.transitionUnexpired(
       input.passId,
       ["REQUESTED"],
-      now,
       {
         status: "CONSENTED",
         consentedByUserId: actor.id,

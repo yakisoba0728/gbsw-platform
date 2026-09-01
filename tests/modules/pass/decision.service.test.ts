@@ -143,7 +143,6 @@ describe("approvePass", () => {
     expect(transitionUnexpired).toHaveBeenCalledWith(
       "p-1",
       ["REQUESTED", "CONSENTED"],
-      NOW,
       expect.objectContaining({
         status: "APPROVED",
         decidedByUserId: "u-admin",
@@ -190,7 +189,6 @@ describe("approvePass", () => {
     expect(transitionUnexpired).toHaveBeenCalledWith(
       "p-1",
       ["REQUESTED", "CONSENTED"],
-      NOW,
       expect.objectContaining({
         status: "APPROVED",
         decisionNote: "확인 완료",
@@ -215,7 +213,7 @@ describe("approvePass", () => {
       NOW,
     );
 
-    const update = transitionUnexpired.mock.calls[0]?.[3];
+    const update = transitionUnexpired.mock.calls[0]?.[2];
     expect(update).toMatchObject({
       status: "APPROVED",
       decisionNote: "교사 승인 메모",
@@ -240,7 +238,6 @@ describe("approvePass", () => {
     expect(transitionUnexpired).toHaveBeenCalledWith(
       "p-1",
       ["REQUESTED"],
-      NOW,
       expect.objectContaining({
         status: "APPROVED",
         consentByProxy: true,
@@ -283,14 +280,13 @@ describe("approvePass", () => {
       1,
       "p-1",
       ["REQUESTED"],
-      NOW,
       expect.objectContaining({
         consentByProxy: true,
         consentNote: "어머니와 전화 확인",
       }),
       txClient,
     );
-    const secondUpdate = transitionUnexpired.mock.calls[1]![3];
+    const secondUpdate = transitionUnexpired.mock.calls[1]![2];
     expect(secondUpdate).not.toHaveProperty("consentByProxy");
     expect(secondUpdate).not.toHaveProperty("consentedByUserId");
     expect(secondUpdate).not.toHaveProperty("consentNote");

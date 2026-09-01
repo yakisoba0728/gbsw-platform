@@ -455,7 +455,6 @@ export type UnexpiredTransitionOutcome = "UPDATED" | "EXPIRED" | "UNCHANGED";
 export async function transitionUnexpired(
   passId: string,
   from: readonly PassStatus[],
-  _observedAt: Date,
   data: UnexpiredTransitionData,
   db?: DbClient,
 ): Promise<UnexpiredTransitionOutcome> {

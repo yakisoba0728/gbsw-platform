@@ -313,7 +313,7 @@ describe("transition — 조건부 갱신 (동시 결재)", () => {
     expect(results.filter((count) => count === 1)).toHaveLength(1);
   });
 
-  it("서비스가 오래전에 읽은 시각을 넘겨도 DB 시계에서 만료됐으면 전이하지 않는다", async () => {
+  it("DB 시계에서 이미 만료됐으면 전이하지 않는다", async () => {
     const created = await repo.createPass({
       studentProfileId: ids.profile,
       type: "OUTING",
@@ -329,7 +329,6 @@ describe("transition — 조건부 갱신 (동시 결재)", () => {
     const changed = await repo.transitionUnexpired(
       created.id,
       ["REQUESTED"],
-      new Date("2000-01-01T00:00:00.000Z"),
       { status: "APPROVED" },
     );
 
@@ -370,7 +369,6 @@ describe("transition — 조건부 갱신 (동시 결재)", () => {
     const transition = repo.transitionUnexpired(
       created.id,
       ["REQUESTED"],
-      new Date(),
       { status: "APPROVED" },
     );
     await new Promise((resolve) => setTimeout(resolve, 500));
