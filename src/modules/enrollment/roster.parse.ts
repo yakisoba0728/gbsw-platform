@@ -18,7 +18,7 @@ import {
   NUMBER_RANGE_MESSAGE,
 } from "@/modules/enrollment/enrollment.schema";
 import { ROSTER_COLUMNS } from "@/modules/enrollment/roster.export";
-import { ROSTER_FILE_MAX_BYTES } from "./roster.schema";
+import { MAX_ROSTER_ROWS, ROSTER_FILE_MAX_BYTES } from "./roster.schema";
 
 /**
  * 명단 파일을 정규화된 행으로 옮긴다. 형식별 코드는 `string[][]`까지만 만들고
@@ -43,8 +43,6 @@ export type RosterRow = {
 };
 
 export class RosterParseError extends Error {}
-
-const MAX_ROSTER_ROWS = 2000;
 
 const XLSX_SIGNATURES = {
   endOfCentralDirectory: 0x06054b50,

@@ -8,8 +8,13 @@ import {
   preflightXlsx,
   XLSX_PREFLIGHT_LIMITS,
 } from "@/modules/enrollment/roster.parse";
+import { MAX_ROSTER_ROWS } from "@/modules/enrollment/roster.schema";
 
 const HEADER = ["이름", "생년월일", "학년", "반", "번호", "학적"];
+
+it("xlsx 사전 검사는 명단 상한에 머리글 한 줄만 더 허용한다", () => {
+  expect(XLSX_PREFLIGHT_LIMITS.maxSheetRows).toBe(MAX_ROSTER_ROWS + 1);
+});
 
 describe("parseCsv()", () => {
   it("BOM과 CRLF를 걷어낸다 — 엑셀이 CSV UTF-8로 저장하면 둘 다 붙는다", () => {
@@ -447,7 +452,7 @@ describe("preflightXlsx()", () => {
     expect(() => preflightXlsx(buffer)).toThrow("XLSX_ZIP_INVALID");
   });
 
-  it("워크시트 행이 2000개를 넘으면 비싼 xlsx 파서 전에 거부한다", async () => {
+  it("워크시트 행이 상한을 넘으면 비싼 xlsx 파서 전에 거부한다", async () => {
     const rows = Array.from(
       { length: XLSX_PREFLIGHT_LIMITS.maxSheetRows + 1 },
       (_, i) => `<row r="${i + 1}"/>`,

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { rosterRowsSchema } from "@/modules/enrollment/roster.schema";
+import {
+  MAX_ROSTER_ROWS,
+  rosterRowsSchema,
+} from "@/modules/enrollment/roster.schema";
 
 function row(over: Record<string, unknown> = {}) {
   return {
@@ -110,16 +113,16 @@ describe("rosterRowsSchema", () => {
     expect(rosterRowsSchema.safeParse([]).success).toBe(false);
   });
 
-  it("2000행을 넘으면 통과하지 못한다 — apply 경로의 유일한 크기 방어다", () => {
-    const rows = Array.from({ length: 2001 }, (_, i) =>
+  it("행 상한을 넘으면 통과하지 못한다 — apply 경로의 유일한 크기 방어다", () => {
+    const rows = Array.from({ length: MAX_ROSTER_ROWS + 1 }, (_, i) =>
       row({ line: i + 2, name: `학생${i}`, birthDate: "2010-01-01" }),
     );
 
     expect(rosterRowsSchema.safeParse(rows).success).toBe(false);
   });
 
-  it("2000행은 통과한다 (경계값)", () => {
-    const rows = Array.from({ length: 2000 }, (_, i) =>
+  it("행 상한은 통과한다 (경계값)", () => {
+    const rows = Array.from({ length: MAX_ROSTER_ROWS }, (_, i) =>
       row({ line: i + 2, name: `학생${i}`, birthDate: "2010-01-01" }),
     );
 

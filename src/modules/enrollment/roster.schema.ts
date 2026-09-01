@@ -34,6 +34,9 @@ const birthDateSchema = canonicalDateInputSchema(
  */
 export const ROSTER_FILE_MAX_BYTES = 5 * 1024 * 1024;
 
+/** 파일 미리보기와 확정이 한 번에 받는 학생 행 수. */
+export const MAX_ROSTER_ROWS = 2000;
+
 /**
  * 확정 반영 경계. 미리보기가 돌려준 행을 그대로 믿지 않는다 — errors를 지워
  * 보내도 아래 refine이 "재학이면 자리가 있어야 한다"를 다시 확인한다.
@@ -90,11 +93,15 @@ const rosterRowSchema = z
 export const rosterRowsSchema = z
   .array(rosterRowSchema)
   .min(1, "반영할 내용이 없습니다.")
-  .max(2000, "한 번에 2000줄까지 반영할 수 있습니다.");
+  .max(
+    MAX_ROSTER_ROWS,
+    `한 번에 ${MAX_ROSTER_ROWS}줄까지 반영할 수 있습니다.`,
+  );
 
 /**
  * 미리보기가 보여준 삭제 대상 목록. 동의 표시가 아니라 "화면이 무엇을 보고
  * 있었는가"이며, 서비스가 확정 시점에 다시 세운 집합과 대조한다.
+ * 파일 행 수와 다른 수량이라 MAX_ROSTER_ROWS와 의도적으로 묶지 않는다.
  */
 export const confirmedDeletionIdsSchema = z.array(z.string().min(1)).max(2000);
 
