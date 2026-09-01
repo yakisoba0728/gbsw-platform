@@ -40,7 +40,7 @@ export async function listUsers(year: number) {
 export async function findById(userId: string, db: DbClient = prisma) {
   return db.user.findUnique({
     where: { id: userId },
-    select: { id: true, name: true, email: true, role: true, status: true, deletedAt: true },
+    select: { id: true, name: true, role: true, deletedAt: true },
   });
 }
 

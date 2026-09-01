@@ -16,12 +16,10 @@ function pick(alphabet: string): string {
   return alphabet[randomInt(alphabet.length)]!;
 }
 
-export function generateTempPassword(
-  length: number = TEMP_PASSWORD_LENGTH,
-): string {
+export function generateTempPassword(): string {
   const chars = [pick(UPPER), pick(LOWER), pick(DIGIT)];
 
-  while (chars.length < length) chars.push(pick(ALL));
+  while (chars.length < TEMP_PASSWORD_LENGTH) chars.push(pick(ALL));
 
   // 앞 세 자리가 항상 대/소/숫자 순으로 나오지 않게 섞는다 (Fisher-Yates).
   for (let i = chars.length - 1; i > 0; i -= 1) {
