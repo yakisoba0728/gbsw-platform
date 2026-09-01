@@ -159,6 +159,13 @@
     box-shadow: 0 0 0 3px --alpha(var(--color-ink) / 10%);
   }
 
+  /* 체크박스·파일 칸에는 바꿀 테두리가 없다. 키보드 위치를 잃지 않도록
+   * 글자 입력칸용 outline 리셋 뒤에 네이티브 포커스 고리를 되살린다. */
+  input:where([type="checkbox"], [type="file"]):focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+  }
+
   /* Tailwind 리셋이 UA의 margin:auto를 죽여 모달이 왼쪽 위에 붙는다. 되살린다. */
   dialog:modal {
     margin: auto;

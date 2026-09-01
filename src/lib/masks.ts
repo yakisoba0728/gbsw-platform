@@ -34,7 +34,9 @@ export function offsetAfterSignificant(value: string, n: number): number {
  */
 export function formatPhone(input: string): string {
   const d = input
-    .replace(/^\s*(?:\+|00)82[\s-]*/, "0")
+    // 연락처 앱마다 `+82 10`, `+82 010`, `(+82) 10`, `82 10`처럼 내보내는
+    // 모양이 다르다. 국가번호 뒤의 국내 0은 있으면 소비한 뒤 하나만 되살린다.
+    .replace(/^\s*\(?(?:\+|00)?82\)?[\s-]*0?/, "0")
     .replaceAll(/\D/g, "")
     .slice(0, 11);
   if (d.length <= 3) return d;

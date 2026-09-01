@@ -92,16 +92,22 @@ const COMPONENTS = {
   ),
   p: (p: Md<"p">) => <p className="my-3 first:mt-0 last:mb-0" {...omitNode(p)} />,
   ul: (p: Md<"ul">) => (
-    <ul className="my-3 list-disc space-y-1 pl-5" {...omitNode(p)} />
+    <ul {...omitNode(p)} className={cn("my-3 list-disc space-y-1 pl-5", p.className)} />
   ),
   ol: (p: Md<"ol">) => (
-    <ol className="my-3 list-decimal space-y-1 pl-5" {...omitNode(p)} />
+    <ol
+      {...omitNode(p)}
+      className={cn("my-3 list-decimal space-y-1 pl-5", p.className)}
+    />
   ),
   blockquote: (p: Md<"blockquote">) => (
     <blockquote className="my-3 border-l-2 border-line-strong pl-3 text-mut" {...omitNode(p)} />
   ),
   code: (p: Md<"code">) => (
-    <code className="rounded-btn bg-soft px-1 py-0.5 text-caption" {...omitNode(p)} />
+    <code
+      {...omitNode(p)}
+      className={cn("rounded-btn bg-soft px-1 py-0.5 text-caption", p.className)}
+    />
   ),
   // 긴 줄이 카드를 밀지 않게 자기 상자 안에서 가로로 구른다.
   pre: (p: Md<"pre">) => (
