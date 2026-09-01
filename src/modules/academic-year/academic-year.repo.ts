@@ -32,8 +32,9 @@ export async function createYear(year: number, db: DbClient = prisma): Promise<v
 
 /**
  * 현재 학년도를 옮긴다. 부분 유니크 인덱스 `AcademicYear_single_current`가
- * 마이그레이션 SQL에만 있어(Prisma가 표현 못 한다) 다음 migrate dev가 DROP할 수
- * 있다. 없어지면 이 순서가 무의미해지고 현재 학년도가 둘인 상태가 성립한다.
+ * Prisma가 표현하지 못해 초기 마이그레이션 SQL에만 있다. Prisma 7.9.1의 migrate
+ * diff가 드리프트로 보지 않는 것을 빈 마이그레이션으로 확인했으며, Prisma 메이저
+ * 업그레이드 때 다시 확인한다.
  */
 export type SetCurrentResult = {
   changed: boolean;

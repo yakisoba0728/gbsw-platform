@@ -423,10 +423,9 @@ docker compose logs --tail 100 app
 
 - **DB 볼륨은 `docker compose down`으로 지워지지 않는다.** 데이터를 정말 지우려면
   `docker compose down -v`인데, 이건 **되돌릴 수 없다.**
-- **마이그레이션을 새로 만들면 생성된 SQL을 눈으로 확인한다.** 부분 유니크 인덱스
-  `AcademicYear_single_current`가 마이그레이션 SQL에만 있어서, Prisma가 이것을
-  군더더기로 보고 `DROP INDEX`를 넣을 수 있다. 드롭돼도 오류는 안 나고, 현재 학년도가
-  둘이 되어 전교 집계 범위가 요청마다 흔들린다.
+- **`AcademicYear_single_current`는 Prisma가 표현하지 못해 초기 마이그레이션 SQL에만 있다.**
+  Prisma 7.9.1의 `migrate diff`가 드리프트로 보지 않는 것을 빈 마이그레이션으로
+  확인했으며, **Prisma 메이저 업그레이드 때 다시 확인한다.**
 - **감사로그의 접속 IP는 지금 무기한 보관된다.** 보존 기간 정책이 아직 없다.
 - 앱 컨테이너는 `mem_limit: 512m`이다. 전교 300명 규모에는 충분하지만, 느려지면
   `docker stats`로 실제 사용량을 보고 조정한다.

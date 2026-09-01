@@ -258,11 +258,9 @@ account에서 시작해 모듈이 커지면 merit의 모양으로 간다.
   바꾸면 **그 순간 살아 있던 QR이 전부 무효가 된다** (학생이 화면을 새로 고치면 된다).
 - **판독(`/scan`)은 메뉴에 없다.** 출입증 화면의 「스캔」 버튼으로 들어간다. 앱 셸 밖에
   사는 화면이며 제목은 `src/app/scan/page.tsx`의 메타데이터와 `<h1>`이 소유한다.
-- **부분 유니크 인덱스는 마이그레이션 SQL에만 있다.** `AcademicYear_single_current`
-  (현재 학년도는 하나뿐)가 그렇다 — Prisma가 표현하지 못해 `schema.prisma`에 선언이 없고,
-  그래서 다음 `migrate dev`가 이것을 군더더기로 보고 `DROP INDEX`를 만들 수 있다. 드롭돼도
-  오류는 안 난다: 현재 학년도가 둘이 되고 `findCurrent()`(findFirst)가 어느 쪽을 줄지 몰라
-  전교 집계 범위가 흔들린다. **마이그레이션을 새로 만들면 생성된 SQL을 눈으로 확인한다.**
+- **부분 유니크 인덱스는 마이그레이션 SQL에만 있다.** `AcademicYear_single_current`는
+  Prisma가 표현하지 못하며, Prisma 7.9.1의 `migrate diff`가 드리프트로 보지 않는 것을
+  빈 마이그레이션으로 확인했다. **Prisma 메이저 업그레이드 때 다시 확인한다.**
 - **스키마를 바꿨으면 `next dev`를 반드시 재시작한다** (`.next`도 지우고). 돌던 개발 서버는
   옛 Prisma 클라이언트를 물고 있어서, 새 필드를 쓰는 화면만 `PrismaClientValidationError`로
   조용히 실패한다. 타입 검사·테스트·빌드는 디스크의 새 클라이언트를 보므로 전부 통과한다 —

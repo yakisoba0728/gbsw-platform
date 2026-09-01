@@ -282,9 +282,9 @@ nginx·Caddy 설정, 최초 교사 계정 만들기, 배포 후 확인 다섯 �
 - **인증 확인 요청 남용이 감사로그에 안 보인다.** 실제 코드 발송과 임시 즉시 확인 proof
   발급 모두 대상별 5회/시간·IP별 20회/시간 제한이 막기는 하지만, "누가 얼마나
   시도했나"를 나중에 되짚을 자료는 없다.
-- **`AcademicYear_single_current` 부분 유니크 인덱스가 마이그레이션 SQL에만 있다.** Prisma가
-  표현하지 못해 다음 `migrate dev`가 `DROP INDEX`를 만들 수 있다. 마이그레이션을 새로 만들면
-  생성된 SQL을 눈으로 확인한다.
+- **`AcademicYear_single_current`는 Prisma가 표현하지 못해 초기 마이그레이션 SQL에만 있다.**
+  Prisma 7.9.1의 `migrate diff`가 드리프트로 보지 않는 것을 빈 마이그레이션으로
+  확인했으며, **Prisma 메이저 업그레이드 때 다시 확인한다.**
 
 ---
 
