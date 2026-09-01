@@ -253,7 +253,6 @@ model SchoolClass {
   enrollments  Enrollment[]
 
   @@unique([year, grade, classNo])
-  @@index([year])
 }
 
 /// 학생의 그 학년도 소속과 학적.
@@ -287,7 +286,6 @@ model Enrollment {
   /// 비재학 행끼리는 걸리지 않는다 — 의도한 동작이다.
   @@unique([classId, number])
   @@index([year])
-  @@index([studentProfileId])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -331,7 +329,6 @@ model Invite {
 
   createdAt DateTime @default(now())
 
-  @@index([status])
   @@index([createdById])
   @@index([studentId])
 }
@@ -372,7 +369,6 @@ model VerificationCode {
   createdAt DateTime @default(now())
 
   @@index([channel, target])
-  @@index([expiresAt])
   @@index([requestIp, createdAt])
 }
 
