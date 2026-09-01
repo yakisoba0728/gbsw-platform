@@ -100,10 +100,11 @@ src/
     community/           게시판·글·댓글·첨부. merit과 같은 모양이되 순수 조각이 더
                           있다 — community.access.ts(역할 판정. DB를 모른다)·
                           community.view.ts(**익명을 가리는 유일한 자리**)·
-                          community.storage.ts(디스크. DB를 모른다). 서비스는
-                          board·post·comment·attachment 넷이다. **첨부 업로드는
-                          서버 액션이 아니라 라우트 핸들러다** — bodySizeLimit이
-                          액션 전체에 걸려서다.
+                          community.storage.ts(디스크. DB를 모른다)·
+                          community.exif.ts(바이트→바이트. 사진의 촬영 위치·기기를
+                          벗긴다). 서비스는 board·post·comment·attachment 넷이다.
+                          **첨부 업로드는 서버 액션이 아니라 라우트 핸들러다** —
+                          bodySizeLimit이 액션 전체에 걸려서다.
   app/
     (auth)/             비로그인 — login
     (app)/              로그인 필수 — layout.tsx가 세션 가드 + mustChangePassword 가로채기
@@ -269,6 +270,12 @@ account에서 시작해 모듈이 커지면 merit의 모양으로 간다.
   (욕설·협박 글의 추적 수단이 그것뿐이다) 글쓰기 화면이 학생에게 그 사실을 알린다.
   화면·API 어디서도 작성자가 안 나오게 하는 일은 `community.view.ts` 한 곳이 맡는다 —
   **repo 행을 화면으로 직접 넘기지 않는다.**
+- **사진의 EXIF는 게시판을 가리지 않고 벗긴다** (`community.exif.ts`). 익명 게시판만
+  벗기면 우회로가 남아서다 — 첨부는 글보다 먼저 올라가고 `attachToPost`는 올린 사람과
+  `postId: null`만 보므로, 실명 게시판에 올려 그 id를 익명 글에 실으면 그만이다.
+  재인코딩이 아니라 세그먼트를 도려내므로 값은 버퍼 한 벌 복사이고, 벗길 것이 없으면
+  원본 참조가 그대로 돌아온다. **벗기기에 실패하면 업로드를 거절한다** — 조용히 원본을
+  저장하면 첨부가 「벗겨졌거나 아닐 수도 있는 것」이 되어 검사가 무의미해진다.
 - **커뮤니티 글 본문은 마크다운이다** (`components/ui/markdown.tsx`). 살균이 두
   겹이다 — **`rehype-raw`를 쓰지 않아 날 HTML을 아예 파싱하지 않고**(통과시킬
   HTML 자체가 없다), 그 위에 `rehype-sanitize` 허용 목록이 있다. `img`·`input`·
