@@ -11,7 +11,11 @@ import { FilterRow } from "@/components/ui/filter-row";
 import { Pagination } from "@/components/ui/pagination";
 import { SearchForm } from "@/components/ui/search-form";
 import { SectionCard } from "@/components/ui/section-card";
-import { Skeleton, SkeletonRows } from "@/components/ui/skeleton";
+import {
+  Skeleton,
+  SkeletonRegion,
+  SkeletonRows,
+} from "@/components/ui/skeleton";
 import { DataTable, type Column } from "@/components/ui/table";
 import { TruncatedText } from "@/components/ui/truncated-text";
 import { requirePermission } from "@/core/auth/session";
@@ -140,7 +144,14 @@ export default async function PassHistoryPage({
       </SectionCard>
 
       <div className={cardClass("flush")}>
-        <Suspense key={`rows:${boundaryKey}`} fallback={<SkeletonRows rows={10} />}>
+        <Suspense
+          key={`rows:${boundaryKey}`}
+          fallback={
+            <SkeletonRegion>
+              <SkeletonRows rows={10} />
+            </SkeletonRegion>
+          }
+        >
           <HistoryRows
             promise={resultPromise}
             query={query}

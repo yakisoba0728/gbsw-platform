@@ -9,6 +9,7 @@ import { SectionCard } from "@/components/ui/section-card";
 import {
   Skeleton,
   SkeletonField,
+  SkeletonRegion,
   SkeletonRows,
   SkeletonTabs,
 } from "@/components/ui/skeleton";
@@ -170,7 +171,14 @@ export default async function LogsPage({
       flush
       className="mx-auto max-w-6xl"
     >
-      <Suspense key={`rows:${boundaryKey}`} fallback={<SkeletonRows rows={10} />}>
+      <Suspense
+        key={`rows:${boundaryKey}`}
+        fallback={
+          <SkeletonRegion>
+            <SkeletonRows rows={10} />
+          </SkeletonRegion>
+        }
+      >
         <LogRows promise={resultPromise} params={raw} />
       </Suspense>
     </SectionCard>
@@ -252,4 +260,3 @@ async function LogRows({
     </>
   );
 }
-

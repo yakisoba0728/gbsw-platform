@@ -15,7 +15,11 @@ import { FilterRow } from "@/components/ui/filter-row";
 import { Pagination } from "@/components/ui/pagination";
 import { SearchForm } from "@/components/ui/search-form";
 import { SectionCard } from "@/components/ui/section-card";
-import { Skeleton, SkeletonRows } from "@/components/ui/skeleton";
+import {
+  Skeleton,
+  SkeletonRegion,
+  SkeletonRows,
+} from "@/components/ui/skeleton";
 import { DataTable, type Column } from "@/components/ui/table";
 import { TruncatedText } from "@/components/ui/truncated-text";
 import { formatDate, formatMonthDayTime, isSameKstDate } from "@/lib/datetime";
@@ -121,7 +125,14 @@ export default async function RecentAwardsPage({
       </SectionCard>
 
       <div className={cardClass("flush")}>
-        <Suspense key={`rows:${boundaryKey}`} fallback={<SkeletonRows rows={10} />}>
+        <Suspense
+          key={`rows:${boundaryKey}`}
+          fallback={
+            <SkeletonRegion>
+              <SkeletonRows rows={10} />
+            </SkeletonRegion>
+          }
+        >
           <RecentAwardsRows promise={resultPromise} query={query} />
         </Suspense>
 
@@ -518,4 +529,3 @@ function RecentAwardControls({
     </div>
   );
 }
-

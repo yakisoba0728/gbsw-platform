@@ -19,9 +19,9 @@ export function Skeleton({
   return <Tag className={cn("animate-pulse rounded-btn bg-soft", className)} />;
 }
 
-/** 뼈대는 눈으로만 읽히므로 "불러오는 중"을 따로 알린다. */
-export function SkeletonScreen({
-  className = "mx-auto max-w-5xl space-y-4",
+/** 실제 loading/Suspense fallback 하나가 알림 하나를 소유한다. */
+export function SkeletonRegion({
+  className,
   children,
 }: {
   className?: string;
@@ -33,6 +33,17 @@ export function SkeletonScreen({
       {children}
     </div>
   );
+}
+
+/** 화면 전체 fallback의 폭·간격과 로딩 알림을 함께 잡는다. */
+export function SkeletonScreen({
+  className = "mx-auto max-w-5xl space-y-4",
+  children,
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
+  return <SkeletonRegion className={className}>{children}</SkeletonRegion>;
 }
 
 /**
@@ -109,8 +120,7 @@ export function SkeletonStats({ count }: { count: number }) {
  */
 export function SkeletonRows({ rows = 6 }: { rows?: number }) {
   return (
-    <div className="space-y-3 px-5 py-4" aria-busy="true" aria-live="polite">
-      <span className="sr-only">불러오는 중</span>
+    <div className="space-y-3 px-5 py-4">
       {Array.from({ length: rows }, (_, i) => (
         <Skeleton key={i} className="h-6" />
       ))}
@@ -119,15 +129,26 @@ export function SkeletonRows({ rows = 6 }: { rows?: number }) {
 }
 
 /** 머리글 + 표가 든 카드 자리. */
-export function SkeletonTable({ rows = 6 }: { rows?: number }) {
+export function SkeletonTable({
+  rows = 6,
+  titleWidth = "w-40",
+  controls,
+}: {
+  rows?: number;
+  titleWidth?: string;
+  controls?: ReactNode;
+}) {
   return (
     <div className={cardClass("flush")}>
       <div className="border-b border-line px-5 py-4">
-        <Skeleton className="h-5 w-40" />
+        <Skeleton className={cn("h-5", titleWidth)} />
+        {controls}
       </div>
       <div className="space-y-3 px-5 py-4">
         {Array.from({ length: rows }, (_, i) => (
-          <Skeleton key={i} className="h-6" />
+          // table.tsx의 text-sm + py-2.5 행은 약 41px다. h-8과 gap-3의
+          // 44px 피치로 실제 표 높이를 가깝게 잡아 결과가 올 때 밀리지 않게 한다.
+          <Skeleton key={i} className="h-8" />
         ))}
       </div>
     </div>

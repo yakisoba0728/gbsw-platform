@@ -8,7 +8,11 @@ import { ChipLink } from "@/components/ui/chip-link";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterRow } from "@/components/ui/filter-row";
 import { Pagination } from "@/components/ui/pagination";
-import { SkeletonRows, SkeletonTabs } from "@/components/ui/skeleton";
+import {
+  SkeletonRegion,
+  SkeletonRows,
+  SkeletonTabs,
+} from "@/components/ui/skeleton";
 import { DataTable, type Column } from "@/components/ui/table";
 import { TruncatedText } from "@/components/ui/truncated-text";
 import type { SessionUser } from "@/core/auth/session";
@@ -92,7 +96,14 @@ export function PassTab({
       </Suspense>
 
       <div className={cardClass("flush")}>
-        <Suspense key={`rows:${boundaryKey}`} fallback={<SkeletonRows rows={8} />}>
+        <Suspense
+          key={`rows:${boundaryKey}`}
+          fallback={
+            <SkeletonRegion>
+              <SkeletonRows rows={8} />
+            </SkeletonRegion>
+          }
+        >
           <PassRows promise={resultPromise} status={query.status} />
         </Suspense>
 
