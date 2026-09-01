@@ -82,7 +82,7 @@
 | 취소·읽음 | `mut` | `mut-soft` | `line` | — |
 | 브랜드 | `pri-ink` | `pri-soft` | `pri-line` `#bfe9d6` | 5.3:1 |
 
-`rose-press` `#c00b4f` (위험 버튼 hover) · `green-press` `#0a6144`.
+`rose-press` `#c00b4f` (위험 버튼 hover).
 
 이전 값 중 `amber-ink #b6791b`(3.7:1)와 `green #0e9f6e`(3.4:1)는 **원래 AA 미달**이었다.
 바뀐 값으로 해결된다.
@@ -92,7 +92,6 @@
 
 | 클래스 | 크기 | 행간 | 자간 | 쓰임 |
 |---|---|---|---|---|
-| `text-display` | 28px | 1.2 | -0.42px | 페이지 대표 숫자 |
 | `text-title` | 22px | 1.2 | -0.2px | 큰 제목 |
 | `text-lg` | 18px | 1.4 | — | 카드 제목 (h1/h2) |
 | `text-base` | 16px | 1.5 | — | 본문 |

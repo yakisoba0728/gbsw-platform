@@ -48,7 +48,6 @@
   --color-green: #0d7a56;
   --color-green-soft: #e8f7f0;
   --color-green-line: #c7e8da;
-  --color-green-press: #0a6144;
 
   /* ── 대기 · 주의 ────────────────────────────────── */
   --color-amber-ink: #8a6116;
@@ -69,12 +68,6 @@
     BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     "Liberation Mono", monospace;
-
-  /* 페이지 대표 숫자 하나에만 쓴다. 제목(title)보다 크되 그 자리에 제목을
-     올리지 않는다 — 큰 글자가 둘이면 어느 쪽을 먼저 읽을지 정해지지 않는다. */
-  --text-display: 28px;
-  --text-display--line-height: 1.15;
-  --text-display--letter-spacing: -0.5px;
 
   --text-title: 22px;
   --text-title--line-height: 1.2;
