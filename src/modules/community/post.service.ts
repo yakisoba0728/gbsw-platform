@@ -277,20 +277,11 @@ export async function updatePost(
     );
     if (!ok) throw new CommunityError("POST_CONFLICT");
 
-    // 이미 이 글에 붙어 있는 첨부는 다시 붙지 않으므로(`attachToPost`가
-    // `postId: null`인 행만 고른다) 붙은 개수만으로는 「그대로 둔 첨부」와
-    // 「사라진 첨부」를 못 가른다. 붙어 있던 것을 먼저 세어 둔다 — attach보다
-    // 뒤에 세면 방금 붙인 것까지 함께 세어진다.
-    const existingIds = new Set(
-      (await repo.listAttachments(input.postId, tx)).map((a) => a.id),
-    );
     const requested = [...new Set(input.attachmentIds)];
-    const kept = requested.filter((id) => existingIds.has(id)).length;
-
     const attached = await repo.attachToPost(requested, input.postId, actor.id, tx);
-    // 새 글과 같은 검사다 — 고아 정리가 그 사이 지운 첨부를 조용히 통과시키면
-    // 「일부만 사라진 글」이 오류도 안내도 없이 저장된다.
-    if (kept + attached !== requested.length) {
+    // 같은 글에 이미 붙은 첨부까지 attachToPost가 세므로 새 글과 같은 검사다.
+    // 고아 정리가 지운 첨부·남의 첨부·다른 글의 첨부는 세지 않아 막힌다.
+    if (attached !== requested.length) {
       throw new CommunityError("ATTACHMENT_NOT_FOUND");
     }
 
@@ -316,7 +307,9 @@ export async function updatePost(
           slug: community.slug,
           titleFrom: post.title,
           titleTo: input.title,
-          attachmentsAdded: attached,
+          // 새로 붙인 수가 아니라 **수정 뒤 남은 전체 첨부 수**다. 첨부가 꺼진
+          // 게시판은 기존 파일을 일부러 조회·삭제하지 않으므로 이 값도 생략한다.
+          ...(community.allowAttachments ? { attachments: attached } : {}),
           attachmentsRemoved: detached.length,
         },
       },

@@ -218,7 +218,7 @@ describe("uploadAttachment — 익명 게시판의 메타데이터 벗기기", (
   });
 
   it("**실명 게시판도 벗긴다** — 익명만 벗기면 실명에 올려 그 id를 익명 글에 실으면 그만이다", async () => {
-    // 첨부는 글보다 먼저 올라가고 attachToPost는 올린 사람과 postId: null만 본다.
+    // 첨부는 글보다 먼저 올라가고 새 글의 attachToPost는 올린 사람과 postId: null만 본다.
     // 게시판으로 가르면 그 사이가 우회로가 된다.
     await service.uploadAttachment(student, { ...photo, bytes: jpegWithExif() });
 

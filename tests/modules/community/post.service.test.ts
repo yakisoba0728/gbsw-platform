@@ -18,6 +18,7 @@ const listReadable = vi.fn();
 const deleteAttachment = vi.fn();
 const {
   recordAudit,
+  auditEntries,
   txClient,
   prewiredWithTransaction: withTransaction,
 } = coreMocks("post-service-test");
@@ -216,6 +217,7 @@ describe("getPost", () => {
 });
 
 describe("updatePost", () => {
+  const attachableIds = new Set(["kept-a1", "kept-a2", "pending-a3"]);
   const input = {
     postId: "p1",
     updatedAt: new Date("2026-08-28T00:00:00.000Z"),
@@ -226,6 +228,11 @@ describe("updatePost", () => {
 
   beforeEach(() => {
     findPost.mockResolvedValue({ ...row(), community: board() });
+    // 넓어진 repo 계약을 흉내 낸다: 이미 같은 글에 붙은 것(kept)과 내 미결
+    // 첨부(pending)는 모두 세고, 지워졌거나 남의 것은 세지 않는다.
+    attachToPost.mockImplementation(async (ids: string[]) =>
+      ids.filter((id) => attachableIds.has(id)).length,
+    );
   });
 
   it("본인은 고친다", async () => {
@@ -288,23 +295,106 @@ describe("updatePost", () => {
     consoleError.mockRestore();
   });
 
-  it("기존 첨부와 새 첨부를 함께 요청하면 둘을 모두 보존한다", async () => {
-    listAttachments.mockResolvedValue([{ id: "a1" }]);
-    attachToPost.mockResolvedValue(1);
+  it("그대로 둔 첨부만 제출해도 모두 보존한다", async () => {
+    await service.updatePost(student, {
+      ...input,
+      attachmentIds: ["kept-a1", "kept-a2"],
+    });
 
-    await service.updatePost(student, { ...input, attachmentIds: ["a1", "a2"] });
-
-    expect(detachFromPost).toHaveBeenCalledWith("p1", ["a1", "a2"], txClient);
+    expect(attachToPost).toHaveBeenCalledWith(
+      ["kept-a1", "kept-a2"],
+      "p1",
+      "s-1",
+      txClient,
+    );
+    expect(detachFromPost).toHaveBeenCalledWith(
+      "p1",
+      ["kept-a1", "kept-a2"],
+      txClient,
+    );
+    expect(listAttachments).not.toHaveBeenCalled();
   });
 
-  it("요청한 첨부 중 하나라도 사라졌으면 저장과 감사로그를 막는다", async () => {
-    listAttachments.mockResolvedValue([{ id: "a1" }]);
-    attachToPost.mockResolvedValue(0);
+  it("기존 첨부에 새 첨부를 더하면 둘을 모두 보존한다", async () => {
+    await service.updatePost(student, {
+      ...input,
+      attachmentIds: ["kept-a1", "pending-a3"],
+    });
 
+    expect(attachToPost).toHaveBeenCalledWith(
+      ["kept-a1", "pending-a3"],
+      "p1",
+      "s-1",
+      txClient,
+    );
+    expect(detachFromPost).toHaveBeenCalledWith(
+      "p1",
+      ["kept-a1", "pending-a3"],
+      txClient,
+    );
+  });
+
+  it("기존 첨부 일부를 빼면 제출한 첨부만 남긴다", async () => {
+    const createdAt = new Date("2026-08-01T00:00:00.000Z");
+    detachFromPost.mockResolvedValue([
+      {
+        id: "kept-a1",
+        storageKey: "c".repeat(32),
+        filename: "뺀파일.pdf",
+        createdAt,
+      },
+    ]);
+
+    await service.updatePost(student, { ...input, attachmentIds: ["kept-a2"] });
+
+    expect(detachFromPost).toHaveBeenCalledWith("p1", ["kept-a2"], txClient);
+    expect(deleteAttachment).toHaveBeenCalledWith("c".repeat(32), createdAt);
+  });
+
+  it("고아 정리가 지운 첨부 id가 섞이면 저장과 감사로그를 막는다", async () => {
     await expect(
-      service.updatePost(student, { ...input, attachmentIds: ["a1", "a2"] }),
+      service.updatePost(student, {
+        ...input,
+        attachmentIds: ["kept-a1", "expired"],
+      }),
     ).rejects.toThrow(new CommunityError("ATTACHMENT_NOT_FOUND"));
+    expect(detachFromPost).not.toHaveBeenCalled();
     expect(recordAudit).not.toHaveBeenCalled();
+    expect(deleteAttachment).not.toHaveBeenCalled();
+  });
+
+  it("남이 올린 첨부 id를 제출하면 저장과 감사로그를 막는다", async () => {
+    await expect(
+      service.updatePost(student, { ...input, attachmentIds: ["stolen"] }),
+    ).rejects.toThrow(new CommunityError("ATTACHMENT_NOT_FOUND"));
+    expect(attachToPost).toHaveBeenCalledWith(["stolen"], "p1", "s-1", txClient);
+    expect(detachFromPost).not.toHaveBeenCalled();
+    expect(recordAudit).not.toHaveBeenCalled();
+    expect(deleteAttachment).not.toHaveBeenCalled();
+  });
+
+  it("수정 감사로그의 attachments는 수정 뒤 남은 첨부 수다", async () => {
+    detachFromPost.mockResolvedValue([
+      {
+        id: "kept-a1",
+        storageKey: "c".repeat(32),
+        filename: "뺀파일.pdf",
+        createdAt: new Date("2026-08-01T00:00:00.000Z"),
+      },
+    ]);
+
+    await service.updatePost(student, { ...input, attachmentIds: ["kept-a2"] });
+
+    expect(
+      auditEntries().find((entry) => entry.action === "community:post:update")
+        ?.metadata,
+    ).toEqual({
+      slug: "free",
+      titleFrom: "제목",
+      titleTo: "새 제목",
+      attachments: 1,
+      attachmentsRemoved: 1,
+    });
   });
 
   it("**뺀 첨부는 파일 이름과 함께 감사로그에 한 건씩 남는다** — 되돌릴 수 없는 삭제다", async () => {
@@ -355,6 +445,10 @@ describe("updatePost", () => {
 
     expect(detachFromPost).not.toHaveBeenCalled();
     expect(deleteAttachment).not.toHaveBeenCalled();
+    expect(
+      auditEntries().find((entry) => entry.action === "community:post:update")
+        ?.metadata,
+    ).not.toHaveProperty("attachments");
   });
 
   it("첨부를 받는 게시판은 제출 목록을 기준으로 떼어 낼 파일을 묻는다", async () => {

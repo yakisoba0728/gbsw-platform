@@ -240,8 +240,11 @@ export async function markPostDeleted(
 
 /**
  * 첨부를 글에 붙인다. **올린 사람이 글쓴이인 것만** — 남의 첨부 id를 폼에
- * 실어 보내도 조건에 안 걸려 붙지 않는다. 이미 붙은 것도 안 건드린다.
- * 실제로 붙은 개수를 돌려준다.
+ * 실어 보내도 조건에 안 걸려 붙지 않는다. 아직 안 붙었거나 이미 같은 글에 붙은
+ * 첨부만 센다 — 글 수정은 이 개수로 제출 목록 전체가 유효한지 확인한다.
+ *
+ * PostgreSQL updateMany는 postId가 이미 같은 행도 count에 넣는다. 이 성질은
+ * community.attachment-reattach.integration.test.ts가 실제 DB에서 고정한다.
  */
 export async function attachToPost(
   ids: string[],
@@ -251,7 +254,11 @@ export async function attachToPost(
 ): Promise<number> {
   if (ids.length === 0) return 0;
   const result = await db.communityAttachment.updateMany({
-    where: { id: { in: ids }, uploaderUserId, postId: null },
+    where: {
+      id: { in: ids },
+      uploaderUserId,
+      OR: [{ postId: null }, { postId }],
+    },
     data: { postId },
   });
   return result.count;
