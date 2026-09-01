@@ -19,9 +19,10 @@ import { formatDate, formatMonthDay } from "@/lib/datetime";
  * 그 이름으로 저장된 옛 행이 있고, 감사로그는 고쳐 쓰지 않는다.
  */
 export const AUDIT_ACTIONS = [
-  // 세션이 생기고 사라지는 순간. 대상 이메일은 마스킹해서 남긴다.
+  // 명시적 로그인·로그아웃. 만료와 비밀번호 변경에 따른 세션 정리는 포함하지 않는다.
   "auth:login",
   "auth:login-failed",
+  "auth:logout",
   "account:bootstrap",
   "account:change-password",
   "registration:complete",
@@ -83,6 +84,7 @@ function isAuditAction(value: string): value is AuditAction {
 const ACTION_LABELS: Record<AuditAction, string> = {
   "auth:login": "로그인",
   "auth:login-failed": "로그인 실패",
+  "auth:logout": "로그아웃",
   "account:bootstrap": "최초 교사 계정 생성",
   "account:change-password": "비밀번호 변경",
   "registration:complete": "가입 완료",
@@ -132,6 +134,7 @@ const ACTION_LABELS: Record<AuditAction, string> = {
 const ACTION_TONES: Record<AuditAction, BadgeTone> = {
   "auth:login": "neutral",
   "auth:login-failed": "cancelled",
+  "auth:logout": "neutral",
   "account:bootstrap": "approved",
   "account:change-password": "neutral",
   "registration:complete": "approved",

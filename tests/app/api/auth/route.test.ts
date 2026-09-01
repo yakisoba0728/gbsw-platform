@@ -1,6 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const handler = vi.fn(async () => new Response("passed"));
+const getSessionUser = vi.fn();
+const recordAudit = vi.fn();
+const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
 vi.mock("better-auth/next-js", () => ({
   toNextJsHandler: vi.fn(() => ({
@@ -9,6 +12,8 @@ vi.mock("better-auth/next-js", () => ({
   })),
 }));
 vi.mock("@/core/auth/auth", () => ({ auth: {} }));
+vi.mock("@/core/auth/session", () => ({ getSessionUser }));
+vi.mock("@/core/audit/audit", () => ({ recordAudit }));
 
 const { GET, POST, isAllowedAuthEndpoint } = await import(
   "@/app/api/auth/[...all]/route"
@@ -19,7 +24,12 @@ function context(all: string[]) {
 }
 
 beforeEach(() => {
-  handler.mockClear();
+  vi.clearAllMocks();
+  getSessionUser.mockResolvedValue({ id: "user-1" });
+});
+
+afterAll(() => {
+  consoleError.mockRestore();
 });
 
 describe("/api/auth/[...all] route policy", () => {
@@ -40,6 +50,89 @@ describe("/api/auth/[...all] route policy", () => {
 
     expect(await response.text()).toBe("passed");
     expect(handler).toHaveBeenCalledOnce();
+  });
+
+  it("records a successful explicit sign-out while the actor is still available", async () => {
+    const response = await POST(
+      new Request("https://example.test/api/auth/sign-out") as never,
+      context(["sign-out"]),
+    );
+
+    expect(response.status).toBe(200);
+    expect(getSessionUser).toHaveBeenCalledOnce();
+    expect(getSessionUser.mock.invocationCallOrder[0]).toBeLessThan(
+      handler.mock.invocationCallOrder[0]!,
+    );
+    expect(recordAudit).toHaveBeenCalledWith({
+      actorUserId: "user-1",
+      action: "auth:logout",
+      targetType: "User",
+      targetId: "user-1",
+    });
+  });
+
+  it("does not record logout when Better Auth rejects sign-out", async () => {
+    handler.mockResolvedValueOnce(new Response("failed", { status: 500 }));
+
+    const response = await POST(
+      new Request("https://example.test/api/auth/sign-out") as never,
+      context(["sign-out"]),
+    );
+
+    expect(response.status).toBe(500);
+    expect(recordAudit).not.toHaveBeenCalled();
+  });
+
+  it("keeps a successful sign-out response when audit recording fails", async () => {
+    const error = new Error("audit unavailable");
+    recordAudit.mockRejectedValueOnce(error);
+
+    const response = await POST(
+      new Request("https://example.test/api/auth/sign-out") as never,
+      context(["sign-out"]),
+    );
+
+    expect(await response.text()).toBe("passed");
+    expect(consoleError).toHaveBeenCalledWith(
+      "[auth] 로그아웃 기록을 남기지 못했습니다.",
+      error,
+    );
+  });
+
+  it("does not record logout when the sign-out handler throws", async () => {
+    handler.mockRejectedValueOnce(new Error("sign-out failed"));
+
+    await expect(
+      POST(
+        new Request("https://example.test/api/auth/sign-out") as never,
+        context(["sign-out"]),
+      ),
+    ).rejects.toThrow("sign-out failed");
+
+    expect(recordAudit).not.toHaveBeenCalled();
+  });
+
+  it("does not record logout when no actor session exists", async () => {
+    getSessionUser.mockResolvedValueOnce(null);
+
+    const response = await POST(
+      new Request("https://example.test/api/auth/sign-out") as never,
+      context(["sign-out"]),
+    );
+
+    expect(response.status).toBe(200);
+    expect(recordAudit).not.toHaveBeenCalled();
+  });
+
+  it("does not inspect or record the actor for the session read endpoint", async () => {
+    const response = await GET(
+      new Request("https://example.test/api/auth/get-session") as never,
+      context(["get-session"]),
+    );
+
+    expect(response.status).toBe(200);
+    expect(getSessionUser).not.toHaveBeenCalled();
+    expect(recordAudit).not.toHaveBeenCalled();
   });
 
   it("blocks raw email login so sessions only start through the audited login route", async () => {

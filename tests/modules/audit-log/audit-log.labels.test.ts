@@ -64,7 +64,7 @@ describe("액션 라벨 커버리지", () => {
     // 스캐너가 조용히 좁아진 채 통과하면 이 테스트는 의미가 없어진다 — 하한을
     // 실제 개수 바로 아래에 둔다. 예전 13은 27을 놓친 스캐너도 통과시켰다.
     // 감사로그 액션을 **의도해서** 없앴다면 이 숫자도 함께 내린다.
-    expect(recorded.size).toBeGreaterThanOrEqual(39);
+    expect(recorded.size).toBeGreaterThanOrEqual(43);
 
     const known = new Set<string>(AUDIT_ACTIONS);
     const missing = [...recorded].filter((a) => !known.has(a));
@@ -79,6 +79,9 @@ describe("auditActionLabel() / auditActionTone()", () => {
 
     expect(auditActionLabel("invite:create:parent")).toBe("학부모 코드 발급");
     expect(auditActionTone("invite:create:parent")).toBe("approved");
+
+    expect(auditActionLabel("auth:logout")).toBe("로그아웃");
+    expect(auditActionTone("auth:logout")).toBe("neutral");
 
     expect(auditActionLabel("roster:preview")).toBe("명단 미리보기");
     expect(auditActionTone("roster:preview")).toBe("info");
