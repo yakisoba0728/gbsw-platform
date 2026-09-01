@@ -56,12 +56,18 @@ describe("getTeacherStats", () => {
     expect(teacherTotals).not.toHaveBeenCalled();
   });
 
-  it("트랙 규칙을 그대로 따른다 — 교내는 학년도, 기숙사는 누적", async () => {
+  it("합계 학년도와 별개로 기본·과거·기숙사 명단 학년도를 넘긴다", async () => {
     await service.getTeacherStats(admin, "SCHOOL");
-    expect(teacherTotals.mock.calls[0][0].totalsYear).toBe(2026);
-
+    await service.getTeacherStats(admin, "SCHOOL", 2025);
     await service.getTeacherStats(admin, "DORM");
-    expect(teacherTotals.mock.calls[1][0].totalsYear).toBeNull();
+    await service.getTeacherStats(admin, "DORM", 2025);
+
+    expect(teacherTotals.mock.calls.map((call) => call[0])).toEqual([
+      { track: "SCHOOL", totalsYear: 2026, rosterYear: 2026 },
+      { track: "SCHOOL", totalsYear: 2025, rosterYear: 2025 },
+      { track: "DORM", totalsYear: null, rosterYear: 2026 },
+      { track: "DORM", totalsYear: null, rosterYear: 2025 },
+    ]);
   });
 
   it("한 사람의 여러 종류를 한 줄로 접는다", async () => {
@@ -140,12 +146,18 @@ describe("getRuleStats", () => {
     expect(awardsByRule).not.toHaveBeenCalled();
   });
 
-  it("이 단계에서는 명단 범위를 넘기지 않아 기존 전체 모집단을 유지한다", async () => {
+  it("합계 학년도와 별개로 기본·과거·기숙사 명단 학년도를 넘긴다", async () => {
     await service.getRuleStats(admin, "SCHOOL");
+    await service.getRuleStats(admin, "SCHOOL", 2025);
+    await service.getRuleStats(admin, "DORM");
+    await service.getRuleStats(admin, "DORM", 2025);
 
-    expect(awardsByRule).toHaveBeenCalledWith({ track: "SCHOOL", totalsYear: 2026 });
-    expect(awardsByRule.mock.calls[0][0]).not.toHaveProperty("rosterYear");
-    expect(awardsByRule.mock.calls[0][0]).not.toHaveProperty("studentProfileIds");
+    expect(awardsByRule.mock.calls.map((call) => call[0])).toEqual([
+      { track: "SCHOOL", totalsYear: 2026, rosterYear: 2026 },
+      { track: "SCHOOL", totalsYear: 2025, rosterYear: 2025 },
+      { track: "DORM", totalsYear: null, rosterYear: 2026 },
+      { track: "DORM", totalsYear: null, rosterYear: 2025 },
+    ]);
   });
 
   it("분류를 규정에서 붙이고, 지워진 규정도 표시해 낸다", async () => {
@@ -255,6 +267,8 @@ describe("getRuleStats", () => {
 
     const { unused } = await service.getRuleStats(admin, "SCHOOL");
     expect(unused).toHaveLength(1);
-    expect(unusedRules.mock.calls[0][0]).toMatchObject({ track: "SCHOOL", totalsYear: 2026 });
+    // unusedRules는 「재학생이 안 쓴 규정」이 아니라 「아무도 안 쓴 규정」을 찾는다.
+    // 모집단 통일 뒤에도 rosterYear를 넘기지 않는다.
+    expect(unusedRules).toHaveBeenCalledWith({ track: "SCHOOL", totalsYear: 2026 });
   });
 });

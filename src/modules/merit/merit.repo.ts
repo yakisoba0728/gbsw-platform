@@ -368,12 +368,11 @@ export async function totals(params: {
 }) {
   return prisma.meritAward.groupBy({
     by: ["kind"],
-    where: {
+    where: activeAwardWhere({
       studentProfileId: params.studentProfileId,
       track: params.track,
-      status: "ACTIVE",
-      ...(params.year === null ? {} : { year: params.year }),
-    },
+      totalsYear: params.year,
+    }),
     _sum: { points: true },
   });
 }
@@ -402,7 +401,7 @@ export async function findStudentProfileByUserId(userId: string) {
  * 않는다 — 명단 반영은 학적을 비재학으로 바꾸고 계정을 INACTIVE로 내릴 뿐이다
  * (`roster.repo.applyRoster`). 계정 쪽을 보던 옛 조건은 어떤 퇴학생도 막지 못했다.
  *
- * 반 명단(`listClassRoster`)·통계 모집단(`enrolledStudentScope`)과 **같은 술어**를
+ * 반 명단(`listClassRoster`)·통계 모집단(`activeAwardWhere`)과 **같은 술어**를
  * 쓴다: 부여할 수 있는 학생과 명단에 있는 학생은 같은 집합이어야 한다. 반이 없어도
  * (ENROLLED · grade/classNo null) 통과한다 — 반 미배정은 재적이 아닌 것과 다르다.
  *
@@ -557,12 +556,12 @@ export async function listClassRoster(params: {
 
   const sums = await prisma.meritAward.groupBy({
     by: ["studentProfileId", "kind"],
-    where: {
-      studentProfileId: { in: ids },
+    where: activeAwardWhere({
       track: params.track,
-      status: "ACTIVE",
-      ...(params.totalsYear === null ? {} : { year: params.totalsYear }),
-    },
+      totalsYear: params.totalsYear,
+      rosterYear: params.year,
+      studentProfileIds: ids,
+    }),
     _sum: { points: true },
   });
 
@@ -879,42 +878,55 @@ export async function findRecentAwardsForExport(filter: RecentAwardFilter) {
 
 // ── 통계 ──────────────────────────────────────────────────────
 
-/**
- * 통계 화면이 세는 학생 — **모집단을 정하는 유일한 자리다.**
- *
- * 한 화면 안에서 머리글 합계와 「반별 현황」이 다른 학생을 세면 둘을 더해 맞춰
- * 보는 교사에게 설명할 자리가 없다. 그래서 현황 화면은 아래 세 집계
- * (trackTotals·awardsByRule·listAwardsForChart)에 명단 학년도나 학생 목록을 넘겨
- * listClassRoster와 **같은** 재학(ENROLLED) 모집단을 쓴다. 규정별 상세 화면은 아직
- * 인자를 넘기지 않아 기존 전체 학생 집계를 유지한다 — 그 동작 변경은 다음 단계다.
- * 계정 쪽 조건은 없다: 퇴학·전학이 계정에 나타나지 않아 아무것도 거르지 못했다.
- *
- * 반 배정은 여기서 보지 않는다. 반별 요약은 listClassRoster 결과를 접을 때
- * `grade`와 `classNo`가 모두 있는 학생만 담는다 — 반 미배정 학생은 머리글에는
- * 들고 반별 표에는 없다. 남는 차이는 그것 하나뿐이다.
- */
-function enrolledStudentScope(rosterYear: number): Prisma.MeritAwardWhereInput {
-  return {
-    studentProfile: {
-      enrollments: { some: { year: rosterYear, status: "ENROLLED" } },
-    },
-  };
-}
+type ActiveAwardScope =
+  | {
+      /** 개인 상세는 퇴·졸업 뒤에도 본인 과거 기록을 그대로 읽는다. */
+      studentProfileId: string;
+      rosterYear?: never;
+      studentProfileIds?: never;
+    }
+  | {
+      /** 통계 모집단은 이 학년도의 재학생이다. 합계 학년도와는 별개다. */
+      rosterYear: number;
+      /** 반 범위가 있으면 재적 조건과 교집합한다. 빈 배열도 빈 모집단이다. */
+      studentProfileIds?: string[];
+      studentProfileId?: never;
+    };
 
 /**
- * 학생 조건 한 조각. 목록을 명시로 받았으면 그 목록이 곧 모집단이라 명단 술어를
- * 겹쳐 걸지 않는다 (반을 골라 보는 화면이 이미 명단에서 뽑아 넘긴다).
- * 둘 다 없으면 전체 학생이다 — 규정별 상세 화면의 기존 모집단을 보존하는
- * 의도적인 갈래이며, 모집단 통일 단계에서 없앤다.
+ * ACTIVE 부여 기록의 공통 술어. 트랙·합계 학년도·학생 모집단을 한곳에서 조립한다.
+ *
+ * 통계 갈래는 rosterYear를 타입으로 강제하고 재학(ENROLLED) 관계를 언제나 건다.
+ * 학생 id 목록은 그 관계를 대체하지 않고 더 좁힌다 — 퇴학생 id가 섞여도 다시
+ * 살아나지 않는다. 개인 상세 갈래만 직접 id로 과거 기록을 보며 재적을 묻지 않는다.
+ * 최근 7일(trackTotalsBetween)과 미사용 규정(unusedRules)은 의미가 달라 쓰지 않는다.
  */
-function studentScope(params: {
-  rosterYear?: number;
-  studentProfileIds?: string[];
-}): Prisma.MeritAwardWhereInput {
-  if (params.studentProfileIds) {
-    return { studentProfileId: { in: params.studentProfileIds } };
-  }
-  return params.rosterYear === undefined ? {} : enrolledStudentScope(params.rosterYear);
+function activeAwardWhere(
+  params: {
+    track: MeritTrack;
+    totalsYear: number | null;
+  } & ActiveAwardScope,
+): Prisma.MeritAwardWhereInput {
+  const population: Prisma.MeritAwardWhereInput =
+    params.studentProfileId !== undefined
+      ? { studentProfileId: params.studentProfileId }
+      : {
+          studentProfile: {
+            enrollments: {
+              some: { year: params.rosterYear, status: "ENROLLED" },
+            },
+          },
+          ...(params.studentProfileIds === undefined
+            ? {}
+            : { studentProfileId: { in: params.studentProfileIds } }),
+        };
+
+  return {
+    track: params.track,
+    status: "ACTIVE",
+    ...(params.totalsYear === null ? {} : { year: params.totalsYear }),
+    ...population,
+  };
 }
 
 /**
@@ -929,18 +941,18 @@ function studentScope(params: {
 export async function awardsByRule(params: {
   track: MeritTrack;
   totalsYear: number | null;
-  /** 모집단을 정할 명단 학년도. studentScope 주석을 볼 것. */
-  rosterYear?: number;
+  /** 모집단을 정할 명단 학년도. 합계 범위와 별개이며 생략할 수 없다. */
+  rosterYear: number;
   studentProfileIds?: string[];
 }) {
   const rows = await prisma.meritAward.groupBy({
     by: ["ruleId", "label", "kind"],
-    where: {
+    where: activeAwardWhere({
       track: params.track,
-      status: "ACTIVE",
-      ...(params.totalsYear === null ? {} : { year: params.totalsYear }),
-      ...studentScope(params),
-    },
+      totalsYear: params.totalsYear,
+      rosterYear: params.rosterYear,
+      studentProfileIds: params.studentProfileIds,
+    }),
     _count: { _all: true },
     _sum: { points: true },
   });
@@ -968,12 +980,13 @@ export async function awardsByRule(params: {
 export async function teacherTotals(params: {
   track: MeritTrack;
   totalsYear: number | null;
+  rosterYear: number;
 }) {
-  const where = {
+  const where = activeAwardWhere({
     track: params.track,
-    status: "ACTIVE",
-    ...(params.totalsYear === null ? {} : { year: params.totalsYear }),
-  };
+    totalsYear: params.totalsYear,
+    rosterYear: params.rosterYear,
+  });
 
   const [byUser, byName] = await Promise.all([
     prisma.meritAward.groupBy({
@@ -1031,18 +1044,18 @@ export async function unusedRules(params: {
 export async function trackTotals(params: {
   track: MeritTrack;
   totalsYear: number | null;
-  /** 모집단을 정할 명단 학년도. studentScope 주석을 볼 것. */
-  rosterYear?: number;
+  /** 모집단을 정할 명단 학년도. 합계 범위와 별개이며 생략할 수 없다. */
+  rosterYear: number;
   studentProfileIds?: string[];
 }) {
   return prisma.meritAward.groupBy({
     by: ["kind"],
-    where: {
+    where: activeAwardWhere({
       track: params.track,
-      status: "ACTIVE",
-      ...(params.totalsYear === null ? {} : { year: params.totalsYear }),
-      ...studentScope(params),
-    },
+      totalsYear: params.totalsYear,
+      rosterYear: params.rosterYear,
+      studentProfileIds: params.studentProfileIds,
+    }),
     _count: { _all: true },
     _sum: { points: true },
   });
@@ -1102,17 +1115,13 @@ export async function demeritTotalsByStudent(params: {
   return prisma.meritAward.groupBy({
     by: ["studentProfileId"],
     where: {
-      track: params.track,
+      ...activeAwardWhere({
+        track: params.track,
+        totalsYear: params.totalsYear,
+        rosterYear: params.rosterYear,
+        studentProfileIds: params.studentProfileIds,
+      }),
       kind: "DEMERIT",
-      status: "ACTIVE",
-      // 명단에서 빠진 학생은 올리지 않는다. groupBy도 관계 조건을 받는다.
-      studentProfile: {
-        enrollments: { some: { year: params.rosterYear, status: "ENROLLED" } },
-      },
-      ...(params.totalsYear === null ? {} : { year: params.totalsYear }),
-      ...(params.studentProfileIds
-        ? { studentProfileId: { in: params.studentProfileIds } }
-        : {}),
     },
     _sum: { points: true },
   });
@@ -1154,22 +1163,24 @@ export async function findStudentsWithClass(ids: string[], year: number) {
  */
 export async function listAwardsForChart(params: {
   track: MeritTrack;
-  year: number | null;
+  totalsYear: number | null;
   /** 이 날 이후에 **일어난** 것만. 기숙사(누적)의 최근 12개월을 자를 때 쓴다. */
   since?: Date;
-  /** 모집단을 정할 명단 학년도. studentScope 주석을 볼 것. */
-  rosterYear?: number;
+  /** 모집단을 정할 명단 학년도. 합계 범위와 별개이며 생략할 수 없다. */
+  rosterYear: number;
   /** 주면 이 학생들 것만. 반을 골라 보는 화면이 쓴다. */
   studentProfileIds?: string[];
 }) {
   return prisma.meritAward.findMany({
     where: {
-      track: params.track,
-      status: "ACTIVE",
-      ...(params.year === null ? {} : { year: params.year }),
+      ...activeAwardWhere({
+        track: params.track,
+        totalsYear: params.totalsYear,
+        rosterYear: params.rosterYear,
+        studentProfileIds: params.studentProfileIds,
+      }),
       // 하한도 발생일로 잡는다 — createdAt으로 자르면 축과 기준이 어긋난다.
       ...(params.since ? { occurredOn: { gte: params.since } } : {}),
-      ...studentScope(params),
     },
     select: {
       occurredOn: true,

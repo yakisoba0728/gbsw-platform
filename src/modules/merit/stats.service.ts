@@ -388,7 +388,7 @@ export async function getMeritStats(
     repo.awardsByRule({ track, totalsYear: scoped, rosterYear, studentProfileIds }),
     repo.listAwardsForChart({
       track,
-      year: scoped,
+      totalsYear: scoped,
       since,
       rosterYear,
       studentProfileIds,
@@ -465,8 +465,13 @@ export async function getTeacherStats(
 ): Promise<TeacherStats> {
   await assertCan(actor, "merit:read:any");
 
-  const scoped = await scopeYear(track, year);
-  const { byUser, byName } = await repo.teacherTotals({ track, totalsYear: scoped });
+  const rosterYear = year ?? (await getCurrentYear());
+  const scoped = await scopeYear(track, rosterYear);
+  const { byUser, byName } = await repo.teacherTotals({
+    track,
+    totalsYear: scoped,
+    rosterYear,
+  });
 
   // 살아 있는 계정은 지금 이름을 쓴다 — 스냅샷은 개명 전 이름일 수 있다.
   const ids = [...new Set(byUser.map((r) => r.awardedByUserId!))];
@@ -560,10 +565,10 @@ export async function getRuleStats(
 ): Promise<RuleStats> {
   await assertCan(actor, "merit:read:any");
 
-  const scoped = await scopeYear(track, year);
+  const rosterYear = year ?? (await getCurrentYear());
+  const scoped = await scopeYear(track, rosterYear);
   const [{ rows, rules }, unused] = await Promise.all([
-    // 모집단 통일은 다음 독립 단계의 동작 변경이다. 지금은 기존 전체 집계를 보존한다.
-    repo.awardsByRule({ track, totalsYear: scoped }),
+    repo.awardsByRule({ track, totalsYear: scoped, rosterYear }),
     repo.unusedRules({ track, totalsYear: scoped }),
   ]);
 

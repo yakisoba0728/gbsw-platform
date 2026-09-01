@@ -19,6 +19,7 @@ const {
   listAwardsForChart,
   listClassRoster,
   teacherTotals,
+  totals,
   trackTotals,
   trackTotalsBetween,
   unusedRules,
@@ -56,6 +57,21 @@ function sum(studentProfileId: string, kind: string, points: number) {
 }
 
 const roster = { year: 2026, grade: 2, classNo: 3, track: "SCHOOL" } as const;
+
+describe("totals — 개인 이력 합계", () => {
+  it("명단에서 빠진 학생도 직접 id로 과거 기록을 조회한다", async () => {
+    await totals({ studentProfileId: "sp-removed", track: "SCHOOL", year: 2025 });
+
+    const { where } = meritAwardGroupBy.mock.calls[0][0];
+    expect(where).toEqual({
+      studentProfileId: "sp-removed",
+      track: "SCHOOL",
+      status: "ACTIVE",
+      year: 2025,
+    });
+    expect(where).not.toHaveProperty("studentProfile");
+  });
+});
 
 describe("listClassRoster — 반 명단 합계", () => {
   it("종류별로 자기 칸에 담고 순점수를 낸다", async () => {
@@ -151,6 +167,22 @@ describe("listClassRoster — 반 명단 합계", () => {
       status: "ENROLLED",
       grade: 2,
       classNo: 3,
+    });
+  });
+
+  it("합계도 명단 id와 그 학년도 재적 조건을 함께 건다", async () => {
+    enrollmentFindMany.mockResolvedValue([enrolled("sp-1", 1)]);
+
+    await listClassRoster({ ...roster, totalsYear: 2026 });
+
+    expect(meritAwardGroupBy.mock.calls[0][0].where).toEqual({
+      studentProfileId: { in: ["sp-1"] },
+      studentProfile: {
+        enrollments: { some: { year: 2026, status: "ENROLLED" } },
+      },
+      track: "SCHOOL",
+      status: "ACTIVE",
+      year: 2026,
     });
   });
 
@@ -313,11 +345,22 @@ describe("awardsByRule — 규정별 집계 원자료", () => {
     meritAwardGroupBy.mockResolvedValue(rows);
     meritRuleFindMany.mockResolvedValue(rules);
 
-    const result = await awardsByRule({ track: "SCHOOL", totalsYear: 2026 });
+    const result = await awardsByRule({
+      track: "SCHOOL",
+      totalsYear: 2026,
+      rosterYear: 2026,
+    });
 
     expect(meritAwardGroupBy).toHaveBeenCalledWith({
       by: ["ruleId", "label", "kind"],
-      where: { track: "SCHOOL", status: "ACTIVE", year: 2026 },
+      where: {
+        track: "SCHOOL",
+        status: "ACTIVE",
+        year: 2026,
+        studentProfile: {
+          enrollments: { some: { year: 2026, status: "ENROLLED" } },
+        },
+      },
       _count: { _all: true },
       _sum: { points: true },
     });
@@ -332,7 +375,7 @@ describe("awardsByRule — 규정별 집계 원자료", () => {
 
   it("집계 행이 없으면 규정 조회를 생략한다", async () => {
     expect(
-      await awardsByRule({ track: "DORM", totalsYear: null }),
+      await awardsByRule({ track: "DORM", totalsYear: null, rosterYear: 2026 }),
     ).toEqual({ rows: [], rules: [] });
     expect(meritRuleFindMany).not.toHaveBeenCalled();
   });
@@ -382,7 +425,12 @@ describe("trackTotalsBetween", () => {
       kinds: ["MERIT", "DEMERIT"],
     });
 
-    expect(meritAwardGroupBy.mock.calls[0][0].where.year).toBeUndefined();
+    const { where } = meritAwardGroupBy.mock.calls[0][0];
+    expect(where.year).toBeUndefined();
+    // 최근 활동은 현재 명단 통계가 아니다. 재적 술어까지 공통 helper에 섞이면
+    // 그 주에 전학한 학생의 활동이 사라진다.
+    expect(where).not.toHaveProperty("studentProfile");
+    expect(where).not.toHaveProperty("studentProfileId");
   });
 
   it("건수와 점수를 함께 낸다 — 화면이 부여 건수를 쓴다", async () => {
@@ -415,25 +463,29 @@ describe("취소된 기록은 어느 집계에도 안 든다", () => {
   const CASES = [
     {
       name: "trackTotals",
-      run: () => trackTotals({ track: "DORM", totalsYear: 2026 }),
+      run: () =>
+        trackTotals({ track: "DORM", totalsYear: 2026, rosterYear: 2026 }),
       mock: meritAwardGroupBy,
       track: "DORM",
     },
     {
       name: "awardsByRule",
-      run: () => awardsByRule({ track: "SCHOOL", totalsYear: 2026 }),
+      run: () =>
+        awardsByRule({ track: "SCHOOL", totalsYear: 2026, rosterYear: 2026 }),
       mock: meritAwardGroupBy,
       track: "SCHOOL",
     },
     {
       name: "teacherTotals",
-      run: () => teacherTotals({ track: "DORM", totalsYear: 2026 }),
+      run: () =>
+        teacherTotals({ track: "DORM", totalsYear: 2026, rosterYear: 2026 }),
       mock: meritAwardGroupBy,
       track: "DORM",
     },
     {
       name: "listAwardsForChart",
-      run: () => listAwardsForChart({ track: "DORM", year: 2026 }),
+      run: () =>
+        listAwardsForChart({ track: "DORM", totalsYear: 2026, rosterYear: 2026 }),
       mock: meritAwardFindMany,
       track: "DORM",
     },
@@ -477,13 +529,16 @@ describe("취소된 기록은 어느 집계에도 안 든다", () => {
    * 별개의 질의라 첫 호출만 보면 조건이 빠져도 안 잡힌다.
    */
   it("teacherTotals는 계정이 사라진 갈래에도 같은 조건을 건다", async () => {
-    await teacherTotals({ track: "SCHOOL", totalsYear: 2026 });
+    await teacherTotals({ track: "SCHOOL", totalsYear: 2026, rosterYear: 2026 });
 
     expect(meritAwardGroupBy).toHaveBeenCalledTimes(2);
     for (const [args] of meritAwardGroupBy.mock.calls) {
       expect(args.where.status).toBe("ACTIVE");
       expect(args.where.track).toBe("SCHOOL");
       expect(args.where.year).toBe(2026);
+      expect(args.where.studentProfile).toEqual({
+        enrollments: { some: { year: 2026, status: "ENROLLED" } },
+      });
     }
     expect(meritAwardGroupBy.mock.calls[0][0].where.awardedByUserId).toEqual({
       not: null,
@@ -505,6 +560,13 @@ describe("통계 화면 집계의 학생 모집단", () => {
           rosterYear: 2026,
           studentProfileIds: ["sp-1", "sp-2"],
         }),
+      runWithEmptyIds: () =>
+        trackTotals({
+          track: "SCHOOL",
+          totalsYear: 2026,
+          rosterYear: 2026,
+          studentProfileIds: [],
+        }),
       mock: meritAwardGroupBy,
     },
     {
@@ -518,20 +580,62 @@ describe("통계 화면 집계의 학생 모집단", () => {
           rosterYear: 2026,
           studentProfileIds: ["sp-1", "sp-2"],
         }),
+      runWithEmptyIds: () =>
+        awardsByRule({
+          track: "SCHOOL",
+          totalsYear: 2026,
+          rosterYear: 2026,
+          studentProfileIds: [],
+        }),
       mock: meritAwardGroupBy,
     },
     {
       name: "listAwardsForChart",
       runWithRoster: () =>
-        listAwardsForChart({ track: "SCHOOL", year: 2026, rosterYear: 2026 }),
+        listAwardsForChart({
+          track: "SCHOOL",
+          totalsYear: 2026,
+          rosterYear: 2026,
+        }),
       runWithIds: () =>
         listAwardsForChart({
           track: "SCHOOL",
-          year: 2026,
+          totalsYear: 2026,
           rosterYear: 2026,
           studentProfileIds: ["sp-1", "sp-2"],
         }),
+      runWithEmptyIds: () =>
+        listAwardsForChart({
+          track: "SCHOOL",
+          totalsYear: 2026,
+          rosterYear: 2026,
+          studentProfileIds: [],
+        }),
       mock: meritAwardFindMany,
+    },
+    {
+      name: "demeritTotalsByStudent",
+      runWithRoster: () =>
+        demeritTotalsByStudent({
+          track: "SCHOOL",
+          totalsYear: 2026,
+          rosterYear: 2026,
+        }),
+      runWithIds: () =>
+        demeritTotalsByStudent({
+          track: "SCHOOL",
+          totalsYear: 2026,
+          rosterYear: 2026,
+          studentProfileIds: ["sp-1", "sp-2"],
+        }),
+      runWithEmptyIds: () =>
+        demeritTotalsByStudent({
+          track: "SCHOOL",
+          totalsYear: 2026,
+          rosterYear: 2026,
+          studentProfileIds: [],
+        }),
+      mock: meritAwardGroupBy,
     },
   ];
 
@@ -549,13 +653,28 @@ describe("통계 화면 집계의 학생 모집단", () => {
   );
 
   it.each(POPULATION_CASES)(
-    "$name — 학생 목록을 주면 그 목록이 모집단을 대신한다",
+    "$name — 학생 목록을 주어도 재적 조건과 AND한다",
     async ({ runWithIds, mock }) => {
       await runWithIds();
 
       const where = mock.mock.calls.at(-1)![0].where;
       expect(where.studentProfileId).toEqual({ in: ["sp-1", "sp-2"] });
-      expect(where).not.toHaveProperty("studentProfile");
+      expect(where.studentProfile).toEqual({
+        enrollments: { some: { year: 2026, status: "ENROLLED" } },
+      });
+    },
+  );
+
+  it.each(POPULATION_CASES)(
+    "$name — 빈 학생 목록도 빈 모집단으로 유지하고 재적 조건을 남긴다",
+    async ({ runWithEmptyIds, mock }) => {
+      await runWithEmptyIds();
+
+      const where = mock.mock.calls.at(-1)![0].where;
+      expect(where.studentProfileId).toEqual({ in: [] });
+      expect(where.studentProfile).toEqual({
+        enrollments: { some: { year: 2026, status: "ENROLLED" } },
+      });
     },
   );
 });

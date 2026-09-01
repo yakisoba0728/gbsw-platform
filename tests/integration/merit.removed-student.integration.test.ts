@@ -45,6 +45,7 @@ const NOW = new Date("2026-08-16T10:00:00+09:00");
 
 /** 검색이 이 셋만 잡도록 흔치 않은 조각을 넣는다. */
 const NAME_STEM = "탈퇴검증";
+const REMOVED_AWARDER_NAME = "삭제된부여자";
 
 const made = {
   users: [] as string[],
@@ -122,7 +123,14 @@ async function makeStudent(
   return profile.id;
 }
 
-async function giveDemerit(studentProfileId: string, points: number) {
+async function giveDemerit(
+  studentProfileId: string,
+  points: number,
+  awarder: { userId: string | null; name: string } = {
+    userId: admin.id,
+    name: admin.name,
+  },
+) {
   return prisma.meritAward.create({
     data: {
       studentProfileId,
@@ -134,10 +142,55 @@ async function giveDemerit(studentProfileId: string, points: number) {
       points,
       occurredOn: OCCURRED_ON,
       note: null,
-      awardedByUserId: admin.id,
-      awardedByName: admin.name,
+      awardedByUserId: awarder.userId,
+      awardedByName: awarder.name,
     },
   });
+}
+
+function countGroups(rows: { _count: { _all: number } }[]): number {
+  return rows.reduce((sum, row) => sum + row._count._all, 0);
+}
+
+/**
+ * 통계 네 갈래가 같은 모집단을 세는지 숫자 하나로 대조한다. 부여자·규정은 이
+ * 파일 전용 id로 다시 좁혀, 테스트 DB에 남아 있는 다른 픽스처가 끼지 않게 한다.
+ */
+async function statisticsCounts(totalsYear: number | null) {
+  const studentProfileIds = [stayingId, removedId, noRowId];
+  const [teachers, rules, totals, chart] = await Promise.all([
+    repo.teacherTotals({ track: "SCHOOL", totalsYear, rosterYear: YEAR }),
+    repo.awardsByRule({
+      track: "SCHOOL",
+      totalsYear,
+      rosterYear: YEAR,
+      studentProfileIds,
+    }),
+    repo.trackTotals({
+      track: "SCHOOL",
+      totalsYear,
+      rosterYear: YEAR,
+      studentProfileIds,
+    }),
+    repo.listAwardsForChart({
+      track: "SCHOOL",
+      totalsYear,
+      rosterYear: YEAR,
+      studentProfileIds,
+    }),
+  ]);
+
+  return {
+    teacherTotals: countGroups(
+      teachers.byUser.filter((row) => row.awardedByUserId === admin.id),
+    ),
+    removedAwarderTotals: countGroups(
+      teachers.byName.filter((row) => row.awardedByName === REMOVED_AWARDER_NAME),
+    ),
+    awardsByRule: countGroups(rules.rows.filter((row) => row.ruleId === ruleId)),
+    trackTotals: countGroups(totals),
+    chart: chart.length,
+  };
 }
 
 beforeAll(async () => {
@@ -193,6 +246,9 @@ beforeAll(async () => {
   await giveDemerit(stayingId, 5);
   await giveDemerit(removedId, 5);
   await giveDemerit(removedId, 5);
+  // 계정이 지워져 userId가 null이 된 부여 기록. teacherTotals의 별도 byName SQL도
+  // 같은 재적 모집단을 적용하는지 실제 DB에서 확인한다.
+  await giveDemerit(removedId, 5, { userId: null, name: REMOVED_AWARDER_NAME });
   await giveDemerit(noRowId, 5);
 });
 
@@ -235,9 +291,9 @@ describe("조회는 열린다 — 상세·확인서·내보내기가 타는 경�
   it("벌점 내역과 합계가 그대로 나온다 — 선도관리위원회 자료가 이것이다", async () => {
     const view = await service.getStudentMerit(admin, removedId, "SCHOOL");
 
-    expect(view.awards).toHaveLength(2);
-    expect(view.totals.demerit).toBe(10);
-    expect(view.totals.net).toBe(-10);
+    expect(view.awards).toHaveLength(3);
+    expect(view.totals.demerit).toBe(15);
+    expect(view.totals.net).toBe(-15);
   });
 
   it("학생·학부모는 이 경로로 남의 기록을 볼 수 없다", async () => {
@@ -352,6 +408,105 @@ describe("기본 목록에는 섞이지 않는다", () => {
   });
 });
 
+describe("통계 모집단도 그 학년도 재적이다", () => {
+  it("명시한 id 목록에 퇴학생·학적 없는 학생이 섞여도 재적과 교집합한다", async () => {
+    // 세 학생에게 총 다섯 건이 있지만, 이 학년도 재학생의 한 건만 네 집계에 남는다.
+    expect(await statisticsCounts(YEAR)).toEqual({
+      teacherTotals: 1,
+      removedAwarderTotals: 0,
+      awardsByRule: 1,
+      trackTotals: 1,
+      chart: 1,
+    });
+  });
+
+  it("누적 합계(totalsYear = null)여도 명단 학년도 조건은 유지한다", async () => {
+    expect(await statisticsCounts(null)).toEqual({
+      teacherTotals: 1,
+      removedAwarderTotals: 0,
+      awardsByRule: 1,
+      trackTotals: 1,
+      chart: 1,
+    });
+  });
+});
+
+describe("모집단 통일에서 제외한 집계는 그대로다", () => {
+  it("최근 활동 창은 명단 상태와 무관하게 발생한 기록을 센다", async () => {
+    const occurredOn = new Date("2099-01-02T00:00:00+09:00");
+    const until = new Date("2099-01-03T00:00:00+09:00");
+    const award = await prisma.meritAward.create({
+      data: {
+        studentProfileId: removedId,
+        year: YEAR,
+        ruleId,
+        track: "SCHOOL",
+        kind: "DEMERIT",
+        label: "무단 외출",
+        points: 7,
+        occurredOn,
+        note: null,
+        awardedByUserId: admin.id,
+        awardedByName: admin.name,
+      },
+    });
+
+    let rows: Awaited<ReturnType<typeof repo.trackTotalsBetween>> = [];
+    try {
+      rows = await repo.trackTotalsBetween({
+        track: "SCHOOL",
+        since: occurredOn,
+        until,
+        kinds: ["DEMERIT"],
+      });
+    } finally {
+      await prisma.meritAward.delete({ where: { id: award.id } });
+    }
+
+    expect(rows).toEqual([
+      { kind: "DEMERIT", _count: { _all: 1 }, _sum: { points: 7 } },
+    ]);
+  });
+
+  it("퇴학생만 쓴 규정도 unused로 되돌리지 않는다", async () => {
+    const rule = await prisma.meritRule.create({
+      data: {
+        track: "SCHOOL",
+        kind: "DEMERIT",
+        label: "퇴학생 전용 규정",
+        points: 1,
+      },
+    });
+    // award 생성이 try 진입 전에 실패해도 afterAll이 규정을 회수할 수 있게 등록한다.
+    made.rules.push(rule.id);
+    const award = await prisma.meritAward.create({
+      data: {
+        studentProfileId: removedId,
+        year: YEAR,
+        ruleId: rule.id,
+        track: "SCHOOL",
+        kind: "DEMERIT",
+        label: rule.label,
+        points: 1,
+        occurredOn: OCCURRED_ON,
+        note: null,
+        awardedByUserId: admin.id,
+        awardedByName: admin.name,
+      },
+    });
+
+    let unused: Awaited<ReturnType<typeof repo.unusedRules>> = [];
+    try {
+      unused = await repo.unusedRules({ track: "SCHOOL", totalsYear: YEAR });
+    } finally {
+      await prisma.meritAward.delete({ where: { id: award.id } });
+      await prisma.meritRule.delete({ where: { id: rule.id } });
+    }
+
+    expect(unused.map((row) => row.id)).not.toContain(rule.id);
+  });
+});
+
 describe("부여는 열지 않는다", () => {
   it("findAwardableStudent는 재적이 아닌 학생을 못 찾는다", async () => {
     expect(await repo.findAwardableStudent(removedId, YEAR)).toBeNull();
@@ -377,10 +532,10 @@ describe("부여는 열지 않는다", () => {
       ),
     ).rejects.toThrow("STUDENT_NOT_FOUND");
 
-    // 아무것도 안 들어갔다 — 처음 넣어 둔 두 건 그대로다.
+    // 아무것도 안 들어갔다 — 처음 넣어 둔 세 건 그대로다.
     expect(
       await prisma.meritAward.count({ where: { studentProfileId: removedId } }),
-    ).toBe(2);
+    ).toBe(3);
   });
 
   it("재적 줄이 없는 학생에게도 단건 부여가 막힌다", async () => {
@@ -445,7 +600,7 @@ describe("취소는 그대로 된다", () => {
 
     // 합계에서 빠지고 내역에는 남는다 — 다른 학생과 같은 규칙이다.
     const view = await service.getStudentMerit(admin, removedId, "SCHOOL");
-    expect(view.totals.demerit).toBe(10);
-    expect(view.awards).toHaveLength(3);
+    expect(view.totals.demerit).toBe(15);
+    expect(view.awards).toHaveLength(4);
   });
 });

@@ -64,6 +64,12 @@ describe("getMeritStats — 기숙사(누적 트랙)", () => {
     expect(listAwardsForChart.mock.calls[0][0].since).toEqual(
       new Date("2025-09-01T00:00:00+09:00"),
     );
+    expect(listAwardsForChart.mock.calls[0][0]).toMatchObject({
+      track: "DORM",
+      totalsYear: null,
+      rosterYear: 2026,
+    });
+    expect(listAwardsForChart.mock.calls[0][0]).not.toHaveProperty("year");
   });
 
   it("합계와 '많이 나온 항목'은 누적 그대로다", async () => {
@@ -252,7 +258,8 @@ describe("getMeritStats — 교내(학년도 트랙)", () => {
     await service.getMeritStats(admin, "SCHOOL", undefined, NOW);
 
     expect(listAwardsForChart.mock.calls[0][0].since).toBeUndefined();
-    expect(listAwardsForChart.mock.calls[0][0].year).toBe(2026);
+    expect(listAwardsForChart.mock.calls[0][0].totalsYear).toBe(2026);
+    expect(listAwardsForChart.mock.calls[0][0]).not.toHaveProperty("year");
     expect(trackTotals.mock.calls[0][0].totalsYear).toBe(2026);
     expect(awardsByRule.mock.calls[0][0]).toEqual({
       track: "SCHOOL",
@@ -264,7 +271,12 @@ describe("getMeritStats — 교내(학년도 트랙)", () => {
 
   it("범위가 하나뿐이라 그래프 설명도 그 학년도다", async () => {
     const stats = await service.getMeritStats(admin, "SCHOOL", 2025, NOW);
+
     expect(stats.chartRange).toBe("2025학년도");
+    expect(listAwardsForChart.mock.calls[0][0]).toMatchObject({
+      totalsYear: 2025,
+      rosterYear: 2025,
+    });
   });
 });
 
