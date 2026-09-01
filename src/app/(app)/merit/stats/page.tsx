@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { requirePermission } from "@/core/auth/session";
+import { requirePermission, type SessionUser } from "@/core/auth/session";
 import { isMeritTrack, type MeritTrack } from "@/core/authz/merit-track";
 import { hrefWith, type SearchParamsInput } from "@/lib/search-params";
 import {
@@ -24,6 +24,58 @@ import {
 const PATH = "/merit/stats";
 
 type RawParams = Record<string, string | string[] | undefined>;
+type Scope = { grade: number; classNo: number };
+type Patch = Record<string, string | null>;
+
+type ViewContext = {
+  actor: SessionUser;
+  track: MeritTrack;
+  year: number | undefined;
+  scope: Scope | undefined;
+  href: (patch: Patch) => string;
+};
+
+type ViewBranch = {
+  hint: React.ReactNode;
+  body: React.ReactNode;
+  fallback: React.ReactNode;
+};
+
+/** 각 갈래가 자기 promise 타입을 소유하고, 공통 껍데기에는 렌더할 조각만 넘긴다. */
+const VIEW_BRANCHES = {
+  overview: ({ actor, track, year, scope, href }: ViewContext): ViewBranch => {
+    const promise = loadOverview(actor, track, year, scope);
+    return {
+      hint: <OverviewHint promise={promise} track={track} />,
+      body: <OverviewBody promise={promise} track={track} statsHref={href} />,
+      fallback: <OverviewSkeleton />,
+    };
+  },
+  ranking: ({ actor, track, year, scope, href }: ViewContext): ViewBranch => {
+    const promise = loadRanking(actor, track, year, scope);
+    return {
+      hint: <RankingHint promise={promise} track={track} />,
+      body: <RankingBody promise={promise} track={track} href={href} />,
+      fallback: <RankingSkeleton scoped={scope !== undefined} />,
+    };
+  },
+  teachers: ({ actor, track, year }: ViewContext): ViewBranch => {
+    const promise = loadTeachers(actor, track, year);
+    return {
+      hint: <TeachersHint promise={promise} track={track} />,
+      body: <TeachersBody promise={promise} />,
+      fallback: <TeachersSkeleton />,
+    };
+  },
+  rules: ({ actor, track, year }: ViewContext): ViewBranch => {
+    const promise = loadRules(actor, track, year);
+    return {
+      hint: <RulesHint promise={promise} />,
+      body: <RulesBody promise={promise} track={track} />,
+      fallback: <RulesSkeleton />,
+    };
+  },
+} satisfies Record<StatsView, (context: ViewContext) => ViewBranch>;
 
 /**
  * 탭 제목은 갈래를 따라가지 않는다 — **따라가게 만들 수 없다.**
@@ -84,75 +136,25 @@ export default async function MeritStatsPage({
   // 뼈대 대신 옛 내용을 그대로 보여준다 — key가 없으면 탭을 눌러도 안 바뀐 것처럼 보인다.
   const boundaryKey = JSON.stringify({ view, track, year, grade, classNo });
 
-  const shell = (hint: React.ReactNode) => ({ view, track, href, scope, hint });
+  // 갈래 callback 안에서 promise 타입을 좁힌 채 힌트·본문이 같은 약속을 공유한다.
+  const branch = VIEW_BRANCHES[view]({ actor, track, year, scope, href });
 
-  // 갈래마다 조회 결과의 모양이 다르다. 갈래별로 약속을 만들어 머리글 힌트와 본문이
-  // 나눠 기다리게 한다 — 하나의 약속을 둘이 나누므로 질의는 갈래당 한 번이다.
-  if (view === "ranking") {
-    const promise = loadRanking(actor, track, year, scope);
-    return (
-      <Layout
-        shell={shell(
-          <Suspense key={boundaryKey} fallback={<HintSkeleton />}>
-            <RankingHint promise={promise} track={track} />
-          </Suspense>,
-        )}
-      >
-        <Suspense
-          key={boundaryKey}
-          fallback={<RankingSkeleton scoped={scope !== undefined} />}
-        >
-          <RankingBody promise={promise} track={track} href={href} />
-        </Suspense>
-      </Layout>
-    );
-  }
-
-  if (view === "teachers") {
-    const promise = loadTeachers(actor, track, year);
-    return (
-      <Layout
-        shell={shell(
-          <Suspense key={boundaryKey} fallback={<HintSkeleton />}>
-            <TeachersHint promise={promise} track={track} />
-          </Suspense>,
-        )}
-      >
-        <Suspense key={boundaryKey} fallback={<TeachersSkeleton />}>
-          <TeachersBody promise={promise} />
-        </Suspense>
-      </Layout>
-    );
-  }
-
-  if (view === "rules") {
-    const promise = loadRules(actor, track, year);
-    return (
-      <Layout
-        shell={shell(
-          <Suspense key={boundaryKey} fallback={<HintSkeleton />}>
-            <RulesHint promise={promise} />
-          </Suspense>,
-        )}
-      >
-        <Suspense key={boundaryKey} fallback={<RulesSkeleton />}>
-          <RulesBody promise={promise} track={track} />
-        </Suspense>
-      </Layout>
-    );
-  }
-
-  const promise = loadOverview(actor, track, year, scope);
   return (
     <Layout
-      shell={shell(
-        <Suspense key={boundaryKey} fallback={<HintSkeleton />}>
-          <OverviewHint promise={promise} track={track} />
-        </Suspense>,
-      )}
+      shell={{
+        view,
+        track,
+        href,
+        scope,
+        hint: (
+          <Suspense key={`hint:${boundaryKey}`} fallback={<HintSkeleton />}>
+            {branch.hint}
+          </Suspense>
+        ),
+      }}
     >
-      <Suspense key={boundaryKey} fallback={<OverviewSkeleton />}>
-        <OverviewBody promise={promise} track={track} statsHref={href} />
+      <Suspense key={`body:${boundaryKey}`} fallback={branch.fallback}>
+        {branch.body}
       </Suspense>
     </Layout>
   );
