@@ -19,7 +19,6 @@ vi.mock("@/modules/merit/merit.repo", () => ({
   // 같은 모듈의 나머지 export — 팩토리에 없으면 undefined가 되어 다른 서비스가 깨진다.
   trackTotals: vi.fn(),
   trackTotalsBetween: vi.fn(),
-  classSummaries: vi.fn(),
   topRules: vi.fn(),
   listAwardsForChart: vi.fn(),
   listClassRoster: vi.fn(),

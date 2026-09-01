@@ -9,7 +9,6 @@ import { user } from "../../helpers/session";
 
 const trackTotals = vi.fn();
 const trackTotalsBetween = vi.fn();
-const classSummaries = vi.fn();
 const topRules = vi.fn();
 const listAwardsForChart = vi.fn();
 const listClassRoster = vi.fn();
@@ -19,7 +18,6 @@ const findStudentsWithClass = vi.fn();
 vi.mock("@/modules/merit/merit.repo", () => ({
   trackTotals,
   trackTotalsBetween,
-  classSummaries,
   topRules,
   listAwardsForChart,
   listClassRoster,
@@ -51,9 +49,9 @@ beforeEach(() => {
   trackTotals.mockResolvedValue([]);
   trackTotalsBetween.mockResolvedValue([]);
   getCurrentYear.mockResolvedValue(2026);
-  classSummaries.mockResolvedValue([]);
   topRules.mockResolvedValue([]);
   listAwardsForChart.mockResolvedValue([]);
+  listClassRoster.mockResolvedValue([]);
   demeritTotalsByStudent.mockResolvedValue([]);
   findStudentsWithClass.mockResolvedValue([]);
 });
@@ -254,7 +252,7 @@ describe("getMeritSummary — 대시보드 최근 활동", () => {
 
     expect(trackTotals).not.toHaveBeenCalled();
     expect(listAwardsForChart).not.toHaveBeenCalled();
-    expect(classSummaries).not.toHaveBeenCalled();
+    expect(listClassRoster).not.toHaveBeenCalled();
     expect(topRules).not.toHaveBeenCalled();
   });
 

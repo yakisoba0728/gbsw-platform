@@ -13,7 +13,6 @@ const DANGER = 18;
 const getDemeritThresholds = vi.fn();
 
 const trackTotals = vi.fn();
-const classSummaries = vi.fn();
 const topRules = vi.fn();
 const listAwardsForChart = vi.fn();
 const listClassRoster = vi.fn();
@@ -22,7 +21,6 @@ const findStudentsWithClass = vi.fn();
 
 vi.mock("@/modules/merit/merit.repo", () => ({
   trackTotals,
-  classSummaries,
   topRules,
   listAwardsForChart,
   listClassRoster,
@@ -62,9 +60,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   getDemeritThresholds.mockResolvedValue({ warn: WARN, danger: DANGER });
   trackTotals.mockResolvedValue([]);
-  classSummaries.mockResolvedValue([]);
   topRules.mockResolvedValue([]);
   listAwardsForChart.mockResolvedValue([]);
+  listClassRoster.mockResolvedValue([]);
   demeritTotalsByStudent.mockResolvedValue([]);
   findStudentsWithClass.mockResolvedValue([]);
 });
@@ -224,14 +222,39 @@ describe("기준 초과 명단 — 집계 범위", () => {
 
   it("반을 골랐으면 그 반 학생만 본다", async () => {
     const students = [
-      { studentProfileId: "sp-1" },
-      { studentProfileId: "sp-2" },
+      {
+        studentProfileId: "sp-1",
+        studentCode: "CODE-sp-1",
+        name: "학생1",
+        grade: 2,
+        classNo: 3,
+        number: 1,
+        merit: 0,
+        demerit: 0,
+        offset: 0,
+        net: 0,
+      },
+      {
+        studentProfileId: "sp-2",
+        studentCode: "CODE-sp-2",
+        name: "학생2",
+        grade: 2,
+        classNo: 3,
+        number: 2,
+        merit: 0,
+        demerit: 0,
+        offset: 0,
+        net: 0,
+      },
     ];
-    const selectedClass = { grade: 2, classNo: 3, students: 2 };
-    listClassRoster.mockResolvedValue(students);
-    classSummaries.mockResolvedValue([
-      { grade: 1, classNo: 1, students: 30 },
-      selectedClass,
+    listClassRoster.mockResolvedValue([
+      ...students,
+      {
+        ...students[0],
+        studentProfileId: "sp-other",
+        grade: 1,
+        classNo: 1,
+      },
     ]);
 
     const stats = await service.getMeritStats(admin, "SCHOOL", undefined, NOW, {
@@ -242,14 +265,79 @@ describe("기준 초과 명단 — 집계 범위", () => {
     expect(demeritTotalsByStudent).toHaveBeenCalledWith(
       expect.objectContaining({ studentProfileIds: ["sp-1", "sp-2"] }),
     );
-    expect(stats.classes).toEqual([selectedClass]);
+    expect(stats.classes).toEqual([
+      {
+        grade: 2,
+        classNo: 3,
+        students: 2,
+        merit: 0,
+        demerit: 0,
+        offset: 0,
+        net: 0,
+        avgNet: 0,
+      },
+    ]);
     expect(stats.scope).toEqual({ grade: 2, classNo: 3 });
     expect(stats.students).toEqual(students);
+    expect(listClassRoster).toHaveBeenCalledTimes(1);
+    expect(listClassRoster).toHaveBeenCalledWith({
+      year: 2026,
+      track: "SCHOOL",
+      totalsYear: 2026,
+    });
+    expect(listClassRoster.mock.calls[0][0]).not.toHaveProperty("grade");
+    expect(listClassRoster.mock.calls[0][0]).not.toHaveProperty("classNo");
   });
 
-  it("전교로 보면 학생 목록 조건 없이 부른다", async () => {
-    await service.getMeritStats(admin, "SCHOOL", undefined, NOW);
+  it("전교로 보면 명단을 한 번 접고 학생 목록 조건은 넘기지 않는다", async () => {
+    listClassRoster.mockResolvedValue([
+      {
+        studentProfileId: "sp-assigned",
+        studentCode: "CODE-sp-assigned",
+        name: "배정학생",
+        grade: 1,
+        classNo: 2,
+        number: 1,
+        merit: 0,
+        demerit: 0,
+        offset: 0,
+        net: 0,
+      },
+      {
+        studentProfileId: "sp-unassigned",
+        studentCode: "CODE-sp-unassigned",
+        name: "미배정학생",
+        grade: null,
+        classNo: null,
+        number: null,
+        merit: 0,
+        demerit: 0,
+        offset: 0,
+        net: 0,
+      },
+    ]);
 
+    const stats = await service.getMeritStats(admin, "SCHOOL", undefined, NOW);
+
+    expect(listClassRoster).toHaveBeenCalledTimes(1);
+    expect(listClassRoster).toHaveBeenCalledWith({
+      year: 2026,
+      track: "SCHOOL",
+      totalsYear: 2026,
+    });
+    expect(stats.students).toBeNull();
+    expect(stats.classes).toEqual([
+      {
+        grade: 1,
+        classNo: 2,
+        students: 1,
+        merit: 0,
+        demerit: 0,
+        offset: 0,
+        net: 0,
+        avgNet: 0,
+      },
+    ]);
     expect(demeritTotalsByStudent.mock.calls[0][0].studentProfileIds).toBeUndefined();
   });
 

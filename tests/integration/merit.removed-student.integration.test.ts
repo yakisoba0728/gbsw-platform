@@ -34,6 +34,7 @@ import { prisma } from "@/core/db/client";
 vi.mock("@/core/audit/audit", () => ({ recordAudit: vi.fn() }));
 
 const repo = await import("@/modules/merit/merit.repo");
+const { foldClasses } = await import("@/modules/merit/stats.service");
 const service = await import("@/modules/merit/award.service");
 
 const YEAR = 2026;
@@ -334,11 +335,13 @@ describe("기본 목록에는 섞이지 않는다", () => {
   });
 
   it("반별 요약의 인원에도 안 든다", async () => {
-    const summaries = await repo.classSummaries({
-      year: YEAR,
-      track: "SCHOOL",
-      totalsYear: YEAR,
-    });
+    const summaries = foldClasses(
+      await repo.listClassRoster({
+        year: YEAR,
+        track: "SCHOOL",
+        totalsYear: YEAR,
+      }),
+    );
     const mine = summaries.find(
       (row) => row.grade === GRADE && row.classNo === CLASS_NO,
     );

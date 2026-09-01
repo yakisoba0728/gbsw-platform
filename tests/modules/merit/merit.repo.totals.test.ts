@@ -14,7 +14,6 @@ vi.mock("@/core/db/client", () => ({
 }));
 
 const {
-  classSummaries,
   demeritTotalsByStudent,
   listAwardsForChart,
   listClassRoster,
@@ -185,107 +184,6 @@ describe("listClassRoster — 반 명단 합계", () => {
     const where = enrollmentFindMany.mock.calls[0][0].where;
     expect(where.grade).toBe(2);
     expect(where).not.toHaveProperty("classNo");
-  });
-});
-
-describe("classSummaries — 반별 요약", () => {
-  it("반 안의 학생 합계를 칸별로 모으고 순점수·평균을 낸다", async () => {
-    enrollmentFindMany.mockResolvedValue([enrolled("sp-1", 1), enrolled("sp-2", 2)]);
-    meritAwardGroupBy.mockResolvedValue([
-      sum("sp-1", "MERIT", 10),
-      sum("sp-1", "DEMERIT", 4),
-      sum("sp-2", "MERIT", 2),
-    ]);
-
-    const [row] = await classSummaries({
-      year: 2026,
-      track: "SCHOOL",
-      totalsYear: 2026,
-    });
-
-    expect(row).toEqual({
-      grade: 2,
-      classNo: 3,
-      students: 2,
-      merit: 12,
-      demerit: 4,
-      offset: 0,
-      net: 8,
-      avgNet: 4,
-    });
-  });
-
-  it("상쇄점이 반 순점수에도 들어간다", async () => {
-    enrollmentFindMany.mockResolvedValue([enrolled("sp-1", 1)]);
-    meritAwardGroupBy.mockResolvedValue([
-      sum("sp-1", "DEMERIT", 30),
-      sum("sp-1", "OFFSET", 20),
-    ]);
-
-    const [row] = await classSummaries({
-      year: 2026,
-      track: "SCHOOL",
-      totalsYear: 2026,
-    });
-
-    expect(row.offset).toBe(20);
-    expect(row.net).toBe(-10);
-  });
-
-  /** 기록이 없는 학생이 분모에서 빠지면 평균이 부풀어 반끼리 비교가 안 된다. */
-  it("기록이 없는 학생도 인원에 든다", async () => {
-    enrollmentFindMany.mockResolvedValue([
-      enrolled("sp-1", 1),
-      enrolled("sp-2", 2),
-      enrolled("sp-3", 3),
-    ]);
-    meritAwardGroupBy.mockResolvedValue([sum("sp-1", "MERIT", 9)]);
-
-    const [row] = await classSummaries({
-      year: 2026,
-      track: "SCHOOL",
-      totalsYear: 2026,
-    });
-
-    expect(row.students).toBe(3);
-    expect(row.avgNet).toBe(3);
-  });
-
-  it("학년·반 순으로 세운다", async () => {
-    enrollmentFindMany.mockResolvedValue([
-      enrolled("sp-1", 1, 3, 1),
-      enrolled("sp-2", 1, 1, 2),
-      enrolled("sp-3", 1, 1, 1),
-    ]);
-
-    const rows = await classSummaries({
-      year: 2026,
-      track: "SCHOOL",
-      totalsYear: 2026,
-    });
-
-    expect(rows.map((r) => `${r.grade}-${r.classNo}`)).toEqual(["1-1", "1-2", "3-1"]);
-  });
-
-  it("재적이 없으면 합계 질의를 하지 않는다", async () => {
-    enrollmentFindMany.mockResolvedValue([]);
-
-    expect(
-      await classSummaries({ year: 2026, track: "SCHOOL", totalsYear: 2026 }),
-    ).toEqual([]);
-    expect(meritAwardGroupBy).not.toHaveBeenCalled();
-  });
-
-  /** 반별로 접는 것이 목적이라 반 미배정은 여기서만 뺀다 — studentTotals는 남긴다. */
-  it("그 학년도 재학생 중 반이 있는 학생만 본다", async () => {
-    await classSummaries({ year: 2026, track: "SCHOOL", totalsYear: 2026 });
-
-    expect(enrollmentFindMany.mock.calls[0][0].where).toEqual({
-      year: 2026,
-      status: "ENROLLED",
-      grade: { not: null },
-      classNo: { not: null },
-    });
   });
 });
 
@@ -504,12 +402,6 @@ describe("취소된 기록은 어느 집계에도 안 든다", () => {
       run: () => listClassRoster({ ...roster, track: "DORM", totalsYear: 2026 }),
       mock: meritAwardGroupBy,
       track: "DORM",
-    },
-    {
-      name: "classSummaries",
-      run: () => classSummaries({ year: 2026, track: "SCHOOL", totalsYear: 2026 }),
-      mock: meritAwardGroupBy,
-      track: "SCHOOL",
     },
     {
       name: "listClassRoster (전교)",

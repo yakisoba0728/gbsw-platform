@@ -32,7 +32,6 @@ const totals = vi.fn();
 const listAwards = vi.fn();
 const findStudentProfileByUserId = vi.fn();
 const listClassRoster = vi.fn();
-const classSummaries = vi.fn();
 const trackTotals = vi.fn();
 const topRules = vi.fn();
 const listAwardsForChart = vi.fn();
@@ -44,7 +43,6 @@ vi.mock("@/modules/merit/merit.repo", () => ({
   listAwards,
   findStudentProfileByUserId,
   listClassRoster,
-  classSummaries,
   trackTotals,
   topRules,
   listAwardsForChart,
@@ -82,7 +80,6 @@ beforeEach(() => {
     user: { name: "김민준" },
   });
   listClassRoster.mockReset().mockResolvedValue([]);
-  classSummaries.mockReset().mockResolvedValue([]);
   demeritTotalsByStudent.mockReset().mockResolvedValue([]);
   findStudentsWithClass.mockReset().mockResolvedValue([]);
   trackTotals

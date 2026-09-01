@@ -2,9 +2,7 @@ import { prisma, type DbClient, withTransaction } from "@/core/db/client";
 import type { Prisma } from "@/generated/prisma/client";
 import {
   addKindPoints,
-  addKindTotals,
   emptyKindTotals,
-  netScore,
   withNetScore,
   type KindTotals,
   type MeritKind,
@@ -886,13 +884,13 @@ export async function findRecentAwardsForExport(filter: RecentAwardFilter) {
  *
  * 한 화면 안에서 머리글 합계와 「반별 현황」이 다른 학생을 세면 둘을 더해 맞춰
  * 보는 교사에게 설명할 자리가 없다. 그래서 아래 세 집계(trackTotals·topRules·
- * listAwardsForChart)는 학생을 명시로 받지 않았을 때 classSummaries와 **같은**
+ * listAwardsForChart)는 학생을 명시로 받지 않았을 때 listClassRoster와 **같은**
  * 술어를 쓴다 — 그 학년도 재학(ENROLLED). 계정 쪽 조건은 없다: 퇴학·전학이
  * 계정에 나타나지 않아 아무것도 거르지 못했다.
  *
- * 반 배정은 여기서 보지 않는다. classSummaries만 `grade`와 `classNo`가 모두 있는
- * 학생으로 더 좁히는데, 반이 없으면 담을 줄이 없어서다 — 반 미배정 학생은
- * 머리글에는 들고 반별 표에는 없다. 남는 차이는 그것 하나뿐이다.
+ * 반 배정은 여기서 보지 않는다. 반별 요약은 listClassRoster 결과를 접을 때
+ * `grade`와 `classNo`가 모두 있는 학생만 담는다 — 반 미배정 학생은 머리글에는
+ * 들고 반별 표에는 없다. 남는 차이는 그것 하나뿐이다.
  */
 function enrolledStudentScope(rosterYear: number): Prisma.MeritAwardWhereInput {
   return {
@@ -915,75 +913,6 @@ function studentScope(params: {
     return { studentProfileId: { in: params.studentProfileIds } };
   }
   return params.rosterYear === undefined ? {} : enrolledStudentScope(params.rosterYear);
-}
-
-/**
- * 학년·반별 요약. 반 편성은 그 학년도 기준, 합계 범위는 트랙 규칙을 따른다.
- * 목록과 합계를 따로 질의해 잇는다 — groupBy만 쓰면 기록이 없는 반이 빠진다.
- */
-export async function classSummaries(params: {
-  year: number;
-  track: MeritTrack;
-  totalsYear: number | null;
-}) {
-  const enrollments = await prisma.enrollment.findMany({
-    where: {
-      year: params.year,
-      // listClassRoster와 같은 술어다. 반이 없는 학생만 더 뺀다 — 담을 줄이 없어서다.
-      status: "ENROLLED",
-      grade: { not: null },
-      classNo: { not: null },
-    },
-    select: {
-      studentProfileId: true,
-      grade: true,
-      classNo: true,
-    },
-  });
-  if (enrollments.length === 0) return [];
-
-  const sums = await prisma.meritAward.groupBy({
-    by: ["studentProfileId", "kind"],
-    where: {
-      studentProfileId: { in: enrollments.map((e) => e.studentProfileId) },
-      track: params.track,
-      status: "ACTIVE",
-      ...(params.totalsYear === null ? {} : { year: params.totalsYear }),
-    },
-    _sum: { points: true },
-  });
-
-  const perStudent = foldByStudent(sums);
-
-  const byClass = new Map<
-    string,
-    { grade: number; classNo: number; students: number } & KindTotals
-  >();
-  for (const e of enrollments) {
-    const { grade, classNo } = e;
-    if (grade === null || classNo === null) continue;
-
-    const key = `${grade}-${classNo}`;
-    const cur =
-      byClass.get(key) ?? { grade, classNo, students: 0, ...emptyKindTotals() };
-    cur.students += 1;
-    // 기록이 없는 학생도 인원에는 든다 — 반 평균의 분모가 명단 인원이어야 한다.
-    const mine = perStudent.get(e.studentProfileId);
-    if (mine) addKindTotals(cur, mine);
-    byClass.set(key, cur);
-  }
-
-  return [...byClass.values()]
-    .map((row) => {
-      const net = netScore(row);
-      return {
-        ...row,
-        net,
-        // 인원이 0인 반은 위에서 만들어지지 않으므로 나눗셈이 안전하다.
-        avgNet: Math.round((net / row.students) * 10) / 10,
-      };
-    })
-    .sort((a, b) => a.grade - b.grade || a.classNo - b.classNo);
 }
 
 /**
