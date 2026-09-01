@@ -119,6 +119,16 @@ beforeEach(() => {
 });
 
 describe("registerFailedAttempt()", () => {
+  it("실패 횟수가 한계 미만이면 코드를 폐기하지 않는다", async () => {
+    inviteUpdate.mockResolvedValue({ failedAttempts: 1 });
+
+    await expect(registerFailedAttempt("inv-1", 5)).resolves.toEqual({
+      revoked: false,
+    });
+
+    expect(inviteUpdateMany).not.toHaveBeenCalled();
+  });
+
   it("실패 횟수가 한계에 닿으면 PENDING 코드만 폐기한다", async () => {
     inviteUpdate.mockResolvedValue({ failedAttempts: 5 });
     inviteUpdateMany.mockResolvedValue({ count: 1 });
