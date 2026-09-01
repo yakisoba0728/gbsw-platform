@@ -942,6 +942,32 @@ describe("previewRoster()", () => {
     expect(preview.rosterFingerprint).toBe(createRosterFingerprint(existing));
   });
 
+  it("전교생 개인정보를 돌려준 사실은 건수만 감사로그에 남긴다", async () => {
+    const existing = [재학생];
+    listExisting.mockResolvedValue(existing);
+
+    await previewRoster(admin, file);
+
+    expect(recordAudit).toHaveBeenCalledWith({
+      actorUserId: admin.id,
+      action: "roster:preview",
+      targetType: "AcademicYear",
+      targetId: "2026",
+      metadata: {
+        year: 2026,
+        fileRows: 1,
+        existing: 1,
+        missingFromFile: 0,
+      },
+    });
+
+    const metadata = recordAudit.mock.calls[0]?.[0].metadata;
+    const serialized = JSON.stringify(metadata);
+    expect(serialized).not.toContain(재학생.name);
+    expect(serialized).not.toContain(재학생.birthDate);
+    expect(serialized).not.toContain(재학생.studentCode);
+  });
+
   it("봉인을 함께 낸다 — 그 봉인으로 곧바로 확정할 수 있다", async () => {
     const existing = [재학생];
     listExisting.mockResolvedValue(existing);

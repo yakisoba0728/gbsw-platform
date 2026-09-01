@@ -43,7 +43,8 @@ export const AUDIT_ACTIONS = [
   "academic-year:set-current",
   "enrollment:update",
   "enrollment:import",
-  // 읽기지만 남긴다 — 전교생 개인정보가 파일로 한 번에 나가는 유일한 경로다.
+  // 읽기지만 남긴다 — 전교생 개인정보가 브라우저나 파일로 한 번에 나간다.
+  "roster:preview",
   "roster:export",
   "merit:rule:create",
   "merit:rule:update",
@@ -100,6 +101,7 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   "academic-year:set-current": "현재 학년도 변경",
   "enrollment:update": "소속·학적 수정",
   "enrollment:import": "명단 반영",
+  "roster:preview": "명단 미리보기",
   "roster:export": "명단 내보내기",
   "merit:rule:create": "상벌점 규정 추가",
   "merit:rule:update": "상벌점 규정 수정",
@@ -148,6 +150,7 @@ const ACTION_TONES: Record<AuditAction, BadgeTone> = {
   "academic-year:set-current": "info",
   "enrollment:update": "info",
   "enrollment:import": "info",
+  "roster:preview": "info",
   "roster:export": "info",
   "merit:rule:create": "approved",
   "merit:rule:update": "info",
@@ -293,6 +296,22 @@ function importSummary(metadata: Record<string, unknown>): string | null {
 function exportSummary(metadata: Record<string, unknown>): string | null {
   const parts = [yearLabel(metadata)];
   if (typeof metadata.count === "number") parts.push(`${metadata.count}명`);
+  const filled = parts.filter((p): p is string => p !== null);
+  return filled.length > 0 ? filled.join(" · ") : null;
+}
+
+/** roster:preview — 파일과 전교 명단을 대조한 건수만 보여준다. */
+function rosterPreviewSummary(metadata: Record<string, unknown>): string | null {
+  const parts = [yearLabel(metadata)];
+  if (typeof metadata.fileRows === "number") {
+    parts.push(`파일 ${metadata.fileRows}명`);
+  }
+  if (typeof metadata.existing === "number") {
+    parts.push(`기존 ${metadata.existing}명`);
+  }
+  if (typeof metadata.missingFromFile === "number") {
+    parts.push(`누락 ${metadata.missingFromFile}명`);
+  }
   const filled = parts.filter((p): p is string => p !== null);
   return filled.length > 0 ? filled.join(" · ") : null;
 }
@@ -500,6 +519,7 @@ const METADATA_FORMATTERS: Partial<
   "user:reset-password": reasonSummary,
   "enrollment:update": enrollmentUpdateSummary,
   "enrollment:import": importSummary,
+  "roster:preview": rosterPreviewSummary,
   "roster:export": exportSummary,
   "academic-year:set-current": setCurrentYearSummary,
   "invite:create": roleSummary,

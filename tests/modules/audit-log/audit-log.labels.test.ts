@@ -79,6 +79,9 @@ describe("auditActionLabel() / auditActionTone()", () => {
 
     expect(auditActionLabel("invite:create:parent")).toBe("학부모 코드 발급");
     expect(auditActionTone("invite:create:parent")).toBe("approved");
+
+    expect(auditActionLabel("roster:preview")).toBe("명단 미리보기");
+    expect(auditActionTone("roster:preview")).toBe("info");
   });
 
   it("모르는 액션은 원본 문자열 그대로, 톤은 neutral로 떨어진다", () => {
@@ -223,6 +226,16 @@ describe("formatAuditMetadata()", () => {
         newAssignment: 0,
       }),
     ).toBe("2026학년도 · 신규 2 · 초대발급 1");
+  });
+
+  it("roster:preview — 개인정보 없이 파일·기존·누락 건수만 한글로 그린다", () => {
+    const result = formatAuditMetadata("roster:preview", {
+      year: 2026,
+      fileRows: 1,
+      existing: 312,
+      missingFromFile: 311,
+    });
+    expect(result).toBe("2026학년도 · 파일 1명 · 기존 312명 · 누락 311명");
   });
 
   it("academic-year:set-current — 이전 학년도를 보여준다", () => {
