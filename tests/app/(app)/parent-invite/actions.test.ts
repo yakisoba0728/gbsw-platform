@@ -47,13 +47,12 @@ describe("createParentInviteAction — 경계 검증", () => {
     expect(state.code).toBe("GBSW-ABCD-1234");
   });
 
-  it("유효기간 칸이 없어 무기한으로 넘어간다", async () => {
+  it("죽은 유효기간 입력을 서비스 인자에 만들지 않는다", async () => {
     await createParentInviteAction(INITIAL, form({ name: "홍부모" }));
 
-    expect(createParentInvite).toHaveBeenCalledWith(expect.anything(), {
-      name: "홍부모",
-      expiresInDays: undefined,
-    });
+    const input = createParentInvite.mock.calls[0]?.[1];
+    expect(input).toEqual({ name: "홍부모" });
+    expect(input).not.toHaveProperty("expiresInDays");
   });
 
   it("studentId를 끼워 보내도 서비스로 새지 않는다", async () => {

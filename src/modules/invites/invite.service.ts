@@ -19,6 +19,9 @@ export class InviteError extends Error {}
 /** 학생 한 명이 동시에 살려둘 수 있는 학부모 코드 수. */
 export const MAX_ACTIVE_PARENT_INVITES = 2;
 
+/** 학생이 종이로 전달하는 학부모 코드는 분실 뒤에도 영원히 살아 있으면 안 된다. */
+const PARENT_INVITE_EXPIRES_DAYS = 90;
+
 /** 코드 충돌 시 재시도 횟수. 코드 공간의 근거는 generate-invite-code.ts에 있다. */
 const CODE_RETRIES = 5;
 
@@ -124,7 +127,7 @@ export async function createParentInvite(
     role: "PARENT",
     metadata: { name: input.name },
     studentId: profile.id,
-    expiresAt: toExpiresAt(input.expiresInDays),
+    expiresAt: toExpiresAt(PARENT_INVITE_EXPIRES_DAYS),
     createdById: actor.id,
   };
 

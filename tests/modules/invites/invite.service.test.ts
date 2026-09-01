@@ -180,6 +180,20 @@ describe("학부모 코드 발급", () => {
     expect(arg.studentId).toBe("student-1");
   });
 
+  it("학생이 만든 학부모 코드는 입력 없이도 90일 뒤 만료한다", async () => {
+    getStudentProfileByUserId.mockResolvedValue({ id: "student-1" });
+    const before = Date.now();
+
+    await createParentInvite(student, { name: "김보호" });
+
+    const { expiresAt } = insertInvite.mock.calls[0]![0];
+    const after = Date.now();
+    const ninetyDays = 90 * 24 * 60 * 60 * 1000;
+    expect(expiresAt).toBeInstanceOf(Date);
+    expect(expiresAt.getTime()).toBeGreaterThanOrEqual(before + ninetyDays);
+    expect(expiresAt.getTime()).toBeLessThanOrEqual(after + ninetyDays);
+  });
+
   it("살아 있는 코드가 한도에 차면 더 만들지 못한다", async () => {
     getStudentProfileByUserId.mockResolvedValue({ id: "student-1" });
     countActiveByStudent.mockResolvedValue(MAX_ACTIVE_PARENT_INVITES);
