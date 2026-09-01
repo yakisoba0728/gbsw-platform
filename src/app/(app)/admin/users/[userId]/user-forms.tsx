@@ -203,6 +203,10 @@ export function ResetPasswordForm({ user }: { user: EditableUser }) {
     USER_ACTION_INITIAL,
   );
 
+  // 초기화는 대상의 세션을 전부 끊는다 — 자기 자신이면 임시 비밀번호를 받기 전에
+  // 로그아웃된다. 서버도 같은 이유로 막지만 버튼부터 잠근다.
+  const blocked = user.isSelf;
+
   return (
     <div>
       <ConfirmDialog
@@ -211,7 +215,7 @@ export function ResetPasswordForm({ user }: { user: EditableUser }) {
             type="button"
             variant="secondary"
             full
-            disabled={pending}
+            disabled={pending || blocked}
             onClick={open}
           >
             비밀번호 초기화
@@ -226,11 +230,16 @@ export function ResetPasswordForm({ user }: { user: EditableUser }) {
         pendingLabel="초기화 중…"
         action={formAction}
         pending={pending}
-        state={{ ok: state.tempPassword !== null, error: state.error }}
+        state={state}
       >
         <input type="hidden" name="userId" value={user.id} />
       </ConfirmDialog>
 
+      {blocked && (
+        <p className="mt-1.5 text-xs text-mut">
+          자기 계정은 비밀번호 변경 화면에서 바꿉니다.
+        </p>
+      )}
       {state.error && <Note tone="error" className="mt-3">{state.error}</Note>}
 
       {state.tempPassword && (
@@ -281,7 +290,7 @@ export function ToggleActiveForm({ user }: { user: EditableUser }) {
         pendingLabel={user.active ? "비활성화 중…" : "활성화 중…"}
         action={formAction}
         pending={pending}
-        state={{ ok: state.error === null, error: state.error }}
+        state={state}
       >
         <input type="hidden" name="userId" value={user.id} />
         <input type="hidden" name="active" value={String(!user.active)} />

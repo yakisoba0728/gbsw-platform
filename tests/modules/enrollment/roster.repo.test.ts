@@ -123,7 +123,8 @@ beforeEach(() => {
   userUpdateMany.mockReset().mockResolvedValue({ count: 0 });
   userDeleteMany.mockReset().mockResolvedValue({ count: 0 });
   sessionDeleteMany.mockReset().mockResolvedValue({ count: 0 });
-  inviteCreate.mockReset().mockResolvedValue(undefined);
+  // 발급분도 건별 감사로그를 남기게 되면서 만들어진 행의 id가 필요해졌다.
+  inviteCreate.mockReset().mockResolvedValue({ id: "inv-new" });
   inviteUpdateMany.mockReset().mockResolvedValue({ count: 0 });
   inviteDeleteMany.mockReset().mockResolvedValue({ count: 0 });
   inviteFindMany.mockReset().mockResolvedValue([]);
@@ -159,14 +160,13 @@ describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
     });
     expect(inviteFindMany).toHaveBeenCalledWith({
       where: {
-        status: "PENDING",
         OR: [
           { createdById: { in: ["u-del-1", "u-del-2"] } },
           { usedById: { in: ["u-del-1", "u-del-2"] } },
           { studentId: { in: ["sp-del-1", "sp-del-2"] } },
         ],
       },
-      select: { id: true, role: true },
+      select: { id: true, role: true, status: true },
     });
     expect(inviteUpdateMany).not.toHaveBeenCalled();
     expect(inviteDeleteMany).toHaveBeenCalledWith({

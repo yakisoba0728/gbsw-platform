@@ -18,10 +18,10 @@ fi
 
 : "${TEST_DATABASE_URL:?TEST_DATABASE_URL을 .env에 설정하세요 (.env.example 참고, DATABASE_URL과 DB 이름이 달라야 합니다)}"
 
-if [ "$TEST_DATABASE_URL" = "${DATABASE_URL:-}" ]; then
-  echo "[test-db] TEST_DATABASE_URL이 DATABASE_URL과 같습니다 — 개발 DB를 건드릴 수 있어 중단합니다." >&2
-  exit 1
-fi
+# 문자열 완전일치로는 `localhost`↔`127.0.0.1`, 포트 생략, `?schema=` 유무가
+# 전부 「다른 값」이 되어 같은 DB를 그대로 통과시킨다. Playwright·vitest와
+# 같은 정규화 판정을 쓴다 (scripts/database-target.mjs).
+node scripts/assert-test-database.mjs
 
 # DATABASE_URL 형태: postgresql://user:pass@host:port/dbname[?...]
 TEST_DB_NAME=$(echo "$TEST_DATABASE_URL" | sed -E 's#^[a-z]+://[^/]+/([^/?]+).*$#\1#')

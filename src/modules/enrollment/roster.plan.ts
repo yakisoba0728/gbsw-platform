@@ -213,11 +213,17 @@ export function planRoster(
     });
   }
 
-  // 신규 줄의 이름·생년월일이 삭제 대상과 겹치면 학생코드 칸만 지워진 것으로 본다.
+  // 신규 줄의 이름·생년월일이 기존 학생과 겹치면 학생코드 칸만 지워진 것으로 본다.
   // 자동으로 잇지는 않는다 — 잘못 이으면 남의 코드가 붙는다.
+  //
+  // **삭제 대상이 아니라 `existing` 전체를 본다.** 「물리 삭제 대상인가」와
+  // 「이 이름·생년월일이 이미 있는가」는 다른 질문이다. missingFromFile은 졸업생을
+  // 면제한 뒤의 목록이고 코드로 이어진 학생은 애초에 빠져 있어서, 그 목록으로
+  // 대조하면 재입학생의 코드를 지운 줄과 같은 학생이 두 줄로 들어온 파일이
+  // 그대로 통과한다 — 초대코드가 새로 나가고 두 번째 프로필이 생긴다.
   const stillNew: PlannedRow[] = [];
   for (const r of plan.newStudents) {
-    const match = plan.missingFromFile.find(
+    const match = existing.find(
       (s) => s.name === r.name && s.birthDate === r.birthDate,
     );
     if (match) {

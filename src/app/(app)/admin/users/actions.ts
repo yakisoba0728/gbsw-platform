@@ -5,7 +5,6 @@ import { redirect } from "next/navigation";
 import { requireAuth } from "@/core/auth/session";
 import { ForbiddenError } from "@/core/authz/errors";
 import {
-  USER_ACTION_INITIAL,
   type UpdateUserState,
   type UpdateUserValues,
   type UserActionState,
@@ -30,6 +29,7 @@ const MESSAGES: Record<string, string> = {
   NOT_FOUND: "계정을 찾을 수 없습니다.",
   ACCOUNT_DELETED: "명단에서 빠진 계정에는 할 수 없습니다.",
   CANNOT_DEACTIVATE_SELF: "자기 계정은 비활성화할 수 없습니다.",
+  CANNOT_RESET_SELF: "자기 계정은 비밀번호 변경 화면에서 바꿉니다.",
   NO_CREDENTIAL_ACCOUNT: "비밀번호 로그인을 쓰지 않는 계정입니다.",
   CANNOT_DELETE_SELF: "자기 계정은 삭제할 수 없습니다.",
   DELETE_STUDENT_ONLY: "학생 계정만 삭제할 수 있습니다.",
@@ -46,11 +46,14 @@ function messageFor(error: unknown, fallback: string): string {
   if (error instanceof AdminUserError || error instanceof ForbiddenError) {
     return MESSAGES[error.message] ?? fallback;
   }
+  // 예상 못 한 오류는 서버 콘솔에 남긴다. 화면에는 일반 문구만 나가므로
+  // 여기서 안 남기면 원인이 어디에도 없다.
+  console.error("[admin-users] 예상 못 한 오류", error);
   return fallback;
 }
 
 function fail(error: string): UserActionState {
-  return { error, tempPassword: null, targetId: null };
+  return { ok: false, error, tempPassword: null, targetId: null };
 }
 
 /** 경계 검증 실패 → 화면 문구. 스키마가 문구를 갖고 있어 첫 issue를 그대로 쓴다. */
@@ -90,7 +93,10 @@ export async function setUserActiveAction(
   }
 
   revalidate(userId);
-  return USER_ACTION_INITIAL;
+  // 매번 새 객체를 돌려준다. 확인 모달은 상태의 **동일성**으로 결과가 왔음을
+  // 아는데, 고정 객체(USER_ACTION_INITIAL)를 다시 주면 두 번째 성공에서
+  // 모달이 열린 채 남는다.
+  return { ok: true, error: null, tempPassword: null, targetId: null };
 }
 
 export async function resetPasswordAction(
@@ -111,7 +117,7 @@ export async function resetPasswordAction(
   try {
     const { tempPassword } = await resetPassword(actor, userId, reason);
     revalidate(userId);
-    return { error: null, tempPassword, targetId: userId };
+    return { ok: true, error: null, tempPassword, targetId: userId };
   } catch (error) {
     return fail(messageFor(error, "비밀번호를 초기화하지 못했습니다."));
   }

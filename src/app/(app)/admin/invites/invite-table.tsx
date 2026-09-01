@@ -18,6 +18,11 @@ export type InviteRow = {
   role: string;
   roleLabel: string;
   status: string;
+  /**
+   * 아직 가입에 쓸 수 있는가. 서버(`panel.tsx`)가 `isInviteUsable`로 정해 넘긴다 —
+   * `expiresAt`은 여기 오면 이미 표시용 문자열이라 만료를 다시 잴 수 없다.
+   */
+  usable: boolean;
   /** 코드에 등록된 사람 이름 */
   name: string;
   /** "1학년 4반 21번" — 학생 코드이거나 학부모 코드의 자녀 */
@@ -33,12 +38,14 @@ export type InviteRow = {
 
 const STATUS_TONE: Record<string, BadgeTone> = {
   PENDING: "pending",
+  EXPIRED: "neutral",
   USED: "approved",
   REVOKED: "cancelled",
 };
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: "대기",
+  EXPIRED: "만료",
   USED: "사용됨",
   REVOKED: "폐기",
 };
@@ -46,10 +53,20 @@ const STATUS_LABEL: Record<string, string> = {
 /** 기본은 폐기 제외. 폐기된 코드는 골라야만 보인다. */
 const STATUS_FILTERS = [
   { key: "PENDING", label: "대기" },
+  { key: "EXPIRED", label: "만료" },
   { key: "USED", label: "사용됨" },
   { key: "REVOKED", label: "폐기" },
   { key: "ALL", label: "모두" },
 ] as const;
+
+/**
+ * 화면이 세고 그리는 상태. DB에는 만료가 없어 기한이 지난 코드도 PENDING으로
+ * 남는다 — 그대로 세면 「대기 20」이 쓸 수 없는 코드 20개를 가리키고, 교사는
+ * 재발급하지 않는다. 폐기 버튼만은 원래 status를 본다: 만료된 코드도 치울 수 있다.
+ */
+function displayStatus(row: InviteRow): string {
+  return row.status === "PENDING" && !row.usable ? "EXPIRED" : row.status;
+}
 
 const ROLE_FILTERS = [
   { key: "ALL", label: "전체" },
@@ -73,9 +90,9 @@ const COLUMNS: readonly Column<InviteRow>[] = [
     cell: (row) => (
       <span
         className="font-mono font-medium text-ink"
-        title={row.status === "PENDING" ? undefined : "사용이 끝난 코드는 일부만 표시합니다."}
+        title={row.usable ? undefined : "더는 쓸 수 없는 코드는 일부만 표시합니다."}
       >
-        {row.status === "PENDING" ? row.code : maskInviteCode(row.code)}
+        {row.usable ? row.code : maskInviteCode(row.code)}
       </span>
     ),
   },
@@ -119,8 +136,8 @@ const COLUMNS: readonly Column<InviteRow>[] = [
     card: "trailing",
     cell: (row) => (
       <>
-        <Badge tone={STATUS_TONE[row.status] ?? "neutral"}>
-          {STATUS_LABEL[row.status] ?? row.status}
+        <Badge tone={STATUS_TONE[displayStatus(row)] ?? "neutral"}>
+          {STATUS_LABEL[displayStatus(row)] ?? row.status}
         </Badge>
         {row.usedByName && (
           <span className="mt-1 block text-xs text-mut">
@@ -167,8 +184,8 @@ export function InviteTable({ rows }: { rows: InviteRow[] }) {
     const q = query.trim().toLowerCase();
 
     return rows.filter((row) => {
-      // "모두"에서도 폐기는 따로 골라야 보인다.
-      if (status === "ALL" ? row.status === "REVOKED" : row.status !== status) {
+      // "모두"에서도 폐기는 따로 골라야 보인다. 만료는 "모두"에 든다.
+      if (status === "ALL" ? row.status === "REVOKED" : displayStatus(row) !== status) {
         return false;
       }
       if (role !== "ALL" && row.role !== role) return false;
@@ -183,7 +200,7 @@ export function InviteTable({ rows }: { rows: InviteRow[] }) {
   const countFor = (key: StatusKey) =>
     key === "ALL"
       ? rows.filter((r) => r.status !== "REVOKED").length
-      : rows.filter((r) => r.status === key).length;
+      : rows.filter((r) => displayStatus(r) === key).length;
 
   return (
     <SectionCard

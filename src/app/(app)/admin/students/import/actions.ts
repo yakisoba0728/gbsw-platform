@@ -99,6 +99,9 @@ export async function previewRosterAction(
     if (error instanceof Error && MESSAGES[error.message]) {
       return emptyPreview(MESSAGES[error.message]);
     }
+    // 반영(아래)은 남기는데 미리보기만 안 남겼다. 화면에는 일반 문구만
+    // 나가므로 여기서 안 남기면 원인이 어디에도 없다.
+    console.error("명단 미리보기 실패:", error);
     return emptyPreview("파일을 읽지 못했습니다.");
   }
 }

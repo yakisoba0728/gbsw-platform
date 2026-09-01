@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { recordAudit } from "@/core/audit/audit";
 import { auth } from "@/core/auth/auth";
 import { safeNext } from "@/lib/safe-next";
 import {
@@ -73,6 +74,64 @@ async function errorCodeForResponse(response: Response): Promise<LoginErrorCode>
     return "server";
   }
   return "credentials";
+}
+
+/**
+ * `ab12cd@gbsw.hs.kr` → `ab***@gbsw.hs.kr`.
+ *
+ * 로그인 기록은 **남의 주소로 시도한 것까지** 남으므로 주소를 그대로 적으면
+ * 감사로그가 곧 주소록이 된다. 규칙은 `verification.sender.ts`의 `maskEmail`과
+ * 같다 — 그 파일을 가져오면 발송기 체인이 로그인 경로로 딸려 와 여기 따로 둔다.
+ */
+function maskEmail(email: string): string {
+  const at = email.indexOf("@");
+  if (at < 0) return "***";
+
+  const local = email.slice(0, at);
+  const domain = email.slice(at + 1);
+  return local.length <= 2 ? `***@${domain}` : `${local.slice(0, 2)}***@${domain}`;
+}
+
+/** 로그인한 사용자 id. 인증 서버의 본문 모양이 바뀌어도 기록이 죽지 않게 받아 낸다. */
+async function signedInUserId(response: Response): Promise<string | null> {
+  try {
+    const body = (await response.clone().json()) as { user?: { id?: unknown } };
+    return typeof body.user?.id === "string" ? body.user.id : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 로그인 성공·실패를 감사로그에 남긴다. IP·UA·모든 업무 동작을 남기는 시스템에서
+ * **세션이 생기는 순간만 비어 있었다.**
+ *
+ * **비밀번호는 어디에도 남기지 않고 이메일은 가려서 남긴다.**
+ *
+ * **기록 실패는 삼킨다** — 세션을 만드는 쓰기는 Better Auth 안에 있어 이 기록과 같은
+ * 트랜잭션에 묶을 방법이 없다. 묶이지 않는 기록을 전파하면 원자성은 하나도 못
+ * 얻고 감사로그 한 줄이 못 들어간 날 아무도 로그인하지 못하게 될 뿐이다.
+ * (`invite.service.ts`의 `authz:denied` 기록이 같은 이유로 같은 모양이다.)
+ */
+async function recordLoginAttempt(input: {
+  ok: boolean;
+  email: string;
+  userId?: string | null;
+  reason?: LoginErrorCode;
+}): Promise<void> {
+  try {
+    await recordAudit({
+      actorUserId: input.userId ?? null,
+      action: input.ok ? "auth:login" : "auth:login-failed",
+      targetType: "User",
+      targetId: input.userId ?? undefined,
+      metadata: input.reason
+        ? { email: maskEmail(input.email), reason: input.reason }
+        : { email: maskEmail(input.email) },
+    });
+  } catch (error) {
+    console.error("[auth] 로그인 기록을 남기지 못했습니다.", error);
+  }
 }
 
 function copySetCookies(from: Response, to: NextResponse): void {
@@ -160,15 +219,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   );
 
   if (!authResponse.ok) {
+    const code = await errorCodeForResponse(authResponse);
+    await recordLoginAttempt({ ok: false, email, reason: code });
+
     return failureResponse(
       request,
-      await errorCodeForResponse(authResponse),
+      code,
       email,
       destination,
       origin,
       authResponse.status,
     );
   }
+
+  await recordLoginAttempt({
+    ok: true,
+    email,
+    userId: await signedInUserId(authResponse),
+  });
 
   const response = wantsJson(request)
     ? NextResponse.json({ redirectTo: destination ?? "/" })

@@ -246,10 +246,28 @@ describe("passHistoryQuerySchema", () => {
     ).toBe(true);
   });
 
+  /**
+   * 학생 상세의 출입증 탭이 이 값으로 조회를 한 사람으로 좁힌다. zod가 벗겨
+   * 버리면 30일 하한을 걷는 갈래(`decision.service`의 historyFilter)가 통째로
+   * 죽고, 탭은 최근 30일치만 조용히 보여준다.
+   */
+  it("학생 좁히기는 파싱을 통과해 살아남는다", () => {
+    expect(
+      passHistoryQuerySchema.parse({ studentProfileId: "sp-1" }).studentProfileId,
+    ).toBe("sp-1");
+  });
+
   it("내보내기 조건에는 쪽 번호가 없다", () => {
     const parsed = passHistoryExportSchema.parse({ page: "5", type: "OUTING" });
     expect("page" in parsed).toBe(false);
     expect(parsed.type).toBe("OUTING");
+  });
+
+  // 시트 첫 줄에 적는 조회 창은 늘 30일인데 질의만 열리면 파일에 적힌 기간과
+  // 파일에 든 기록이 어긋난다 — 그래서 내보내기는 학생 좁히기를 받지 않는다.
+  it("내보내기 조건에는 학생 좁히기도 없다", () => {
+    const parsed = passHistoryExportSchema.parse({ studentProfileId: "sp-1" });
+    expect("studentProfileId" in parsed).toBe(false);
   });
 });
 

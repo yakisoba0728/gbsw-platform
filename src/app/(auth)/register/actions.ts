@@ -148,13 +148,12 @@ export async function completeRegistrationAction(
     await completeRegistration(parsed.data);
   } catch (error) {
     // 우리가 문구를 정제해 둔 오류만 그대로 보여준다. 그 밖(Prisma 원문 등)은 덮는다.
-    return {
-      error:
-        error instanceof RegistrationError || error instanceof VerificationError
-          ? error.message
-          : "가입하지 못했습니다.",
-      values,
-    };
+    if (error instanceof RegistrationError || error instanceof VerificationError) {
+      return { error: error.message, values };
+    }
+    // 덮은 오류는 서버 콘솔에 남긴다 — 여기서 안 남기면 원인이 어디에도 없다.
+    console.error("[registration] 가입하지 못했습니다.", error);
+    return { error: "가입하지 못했습니다.", values };
   }
 
   await signInSilently(parsed.data.email, parsed.data.password);
@@ -195,13 +194,12 @@ export async function requestVerificationAction(
     return { ok: true, error: null, verified };
   } catch (error) {
     // 서비스가 정제한 문구만 내보낸다. 그 밖의 오류는 원문을 감춘다.
-    return {
-      ok: false,
-      error:
-        error instanceof VerificationError || error instanceof RegistrationError
-          ? error.message
-          : "인증번호를 보내지 못했습니다.",
-    };
+    if (error instanceof VerificationError || error instanceof RegistrationError) {
+      return { ok: false, error: error.message };
+    }
+    // 감춘 오류는 서버 콘솔에 남긴다. 대상·코드는 적지 않는다 — 오류 객체만 넘긴다.
+    console.error("[verification] 인증번호를 보내지 못했습니다.", error);
+    return { ok: false, error: "인증번호를 보내지 못했습니다." };
   }
 }
 
@@ -220,13 +218,11 @@ export async function confirmVerificationAction(
       await requireVerified(parsed.data.channel, parsed.data.target);
       return { ok: true, error: null, verified: true };
     } catch (error) {
-      return {
-        ok: false,
-        error:
-          error instanceof VerificationError
-            ? error.message
-            : "인증하지 못했습니다.",
-      };
+      if (error instanceof VerificationError) {
+        return { ok: false, error: error.message };
+      }
+      console.error("[verification] 인증 상태를 확인하지 못했습니다.", error);
+      return { ok: false, error: "인증하지 못했습니다." };
     }
   }
 
@@ -242,13 +238,11 @@ export async function confirmVerificationAction(
     await confirmCode(parsed.data.channel, parsed.data.target, parsed.data.code);
     return { ok: true, error: null };
   } catch (error) {
-    return {
-      ok: false,
-      error:
-        error instanceof VerificationError
-          ? error.message
-          : "인증하지 못했습니다.",
-    };
+    if (error instanceof VerificationError) {
+      return { ok: false, error: error.message };
+    }
+    console.error("[verification] 인증하지 못했습니다.", error);
+    return { ok: false, error: "인증하지 못했습니다." };
   }
 }
 

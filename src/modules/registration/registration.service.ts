@@ -37,6 +37,20 @@ const GENERIC_FAILURE = "가입코드 또는 입력한 정보가 맞지 않습�
 /** 학생코드가 겹칠 때 성공 가입 트랜잭션째 재시도하는 횟수. */
 const STUDENT_CODE_RETRIES = 5;
 
+/**
+ * 트랜잭션이 제한 시간을 다 썼는가 (Prisma P2028). 충돌이 아니라 대기가 길어서
+ * 잘린 것이라 `isSerializationConflict`가 잡지 않는다 —
+ * `pass/decision.service.ts`가 같은 자리에서 같은 판정을 한다.
+ */
+function isTransactionExpired(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "P2028"
+  );
+}
+
 /** 1단계 — 역할만 돌려준다. 사전등록 개인정보는 회신하지 않는다. */
 export async function checkInvite(rawCode: string): Promise<{ role: Role }> {
   const invite = await repo.findInviteByCode(normalizeInviteCode(rawCode));
@@ -187,6 +201,12 @@ export async function completeRegistration(
         try {
           await withTransaction(completeWithTx, {
             isolationLevel: "Serializable",
+            // 이 트랜잭션은 findCurrentYearForUpdate로 AcademicYear를 잠근다.
+            // 명단 일괄 반영이 같은 잠금을 최대 120초 쥐는데(roster.service),
+            // 학년 초 — 교사가 명단을 반영하는 바로 그때 — 가 새 학생들이
+            // 가입하는 때다. 기본 5초로는 정상 대기가 가입 실패로 바뀐다.
+            timeout: 130_000,
+            maxWait: 10_000,
           });
           break;
         } catch (error) {
@@ -214,6 +234,14 @@ export async function completeRegistration(
     if (isSerializationConflict(error)) {
       throw new RegistrationError(
         "가입을 마치지 못했습니다. 다시 시도하세요.",
+      );
+    }
+    // 예산을 늘려도 더 긴 반영에서는 여전히 시간이 다한다. 그때 P2028을 그대로
+    // 올려보내면 액션이 「가입하지 못했습니다.」만 띄워, 학생은 코드가 잘못된 줄
+    // 알고 같은 버튼을 계속 누른다. 기다렸다 다시 하면 되는 실패라고 말한다.
+    if (isTransactionExpired(error)) {
+      throw new RegistrationError(
+        "가입을 마치지 못했습니다. 잠시 뒤 다시 시도하세요.",
       );
     }
     throw error;

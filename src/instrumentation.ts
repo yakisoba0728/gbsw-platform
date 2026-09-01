@@ -31,7 +31,8 @@ export async function register() {
 
   if (!token) return;
 
-  const baseUrl = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
+  // `??`가 아니라 `||`다 — 환경변수는 빈 문자열로도 들어온다(compose의 `${VAR:-}`).
+  const baseUrl = process.env.BETTER_AUTH_URL || "http://localhost:3000";
   const line = "─".repeat(64);
 
   // 토큰을 완성된 클릭 가능 URL로 조립해 찍지 않는다 (M17) — /register는

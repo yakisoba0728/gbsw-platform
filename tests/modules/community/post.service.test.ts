@@ -10,8 +10,10 @@ const markPostDeleted = vi.fn();
 const attachToPost = vi.fn();
 const detachFromPost = vi.fn();
 const listAttachments = vi.fn();
+const listRecentPostsAcross = vi.fn();
 const getReadableBySlug = vi.fn();
 const getWritableBySlug = vi.fn();
+const listReadable = vi.fn();
 const deleteAttachment = vi.fn();
 const recordAudit = vi.fn();
 const txClient = { tx: "post-service-test" };
@@ -29,10 +31,12 @@ vi.mock("@/modules/community/community.repo", () => ({
   attachToPost,
   detachFromPost,
   listAttachments,
+  listRecentPostsAcross,
 }));
 vi.mock("@/modules/community/board.service", () => ({
   getReadableBySlug,
   getWritableBySlug,
+  listReadable,
 }));
 vi.mock("@/modules/community/community.storage", () => ({ deleteAttachment }));
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
@@ -103,6 +107,8 @@ beforeEach(() => {
   deleteAttachment.mockResolvedValue(undefined);
   countPosts.mockResolvedValue(0);
   listPosts.mockResolvedValue([]);
+  listReadable.mockResolvedValue([]);
+  listRecentPostsAcross.mockResolvedValue([]);
 });
 
 describe("createPost", () => {
@@ -303,7 +309,9 @@ describe("updatePost", () => {
       ...row(),
       community: board({ allowAttachments: false }),
     });
-    getReadableBySlug.mockResolvedValue(board({ allowAttachments: false }));
+    // updatePost는 읽기 문이 아니라 쓰기 문을 지난다 (읽기 전용으로 얼린
+    // 게시판에서 옛 글쓴이가 본문을 갈아 끼우지 못하게 한 뒤로).
+    getWritableBySlug.mockResolvedValue(board({ allowAttachments: false }));
 
     await expect(
       service.updatePost(student, { ...input, attachmentIds: ["a1"] }),
@@ -420,5 +428,51 @@ describe("listPostPage", () => {
     getReadableBySlug.mockRejectedValue(new ForbiddenError("community:read"));
     await expect(service.listPostPage(other, "free", 1)).rejects.toThrow(ForbiddenError);
     expect(listPosts).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * 대시보드의 「새 글」. 게시판이 섞여 오므로 **글마다 제 게시판의 anonymous를
+ * 골라** 뷰 변환기에 넘겨야 한다 — 그 배선이 이 함수에만 있다.
+ */
+describe("listRecentPosts", () => {
+  const anonymousBoard = board({
+    id: "c2",
+    slug: "worry",
+    name: "고민 게시판",
+    anonymous: true,
+  });
+
+  beforeEach(() => {
+    listReadable.mockResolvedValue([board(), anonymousBoard]);
+  });
+
+  it("익명 게시판 글만 작성자를 지운다 — 결과 어디에도 그 이름이 없다", async () => {
+    listRecentPostsAcross.mockResolvedValue([
+      row({ id: "p1", communityId: "c1", authorName: "김민준", authorUserId: "s-1" }),
+      row({ id: "p2", communityId: "c2", authorName: "최유진", authorUserId: "s-9" }),
+    ]);
+
+    const result = await service.listRecentPosts(other, 5);
+
+    expect(result[0].author).toMatchObject({ name: "김민준" });
+    expect(result[0].communitySlug).toBe("free");
+    expect(result[1].author).toBeNull();
+    expect(result[1].communityName).toBe("고민 게시판");
+    expect(JSON.stringify(result)).not.toContain("최유진");
+    // 실명 쪽까지 함께 지워 버린 것을 「익명이 잘 됐다」로 읽지 않는다.
+    expect(JSON.stringify(result)).toContain("김민준");
+  });
+
+  it("읽을 수 있는 게시판 안에서만 찾는다", async () => {
+    await service.listRecentPosts(other, 5);
+    expect(listRecentPostsAcross).toHaveBeenCalledWith(["c1", "c2"], 5);
+  });
+
+  it("읽을 수 있는 게시판이 없으면 repo를 아예 부르지 않는다", async () => {
+    listReadable.mockResolvedValue([]);
+
+    await expect(service.listRecentPosts(other, 5)).resolves.toEqual([]);
+    expect(listRecentPostsAcross).not.toHaveBeenCalled();
   });
 });

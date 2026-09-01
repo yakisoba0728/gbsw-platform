@@ -83,7 +83,7 @@ function adminForm(over: Record<string, string> = {}): FormData {
   });
 }
 
-const USER_INITIAL = { error: null, tempPassword: null, targetId: null };
+const USER_INITIAL = { ok: false, error: null, tempPassword: null, targetId: null };
 const UPDATE_INITIAL = { error: null, changed: null, values: null };
 
 beforeEach(() => {

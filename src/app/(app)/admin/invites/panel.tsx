@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { requirePermission } from "@/core/auth/session";
 import { formatDate } from "@/lib/datetime";
 import { isRole, ROLE_LABELS } from "@/core/authz/roles";
-import { formatInviteCode } from "@/lib/invite-code";
+import { formatInviteCode, isInviteUsable } from "@/lib/invite-code";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import { studentInviteMetaSchema } from "@/modules/invites/invite.schema";
 import {
@@ -44,6 +44,9 @@ function toRow(invite: Listed): InviteRow {
     role: invite.role,
     roleLabel: isRole(invite.role) ? ROLE_LABELS[invite.role] : invite.role,
     status: invite.status,
+    // 만료 판정은 여기서 끝낸다. 아래 expiresAt은 표시용 문자열이라 화면에는
+    // 비교할 값이 남지 않고, 클라이언트에서 시각을 다시 재면 hydration이 갈린다.
+    usable: isInviteUsable(invite),
     createdAt: formatDate(invite.createdAt),
     expiresAt: invite.expiresAt ? formatDate(invite.expiresAt) : null,
     usedByName: invite.usedBy?.name ?? null,

@@ -135,15 +135,13 @@ export function ClassRoster({
     }
   }
 
-  const sorted = useMemo(() => {
-    const copy = [...rows];
-    if (sortKey === "net") {
-      copy.sort((a, b) => b.net - a.net);
-    } else {
-      copy.sort((a, b) => (a.number ?? 0) - (b.number ?? 0));
-    }
-    return copy;
-  }, [rows, sortKey]);
+  // 번호순은 서버가 이미 세운 순서다 — 학년·반·번호 3단이라 전교를 훑어도 반이
+  // 이어진다. 여기서 번호만으로 다시 세우면 「모든 반의 1번 → 모든 반의 2번」이
+  // 되고, 번호 없는 미배정 학생이 맨 뒤가 아니라 맨 앞으로 올라온다.
+  const sorted = useMemo(
+    () => (sortKey === "net" ? [...rows].sort((a, b) => b.net - a.net) : rows),
+    [rows, sortKey],
+  );
 
   const allSelected = rows.length > 0 && selected.size === rows.length;
 

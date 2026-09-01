@@ -7,6 +7,12 @@
  */
 
 export type UserActionState = {
+  /**
+   * 서버가 실제로 성공했는가. 확인 모달이 이 값으로 닫힌다 —
+   * `error === null`로 대신하면 제출 전 초기 상태부터 참이라 모달이
+   * 서버 응답을 기다리지 않고 닫힌다.
+   */
+  ok: boolean;
   error: string | null;
   /** 비밀번호 초기화 결과 — 화면에 한 번만 보여준다. */
   tempPassword: string | null;
@@ -14,6 +20,7 @@ export type UserActionState = {
 };
 
 export const USER_ACTION_INITIAL: UserActionState = {
+  ok: false,
   error: null,
   tempPassword: null,
   targetId: null,

@@ -56,6 +56,12 @@ export function ConfirmDialog({
   /** `useActionState`가 준 dispatch */
   action: (formData: FormData) => void;
   pending: boolean;
+  /**
+   * `useActionState`가 준 state를 **그대로** 넘긴다. 이 모달은 "결과가 새로
+   * 왔는가"를 객체 **동일성**으로 판정하므로, 여기서 `{ ok: …, error: … }`를
+   * 새로 지어 넘기면 제출 순간의 pending 재렌더가 곧 새 객체가 되어 서버
+   * 응답 전에 닫힌다. 액션 상태에 `ok`가 없으면 액션 쪽에 더한다.
+   */
   state: ConfirmDialogState;
   /** 사유 칸 위에 들어갈 입력들 — 승인의 「전화로 보호자 확인함」 같은 것. */
   extra?: ReactNode;

@@ -298,11 +298,21 @@ export async function getMeritStats(
   const studentProfileIds = classRoster?.map((r) => r.studentProfileId);
 
   // 반이 비면 빈 배열이 되는데, Prisma의 `in: []`가 그대로 빈 결과를 준다.
+  //
+  // 반을 안 골랐을 때 학생 조건이 통째로 빠지면 머리글·항목·그래프가 「반별
+  // 현황」과 다른 모집단을 센다(퇴학·졸업으로 재적이 끊긴 학생이 머리글에만
+  // 남는다). rosterYear를 넘겨 repo가 같은 명단 술어를 걸게 한다.
   const [totalRows, classes, topRules, chartAwards, watchList] = await Promise.all([
-    repo.trackTotals({ track, totalsYear: scoped, studentProfileIds }),
+    repo.trackTotals({ track, totalsYear: scoped, rosterYear, studentProfileIds }),
     repo.classSummaries({ year: rosterYear, track, totalsYear: scoped }),
-    repo.topRules({ track, totalsYear: scoped, studentProfileIds }),
-    repo.listAwardsForChart({ track, year: scoped, since, studentProfileIds }),
+    repo.topRules({ track, totalsYear: scoped, rosterYear, studentProfileIds }),
+    repo.listAwardsForChart({
+      track,
+      year: scoped,
+      since,
+      rosterYear,
+      studentProfileIds,
+    }),
     readWatchList(thresholds, track, scoped, rosterYear, studentProfileIds),
   ]);
 

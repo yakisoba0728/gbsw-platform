@@ -59,7 +59,9 @@ export default async function PostPage({
           </p>
 
           <span className="flex gap-1">
-            {post.canEdit && (
+            {/* 읽기 전용으로 얼린 게시판에서는 수정도 막힌다 — 버튼은 보이는데
+                눌리지 않는 일이 없게 서비스와 같은 근거를 본다. */}
+            {post.canEdit && view.canWrite && (
               <Link
                 href={`/community/${slug}/${postId}/edit`}
                 className={buttonClass({ variant: "ghost", size: "sm" })}
@@ -85,7 +87,9 @@ export default async function PostPage({
         flush
       >
         <CommentList comments={comments} />
-        {view.canWrite && <CommentForm postId={postId} />}
+        {view.canWrite && (
+          <CommentForm postId={postId} anonymous={view.community.anonymous} />
+        )}
       </SectionCard>
     </div>
   );

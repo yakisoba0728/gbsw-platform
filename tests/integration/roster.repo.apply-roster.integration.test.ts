@@ -142,9 +142,13 @@ describe("applyRoster() — 명단에서 빠진 학생은 DB에서 영구 삭제
   });
 
   it("User/StudentProfile과 의존 행을 cascade로 지우고 학부모 계정은 보존한다", async () => {
-    const pendingIds = (
+    // 소진된 코드도 함께 지워지므로 함께 돌려받아야 한다 — 대기분만 모으면
+    // 소진된 행이 감사로그 한 줄 없이 사라진다. 무엇이었는지는 status가 남긴다.
+    const removedIds = (
       await prisma.invite.findMany({
-        where: { code: { in: [pendingByStudentCode, pendingByAdminCode] } },
+        where: {
+          code: { in: [pendingByStudentCode, pendingByAdminCode, usedCode] },
+        },
         select: { id: true },
       })
     ).map((i) => i.id).sort();
@@ -158,8 +162,13 @@ describe("applyRoster() — 명단에서 빠진 학생은 DB에서 영구 삭제
       createdById: adminId,
     });
 
-    expect(result.revokedInvites.map((i) => i.id).sort()).toEqual(pendingIds);
+    expect(result.revokedInvites.map((i) => i.id).sort()).toEqual(removedIds);
     expect(result.revokedInvites.every((i) => i.role === "PARENT")).toBe(true);
+    expect(result.revokedInvites.map((i) => i.status).sort()).toEqual([
+      "PENDING",
+      "PENDING",
+      "USED",
+    ]);
 
     const remainingInvites = await prisma.invite.findMany({
       where: { code: { in: [pendingByStudentCode, pendingByAdminCode, usedCode] } },

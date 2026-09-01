@@ -1,9 +1,11 @@
 import { existsSync, readFileSync } from "node:fs";
 import { parseEnv } from "node:util";
 import { defineConfig } from "vitest/config";
+import { sameDatabaseTarget } from "./scripts/database-target.mjs";
 
 /**
- * .env에서 TEST_DATABASE_URL만 읽는다 — integration 프로젝트 하나에만 필요하다.
+ * .env에서 두 값만 읽는다 — integration 프로젝트가 붙을 TEST_DATABASE_URL과,
+ * 그것이 개발 DB가 아닌지 대조할 DATABASE_URL.
  *
  * `process.loadEnvFile(".env")`(prisma.config.ts가 쓰는 방식)는 process.env를
  * 통째로 바꿔버려서 unit 프로젝트까지 오염시킨다 — 실제로 .env의
@@ -12,10 +14,29 @@ import { defineConfig } from "vitest/config";
  * process.env를 건드리지 않고 파일 내용만 파싱하므로 이 문제가 없다.
  */
 function readTestDatabaseUrl(): string {
-  if (process.env.TEST_DATABASE_URL) return process.env.TEST_DATABASE_URL;
-  if (!existsSync(".env")) return "";
-  const parsed = parseEnv(readFileSync(".env", "utf8"));
-  return parsed.TEST_DATABASE_URL ?? "";
+  const fileEnv: Record<string, string | undefined> = existsSync(".env")
+    ? parseEnv(readFileSync(".env", "utf8"))
+    : {};
+  const testUrl = process.env.TEST_DATABASE_URL || fileEnv.TEST_DATABASE_URL || "";
+
+  // 아래 integration 프로젝트가 DATABASE_URL에 이 값을 그대로 주입한다. 글자까지
+  // 같으면 그건 개발 DB가 아니라 우리가 넣은 값이므로 비교 대상에서 뺀다 —
+  // playwright.config.ts에 같은 함정이 적혀 있다.
+  const ambient =
+    process.env.DATABASE_URL === testUrl ? undefined : process.env.DATABASE_URL;
+  const developmentUrl = ambient || fileEnv.DATABASE_URL;
+
+  // 통합 스위트는 파괴적이다 — 현재 학년도의 isCurrent를 끄고 되돌리는
+  // 테스트까지 있어 개발 DB에 붙으면 집계 범위가 조용히 어긋난 채 남는다.
+  // 설정을 읽는 지금 멈춘다. 문자열 완전일치로는 `localhost`↔`127.0.0.1`,
+  // `?schema=` 유무가 전부 「다른 값」이 되어 그대로 통과한다.
+  if (sameDatabaseTarget(developmentUrl, testUrl)) {
+    throw new Error(
+      "TEST_DATABASE_URL이 DATABASE_URL과 같은 데이터베이스를 가리킵니다 — .env에서 서로 다른 DB로 나누세요.",
+    );
+  }
+
+  return testUrl;
 }
 
 export default defineConfig({

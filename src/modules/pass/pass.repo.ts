@@ -280,6 +280,9 @@ export async function listEnrolledStudents(year: number, db: DbClient = prisma) 
 /**
  * 기간이 겹치는 살아 있는 출입증. 두 구간이 겹칠 조건은 `aStart < bEnd && bStart < aEnd`다.
  * 자기 자신은 빼고 본다 (수정 경로가 생길 때를 위해 인자를 둔다).
+ *
+ * **맞닿은 구간은 여기서 겹치지 않는다.** 이어 붙이기를 막는 여백은 부르는 쪽이
+ * 얹는다 — 두 생성 경로 모두 `pass.window.conflictWindow`로 넓힌 창을 넘긴다.
  */
 export async function findOverlapping(
   studentProfileId: string,

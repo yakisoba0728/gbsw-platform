@@ -89,7 +89,9 @@ services:
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:?BETTER_AUTH_URL를 .env에 설정해야 합니다}
       # 명단 미리보기 토큰(HMAC) 서명 키. 전달 경로가 없으면 코드가 늘
       # BETTER_AUTH_SECRET으로 떨어져 분리 의도가 조용히 무효가 된다.
-      # 비워 두면 그 fallback을 그대로 쓴다.
+      # 비워 두면 그 fallback을 그대로 쓴다 — `${VAR:-}`는 변수를 빼는 게 아니라
+      # **빈 문자열로 넘기므로**, 빈 값을 「주지 않은 것」으로 보는 쪽은
+      # roster.preview-token.ts다. 그 판정을 되돌리면 여기가 다시 깨진다.
       ROSTER_IMPORT_PREVIEW_SECRET: ${ROSTER_IMPORT_PREVIEW_SECRET:-}
       # 현재 가입은 유효한 초대코드 뒤 즉시 확인 proof를 만들어 발송기를 호출하지
       # 않는다. 아래 값은 실제 SMS 인증을 다시 켤 때 쓸 설정이라 보존한다.

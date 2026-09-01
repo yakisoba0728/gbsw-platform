@@ -26,29 +26,32 @@ function listSourceFiles(dir: string): string[] {
 }
 
 /**
- * 코드에서 실제로 recordAudit(...)에 넘기는 action 문자열을 전부 모은다.
+ * 감사 입력 객체의 `action:` 자리 — `action:`부터 그 객체의 `targetType:`까지.
+ * 콜론이 둘 이상인 3단 액션("community:post:update")도 리터럴 정규식이 잡는다.
  *
- * recordAudit 호출부는 모두 action이 targetType보다 먼저 온다(현재 컨벤션) —
- * 그 사이 구간만 보면 can()에 쓰는 권한 Action 문자열(예: "invite:list")이
- * 섞여 들어오지 않는다. 삼항연산자로 두 리터럴이 오는 자리
- * (`active ? "user:activate" : "user:deactivate"`)도 정규식이 전부 잡는다.
+ * **호출부가 아니라 입력 객체를 찾는다.** `recordAuditMany`에 넘기는 배열
+ * (명단 반영의 `entries.push`)은 호출부에서 수백 자 떨어진 곳에서 만들어져
+ * 호출부 기준으로는 스캔 밖이었다.
+ *
+ * 사이 구간만 보므로 can()에 쓰는 권한 Action 문자열("pass:read:any")은 섞이지
+ * 않고, metadata 안에 실려 가는 액션 이름(`metadata: { action: "student:view" }`)은
+ * 제 객체가 targetType 전에 닫히므로 `[^}]`가 막는다. 삼항으로 두 리터럴이 오는
+ * 자리(`active ? "user:activate" : "user:deactivate"`)는 둘 다 잡힌다.
  */
+const AUDIT_INPUT = /\baction:([^}]*?)\btargetType:/g;
+const ACTION_LITERAL = /"[a-zA-Z][\w-]*(?::[\w-]+)+"/g;
+
+/** 코드가 실제로 감사로그에 남기는 action 문자열을 전부 모은다. */
 function findRecordedActions(): Set<string> {
   const actions = new Set<string>();
 
   for (const file of listSourceFiles(SRC_ROOT)) {
     const content = readFileSync(file, "utf8");
-    let index = content.indexOf("recordAudit(");
+    if (!content.includes("recordAudit")) continue;
 
-    while (index !== -1) {
-      const tail = content.slice(index);
-      const targetTypeAt = tail.indexOf("targetType:");
-      const window = targetTypeAt === -1 ? tail.slice(0, 400) : tail.slice(0, targetTypeAt);
-
-      const matches = window.match(/"[a-zA-Z][\w-]*:[\w-]+"/g) ?? [];
+    for (const input of content.matchAll(AUDIT_INPUT)) {
+      const matches = input[1].match(ACTION_LITERAL) ?? [];
       for (const m of matches) actions.add(JSON.parse(m) as string);
-
-      index = content.indexOf("recordAudit(", index + 1);
     }
   }
 
@@ -58,9 +61,10 @@ function findRecordedActions(): Set<string> {
 describe("액션 라벨 커버리지", () => {
   it("recordAudit에 실제로 쓰이는 action 문자열이 전부 라벨 맵에 있다", () => {
     const recorded = findRecordedActions();
-    // 스캐너 자체가 recordAudit 호출부를 못 찾는 상태로 조용히 통과하면
-    // 이 테스트는 의미가 없어진다 — 최소한 지금 아는 호출부 수만큼은 잡혀야 한다.
-    expect(recorded.size).toBeGreaterThanOrEqual(13);
+    // 스캐너가 조용히 좁아진 채 통과하면 이 테스트는 의미가 없어진다 — 하한을
+    // 실제 개수 바로 아래에 둔다. 예전 13은 27을 놓친 스캐너도 통과시켰다.
+    // 감사로그 액션을 **의도해서** 없앴다면 이 숫자도 함께 내린다.
+    expect(recorded.size).toBeGreaterThanOrEqual(39);
 
     const known = new Set<string>(AUDIT_ACTIONS);
     const missing = [...recorded].filter((a) => !known.has(a));
