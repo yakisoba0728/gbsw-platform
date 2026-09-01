@@ -3,7 +3,7 @@
 > **이 문서는 검사 시점의 스냅샷이다.** 코드는 한 줄도 고치지 않았다.
 > 직전 감사([`2026-09-01-vertical-full-read.md`](2026-09-01-vertical-full-read.md))가 「무엇이 틀렸나」를 봤다면
 > 이 조사는 **「무엇을 지울 수 있고 어떻게 더 단순해지나」**를 봤다.
-> 여기서 나온 제안을 순서로 엮은 것은 [`../superpowers/plans/2026-09-01-simplification-program.md`](../superpowers/plans/2026-09-01-simplification-program.md)다.
+> 여기서 나온 제안을 순서로 엮은 것은 [`../superpowers/plans/2026-09-01-implementation-plan.md`](../superpowers/plans/2026-09-01-implementation-plan.md)의 **Phase B**다.
 
 기준선: `main @ 5860e90`
 
@@ -974,7 +974,7 @@ tests/helpers/session.ts에 `user(role, id, over)` 하나를 두고, 28개 파�
 
 **왜:** tests/에 공용 헬퍼 파일이 하나도 없다. 그래서 같은 SessionUser가 28벌, 같은 withTransaction 목이 25벌, 같은 recordAudit 목이 21벌, txClient가 16벌 있다. 값이 조금씩 갈라져 있어(name이 "테스트"·"이정민"으로 나뉘고 email이 파일마다 다르다) 어느 것이 표준인지 알 수 없고, 픽스처를 고쳐야 할 때 28곳을 손으로 찾게 된다. 서두가 두꺼운 것 자체가 값이다 — 단위 141개 파일의 첫 describe 앞이 6,199줄로 단위 스위트의 19%이고, 그 대부분이 이 두 덩어리다. 지금은 새 서비스 테스트를 쓸 때 40줄을 복사해 붙이는 것이 출발점이라, 직전 감사가 요구하는 「빠진 단언 119건」을 채우는 일도 그만큼 비싸다.
 
-**조건:** (1) 대기 중인 `docs/superpowers/plans/2026-09-01-vertical-audit-fix-batch.md`(미체크 74건, tests/ 36줄 참조)가 먼저 착지한 뒤에 하거나 그 위로 리베이스한다 — 이 제안의 43개 파일 중 roster.service.test.ts(:544 roster-3-R02, :259 roster-3-C03)·decision.service.test.ts(:298)·request.service.test.ts(:495)·post.service.test.ts(:230,:307)·account.service.test.ts(:49)·merit.watch-list.test.ts(:232)가 그 배치의 수정 대상이다. (2) `coreMocks(tag)`는 withTransaction을 **두 모양으로** 내보내야 한다 — 지금 25곳 중 pass·community·merit 계열은 `vi.fn(async fn => …
+**조건:** (1) 대기 중인 `docs/superpowers/plans/2026-09-01-implementation-plan.md`의 Phase A(결함 49건)가 먼저 착지한 뒤에 하거나 그 위로 리베이스한다 — 이 제안의 43개 파일 중 roster.service.test.ts(:544 roster-3-R02, :259 roster-3-C03)·decision.service.test.ts(:298)·request.service.test.ts(:495)·post.service.test.ts(:230,:307)·account.service.test.ts(:49)·merit.watch-list.test.ts(:232)가 그 배치의 수정 대상이다. (2) `coreMocks(tag)`는 withTransaction을 **두 모양으로** 내보내야 한다 — 지금 25곳 중 pass·community·merit 계열은 `vi.fn(async fn => …
 
 > **문서화된 결정을 건드린다** — CLAUDE.md 「폴더 구조」의 `tests/ core/ · modules/ — 구조를 src/와 맞춘다`. tests/helpers/는 src/에 짝이 없는 디렉터리라 이 규칙에서 벗어난다 — 사람이 의식하고 받아들여야 하는 예외다. 대신 vitest.config.mts의 unit include는 `tests/**/*.test.ts`라 helpers/*.ts는 스위트에 잡히지 않고, 커버리지 include도 `src/**`뿐이라 지표에 영향이 없다.
 >
