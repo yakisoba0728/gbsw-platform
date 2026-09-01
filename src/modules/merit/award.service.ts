@@ -401,8 +401,8 @@ export async function searchStudents(
       studentProfileId: row.id,
       studentCode: row.studentCode,
       name: row.user.name,
-      grade: enrolled?.schoolClass?.grade ?? null,
-      classNo: enrolled?.schoolClass?.classNo ?? null,
+      grade: enrolled?.grade ?? null,
+      classNo: enrolled?.classNo ?? null,
       number: enrolled?.number ?? null,
       // 그 학년도 재적 줄이 아예 없으면 null이다.
       status: enrollment?.status ?? null,

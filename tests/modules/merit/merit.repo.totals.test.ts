@@ -43,7 +43,8 @@ function enrolled(id: string, number: number, grade = 2, classNo = 3) {
   return {
     number,
     studentProfileId: id,
-    schoolClass: { grade, classNo },
+    grade,
+    classNo,
     studentProfile: {
       id,
       studentCode: `CODE-${id}`,
@@ -150,7 +151,8 @@ describe("listClassRoster — 반 명단 합계", () => {
     expect(enrollmentFindMany.mock.calls[0][0].where).toEqual({
       year: 2026,
       status: "ENROLLED",
-      schoolClass: { grade: 2, classNo: 3 },
+      grade: 2,
+      classNo: 3,
     });
   });
 
@@ -160,8 +162,8 @@ describe("listClassRoster — 반 명단 합계", () => {
     await listClassRoster({ ...roster, totalsYear: 2026 });
 
     expect(enrollmentFindMany.mock.calls[0][0].orderBy).toEqual([
-      { schoolClass: { grade: "asc" } },
-      { schoolClass: { classNo: "asc" } },
+      { grade: "asc" },
+      { classNo: "asc" },
       { number: "asc" },
     ]);
   });
@@ -173,13 +175,16 @@ describe("listClassRoster — 반 명단 합계", () => {
   it("학년·반을 안 주면 반 조건 자체를 걸지 않는다", async () => {
     await listClassRoster({ year: 2026, track: "SCHOOL", totalsYear: 2026 });
 
-    expect(enrollmentFindMany.mock.calls[0][0].where).not.toHaveProperty("schoolClass");
+    expect(enrollmentFindMany.mock.calls[0][0].where).not.toHaveProperty("grade");
+    expect(enrollmentFindMany.mock.calls[0][0].where).not.toHaveProperty("classNo");
   });
 
   it("학년만 주면 그 학년으로만 좁힌다", async () => {
     await listClassRoster({ year: 2026, grade: 2, track: "SCHOOL", totalsYear: 2026 });
 
-    expect(enrollmentFindMany.mock.calls[0][0].where.schoolClass).toEqual({ grade: 2 });
+    const where = enrollmentFindMany.mock.calls[0][0].where;
+    expect(where.grade).toBe(2);
+    expect(where).not.toHaveProperty("classNo");
   });
 });
 
@@ -278,7 +283,8 @@ describe("classSummaries — 반별 요약", () => {
     expect(enrollmentFindMany.mock.calls[0][0].where).toEqual({
       year: 2026,
       status: "ENROLLED",
-      classId: { not: null },
+      grade: { not: null },
+      classNo: { not: null },
     });
   });
 });
@@ -299,12 +305,13 @@ describe("listClassRoster — 범위 없이 부르면 전교다", () => {
 
   it("반으로 거르지 않는다 — 반 미배정이 놓치기 가장 쉬운 자리다", async () => {
     enrollmentFindMany.mockResolvedValue([
-      { ...enrolled("sp-1", 1), schoolClass: null },
+      { ...enrolled("sp-1", 1), grade: null, classNo: null },
     ]);
 
     const rows = await listClassRoster({ year: 2026, track: "SCHOOL", totalsYear: 2026 });
 
-    expect(enrollmentFindMany.mock.calls[0][0].where).not.toHaveProperty("classId");
+    expect(enrollmentFindMany.mock.calls[0][0].where).not.toHaveProperty("grade");
+    expect(enrollmentFindMany.mock.calls[0][0].where).not.toHaveProperty("classNo");
     expect(rows[0]).toEqual(
       expect.objectContaining({ studentProfileId: "sp-1", grade: null, classNo: null }),
     );

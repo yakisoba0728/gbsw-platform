@@ -12,16 +12,11 @@ describe("applyRoster() + 감사로그 원자성", () => {
   const sessionId = randomUUID();
   const inviteCode = `IRR${randomUUID().slice(0, 8).toUpperCase()}`;
   const missingActorId = randomUUID();
-  let classId: string;
   let profileId: string;
   let inviteId: string;
 
   beforeAll(async () => {
     await prisma.academicYear.create({ data: { year: YEAR } });
-    const schoolClass = await prisma.schoolClass.create({
-      data: { year: YEAR, grade: 1, classNo: 1 },
-    });
-    classId = schoolClass.id;
 
     await prisma.user.createMany({
       data: [
@@ -57,7 +52,8 @@ describe("applyRoster() + 감사로그 원자성", () => {
       data: {
         studentProfileId: profileId,
         year: YEAR,
-        classId,
+        grade: 1,
+        classNo: 1,
         number: 1,
         status: "ENROLLED",
       },
@@ -90,7 +86,6 @@ describe("applyRoster() + 감사로그 원자성", () => {
     await prisma.enrollment.deleteMany({ where: { year: YEAR } });
     await prisma.session.deleteMany({ where: { id: sessionId } });
     await prisma.user.deleteMany({ where: { id: { in: [studentUserId, adminId] } } });
-    await prisma.schoolClass.deleteMany({ where: { id: classId } });
     await prisma.academicYear.deleteMany({ where: { year: YEAR } });
   });
 
@@ -136,7 +131,12 @@ describe("applyRoster() + 감사로그 원자성", () => {
       }),
     ]);
 
-    expect(enrollment).toMatchObject({ classId, number: 1, status: "ENROLLED" });
+    expect(enrollment).toMatchObject({
+      grade: 1,
+      classNo: 1,
+      number: 1,
+      status: "ENROLLED",
+    });
     expect(user?.status).toBe("ACTIVE");
     expect(user?.deletedAt).toBeNull();
     expect(session).not.toBeNull();

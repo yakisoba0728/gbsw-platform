@@ -34,8 +34,8 @@ function award() {
       // 재적은 학년도로 걸러 오지 않는다 — 중첩 where가 바깥 행의 year를 못 본다.
       // 그래서 지난 학년도 줄이 함께 오고, 매핑이 그 기록의 학년도를 고른다.
       enrollments: [
-        { year: 2025, number: 30, schoolClass: { grade: 1, classNo: 9 } },
-        { year: 2026, number: 7, schoolClass: { grade: 2, classNo: 3 } },
+        { year: 2025, grade: 1, classNo: 9, number: 30 },
+        { year: 2026, grade: 2, classNo: 3, number: 7 },
       ],
     },
   };
@@ -134,7 +134,7 @@ describe("최근 부여 repo", () => {
         ...award(),
         studentProfile: {
           ...award().studentProfile,
-          enrollments: [{ year: 2026, number: 12, schoolClass: null }],
+          enrollments: [{ year: 2026, grade: null, classNo: null, number: 12 }],
         },
       },
     ]);

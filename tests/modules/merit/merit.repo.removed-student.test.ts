@@ -87,7 +87,7 @@ describe("searchStudents — 학번 갈래", () => {
     expect(or).toHaveLength(3);
     expect(or[2]).toEqual({
       enrollments: {
-        some: { year: 2026, number: 5, schoolClass: { grade: 2, classNo: 3 } },
+        some: { year: 2026, grade: 2, classNo: 3, number: 5 },
       },
     });
   });
@@ -110,15 +110,17 @@ describe("findStudentHeader — 상세는 명단에서 빠진 학생도 보여�
     const histories = [
       {
         year: 2025,
+        grade: 1,
+        classNo: 1,
         number: 3,
         status: "ENROLLED",
-        schoolClass: { grade: 1, classNo: 1 },
       },
       {
         year: 2026,
+        grade: 2,
+        classNo: 3,
         number: 7,
         status: "EXPELLED",
-        schoolClass: { grade: 2, classNo: 3 },
       },
     ];
     studentProfileFindFirst.mockImplementation(
@@ -136,9 +138,10 @@ describe("findStudentHeader — 상세는 명단에서 빠진 학생도 보여�
           studentCode: "K7M2XQ4A",
           user: { name: "김민준" },
           enrollments: selected.map((row) => ({
+            grade: row.grade,
+            classNo: row.classNo,
             number: row.number,
             status: row.status,
-            schoolClass: row.schoolClass,
           })),
         };
       },
@@ -166,7 +169,9 @@ describe("findStudentHeader — 상세는 명단에서 빠진 학생도 보여�
       id: "sp-1",
       studentCode: "K7M2XQ4A",
       user: { name: "김민준" },
-      enrollments: [{ number: null, status: "EXPELLED", schoolClass: null }],
+      enrollments: [
+        { grade: null, classNo: null, number: null, status: "EXPELLED" },
+      ],
     });
 
     const header = await repo.findStudentHeader("sp-1", 2026);
@@ -197,7 +202,7 @@ describe("findStudentHeader — 상세는 명단에서 빠진 학생도 보여�
       studentCode: "K7M2XQ4A",
       user: { name: "김민준" },
       enrollments: [
-        { number: 7, status: "ENROLLED", schoolClass: { grade: 2, classNo: 3 } },
+        { grade: 2, classNo: 3, number: 7, status: "ENROLLED" },
       ],
     });
 

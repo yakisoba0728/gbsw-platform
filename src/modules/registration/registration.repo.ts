@@ -126,19 +126,6 @@ async function completeStudentRegistrationWithDb(
 ): Promise<void> {
   await createUserWithCredential(db, account, "STUDENT");
 
-  // 학급은 없으면 만든다 — 교사가 미리 등록할 필요가 없게.
-  const schoolClass = await db.schoolClass.upsert({
-    where: {
-      year_grade_classNo: {
-        year,
-        grade: student.grade,
-        classNo: student.classNo,
-      },
-    },
-    create: { year, grade: student.grade, classNo: student.classNo },
-    update: {},
-  });
-
   const profile = await db.studentProfile.create({
     data: {
       userId: account.userId,
@@ -154,7 +141,8 @@ async function completeStudentRegistrationWithDb(
       data: {
         studentProfileId: profile.id,
         year,
-        classId: schoolClass.id,
+        grade: student.grade,
+        classNo: student.classNo,
         number: student.number,
         status: "ENROLLED",
       },

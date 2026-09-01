@@ -9,7 +9,6 @@ const userFindMany = vi.fn();
 const userDelete = vi.fn();
 const userDeleteMany = vi.fn();
 const studentProfileUpdate = vi.fn();
-const schoolClassUpsert = vi.fn();
 const enrollmentUpsert = vi.fn();
 const sessionDeleteMany = vi.fn();
 const accountUpdateMany = vi.fn();
@@ -29,7 +28,6 @@ const tx = {
     deleteMany: userDeleteMany,
   },
   studentProfile: { update: studentProfileUpdate },
-  schoolClass: { upsert: schoolClassUpsert },
   enrollment: { upsert: enrollmentUpsert },
   session: { deleteMany: sessionDeleteMany },
   account: { updateMany: accountUpdateMany },
@@ -89,7 +87,7 @@ function realWorldP2002() {
   });
 }
 
-/** enrollment 쪽 실물 P2002 — 위반 컬럼만 (classId, number) 복합 유일키로 바뀐다. */
+/** enrollment 쪽 실물 P2002 — 위반 컬럼만 좌석 복합 유일키로 바뀐다. */
 function realWorldNumberP2002() {
   return Object.assign(new Error("Unique constraint failed"), {
     name: "PrismaClientKnownRequestError",
@@ -101,9 +99,9 @@ function realWorldNumberP2002() {
         cause: {
           originalCode: "23505",
           originalMessage:
-            'duplicate key value violates unique constraint "Enrollment_classId_number_key"',
+            'duplicate key value violates unique constraint "Enrollment_year_grade_classNo_number_key"',
           kind: "UniqueConstraintViolation",
-          constraint: { fields: ["classId", "number"] },
+          constraint: { fields: ["year", "grade", "classNo", "number"] },
         },
       },
     },
@@ -149,7 +147,6 @@ beforeEach(() => {
   userDelete.mockReset().mockResolvedValue(undefined);
   userDeleteMany.mockReset().mockResolvedValue({ count: 1 });
   studentProfileUpdate.mockReset().mockResolvedValue(undefined);
-  schoolClassUpsert.mockReset().mockResolvedValue({ id: "class-1" });
   enrollmentUpsert.mockReset().mockResolvedValue(undefined);
   sessionDeleteMany.mockReset().mockResolvedValue(undefined);
   accountUpdateMany.mockReset().mockResolvedValue({ count: 1 });
@@ -266,7 +263,6 @@ describe("updateUserAndEnrollment() — studentProfile(생년월일)", () => {
       where: { id: "sp-1" },
       data: { birthDate: studentProfileData.birthDate },
     });
-    expect(schoolClassUpsert).not.toHaveBeenCalled();
     expect(enrollmentUpsert).not.toHaveBeenCalled();
   });
 
@@ -294,7 +290,7 @@ describe("updateUserAndEnrollment() — enrollment(학년·반·번호)", () => 
     ).rejects.toBeInstanceOf(NumberTakenError);
   });
 
-  it("성공하면 학급을 찾아 소속을 갱신한다", async () => {
+  it("성공하면 학년·반·번호를 소속에 직접 저장한다", async () => {
     await updateUserAndEnrollment("u-9", updateInput({
       profile: null,
       studentProfile: null,
@@ -304,6 +300,8 @@ describe("updateUserAndEnrollment() — enrollment(학년·반·번호)", () => 
     expect(enrollmentUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { studentProfileId_year: { studentProfileId: "sp-1", year: 2026 } },
+        create: expect.objectContaining({ grade: 1, classNo: 2, number: 15 }),
+        update: expect.objectContaining({ grade: 1, classNo: 2, number: 15 }),
       }),
     );
   });
@@ -328,7 +326,6 @@ describe("updateUserAndEnrollment() — enrollment(학년·반·번호)", () => 
       enrollment: null,
     }));
 
-    expect(schoolClassUpsert).not.toHaveBeenCalled();
     expect(enrollmentUpsert).not.toHaveBeenCalled();
   });
 

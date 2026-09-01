@@ -65,7 +65,8 @@ describe("applyRoster() — 명단에서 빠진 학생은 DB에서 영구 삭제
       data: {
         studentProfileId,
         year: YEAR,
-        classId: null,
+        grade: null,
+        classNo: null,
         number: null,
         status: "ENROLLED",
       },
@@ -139,7 +140,6 @@ describe("applyRoster() — 명단에서 빠진 학생은 DB에서 영구 삭제
     await prisma.user.deleteMany({
       where: { id: { in: [parentUserId, studentUserId, adminId] } },
     });
-    await prisma.schoolClass.deleteMany({ where: { year: YEAR } });
     await prisma.academicYear.deleteMany({ where: { year: YEAR } });
   });
 

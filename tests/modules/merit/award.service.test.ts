@@ -895,7 +895,7 @@ describe("searchStudents", () => {
       studentCode: "K7M2XQ4A",
       user: { name: "김민준" },
       enrollments: [
-        { number: 7, status: "ENROLLED", schoolClass: { grade: 2, classNo: 3 } },
+        { grade: 2, classNo: 3, number: 7, status: "ENROLLED" },
       ],
       ...over,
     };
@@ -922,7 +922,7 @@ describe("searchStudents", () => {
     searchStudents.mockResolvedValue([
       found({
         enrollments: [
-          { number: 7, status: "GRADUATED", schoolClass: { grade: 3, classNo: 1 } },
+          { grade: 3, classNo: 1, number: 7, status: "GRADUATED" },
         ],
       }),
     ]);
@@ -936,7 +936,7 @@ describe("searchStudents", () => {
     searchStudents.mockResolvedValue([
       found({
         enrollments: [
-          { number: 7, status: "WITHDRAWN", schoolClass: { grade: 3, classNo: 1 } },
+          { grade: 3, classNo: 1, number: 7, status: "WITHDRAWN" },
         ],
       }),
     ]);
@@ -1042,7 +1042,9 @@ describe("searchStudents", () => {
     it("재적이 아니면 removed가 true다", async () => {
       searchStudents.mockResolvedValue([
         found({
-          enrollments: [{ number: null, status: "GRADUATED", schoolClass: null }],
+          enrollments: [
+            { grade: null, classNo: null, number: null, status: "GRADUATED" },
+          ],
         }),
       ]);
 

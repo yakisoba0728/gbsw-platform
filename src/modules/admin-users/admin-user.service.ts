@@ -71,13 +71,13 @@ export async function updateUser(
     if (canEditAssignment) {
       if (
         input.grade !== undefined &&
-        enrollment?.schoolClass?.grade !== input.grade
+        enrollment?.grade !== input.grade
       ) {
         changed.push("grade");
       }
       if (
         input.classNo !== undefined &&
-        enrollment?.schoolClass?.classNo !== input.classNo
+        enrollment?.classNo !== input.classNo
       ) {
         changed.push("classNo");
       }

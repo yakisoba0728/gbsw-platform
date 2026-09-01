@@ -46,9 +46,10 @@ export async function listExisting(year: number, db: DbClient = prisma) {
           where: { OR: [{ year }, { status: "GRADUATED" }] },
           select: {
             year: true,
+            grade: true,
+            classNo: true,
             number: true,
             status: true,
-            schoolClass: { select: { grade: true, classNo: true } },
           },
         },
       },
@@ -70,8 +71,8 @@ export async function listExisting(year: number, db: DbClient = prisma) {
       birthDate: new Intl.DateTimeFormat("en-CA", {
         timeZone: "Asia/Seoul",
       }).format(p.birthDate),
-      grade: e?.schoolClass?.grade ?? null,
-      classNo: e?.schoolClass?.classNo ?? null,
+      grade: e?.grade ?? null,
+      classNo: e?.classNo ?? null,
       number: e?.number ?? null,
       status: e?.status ?? null,
       hasGraduatedEnrollment: p.enrollments.some(
@@ -91,12 +92,12 @@ async function entrySeats(
   db: DbClient,
 ): Promise<Map<string, { classNo: number; number: number }>> {
   const rows = await db.enrollment.findMany({
-    where: { schoolClass: { grade: 1 } },
+    where: { grade: 1 },
     orderBy: { year: "asc" },
     select: {
       studentProfileId: true,
+      classNo: true,
       number: true,
-      schoolClass: { select: { classNo: true } },
     },
   });
 
@@ -104,8 +105,8 @@ async function entrySeats(
   for (const r of rows) {
     // year 오름차순이라 먼저 만난 것이 가장 이른 1학년이다.
     if (map.has(r.studentProfileId)) continue;
-    if (r.schoolClass && r.number !== null) {
-      map.set(r.studentProfileId, { classNo: r.schoolClass.classNo, number: r.number });
+    if (r.classNo !== null && r.number !== null) {
+      map.set(r.studentProfileId, { classNo: r.classNo, number: r.number });
     }
   }
   return map;
@@ -200,27 +201,6 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
       where: { year, studentProfileId: { in: input.managedStudentProfileIds } },
     });
 
-    // 학생마다 upsert하면 300번 왕복한다. 필요한 반을 모아 한 번씩만 부른다.
-    const neededClasses = new Map<string, { grade: number; classNo: number }>();
-    for (const row of input.assignments) {
-      if (row.grade !== null && row.classNo !== null) {
-        neededClasses.set(`${row.grade}-${row.classNo}`, {
-          grade: row.grade,
-          classNo: row.classNo,
-        });
-      }
-    }
-
-    const classIdByKey = new Map<string, string>();
-    for (const { grade, classNo } of neededClasses.values()) {
-      const cls = await tx.schoolClass.upsert({
-        where: { year_grade_classNo: { year, grade, classNo } },
-        create: { year, grade, classNo },
-        update: {},
-      });
-      classIdByKey.set(`${grade}-${classNo}`, cls.id);
-    }
-
     // 한 줄씩 넣지 않는다. 이 트랜잭션은 AcademicYear에 FOR UPDATE를 걸고 끝까지
     // 쥐는데 상벌점 부여도 같은 잠금을 잡으므로, 왕복 수가 곧 전교의 부여가 멈춰
     // 있는 시간이다. 300명이면 왕복 300번 → 1번. 돌려받는 id는 아무도 안 쓴다.
@@ -228,10 +208,8 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
       data: input.assignments.map((row) => ({
         studentProfileId: row.studentProfileId!,
         year,
-        classId:
-          row.grade !== null && row.classNo !== null
-            ? (classIdByKey.get(`${row.grade}-${row.classNo}`) ?? null)
-            : null,
+        grade: row.grade,
+        classNo: row.classNo,
         number: row.number,
         status: row.status!,
       })),
@@ -338,9 +316,9 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
     );
   } catch (error) {
     if (isUniqueViolation(error, "code")) throw new InviteCodeCollisionError();
-    // Enrollment_classId_number_key. 명단 밖으로 빠진 계정(교사로 승격된 학생)의
-    // 그 학년도 배정은 managedStudentProfileIds 범위 밖이라 위에서 안 지워지고
-    // (반, 번호) 자리를 그대로 붙들고 있다 — 그 자리에 다른 학생을 넣으면 여기로 온다.
+    // Enrollment_year_grade_classNo_number_key. 명단 밖으로 빠진 계정(교사로 승격된
+    // 학생)의 그 학년도 배정은 managedStudentProfileIds 범위 밖이라 위에서 안 지워지고
+    // (학년도, 반, 번호) 자리를 그대로 붙든다 — 그 자리에 다른 학생을 넣으면 여기로 온다.
     // 날것의 P2002로 올려보내면 화면에 "반영하지 못했습니다."만 뜨고 원인이 사라진다.
     if (isUniqueViolation(error, "number")) throw new NumberTakenError();
     throw error;

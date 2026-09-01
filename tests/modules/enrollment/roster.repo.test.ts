@@ -3,7 +3,6 @@ import { coreMocks } from "../../helpers/core-mocks";
 
 const enrollmentDeleteMany = vi.fn();
 const enrollmentCreateMany = vi.fn();
-const schoolClassUpsert = vi.fn();
 const studentProfileFindMany = vi.fn();
 const userUpdateMany = vi.fn();
 const userDeleteMany = vi.fn();
@@ -18,7 +17,6 @@ const { bareWithTransaction: withTransaction } = coreMocks(
 
 const tx = {
   enrollment: { deleteMany: enrollmentDeleteMany, createMany: enrollmentCreateMany },
-  schoolClass: { upsert: schoolClassUpsert },
   studentProfile: { findMany: studentProfileFindMany },
   user: { updateMany: userUpdateMany, deleteMany: userDeleteMany },
   session: { deleteMany: sessionDeleteMany },
@@ -61,7 +59,7 @@ function realWorldCodeP2002() {
 }
 
 /**
- * Enrollment_classId_number_key 버전. 어댑터가 컬럼 목록 대신 인덱스 이름만 주는
+ * Enrollment_year_grade_classNo_number_key 버전. 어댑터가 컬럼 목록 대신 인덱스 이름만 주는
  * 모양으로 둔다 — 이쪽이 isUniqueViolation의 부분 문자열 판정을 실제로 통과하는지가
  * 이 테스트의 요점이다.
  */
@@ -76,9 +74,9 @@ function realWorldNumberP2002() {
         cause: {
           originalCode: "23505",
           originalMessage:
-            'duplicate key value violates unique constraint "Enrollment_classId_number_key"',
+            'duplicate key value violates unique constraint "Enrollment_year_grade_classNo_number_key"',
           kind: "UniqueConstraintViolation",
-          constraint: { index: "Enrollment_classId_number_key" },
+          constraint: { index: "Enrollment_year_grade_classNo_number_key" },
         },
       },
     },
@@ -122,11 +120,6 @@ function input(overrides: Partial<ApplyInput> = {}): ApplyInput {
 beforeEach(() => {
   enrollmentDeleteMany.mockReset().mockResolvedValue({ count: 0 });
   enrollmentCreateMany.mockReset().mockResolvedValue({ count: 0 });
-  schoolClassUpsert.mockReset().mockImplementation(
-    async ({ where: { year_grade_classNo: key } }) => ({
-      id: `cls-${key.grade}-${key.classNo}`,
-    }),
-  );
   studentProfileFindMany.mockReset().mockResolvedValue([]);
   userUpdateMany.mockReset().mockResolvedValue({ count: 0 });
   userDeleteMany.mockReset().mockResolvedValue({ count: 0 });
@@ -388,7 +381,7 @@ describe("applyRoster()", () => {
     expect(sessionDeleteMany).not.toHaveBeenCalled();
   });
 
-  it("반은 학생마다가 아니라 (학년,반) 쌍마다 한 번만 upsert한다", async () => {
+  it("학년·반을 Enrollment에 직접 저장하고 한 번의 createMany로 넣는다", async () => {
     await applyRoster(
       2026,
       input({
@@ -401,38 +394,29 @@ describe("applyRoster()", () => {
       }),
     );
 
-    // 학생은 3명이지만 (학년,반) 쌍은 (1,3)과 (2,1) 둘뿐이다.
-    expect(schoolClassUpsert).toHaveBeenCalledTimes(2);
-    expect(schoolClassUpsert).toHaveBeenNthCalledWith(1, {
-      where: { year_grade_classNo: { year: 2026, grade: 1, classNo: 3 } },
-      create: { year: 2026, grade: 1, classNo: 3 },
-      update: {},
-    });
-    expect(schoolClassUpsert).toHaveBeenNthCalledWith(2, {
-      where: { year_grade_classNo: { year: 2026, grade: 2, classNo: 1 } },
-      create: { year: 2026, grade: 2, classNo: 1 },
-      update: {},
-    });
     expect(enrollmentCreateMany).toHaveBeenCalledWith({
       data: [
         {
           studentProfileId: "sp-1",
           year: 2026,
-          classId: "cls-1-3",
+          grade: 1,
+          classNo: 3,
           number: 1,
           status: "ENROLLED",
         },
         {
           studentProfileId: "sp-2",
           year: 2026,
-          classId: "cls-1-3",
+          grade: 1,
+          classNo: 3,
           number: 2,
           status: "ENROLLED",
         },
         {
           studentProfileId: "sp-3",
           year: 2026,
-          classId: "cls-2-1",
+          grade: 2,
+          classNo: 1,
           number: 1,
           status: "ENROLLED",
         },
@@ -526,7 +510,7 @@ describe("applyRoster()", () => {
     await expect(applyRoster(2026, input())).rejects.toBe(boom);
   });
 
-  it("재학이 아닌 배정은 반을 만들지 않는다", async () => {
+  it("재학이 아닌 배정은 좌석 세 필드를 모두 null로 저장한다", async () => {
     await applyRoster(
       2026,
       input({
@@ -536,9 +520,15 @@ describe("applyRoster()", () => {
       }),
     );
 
-    expect(schoolClassUpsert).not.toHaveBeenCalled();
     expect(enrollmentCreateMany).toHaveBeenCalledWith({
-      data: [expect.objectContaining({ classId: null, number: null, status: "GRADUATED" })],
+      data: [
+        expect.objectContaining({
+          grade: null,
+          classNo: null,
+          number: null,
+          status: "GRADUATED",
+        }),
+      ],
     });
   });
 });

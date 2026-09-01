@@ -68,7 +68,7 @@ function detail(overrides: Record<string, unknown> = {}) {
       id: "sp-1",
       birthDate: BIRTH,
       enrollments: [
-        { id: "en-1", number: 15, status: "ENROLLED", schoolClass: { grade: 1, classNo: 2 } },
+        { id: "en-1", grade: 1, classNo: 2, number: 15, status: "ENROLLED" },
       ],
     },
     ...overrides,
@@ -479,9 +479,10 @@ describe("updateUser()", () => {
           enrollments: [
             {
               id: "en-1",
+              grade: null,
+              classNo: null,
               number: null,
               status: "GRADUATED",
-              schoolClass: null,
             },
           ],
         },

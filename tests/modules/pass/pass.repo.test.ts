@@ -53,3 +53,92 @@ describe("출입증 생성 잠금 순서", () => {
     expect(sqlAt(2)).toContain('FROM "Enrollment"');
   });
 });
+
+describe("출입증 학적 조회", () => {
+  it("직접 부여 학생을 학년→반→번호 순으로 조회하고 미배정 null을 보존한다", async () => {
+    const findMany = vi.fn().mockResolvedValue([
+      {
+        grade: 1,
+        classNo: 2,
+        number: 3,
+        studentProfile: { id: "sp-1", user: { name: "김학생" } },
+      },
+      {
+        grade: null,
+        classNo: null,
+        number: null,
+        studentProfile: { id: "sp-2", user: { name: "미배정" } },
+      },
+    ]);
+
+    const students = await repo.listEnrolledStudents(2026, {
+      enrollment: { findMany },
+    } as never);
+
+    expect(findMany).toHaveBeenCalledWith({
+      where: {
+        year: 2026,
+        status: "ENROLLED",
+        studentProfile: {
+          user: { role: "STUDENT", deletedAt: null, status: "ACTIVE" },
+        },
+      },
+      select: {
+        grade: true,
+        classNo: true,
+        number: true,
+        studentProfile: { select: { id: true, user: { select: { name: true } } } },
+      },
+      orderBy: [{ grade: "asc" }, { classNo: "asc" }, { number: "asc" }],
+    });
+    expect(students).toEqual([
+      { id: "sp-1", name: "김학생", grade: 1, classNo: 2, number: 3 },
+      {
+        id: "sp-2",
+        name: "미배정",
+        grade: null,
+        classNo: null,
+        number: null,
+      },
+    ]);
+  });
+
+  it("학번 검색은 같은 학년도의 grade·classNo·number 스칼라를 모두 좁힌다", async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const count = vi.fn().mockResolvedValue(0);
+
+    await repo.listHistory(
+      {
+        q: "2305",
+        studentNumber: { grade: 2, classNo: 3, number: 5 },
+        since: undefined,
+        until: null,
+        skip: 0,
+        take: 20,
+      },
+      2026,
+      { pass: { findMany, count } } as never,
+    );
+
+    const expectedWhere = {
+      OR: [
+        {
+          studentProfile: {
+            user: { name: { contains: "2305", mode: "insensitive" } },
+          },
+        },
+        {
+          studentProfile: {
+            enrollments: {
+              some: { year: 2026, grade: 2, classNo: 3, number: 5 },
+            },
+          },
+        },
+      ],
+    };
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expectedWhere }),
+    );
+    expect(count).toHaveBeenCalledWith({ where: expectedWhere });
+  });
+});

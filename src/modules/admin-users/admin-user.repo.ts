@@ -10,9 +10,10 @@ const currentEnrollment = (year: number) => ({
   take: 1,
   select: {
     id: true,
+    grade: true,
+    classNo: true,
     number: true,
     status: true,
-    schoolClass: { select: { grade: true, classNo: true } },
   },
 });
 
@@ -187,25 +188,20 @@ async function updateUserAndEnrollmentWithDb(
   if (input.enrollment) {
     const { studentProfileId, year, grade, classNo, number } = input.enrollment;
 
-    const schoolClass = await db.schoolClass.upsert({
-      where: { year_grade_classNo: { year, grade, classNo } },
-      create: { year, grade, classNo },
-      update: {},
-    });
-
     try {
       await db.enrollment.upsert({
         where: { studentProfileId_year: { studentProfileId, year } },
         create: {
           studentProfileId,
           year,
-          classId: schoolClass.id,
+          grade,
+          classNo,
           number,
           status: "ENROLLED",
         },
         // update에 status를 넣지 않는다 — 넣으면 졸업생의 신원만 고치는 경로가
         // 여기 닿았을 때 학적이 재학으로 되돌아간다.
-        update: { classId: schoolClass.id, number },
+        update: { grade, classNo, number },
       });
     } catch (error) {
       if (isUniqueViolation(error, "number")) throw new NumberTakenError();

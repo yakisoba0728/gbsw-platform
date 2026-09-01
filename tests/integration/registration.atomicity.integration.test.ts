@@ -44,9 +44,6 @@ describe("completeRegistration() — 가입 원자성", () => {
         where: { year: 2026 },
         data: { isCurrent: true },
       });
-      await prisma.schoolClass.deleteMany({
-        where: { year: { in: created.academicYears } },
-      });
       await prisma.academicYear.deleteMany({
         where: { year: { in: created.academicYears } },
       });

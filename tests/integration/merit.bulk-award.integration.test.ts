@@ -71,7 +71,8 @@ async function makeStudent(suffix: string) {
     data: {
       studentProfileId: profile.id,
       year: YEAR,
-      classId: null,
+      grade: null,
+      classNo: null,
       number: null,
       status: "ENROLLED",
     },

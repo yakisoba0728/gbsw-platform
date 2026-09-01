@@ -49,7 +49,6 @@ const made = {
   users: [] as string[],
   profiles: [] as string[],
   rules: [] as string[],
-  classes: [] as string[],
 };
 
 const admin = {
@@ -69,7 +68,6 @@ const student = {
   role: "STUDENT" as const,
 };
 
-let classId = "";
 /** 명단에 남아 있는 학생 */
 let stayingId = "";
 /** 퇴학 — 명단에서 빠졌다 */
@@ -111,7 +109,8 @@ async function makeStudent(
       data: {
         studentProfileId: profile.id,
         year: YEAR,
-        classId: enrollment.withClass ? classId : null,
+        grade: enrollment.withClass ? GRADE : null,
+        classNo: enrollment.withClass ? CLASS_NO : null,
         number: enrollment.number,
         status: enrollment.status,
       },
@@ -170,14 +169,6 @@ beforeAll(async () => {
     });
   }
 
-  const schoolClass = await prisma.schoolClass.upsert({
-    where: { year_grade_classNo: { year: YEAR, grade: GRADE, classNo: CLASS_NO } },
-    create: { year: YEAR, grade: GRADE, classNo: CLASS_NO },
-    update: {},
-  });
-  classId = schoolClass.id;
-  made.classes.push(schoolClass.id);
-
   const rule = await prisma.meritRule.create({
     data: { track: "SCHOOL", kind: "DEMERIT", label: "무단 외출", points: 5 },
   });
@@ -214,7 +205,6 @@ afterAll(async () => {
   await prisma.studentProfile.deleteMany({ where: { id: { in: made.profiles } } });
   await prisma.user.deleteMany({ where: { id: { in: made.users } } });
   await prisma.meritRule.deleteMany({ where: { id: { in: made.rules } } });
-  await prisma.schoolClass.deleteMany({ where: { id: { in: made.classes } } });
 });
 
 describe("조회는 열린다 — 상세·확인서·내보내기가 타는 경로", () => {

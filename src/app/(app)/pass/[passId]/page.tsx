@@ -58,8 +58,8 @@ export default async function PassDetailPage({
 
   const enrollment = pass.studentProfile.enrollments[0];
   const seat = formatSeat({
-    grade: enrollment?.schoolClass?.grade ?? null,
-    classNo: enrollment?.schoolClass?.classNo ?? null,
+    grade: enrollment?.grade ?? null,
+    classNo: enrollment?.classNo ?? null,
     number: enrollment?.number ?? null,
   });
 

@@ -146,15 +146,16 @@ function countHint(visible: number, total: number, unit: "건" | "명"): string 
 function seatOf(pass: {
   studentProfile: {
     enrollments: {
+      grade: number | null;
+      classNo: number | null;
       number: number | null;
-      schoolClass: { grade: number; classNo: number } | null;
     }[];
   };
 }) {
   const enrollment = pass.studentProfile.enrollments[0];
   return {
-    grade: enrollment?.schoolClass?.grade ?? null,
-    classNo: enrollment?.schoolClass?.classNo ?? null,
+    grade: enrollment?.grade ?? null,
+    classNo: enrollment?.classNo ?? null,
     number: enrollment?.number ?? null,
   };
 }

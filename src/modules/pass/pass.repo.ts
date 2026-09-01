@@ -13,8 +13,9 @@ function studentInclude(year: number) {
       enrollments: {
         where: { year },
         select: {
+          grade: true,
+          classNo: true,
           number: true,
-          schoolClass: { select: { grade: true, classNo: true } },
         },
         take: 1,
       },
@@ -257,22 +258,19 @@ export async function listEnrolledStudents(year: number, db: DbClient = prisma) 
       },
     },
     select: {
+      grade: true,
+      classNo: true,
       number: true,
-      schoolClass: { select: { grade: true, classNo: true } },
       studentProfile: { select: { id: true, user: { select: { name: true } } } },
     },
-    orderBy: [
-      { schoolClass: { grade: "asc" } },
-      { schoolClass: { classNo: "asc" } },
-      { number: "asc" },
-    ],
+    orderBy: [{ grade: "asc" }, { classNo: "asc" }, { number: "asc" }],
   });
 
   return enrollments.map((row) => ({
     id: row.studentProfile.id,
     name: row.studentProfile.user.name,
-    grade: row.schoolClass?.grade ?? null,
-    classNo: row.schoolClass?.classNo ?? null,
+    grade: row.grade ?? null,
+    classNo: row.classNo ?? null,
     number: row.number,
   }));
 }
@@ -602,11 +600,9 @@ function historyWhere(filter: PassHistoryFilter, year: number): Prisma.PassWhere
                       enrollments: {
                         some: {
                           year,
+                          grade: filter.studentNumber.grade,
+                          classNo: filter.studentNumber.classNo,
                           number: filter.studentNumber.number,
-                          schoolClass: {
-                            grade: filter.studentNumber.grade,
-                            classNo: filter.studentNumber.classNo,
-                          },
                         },
                       },
                     },

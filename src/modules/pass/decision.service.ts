@@ -462,8 +462,8 @@ function toExportRow(pass: PassWithStudent): PassHistoryExportRow {
   return {
     type: pass.type,
     status: pass.status,
-    grade: enrollment?.schoolClass?.grade ?? null,
-    classNo: enrollment?.schoolClass?.classNo ?? null,
+    grade: enrollment?.grade ?? null,
+    classNo: enrollment?.classNo ?? null,
     number: enrollment?.number ?? null,
     studentName: pass.studentProfile.user.name,
     startAt: pass.startAt,

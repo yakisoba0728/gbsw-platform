@@ -52,8 +52,9 @@ export async function listAll(year: number) {
             where: { year },
             take: 1,
             select: {
+              grade: true,
+              classNo: true,
               number: true,
-              schoolClass: { select: { grade: true, classNo: true } },
             },
           },
         },
@@ -161,8 +162,9 @@ export async function listStudents(year: number) {
         where: { year },
         take: 1,
         select: {
+          grade: true,
+          classNo: true,
           number: true,
-          schoolClass: { select: { grade: true, classNo: true } },
         },
       },
     },
@@ -173,8 +175,8 @@ export async function listStudents(year: number) {
     const x = a.enrollments[0];
     const y = b.enrollments[0];
     return (
-      (x?.schoolClass?.grade ?? 99) - (y?.schoolClass?.grade ?? 99) ||
-      (x?.schoolClass?.classNo ?? 99) - (y?.schoolClass?.classNo ?? 99) ||
+      (x?.grade ?? 99) - (y?.grade ?? 99) ||
+      (x?.classNo ?? 99) - (y?.classNo ?? 99) ||
       (x?.number ?? 99) - (y?.number ?? 99)
     );
   });

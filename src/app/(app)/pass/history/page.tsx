@@ -191,8 +191,8 @@ async function HistoryPagination({
 function seatOf(row: HistoryRow) {
   const enrollment = row.studentProfile.enrollments[0];
   return {
-    grade: enrollment?.schoolClass?.grade ?? null,
-    classNo: enrollment?.schoolClass?.classNo ?? null,
+    grade: enrollment?.grade ?? null,
+    classNo: enrollment?.classNo ?? null,
     number: enrollment?.number ?? null,
   };
 }

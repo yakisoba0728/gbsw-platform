@@ -71,7 +71,7 @@ beforeEach(() => {
         studentProfile: {
           user: { name: "김학생" },
           enrollments: [
-            { number: 3, schoolClass: { grade: 1, classNo: 2 } },
+            { grade: 1, classNo: 2, number: 3 },
           ],
         },
       },

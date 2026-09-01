@@ -84,9 +84,10 @@ describe("listExisting() — 삭제 표시된 학생은 명단 매칭에 쓰지 
         enrollments: [
           {
             year: 2025,
+            grade: null,
+            classNo: null,
             number: null,
             status: "GRADUATED",
-            schoolClass: null,
           },
         ],
       },

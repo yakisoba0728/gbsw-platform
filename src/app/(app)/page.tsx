@@ -187,8 +187,8 @@ async function TeacherDashboard({ user }: { user: SessionUser }) {
                     title={honorificName(pass.studentProfile.user.name, "STUDENT")}
                     meta={joinMeta(
                       classLabel(
-                        enrollment?.schoolClass?.grade,
-                        enrollment?.schoolClass?.classNo,
+                        enrollment?.grade,
+                        enrollment?.classNo,
                         enrollment?.number,
                       ),
                       passTypeLabel(pass.type),
@@ -260,8 +260,8 @@ async function TeacherDashboard({ user }: { user: SessionUser }) {
                     title={honorificName(pass.studentProfile.user.name, "STUDENT")}
                     meta={joinMeta(
                       classLabel(
-                        enrollment?.schoolClass?.grade,
-                        enrollment?.schoolClass?.classNo,
+                        enrollment?.grade,
+                        enrollment?.classNo,
                         enrollment?.number,
                       ),
                       pass.destination,

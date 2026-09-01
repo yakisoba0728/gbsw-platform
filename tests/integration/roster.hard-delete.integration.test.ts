@@ -90,7 +90,6 @@ describe("applyRoster() — 학생 영구 삭제와 졸업 보존", () => {
     await prisma.meritAward.deleteMany({ where: { id: meritAwardId } });
     await prisma.meritRule.deleteMany({ where: { id: meritRuleId } });
     await prisma.user.deleteMany({ where: { id: { in: [deletedUserId, graduatedUserId, parentUserId, adminId] } } });
-    await prisma.schoolClass.deleteMany({ where: { year: YEAR } });
     await prisma.academicYear.deleteMany({
       where: { year: { in: [GRADUATION_YEAR, YEAR] } },
     });

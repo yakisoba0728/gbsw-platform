@@ -406,7 +406,7 @@ export async function findStudentProfileByUserId(userId: string) {
  *
  * 반 명단(`listClassRoster`)·통계 모집단(`enrolledStudentScope`)과 **같은 술어**를
  * 쓴다: 부여할 수 있는 학생과 명단에 있는 학생은 같은 집합이어야 한다. 반이 없어도
- * (ENROLLED · classId null) 통과한다 — 반 미배정은 재적이 아닌 것과 다르다.
+ * (ENROLLED · grade/classNo null) 통과한다 — 반 미배정은 재적이 아닌 것과 다르다.
  *
  * 학년도를 인자로 받는다. 호출부는 `findCurrentYearForUpdate`로 잠그고 읽은 값을
  * 같은 트랜잭션에서 넘긴다 — 검사와 저장이 다른 학년도를 보면 안 된다.
@@ -525,10 +525,8 @@ export async function listClassRoster(params: {
     params.grade === undefined && params.classNo === undefined
       ? {}
       : {
-          schoolClass: {
-            ...(params.grade === undefined ? {} : { grade: params.grade }),
-            ...(params.classNo === undefined ? {} : { classNo: params.classNo }),
-          },
+          ...(params.grade === undefined ? {} : { grade: params.grade }),
+          ...(params.classNo === undefined ? {} : { classNo: params.classNo }),
         };
 
   const enrollments = await prisma.enrollment.findMany({
@@ -542,13 +540,14 @@ export async function listClassRoster(params: {
     // 한 반만 볼 때는 번호순이 곧 명단 순서다. 전교를 훑을 때는 학년·반이 앞에
     // 서야 읽힌다 — 번호만으로 세우면 1학년 1번 다음에 3학년 1번이 온다.
     orderBy: [
-      { schoolClass: { grade: "asc" } },
-      { schoolClass: { classNo: "asc" } },
+      { grade: "asc" },
+      { classNo: "asc" },
       { number: "asc" },
     ],
     select: {
+      grade: true,
+      classNo: true,
       number: true,
-      schoolClass: { select: { grade: true, classNo: true } },
       studentProfile: {
         select: { id: true, studentCode: true, user: { select: { name: true } } },
       },
@@ -576,8 +575,8 @@ export async function listClassRoster(params: {
     studentProfileId: e.studentProfile.id,
     studentCode: e.studentProfile.studentCode,
     name: e.studentProfile.user.name,
-    grade: e.schoolClass?.grade ?? null,
-    classNo: e.schoolClass?.classNo ?? null,
+    grade: e.grade,
+    classNo: e.classNo,
     number: e.number,
     ...withNetScore(byStudent.get(e.studentProfile.id) ?? emptyKindTotals()),
   }));
@@ -620,11 +619,9 @@ export async function searchStudents(
                 enrollments: {
                   some: {
                     year,
+                    grade: studentNumber.grade,
+                    classNo: studentNumber.classNo,
                     number: studentNumber.number,
-                    schoolClass: {
-                      grade: studentNumber.grade,
-                      classNo: studentNumber.classNo,
-                    },
                   },
                 },
               },
@@ -647,9 +644,10 @@ export async function searchStudents(
         where: { year },
         take: 1,
         select: {
+          grade: true,
+          classNo: true,
           number: true,
           status: true,
-          schoolClass: { select: { grade: true, classNo: true } },
         },
       },
     },
@@ -721,9 +719,10 @@ export async function findStudentHeader(id: string, year: number) {
         where: { year },
         take: 1,
         select: {
+          grade: true,
+          classNo: true,
           number: true,
           status: true,
-          schoolClass: { select: { grade: true, classNo: true } },
         },
       },
     },
@@ -735,8 +734,8 @@ export async function findStudentHeader(id: string, year: number) {
     studentProfileId: profile.id,
     studentCode: profile.studentCode,
     name: profile.user.name,
-    grade: enrollment?.schoolClass?.grade ?? null,
-    classNo: enrollment?.schoolClass?.classNo ?? null,
+    grade: enrollment?.grade ?? null,
+    classNo: enrollment?.classNo ?? null,
     number: enrollment?.number ?? null,
     status: enrollment?.status ?? null,
     /**
@@ -774,8 +773,9 @@ const RECENT_AWARD_SELECT = {
       enrollments: {
         select: {
           year: true,
+          grade: true,
+          classNo: true,
           number: true,
-          schoolClass: { select: { grade: true, classNo: true } },
         },
       },
     },
@@ -828,8 +828,8 @@ function toRecentAwardRow(row: RecentAwardRecord) {
     createdAt: row.createdAt,
     studentProfileId: row.studentProfile.id,
     studentName: row.studentProfile.user.name,
-    grade: enrollment?.schoolClass?.grade ?? null,
-    classNo: enrollment?.schoolClass?.classNo ?? null,
+    grade: enrollment?.grade ?? null,
+    classNo: enrollment?.classNo ?? null,
     number: enrollment?.number ?? null,
   };
 }
@@ -890,9 +890,9 @@ export async function findRecentAwardsForExport(filter: RecentAwardFilter) {
  * 술어를 쓴다 — 그 학년도 재학(ENROLLED). 계정 쪽 조건은 없다: 퇴학·전학이
  * 계정에 나타나지 않아 아무것도 거르지 못했다.
  *
- * 반 배정은 여기서 보지 않는다. classSummaries만 `classId: { not: null }`을
- * 더 거는데, 반이 없으면 담을 줄이 없어서다 — 반 미배정 학생은 머리글에는 들고
- * 반별 표에는 없다. 남는 차이는 그것 하나뿐이다.
+ * 반 배정은 여기서 보지 않는다. classSummaries만 `grade`와 `classNo`가 모두 있는
+ * 학생으로 더 좁히는데, 반이 없으면 담을 줄이 없어서다 — 반 미배정 학생은
+ * 머리글에는 들고 반별 표에는 없다. 남는 차이는 그것 하나뿐이다.
  */
 function enrolledStudentScope(rosterYear: number): Prisma.MeritAwardWhereInput {
   return {
@@ -931,11 +931,13 @@ export async function classSummaries(params: {
       year: params.year,
       // listClassRoster와 같은 술어다. 반이 없는 학생만 더 뺀다 — 담을 줄이 없어서다.
       status: "ENROLLED",
-      classId: { not: null },
+      grade: { not: null },
+      classNo: { not: null },
     },
     select: {
       studentProfileId: true,
-      schoolClass: { select: { grade: true, classNo: true } },
+      grade: true,
+      classNo: true,
     },
   });
   if (enrollments.length === 0) return [];
@@ -958,9 +960,8 @@ export async function classSummaries(params: {
     { grade: number; classNo: number; students: number } & KindTotals
   >();
   for (const e of enrollments) {
-    const grade = e.schoolClass?.grade;
-    const classNo = e.schoolClass?.classNo;
-    if (grade === undefined || classNo === undefined) continue;
+    const { grade, classNo } = e;
+    if (grade === null || classNo === null) continue;
 
     const key = `${grade}-${classNo}`;
     const cur =
@@ -1196,7 +1197,7 @@ export async function trackTotalsBetween(params: {
  * 모집단은 `rosterYear`의 재적으로 자른다. **기숙사는 누적(totalsYear = null)이라
  * 이 조건이 없으면 졸업생이 기준 초과 명단에 영원히 남는다** — 사감이 오늘 볼
  * 명단에 3년 전 졸업생이 섞이면 명단 자체를 안 믿게 된다. 반 미배정
- * (ENROLLED · classId null)은 그대로 남는다: 술어는 반이 아니라 재적이고,
+ * (ENROLLED · grade/classNo null)은 그대로 남는다: 술어는 반이 아니라 재적이고,
  * 놓치면 안 되는 쪽이 그쪽이다.
  */
 export async function demeritTotalsByStudent(params: {
@@ -1245,8 +1246,9 @@ export async function findStudentsWithClass(ids: string[], year: number) {
         where: { year, status: "ENROLLED" },
         take: 1,
         select: {
+          grade: true,
+          classNo: true,
           number: true,
-          schoolClass: { select: { grade: true, classNo: true } },
         },
       },
     },

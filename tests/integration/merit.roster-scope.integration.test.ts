@@ -5,10 +5,8 @@ import { prisma } from "@/core/db/client";
  * 명단 범위 — 전교·학년·반.
  *
  * **목으로는 확인할 수 없는 부분이다.** repo 테스트는 prisma에 넘긴 인자만 보므로
- * "반이 없는 학생(`classId = null`)이 전교 명단에 남는가"와 "학년→반→번호 정렬이
- * 반 없는 줄을 어디에 세우는가"는 실제 SQL이 돌아야 드러난다. 둘 다 to-one 관계를
- * 거치는 조건·정렬이라 Prisma가 LEFT JOIN을 쓰는지 INNER JOIN을 쓰는지에 그대로
- * 달려 있다 — 여기서 INNER가 되면 반 미배정 학생이 화면에서 조용히 사라진다.
+ * "반이 없는 학생(`grade/classNo = null`)이 전교 명단에 남는가"와
+ * "학년→반→번호 정렬이 반 없는 줄을 어디에 세우는가"를 실제 SQL로 확인한다.
  *
  * 감사로그는 목으로 막는다 (recordAudit이 요청 컨텍스트를 읽는다).
  */
@@ -22,7 +20,6 @@ const PREFIX = "merit-scope";
 const made = {
   users: [] as string[],
   profiles: [] as string[],
-  classes: [] as string[],
 };
 
 /** 학년·반·번호. classNo가 null이면 반 없는 학생이다. */
@@ -37,16 +34,6 @@ const SPECS: Spec[] = [
 ];
 
 const byName = new Map<string, string>();
-
-async function classIdFor(grade: number, classNo: number) {
-  const schoolClass = await prisma.schoolClass.upsert({
-    where: { year_grade_classNo: { year: YEAR, grade, classNo } },
-    create: { year: YEAR, grade, classNo },
-    update: {},
-  });
-  if (!made.classes.includes(schoolClass.id)) made.classes.push(schoolClass.id);
-  return schoolClass.id;
-}
 
 beforeAll(async () => {
   await prisma.academicYear.upsert({
@@ -76,10 +63,8 @@ beforeAll(async () => {
       data: {
         studentProfileId: profile.id,
         year: YEAR,
-        classId:
-          spec.grade === null || spec.classNo === null
-            ? null
-            : await classIdFor(spec.grade, spec.classNo),
+        grade: spec.grade,
+        classNo: spec.classNo,
         // 반 없는 줄에 번호를 남겨 둔다 — 번호만으로 정렬하면 맨 앞에 서서
         // 학년·반 정렬이 실제로 걸렸는지가 드러난다.
         number: spec.number,
@@ -98,7 +83,6 @@ afterAll(async () => {
   });
   await prisma.studentProfile.deleteMany({ where: { id: { in: made.profiles } } });
   await prisma.user.deleteMany({ where: { id: { in: made.users } } });
-  await prisma.schoolClass.deleteMany({ where: { id: { in: made.classes } } });
 });
 
 /** 이 테스트가 만든 학생만 남긴다 — DB에 다른 학년도 데이터가 있을 수 있다. */

@@ -54,7 +54,6 @@ export default async function UserDetailPage({
   const { user, audit } = detail;
   const profile = user.studentProfile;
   const enrollment = profile?.enrollments[0];
-  const cls = enrollment?.schoolClass;
   const active = user.status === "ACTIVE";
   const deleted = user.deletedAt !== null;
 
@@ -68,8 +67,8 @@ export default async function UserDetailPage({
     // 재학 중일 때만 학년·반·번호를 이 화면에서 고칠 수 있다.
     canEditAssignment: enrollment?.status === "ENROLLED",
     birthDate: profile ? formatDateInput(profile.birthDate) : "",
-    grade: cls ? String(cls.grade) : "",
-    classNo: cls ? String(cls.classNo) : "",
+    grade: enrollment?.grade == null ? "" : String(enrollment.grade),
+    classNo: enrollment?.classNo == null ? "" : String(enrollment.classNo),
     number: enrollment?.number == null ? "" : String(enrollment.number),
     active,
     isSelf: user.id === actor.id,
@@ -114,8 +113,8 @@ export default async function UserDetailPage({
               {profile && (
                 <>
                   <Field label="소속">
-                    {cls
-                      ? `${cls.grade}학년 ${cls.classNo}반${
+                    {enrollment?.grade != null && enrollment.classNo != null
+                      ? `${enrollment.grade}학년 ${enrollment.classNo}반${
                           enrollment?.number == null
                             ? ""
                             : ` ${enrollment.number}번`
@@ -143,11 +142,10 @@ export default async function UserDetailPage({
                   {user.parentLinks
                     .map((link) => {
                       const e = link.student.enrollments[0];
-                      const c = e?.schoolClass;
                       const where =
                         formatSeat({
-                          grade: c?.grade ?? null,
-                          classNo: c?.classNo ?? null,
+                          grade: e?.grade ?? null,
+                          classNo: e?.classNo ?? null,
                           number: e?.number ?? null,
                         }) ?? "미배정";
                       return `${honorificName(link.student.user.name, "STUDENT")} (${where})`;

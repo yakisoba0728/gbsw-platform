@@ -63,9 +63,10 @@ export async function listByYear(year: number, db: DbClient = prisma) {
         take: 1,
         select: {
           updatedAt: true,
+          grade: true,
+          classNo: true,
           number: true,
           status: true,
-          schoolClass: { select: { grade: true, classNo: true } },
         },
       },
     },
@@ -81,8 +82,8 @@ export async function listByYear(year: number, db: DbClient = prisma) {
       birthDate: p.birthDate,
       accountActive: p.user.status === "ACTIVE",
       enrollmentUpdatedAt: e?.updatedAt ?? null,
-      grade: e?.schoolClass?.grade ?? null,
-      classNo: e?.schoolClass?.classNo ?? null,
+      grade: e?.grade ?? null,
+      classNo: e?.classNo ?? null,
       number: e?.number ?? null,
       // 배정이 없으면 아직 아무 학적도 아니다. 화면에서 재학으로 채우게 둔다.
       status: e?.status ?? null,
@@ -115,9 +116,10 @@ export async function findStudentDetail(
         where: { year },
         take: 1,
         select: {
+          grade: true,
+          classNo: true,
           number: true,
           status: true,
-          schoolClass: { select: { grade: true, classNo: true } },
         },
       },
     },
@@ -133,8 +135,8 @@ export async function findStudentDetail(
     email: profile.user.email,
     role: profile.user.role,
     birthDate: profile.birthDate,
-    grade: enrollment?.schoolClass?.grade ?? null,
-    classNo: enrollment?.schoolClass?.classNo ?? null,
+    grade: enrollment?.grade ?? null,
+    classNo: enrollment?.classNo ?? null,
     number: enrollment?.number ?? null,
     status: enrollment?.status ?? null,
     /**
@@ -167,23 +169,6 @@ export async function applyAll(
 ): Promise<void> {
   const run = async (tx: DbClient) => {
     for (const item of items) {
-      let classId: string | null = null;
-
-      if (item.grade !== null && item.classNo !== null) {
-        const schoolClass = await tx.schoolClass.upsert({
-          where: {
-            year_grade_classNo: {
-              year,
-              grade: item.grade,
-              classNo: item.classNo,
-            },
-          },
-          create: { year, grade: item.grade, classNo: item.classNo },
-          update: {},
-        });
-        classId = schoolClass.id;
-      }
-
       await tx.enrollment.upsert({
         where: {
           studentProfileId_year: {
@@ -194,11 +179,17 @@ export async function applyAll(
         create: {
           studentProfileId: item.studentProfileId,
           year,
-          classId,
+          grade: item.grade,
+          classNo: item.classNo,
           number: item.number,
           status: item.status,
         },
-        update: { classId, number: item.number, status: item.status },
+        update: {
+          grade: item.grade,
+          classNo: item.classNo,
+          number: item.number,
+          status: item.status,
+        },
       });
 
       if (item.statusChanged) {

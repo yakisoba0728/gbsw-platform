@@ -53,7 +53,7 @@ function student(id: string, name: string, enrolled = true) {
     studentCode: `CODE-${id}`,
     user: { name },
     enrollments: enrolled
-      ? [{ number: 3, schoolClass: { grade: 2, classNo: 3 } }]
+      ? [{ grade: 2, classNo: 3, number: 3 }]
       : [],
   };
 }
@@ -132,6 +132,17 @@ describe("기준 초과 명단 — 경계", () => {
 });
 
 describe("기준 초과 명단 — 순서와 소속", () => {
+  it("재학생 소속을 학년·반·번호로 유지한다", async () => {
+    demeritTotalsByStudent.mockResolvedValue([sum("sp-1", DANGER)]);
+    findStudentsWithClass.mockResolvedValue([student("sp-1", "김민준")]);
+
+    const stats = await service.getMeritStats(admin, "SCHOOL", undefined, NOW);
+
+    expect(stats.watchList[0]).toEqual(
+      expect.objectContaining({ grade: 2, classNo: 3, number: 3 }),
+    );
+  });
+
   it("벌점이 많은 순이고, 같으면 이름순이다", async () => {
     demeritTotalsByStudent.mockResolvedValue([
       sum("sp-a", WARN),

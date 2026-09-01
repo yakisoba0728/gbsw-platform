@@ -236,27 +236,12 @@ model AcademicYear {
   isCurrent Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  classes     SchoolClass[]
   enrollments Enrollment[]
   meritAwards MeritAward[]
 }
 
-/// 학년/반. 학년도마다 별개의 행이다 — "1학년 3반"이 해마다 새로 생긴다.
-model SchoolClass {
-  id        String   @id @default(cuid())
-  year      Int
-  grade     Int
-  classNo   Int
-  createdAt DateTime @default(now())
-
-  academicYear AcademicYear @relation(fields: [year], references: [year], onDelete: Restrict)
-  enrollments  Enrollment[]
-
-  @@unique([year, grade, classNo])
-}
-
 /// 학생의 그 학년도 소속과 학적.
-/// classId·number는 ENROLLED일 때만 채운다 — 졸업·자퇴에 반과 번호는 의미가 없다.
+/// grade·classNo·number는 ENROLLED일 때만 채운다 — 졸업·자퇴에는 의미가 없다.
 model Enrollment {
   id String @id @default(cuid())
 
@@ -266,13 +251,9 @@ model Enrollment {
   year         Int
   academicYear AcademicYear @relation(fields: [year], references: [year], onDelete: Restrict)
 
-  classId     String?
-  // 반이 지워져도 지난 학년도 소속 기록은 남아야 한다 ("기록은 지우지 않는다").
-  // academicYear와 같은 이유로 Restrict — SetNull이면 SchoolClass 삭제 한 번에
-  // 그 반을 거쳐간 모든 학년도의 Enrollment에서 반 정보가 조용히 사라진다.
-  schoolClass SchoolClass? @relation(fields: [classId], references: [id], onDelete: Restrict)
-
-  number Int?
+  grade   Int?
+  classNo Int?
+  number  Int?
 
   /// src/core/authz/enrollment-status.ts의 EnrollmentStatus와 일치해야 한다.
   status String @default("ENROLLED")
@@ -282,9 +263,9 @@ model Enrollment {
 
   /// 한 학생은 한 학년도에 한 줄. 동시 요청은 애플리케이션 검사로 못 막는다.
   @@unique([studentProfileId, year])
-  /// 한 반에 같은 번호 둘을 막는다. Postgres는 NULL을 서로 다르게 보므로
-  /// 비재학 행끼리는 걸리지 않는다 — 의도한 동작이다.
-  @@unique([classId, number])
+  /// 한 학년도·학년·반에 같은 번호 둘을 막는다. Postgres는 NULL을 서로 다르게
+  /// 보므로 비재학 행끼리는 걸리지 않는다 — 의도한 동작이다.
+  @@unique([year, grade, classNo, number])
   @@index([year])
 }
 

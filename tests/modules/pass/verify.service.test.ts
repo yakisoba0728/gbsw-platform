@@ -32,7 +32,7 @@ function profile() {
   return {
     id: PROFILE_ID,
     user: { id: "u-1", name: "김민준", role: "STUDENT" },
-    enrollments: [{ number: 7, schoolClass: { grade: 1, classNo: 3 } }],
+    enrollments: [{ grade: 1, classNo: 3, number: 7 }],
   };
 }
 

@@ -30,7 +30,6 @@ const ids = {
   admin: `a-${SUFFIX}`,
   parent: `p-${SUFFIX}`,
   profile: "",
-  schoolClass: "",
 };
 
 function studentActor(): SessionUser {
@@ -123,17 +122,12 @@ beforeAll(async () => {
     where: { isCurrent: true },
     select: { year: true },
   });
-  const schoolClass = await prisma.schoolClass.upsert({
-    where: { year_grade_classNo: { year: current.year, grade: 9, classNo: 99 } },
-    create: { year: current.year, grade: 9, classNo: 99 },
-    update: {},
-  });
-  ids.schoolClass = schoolClass.id;
   await prisma.enrollment.create({
     data: {
       studentProfileId: ids.profile,
       year: current.year,
-      classId: schoolClass.id,
+      grade: 9,
+      classNo: 99,
       number: 9999,
       status: "ENROLLED",
     },
@@ -152,9 +146,6 @@ afterAll(async () => {
   await prisma.user.deleteMany({
     where: { id: { in: [ids.user, ids.admin, ids.parent] } },
   });
-  if (ids.schoolClass) {
-    await prisma.schoolClass.deleteMany({ where: { id: ids.schoolClass } });
-  }
 });
 
 describe("외박 신청 → 보호자 확인 → 교사 승인", () => {
