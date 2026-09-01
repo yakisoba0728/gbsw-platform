@@ -103,9 +103,6 @@ export const namedInviteMetaSchema = z.object({
   name: z.string(),
 });
 
-export type StudentInviteMeta = z.infer<typeof studentInviteMetaSchema>;
-export type NamedInviteMeta = z.infer<typeof namedInviteMetaSchema>;
-
 /**
  * 초대코드 폐기. **사유가 필수다** — 취소·삭제와 같은 규약이다.
  * 폐기하면 목록에서 대기 상태가 사라지는데, 왜 없앴는지를 되짚을 자료가

@@ -156,7 +156,6 @@ export type WithdrawPassInput = z.infer<typeof withdrawPassSchema>;
 export const verifyCodeSchema = z.object({
   code: z.string().trim().min(1).max(128),
 });
-export type VerifyCodeInput = z.infer<typeof verifyCodeSchema>;
 
 // ── 전체 내역 조회 ─────────────────────────────────────────────
 //

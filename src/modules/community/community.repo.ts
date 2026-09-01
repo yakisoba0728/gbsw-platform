@@ -137,19 +137,12 @@ const POST_WITH_COUNTS = {
   include: { _count: { select: { comments: { where: { deletedAt: null } } } } },
 } as const;
 
-/**
- * 목록 한 줄. **`community.view.ts`의 `PostRow`와 이름이 겹치지 않게 한다** —
- * 그쪽은 뷰 변환기가 받는 최소 모양이고, 이쪽은 댓글 수까지 붙은 조회 결과다.
- * 두 이름이 같으면 `post.service.ts`가 둘 다 import하는 자리에서 무엇이
- * 무엇인지 읽히지 않는다.
- */
-export type PostWithCounts = Awaited<ReturnType<typeof listPosts>>[number];
-
 /** 지워진 글은 세지 않는다. 페이지 수 계산이 화면과 어긋나면 빈 쪽이 생긴다. */
 export function countPosts(communityId: string, db: DbClient = prisma): Promise<number> {
   return db.communityPost.count({ where: { communityId, deletedAt: null } });
 }
 
+/** 댓글 수까지 붙인 목록을 읽는다. 뷰 변환기의 최소 입력 모양은 community.view.ts가 정한다. */
 export function listPosts(
   communityId: string,
   skip: number,
