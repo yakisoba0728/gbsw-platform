@@ -202,6 +202,27 @@ describe("기준 초과 명단 — 집계 범위", () => {
     );
   });
 
+  /**
+   * 모집단은 합계 범위가 아니라 **명단 학년도**가 자른다. 기숙사는 누적이라
+   * 합계 쪽에 학년도가 아예 없고, 이 값이 빠지면 졸업생의 3년치 벌점이 사감의
+   * 명단에 영원히 남는다.
+   */
+  it("기숙사 누적이어도 명단 학년도를 함께 넘긴다", async () => {
+    await service.getMeritStats(admin, "DORM", undefined, NOW);
+
+    expect(demeritTotalsByStudent).toHaveBeenCalledWith(
+      expect.objectContaining({ totalsYear: null, rosterYear: 2026 }),
+    );
+  });
+
+  it("지난 학년도를 보면 그 해 명단으로 자른다", async () => {
+    await service.getMeritStats(admin, "SCHOOL", 2025, NOW);
+
+    expect(demeritTotalsByStudent).toHaveBeenCalledWith(
+      expect.objectContaining({ rosterYear: 2025 }),
+    );
+  });
+
   it("반을 골랐으면 그 반 학생만 본다", async () => {
     listClassRoster.mockResolvedValue([
       { studentProfileId: "sp-1" },

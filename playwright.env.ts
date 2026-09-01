@@ -1,19 +1,6 @@
-type Environment = Readonly<Record<string, string | undefined>>;
+import { sameDatabaseTarget } from "./scripts/database-target.mjs";
 
-function databaseTarget(connectionString: string): string {
-  try {
-    const url = new URL(connectionString);
-    const rawHost = url.hostname.toLowerCase();
-    const host = ["localhost", "127.0.0.1", "[::1]", "::1"].includes(rawHost)
-      ? "loopback"
-      : rawHost;
-    const port = url.port || "5432";
-    const database = decodeURIComponent(url.pathname.replace(/^\/+/, ""));
-    return `${host}:${port}/${database}`;
-  } catch {
-    return `raw:${connectionString}`;
-  }
-}
+type Environment = Readonly<Record<string, string | undefined>>;
 
 /**
  * Playwright는 실제 INSERT/DELETE를 수행하므로 일반 DATABASE_URL로 절대
@@ -37,7 +24,7 @@ export function resolveE2eDatabaseUrl(
   }
 
   const ambient = environment.DATABASE_URL || fileEnvironment.DATABASE_URL;
-  if (ambient && databaseTarget(ambient) === databaseTarget(explicit)) {
+  if (sameDatabaseTarget(ambient, explicit)) {
     throw new Error(
       "Playwright 테스트 DB가 일반 DATABASE_URL과 같은 데이터베이스를 가리킵니다.",
     );

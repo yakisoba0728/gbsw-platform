@@ -8,12 +8,13 @@ const PORT = 3100;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 const localEnv = existsSync(".env") ? parseEnv(readFileSync(".env", "utf8")) : {};
 const databaseUrl = resolveE2eDatabaseUrl(process.env, localEnv);
-const authSecret = process.env.BETTER_AUTH_SECRET ?? localEnv.BETTER_AUTH_SECRET;
+// `??`가 아니라 `||`다 — 빈 문자열로 들어온 환경변수는 .env 값으로 떨어져야 한다.
+const authSecret = process.env.BETTER_AUTH_SECRET || localEnv.BETTER_AUTH_SECRET;
 // 배포의 `/app/uploads`와 같은 명시적 볼륨 경계를 쓰되, 로컬 운영 첨부와는
 // 섞이지 않는 Playwright 전용 루트로 고정한다. 절대 경로여야 dev와 standalone의
 // 서로 다른 실행 진입점에서도 같은 디렉터리를 본다.
 const uploadDir = path.resolve(
-  process.env.PLAYWRIGHT_UPLOAD_DIR ?? path.join(".uploads", "e2e"),
+  process.env.PLAYWRIGHT_UPLOAD_DIR || path.join(".uploads", "e2e"),
 );
 
 // Config에서 읽은 .env 값은 webServer뿐 아니라 E2E worker의 DB 픽스처에도

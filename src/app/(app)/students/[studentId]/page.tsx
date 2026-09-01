@@ -6,7 +6,6 @@ import { ForbiddenError } from "@/core/authz/errors";
 import { honorificName, isRole } from "@/core/authz/roles";
 import { EnrollmentTag } from "@/components/merit/enrollment-tag";
 import { BackLink } from "@/components/ui/back-link";
-import { Badge } from "@/components/ui/badge";
 import { ChipLink } from "@/components/ui/chip-link";
 import { SectionCard } from "@/components/ui/section-card";
 import type { SearchParamsInput } from "@/lib/search-params";
@@ -78,8 +77,6 @@ export default async function StudentPage({
   // 없는 학생이면 부여 폼이 멀쩡히 뜨는 화면을 보여주지 않는다.
   if (!noCurrentYear && !header) notFound();
 
-  const removed = header?.removedAt != null;
-
   // 학번(1307). 학년·반·번호가 다 있고 두 자리를 안 넘을 때만 나온다.
   const seat = header ? formatStudentNumber(header) : null;
 
@@ -96,8 +93,6 @@ export default async function StudentPage({
             <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-title">
               {/* 역할을 모르면 「님」으로 떨어진다 — 학생 상세라 실제로는 늘 학생이다. */}
               {honorificName(header.name, isRole(header.role) ? header.role : "STUDENT")}
-              {/* 사용자 상세와 같은 배지·같은 문구를 쓴다 — 같은 사실이다. */}
-              {removed && <Badge tone="rejected">삭제됨</Badge>}
             </span>
           ) : (
             // 현재 학년도가 없으면 신원 조회 자체가 못 돌아 이름을 모른다.
@@ -120,7 +115,9 @@ export default async function StudentPage({
                   {" · "}
                   <span className="font-mono">{header.studentCode}</span>
                 </p>
-                {/* 부여 폼은 학적을 보지 않는다 — 막지 않되 머리글에서 보이게 한다. */}
+                {/* 명단에서 빠졌다는 사실이 서는 자리는 여기 하나다 — 졸업·퇴학·전출을
+                    가려서 적는다. 부여를 막는 근거가 곧 이 값이고, 상벌점 갈래의
+                    안내가 같은 사실을 문장으로 다시 적는다. */}
                 <EnrollmentTag status={header.status} />
               </div>
             )}
@@ -146,7 +143,7 @@ export default async function StudentPage({
           actor={actor}
           studentId={studentId}
           params={raw}
-          removedAt={header?.removedAt ?? null}
+          removed={header?.removed ?? false}
           noCurrentYear={noCurrentYear}
         />
       )}

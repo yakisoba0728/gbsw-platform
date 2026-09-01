@@ -808,9 +808,14 @@ describe("exportRoster()", () => {
     expect(result.rows[1]![1]).toBe("김동혁");
   });
 
-  it("읽기만 한다 — 감사로그를 남기지 않는다 (생성·수정·삭제만 기록한다)", async () => {
+  it("대량 반출이라 감사로그를 남긴다 — 건수와 학년도만, 개인정보는 넣지 않는다", async () => {
     await exportRoster(admin);
-    expect(noAudit()).toBe(true);
+
+    const entry = recordAudit.mock.calls.at(-1)?.[0];
+    expect(entry?.action).toBe("roster:export");
+    const metadata = JSON.stringify(entry?.metadata ?? {});
+    expect(metadata).not.toContain("김동혁");
+    expect(metadata).not.toContain("AAAA2345");
   });
 });
 

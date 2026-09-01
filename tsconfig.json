@@ -30,5 +30,8 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  // dev-local/은 .gitignore되는 로컬 작업 사본이다(원본 나란히 띄우기·UI 베이스라인).
+  // 거기 있는 옛 테스트가 @/로 현재 src를 가리켜, 타입을 고치면 저장소에 없는
+  // 파일 때문에 typecheck가 깨진다 — 사람마다 verify 결과가 달라지면 안 된다.
+  "exclude": ["node_modules", "dev-local"]
 }

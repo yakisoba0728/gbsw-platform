@@ -25,7 +25,7 @@ import {
   type PassHistoryQuery,
   type RejectPassInput,
 } from "./pass.schema";
-import { issueWindow } from "./pass.window";
+import { conflictWindow, issueWindow } from "./pass.window";
 
 /** 교사 쪽 경로. 교직원 사이에 권한 차등이 없어 소유권 검사가 없다. */
 
@@ -62,7 +62,11 @@ export async function approvePass(
       decidedAt: now,
     };
     let byProxy = false;
-    let decisionNote = input.decisionNote ?? null;
+    // **대행 폼이 보낸 글을 버리지 않는다.** 결재 화면은 그려질 때의 상태로 칸
+    // 이름을 정하므로, 교사가 「확인 방법」에 적는 사이 보호자가 먼저 확인하면
+    // 대행이 성립하지 않는 채로 consentNote만 들고 여기 온다. 그때 승인 메모로
+    // 옮겨 담지 않으면 교사가 적은 문장이 Pass에도 감사로그에도 남지 않는다.
+    let decisionNote = input.decisionNote ?? input.consentNote ?? null;
     let consentNote: string | null = null;
     let outcome: repo.UnexpiredTransitionOutcome;
 
@@ -216,10 +220,13 @@ export async function issuePass(
               }
             : {};
 
+        // 신청 경로와 같은 여백으로 묻는다 — 겹침의 뜻이 두 경로에서 갈리면
+        // 학생이 못 내는 조합을 교사가 대신 만들어 줄 수 있다.
+        const conflict = conflictWindow({ startAt, endAt });
         const overlapping = await repo.findOverlapping(
           input.studentId,
-          startAt,
-          endAt,
+          conflict.startAt,
+          conflict.endAt,
           tx,
         );
         if (overlapping) throw new PassError("OVERLAPPING_PASS");

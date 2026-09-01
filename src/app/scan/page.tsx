@@ -2,13 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { buttonClass } from "@/components/ui/button";
-import { Note } from "@/components/ui/note";
 import { getSessionUser } from "@/core/auth/session";
 import { ForbiddenError } from "@/core/authz/errors";
 import { scanOrigin } from "@/modules/pass/pass.url";
 import { verifyStudentQr, type VerifyResult } from "@/modules/pass/verify.service";
 import { Scanner } from "./scanner";
-import { VerdictCard } from "./verdict-card";
 
 export const metadata: Metadata = { title: "학생증 확인" };
 
@@ -57,11 +55,14 @@ export default async function ScanPage({
     <main className="mx-auto flex min-h-dvh max-w-4xl flex-col justify-center gap-4 p-4 sm:p-6">
       <h1 className="text-center text-lg font-semibold text-ink">학생증 확인</h1>
 
-      {error && <Note tone="error">{error}</Note>}
-      {result && <VerdictCard result={result} />}
-
-      {/* 코드를 들고 왔어도 스캐너를 함께 띄운다 — 정문은 다음 학생이 바로 온다. */}
-      <Scanner origin={scanOrigin()} />
+      {/*
+        코드를 들고 왔어도 스캐너를 함께 띄운다 — 정문은 다음 학생이 바로 온다.
+        **판정 카드는 스캐너 안에서만 그린다.** 여기서 따로 그리면 주소의 `c`가
+        그대로 남는 탓에 앞 학생의 카드가 위에 서고, 팔 뻗은 거리에서는 그 위쪽
+        배지를 다음 학생의 판정으로 읽는다. 그래서 카드가 아니라 **초기 상태**를
+        내려보낸다.
+      */}
+      <Scanner origin={scanOrigin()} initial={{ result, error }} />
 
       <Link
         href="/pass"

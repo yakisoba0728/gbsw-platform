@@ -71,6 +71,9 @@ export async function saveEnrollmentsAction(
         saved: null,
       };
     }
+    // 예상 못 한 오류는 서버 콘솔에 남긴다. 화면에는 일반 문구만 나가므로
+    // 여기서 안 남기면 원인이 어디에도 없다 (아래 학년도 액션과 같은 규율).
+    console.error("[enrollment] 소속을 저장하지 못했습니다.", error);
     return { error: "저장하지 못했습니다.", saved: null };
   }
 }

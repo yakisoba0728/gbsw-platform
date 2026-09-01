@@ -208,6 +208,11 @@ export async function resetPassword(
 ): Promise<{ tempPassword: string }> {
   await assertCan(actor, "user:manage");
 
+  // 자기 자신은 막는다. resetCredential이 같은 tx에서 대상의 세션을 전부 지우므로,
+  // 대상이 자기라면 지금 쓰는 세션이 끊겨 임시 비밀번호를 화면에서 못 받는다 —
+  // 교사가 한 명뿐이면 복구할 사람도 없다. 본인 비밀번호는 /change-password가 맡는다.
+  if (userId === actor.id) throw new AdminUserError("CANNOT_RESET_SELF");
+
   const target = await repo.findById(userId);
   if (!target) throw new AdminUserError("NOT_FOUND");
   if (target.deletedAt) throw new AdminUserError("ACCOUNT_DELETED");

@@ -62,8 +62,9 @@ export type MeritStats = {
 };
 
 /**
- * 기준 초과 명단의 한 줄. 소속이 없을 수 있다 (반 미배정·학적 변동 중) —
- * 그래도 명단에는 오른다.
+ * 기준 초과 명단의 한 줄. 소속이 없을 수 있다 — **반 미배정**이 그렇다.
+ * 그래도 명단에는 오른다: 놓치기 가장 쉬운 자리가 그쪽이다.
+ * 명단에서 빠진 학생(재적 아님)은 아예 오르지 않는다 — 아래 readWatchList를 볼 것.
  */
 export type WatchListRow = {
   studentProfileId: string;
@@ -89,9 +90,12 @@ async function readWatchList(
 ): Promise<WatchListRow[]> {
   const { warn } = thresholds;
 
+  // rosterYear를 넘겨야 그 학년도 재적만 센다. 기숙사는 누적이라 이 조건이
+  // 없으면 졸업생이 명단에 영원히 남는다 — repo 쪽 주석에 자세히 적었다.
   const sums = await repo.demeritTotalsByStudent({
     track,
     totalsYear,
+    rosterYear,
     studentProfileIds,
   });
 
@@ -298,11 +302,21 @@ export async function getMeritStats(
   const studentProfileIds = classRoster?.map((r) => r.studentProfileId);
 
   // 반이 비면 빈 배열이 되는데, Prisma의 `in: []`가 그대로 빈 결과를 준다.
+  //
+  // 반을 안 골랐을 때 학생 조건이 통째로 빠지면 머리글·항목·그래프가 「반별
+  // 현황」과 다른 모집단을 센다(퇴학·졸업으로 재적이 끊긴 학생이 머리글에만
+  // 남는다). rosterYear를 넘겨 repo가 같은 명단 술어를 걸게 한다.
   const [totalRows, classes, topRules, chartAwards, watchList] = await Promise.all([
-    repo.trackTotals({ track, totalsYear: scoped, studentProfileIds }),
+    repo.trackTotals({ track, totalsYear: scoped, rosterYear, studentProfileIds }),
     repo.classSummaries({ year: rosterYear, track, totalsYear: scoped }),
-    repo.topRules({ track, totalsYear: scoped, studentProfileIds }),
-    repo.listAwardsForChart({ track, year: scoped, since, studentProfileIds }),
+    repo.topRules({ track, totalsYear: scoped, rosterYear, studentProfileIds }),
+    repo.listAwardsForChart({
+      track,
+      year: scoped,
+      since,
+      rosterYear,
+      studentProfileIds,
+    }),
     readWatchList(thresholds, track, scoped, rosterYear, studentProfileIds),
   ]);
 

@@ -360,6 +360,74 @@ describe("consentPass", () => {
   });
 });
 
+/**
+ * `/pass/<passId>`의 유일한 인가다 — 그 페이지에는 다른 가드가 없고, 이 함수가
+ * 주는 행에는 사유·행선지·결재 메모까지 들어 있다. 세 갈래가 각기 다른 근거로
+ * 통과하므로 갈래마다 한 줄씩 못 박는다.
+ */
+describe("getPassDetail", () => {
+  const detail = { id: "p-9", studentProfileId: "sp-1", type: "OUTING" };
+
+  beforeEach(() => {
+    findPassForVerify.mockResolvedValue(detail);
+  });
+
+  it("없는 출입증은 PASS_NOT_FOUND", async () => {
+    findPassForVerify.mockResolvedValue(null);
+    await expect(service.getPassDetail(admin, "nope")).rejects.toThrow(
+      new PassError("PASS_NOT_FOUND"),
+    );
+  });
+
+  it("교사는 소유권을 묻지 않고 통과한다", async () => {
+    await expect(service.getPassDetail(admin, "p-9")).resolves.toBe(detail);
+
+    expect(findPassForVerify).toHaveBeenCalledWith("p-9", 2026);
+    expect(findStudentProfileByUserId).not.toHaveBeenCalled();
+    expect(isParentOf).not.toHaveBeenCalled();
+  });
+
+  it("본인 것이면 통과하고 보호자 관계는 묻지 않는다", async () => {
+    await expect(service.getPassDetail(student, "p-9")).resolves.toBe(detail);
+
+    expect(findStudentProfileByUserId).toHaveBeenCalledWith("u-student");
+    expect(isParentOf).not.toHaveBeenCalled();
+    expect(auditEntries()).toEqual([]);
+  });
+
+  it("자녀 것이면 보호자도 통과한다", async () => {
+    // 학부모 계정에는 학생 프로필이 없다 — 통과 근거는 ParentStudent 관계뿐이다.
+    findStudentProfileByUserId.mockResolvedValue(null);
+
+    await expect(service.getPassDetail(parent, "p-9")).resolves.toBe(detail);
+    expect(isParentOf).toHaveBeenCalledWith("u-parent", "sp-1");
+  });
+
+  it("남의 출입증은 학생에게 ForbiddenError이고 거부가 감사로그에 남는다", async () => {
+    findStudentProfileByUserId.mockResolvedValue({ id: "sp-other" });
+    isParentOf.mockResolvedValue(false);
+
+    await expect(service.getPassDetail(student, "p-9")).rejects.toThrow(ForbiddenError);
+    expect(auditEntries()).toEqual([
+      expect.objectContaining({
+        action: "authz:denied",
+        targetType: "Pass",
+        targetId: "p-9",
+      }),
+    ]);
+  });
+
+  it("남의 자녀는 보호자에게도 ForbiddenError다", async () => {
+    findStudentProfileByUserId.mockResolvedValue(null);
+    isParentOf.mockResolvedValue(false);
+
+    await expect(service.getPassDetail(parent, "p-9")).rejects.toThrow(ForbiddenError);
+    expect(auditEntries()).toEqual([
+      expect.objectContaining({ action: "authz:denied", targetId: "p-9" }),
+    ]);
+  });
+});
+
 describe("getMyPasses", () => {
   it("studentId를 인자로 받지 않는다 — 세션에서 유도한다", async () => {
     await service.getMyPasses(student);

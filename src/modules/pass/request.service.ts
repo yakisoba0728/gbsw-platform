@@ -15,7 +15,7 @@ import type {
 } from "./pass.schema";
 import { issueStudentCode } from "./pass.token";
 import { buildScanUrl } from "./pass.url";
-import { requestWindow } from "./pass.window";
+import { conflictWindow, requestWindow } from "./pass.window";
 
 /** 학생·학부모 쪽 경로. 소유권 검사가 전부 여기 있다. */
 
@@ -36,7 +36,15 @@ export async function requestPass(
     const exists = await repo.lockStudentForPassCreation(profile.id, tx);
     if (!exists) throw new PassError("NO_STUDENT_PROFILE");
 
-    const overlapping = await repo.findOverlapping(profile.id, startAt, endAt, tx);
+    // 유효 창이 아니라 conflictWindow로 묻는다 — 맞닿은 신청을 이어 붙여
+    // 보호자 확인을 건너뛰는 길을 막는 것이 이 여백이다.
+    const conflict = conflictWindow({ startAt, endAt });
+    const overlapping = await repo.findOverlapping(
+      profile.id,
+      conflict.startAt,
+      conflict.endAt,
+      tx,
+    );
     if (overlapping) throw new PassError("OVERLAPPING_PASS");
 
     const created = await repo.createPass(

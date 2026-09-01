@@ -5,6 +5,7 @@ const listByYear = vi.fn();
 const findCurrentYearForUpdate = vi.fn();
 const findCurrentYear = vi.fn();
 const applyAll = vi.fn();
+const findStudentDetail = vi.fn();
 const recordAudit = vi.fn();
 const withTransaction = vi.fn();
 const txClient = { tx: true };
@@ -17,6 +18,7 @@ vi.mock("@/modules/enrollment/enrollment.repo", () => ({
   findCurrentYear,
   listByYear,
   applyAll,
+  findStudentDetail,
 }));
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
 vi.mock("@/core/db/client", () => ({ withTransaction }));
@@ -24,9 +26,13 @@ vi.mock("@/modules/academic-year/academic-year.service", () => ({
   getCurrentYear: vi.fn().mockResolvedValue(2026),
 }));
 
-const { EnrollmentError, listStudents, saveEnrollments } = await import(
-  "@/modules/enrollment/enrollment.service"
-);
+const {
+  EnrollmentError,
+  listStudents,
+  saveEnrollments,
+  getStudentIdentity,
+  getStudentProfile,
+} = await import("@/modules/enrollment/enrollment.service");
 
 const YEAR = 2026;
 
@@ -44,6 +50,7 @@ function user(role: SessionUser["role"], id = "admin-1"): SessionUser {
 
 const admin = user("ADMIN");
 const student = user("STUDENT", "s-1");
+const parent = user("PARENT", "p-1");
 
 /** 현재 상태: 1학년 3반 3번, 재학, 계정 활성 */
 function current(overrides: Record<string, unknown> = {}) {
@@ -79,6 +86,7 @@ beforeEach(() => {
   findCurrentYear.mockReset().mockResolvedValue(YEAR);
   listByYear.mockReset().mockResolvedValue([current()]);
   applyAll.mockReset().mockResolvedValue(undefined);
+  findStudentDetail.mockReset();
   recordAudit.mockReset();
   withTransaction.mockReset().mockImplementation(async (fn: (tx: typeof txClient) => unknown) =>
     fn(txClient),
@@ -449,5 +457,84 @@ describe("중복 제거 (M5)", () => {
     expect(items).toHaveLength(1);
     expect(items[0].number).toBe(8);
     expect(recordAudit).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * 학생 상세(`/students/<id>`)의 문 둘. 머리글은 **셋 중 하나**로 열리고
+ * (`can()` 하나로는 못 가르는 규칙이라 서비스가 손으로 세웠다), 「학생 정보」
+ * 탭은 `student:manage` 하나로만 열린다.
+ */
+describe("학생 상세", () => {
+  /** repo가 주는 행 — 머리글이 쓰지 않는 생년월일·이메일까지 들어 있다. */
+  const detail = {
+    studentProfileId: "sp-1",
+    studentCode: "20260101",
+    name: "김동혁",
+    role: "STUDENT",
+    grade: 1,
+    classNo: 3,
+    number: 3,
+    status: "ENROLLED",
+    removed: false,
+    birthDate: new Date("2010-03-02"),
+    email: "donghyeok@gbsw.hs.kr",
+  };
+
+  const denied: [string, SessionUser][] = [
+    ["학생", student],
+    ["학부모", parent],
+  ];
+
+  beforeEach(() => {
+    findStudentDetail.mockResolvedValue(detail);
+  });
+
+  it("교사는 머리글을 읽는다 — 현재 학년도를 함께 넘긴다", async () => {
+    await expect(getStudentIdentity(admin, "sp-1")).resolves.toMatchObject({
+      name: "김동혁",
+      grade: 1,
+      classNo: 3,
+    });
+    expect(findStudentDetail).toHaveBeenCalledWith("sp-1", YEAR);
+  });
+
+  // 머리글은 이름·소속까지다. 그 둘은 「학생 정보」 탭의 내용이고 권한이 다르다.
+  it("머리글에는 생년월일·이메일이 실리지 않는다", async () => {
+    const identity = await getStudentIdentity(admin, "sp-1");
+
+    expect(identity).not.toHaveProperty("birthDate");
+    expect(identity).not.toHaveProperty("email");
+    expect(JSON.stringify(identity)).not.toContain("donghyeok");
+  });
+
+  it("없는 학생이면 null이다", async () => {
+    findStudentDetail.mockResolvedValue(null);
+    await expect(getStudentIdentity(admin, "sp-9")).resolves.toBeNull();
+  });
+
+  it.each(denied)(
+    "%s는 셋 중 아무 권한도 없어 머리글도 못 본다",
+    async (_label, actor) => {
+      await expect(getStudentIdentity(actor, "sp-1")).rejects.toThrow("FORBIDDEN");
+
+      // 거부가 repo보다 먼저다 — 뒤로 가면 이름·학급이 이미 읽힌 뒤가 된다.
+      expect(findStudentDetail).not.toHaveBeenCalled();
+      expect(recordAudit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: "authz:denied",
+          targetType: "StudentProfile",
+        }),
+      );
+    },
+  );
+
+  it.each(denied)("%s는 「학생 정보」 탭도 못 연다", async (_label, actor) => {
+    await expect(getStudentProfile(actor, "sp-1")).rejects.toThrow("FORBIDDEN");
+    expect(findStudentDetail).not.toHaveBeenCalled();
+  });
+
+  it("교사의 「학생 정보」 탭에는 생년월일·이메일이 그대로 있다", async () => {
+    await expect(getStudentProfile(admin, "sp-1")).resolves.toBe(detail);
   });
 });

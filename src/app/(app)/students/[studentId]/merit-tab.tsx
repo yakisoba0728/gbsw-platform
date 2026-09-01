@@ -15,7 +15,6 @@ import {
   SkeletonStats,
   SkeletonTable,
 } from "@/components/ui/skeleton";
-import { formatDate } from "@/lib/datetime";
 import type { SearchParamsInput } from "@/lib/search-params";
 import {
   AcademicYearError,
@@ -72,14 +71,14 @@ export function MeritTab({
   actor,
   studentId,
   params,
-  removedAt,
+  removed,
   noCurrentYear,
 }: {
   actor: SessionUser;
   studentId: string;
   params: Params;
-  /** 명단에서 빠진 날. null이면 명단에 남아 있는 학생이다. */
-  removedAt: Date | null;
+  /** 그 학년도 재적(ENROLLED)이 아닌가. 판정은 서비스가 하고 화면은 받아만 쓴다. */
+  removed: boolean;
   noCurrentYear: boolean;
 }) {
   const track: MeritTrack = isMeritTrack(params.track) ? params.track : "SCHOOL";
@@ -113,9 +112,6 @@ export function MeritTab({
   // 두 경계가 나란히 서므로 앞에 이름을 붙인다 — 같은 key를 단 형제는 React가 경고한다.
   const boundaryKey = JSON.stringify({ track, year: year ?? null });
 
-  // 명단에서 빠진 학생은 조회만 열려 있다 — 부여는 서비스가 그대로 막는다.
-  const removed = removedAt !== null;
-
   return (
     <div className="space-y-4">
       <TrackTabs
@@ -123,11 +119,12 @@ export function MeritTab({
         hrefFor={(t) => trackHref(studentId, params, t)}
       />
 
-      {/* 부여 폼이 사라지는 이유를 적어 둔다 — 안 적으면 고장으로 읽힌다. */}
-      {removed && removedAt && (
+      {/* 부여 폼이 사라지는 이유를 적어 둔다 — 안 적으면 고장으로 읽힌다.
+          무엇으로 빠졌는지(졸업·퇴학·전출)는 머리글의 학적 꼬리표가 답한다.
+          조회는 그대로 열려 있다 — 막는 것은 새 부여뿐이다. */}
+      {removed && (
         <Note tone="warn">
-          {formatDate(removedAt)}에 명단에서 빠진 학생입니다. 새 상벌점은 부여할 수
-          없습니다.
+          재학 중이 아닌 학생에게는 새 상벌점을 부여할 수 없습니다.
         </Note>
       )}
 

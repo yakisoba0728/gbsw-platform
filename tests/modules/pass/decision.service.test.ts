@@ -376,6 +376,14 @@ describe("rejectPass", () => {
       service.rejectPass(admin, { passId: "p-1", decisionNote: "안 됩니다" }),
     ).resolves.toBeUndefined();
   });
+
+  it("학생은 반려할 수 없다", async () => {
+    findPass.mockResolvedValue(pending());
+    await expect(
+      service.rejectPass(student, { passId: "p-1", decisionNote: "안 됩니다" }),
+    ).rejects.toThrow(ForbiddenError);
+    expect(transition).not.toHaveBeenCalled();
+  });
 });
 
 describe("issuePass", () => {
@@ -501,6 +509,16 @@ describe("cancelPass", () => {
       service.cancelPass(admin, { passId: "p-1", reason: null }),
     ).rejects.toThrow(new PassError("ALREADY_CANCELLED"));
   });
+
+  // 학생이 무를 수 있는 것은 request.service의 withdrawPass뿐이다 — 승인된 것을
+  // 무르는 이 경로는 교사의 일이고, 남의 출입증까지 닿는다.
+  it("학생은 취소할 수 없다", async () => {
+    findPass.mockResolvedValue(pending({ status: "APPROVED" }));
+    await expect(
+      service.cancelPass(student, { passId: "p-1", reason: null }),
+    ).rejects.toThrow(ForbiddenError);
+    expect(transition).not.toHaveBeenCalled();
+  });
 });
 
 describe("목록", () => {
@@ -510,7 +528,11 @@ describe("목록", () => {
     expect(listPendingForAdmin).toHaveBeenCalledWith(NOW, 2026);
   });
 
+  // 「지금 나가 있는 학생」 전원의 이름·학급·행선지가 나오는 자리다.
   it("지금 유효한 목록도 교사만 본다", async () => {
+    await expect(service.listActivePasses(student, NOW)).rejects.toThrow(ForbiddenError);
+    expect(listActiveNow).not.toHaveBeenCalled();
+
     await service.listActivePasses(admin, NOW);
     expect(listActiveNow).toHaveBeenCalledWith(NOW, 2026);
   });
@@ -562,6 +584,35 @@ describe("전체 내역", () => {
       2026,
     );
     expect(result.pageCount).toBe(3); // 45건 / 20
+  });
+
+  // 학생 상세의 출입증 탭이 쓰는 갈래다. 기본 30일 창은 전교를 훑지 않으려는
+  // 장치이지 한 사람의 누적을 자르라는 규칙이 아니다 — 걷지 않으면 9월에 나간
+  // 기록이 12월에 안 보인다.
+  it("한 학생으로 좁히고 시작일을 안 골랐으면 30일 하한을 걷는다", async () => {
+    await service.listPassHistory(admin, {
+      ...query,
+      from: undefined,
+      to: undefined,
+      studentProfileId: "sp-1",
+    });
+
+    expect(listHistory).toHaveBeenCalledWith(
+      expect.objectContaining({ studentProfileId: "sp-1", since: undefined }),
+      2026,
+    );
+  });
+
+  it("좁힌 조회라도 사람이 고른 시작일은 그대로 지킨다", async () => {
+    await service.listPassHistory(admin, { ...query, studentProfileId: "sp-1" });
+
+    expect(listHistory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        studentProfileId: "sp-1",
+        since: new Date("2026-07-31T15:00:00.000Z"), // 8/1 00:00 KST
+      }),
+      2026,
+    );
   });
 
   it("검색어가 4자리면 학번으로도 읽는다", async () => {

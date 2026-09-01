@@ -49,15 +49,28 @@ async function denyOwnership(
 }
 
 /**
- * 글 한 건 + 그 게시판. **읽기 권한을 board.service에 다시 물어본다** —
+ * 글 한 건 + 그 게시판. **게시판 권한을 board.service에 다시 물어본다** —
  * 글에서 게시판으로 거슬러 왔다고 검사를 건너뛰면, 주소만 알면 남의 게시판
  * 글이 열린다.
+ *
+ * **문은 부르는 쪽이 고른다.** 새 내용을 밀어 넣는 수정은 새 글과 같은 쓰기
+ * 문을 지나야 한다 — 교사가 게시판을 읽기 전용으로 얼려도 얼기 전에 글을 쓴
+ * 사람만 제목·본문을 계속 갈아 끼울 수 있으면 그 게시판은 얼지 않은 것이다.
+ * **삭제(`deletePost`)는 읽기 문 그대로 둔다** — 얼린 게시판에서 자기 글을
+ * 거두는 것은 새 내용을 밀어 넣는 일이 아니다. 셋을 같은 문으로 되돌리지 않는다.
  */
-async function loadPost(actor: SessionUser, postId: string) {
+async function loadPost(
+  actor: SessionUser,
+  postId: string,
+  gate: "read" | "write" = "read",
+) {
   const post = await repo.findPost(postId);
   // 지워진 글은 "없는 글"이다 — 교사에게도. 있었다는 사실은 감사로그가 안다.
   if (!post || post.deletedAt) throw new CommunityError("POST_NOT_FOUND");
-  const community = await board.getReadableBySlug(actor, post.community.slug);
+  const community =
+    gate === "write"
+      ? await board.getWritableBySlug(actor, post.community.slug)
+      : await board.getReadableBySlug(actor, post.community.slug);
   return { post, community };
 }
 
@@ -202,9 +215,15 @@ export async function createPost(
       tx,
     );
 
-    const attached = await repo.attachToPost(input.attachmentIds, id, actor.id, tx);
-    // 하나도 안 붙었으면 남의 첨부이거나 이미 만료된 것이다. 글만 남기지 않는다.
-    if (input.attachmentIds.length > 0 && attached === 0) {
+    // 같은 id가 두 번 실려 와도 붙는 행은 하나다 — 아래 개수 비교가 맞으려면
+    // 보낸 쪽도 한 번으로 세야 한다.
+    const requested = [...new Set(input.attachmentIds)];
+    const attached = await repo.attachToPost(requested, id, actor.id, tx);
+    // **한 개라도 못 붙으면 막는다.** 남의 첨부이거나 이미 만료된 것이다 —
+    // 고아 정리(`attachment.service`)가 업로드마다 먼저 돌아 한 시간 넘은 미결
+    // 첨부를 지우므로, 「하나도 안 붙었나」만 보면 화면이 들고 있던 첨부 일부가
+    // 사라진 채로 글이 조용히 저장된다.
+    if (attached !== requested.length) {
       throw new CommunityError("ATTACHMENT_NOT_FOUND");
     }
 
@@ -234,7 +253,9 @@ export async function updatePost(
   actor: SessionUser,
   input: UpdatePostInput,
 ): Promise<{ slug: string }> {
-  const { post, community } = await loadPost(actor, input.postId);
+  // 새 글과 같은 쓰기 문을 지난다 — 읽기 문으로 두면 읽기 전용으로 얼린
+  // 게시판에서도 옛 글쓴이만 본문을 통째로 갈아 끼울 수 있다.
+  const { post, community } = await loadPost(actor, input.postId, "write");
 
   // **본인만.** 교사도 남의 글은 못 고친다 — 조정은 삭제이지 대필이 아니다.
   if (post.authorUserId === null || post.authorUserId !== actor.id) {
@@ -258,15 +279,33 @@ export async function updatePost(
     );
     if (!ok) throw new CommunityError("POST_CONFLICT");
 
-    const attached = await repo.attachToPost(
-      input.attachmentIds,
-      input.postId,
-      actor.id,
-      tx,
+    // 이미 이 글에 붙어 있는 첨부는 다시 붙지 않으므로(`attachToPost`가
+    // `postId: null`인 행만 고른다) 붙은 개수만으로는 「그대로 둔 첨부」와
+    // 「사라진 첨부」를 못 가른다. 붙어 있던 것을 먼저 세어 둔다 — attach보다
+    // 뒤에 세면 방금 붙인 것까지 함께 세어진다.
+    const existingIds = new Set(
+      (await repo.listAttachments(input.postId, tx)).map((a) => a.id),
     );
+    const requested = [...new Set(input.attachmentIds)];
+    const kept = requested.filter((id) => existingIds.has(id)).length;
+
+    const attached = await repo.attachToPost(requested, input.postId, actor.id, tx);
+    // 새 글과 같은 검사다 — 고아 정리가 그 사이 지운 첨부를 조용히 통과시키면
+    // 「일부만 사라진 글」이 오류도 안내도 없이 저장된다.
+    if (kept + attached !== requested.length) {
+      throw new CommunityError("ATTACHMENT_NOT_FOUND");
+    }
+
     // 뗀 파일은 트랜잭션 밖에서 지운다 — 롤백되면 행은 살아 있는데 파일만
     // 사라진다.
-    detached = await repo.detachFromPost(input.postId, input.attachmentIds, tx);
+    //
+    // **첨부를 안 받게 바뀐 게시판에서는 떼지 않는다.** 그런 게시판의 수정
+    // 화면은 첨부칸 자체를 안 그려 `attachmentIds`가 빈 채로 오는데, 그것을
+    // 「전부 뺐다」로 읽으면 오타 하나 고친 저장이 기존 첨부를 디스크째 지운다 —
+    // 이 모듈에서 되돌릴 수 없는 유일한 삭제다.
+    detached = community.allowAttachments
+      ? await repo.detachFromPost(input.postId, requested, tx)
+      : [];
 
     await recordAudit(
       {

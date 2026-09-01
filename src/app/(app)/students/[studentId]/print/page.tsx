@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/core/auth/session";
 import {
+  ENROLLMENT_STATUS_LABELS,
+  isEnrollmentStatus,
+} from "@/core/authz/enrollment-status";
+import {
   isMeritTrack,
   isYearScoped,
   MERIT_KIND_LABELS,
@@ -107,9 +111,17 @@ export default async function MeritPrintPage({
             }
           />
           <Row label="집계 범위" value={scope} />
-          {/* 화면 배지는 종이에 안 찍힌다 — 명단에서 빠진 사실은 본문에 적는다. */}
-          {header.removedAt && (
-            <Row label="명단 제외일" value={formatDate(header.removedAt)} />
+          {/* 화면의 꼬리표는 종이에 안 찍힌다 — 명단에서 빠진 사실은 본문에 적는다.
+              날짜가 아니라 학적을 적는 이유: 학적에 「언제 바뀌었나」가 없다. */}
+          {header.removed && (
+            <Row
+              label="학적"
+              value={
+                isEnrollmentStatus(header.status)
+                  ? ENROLLMENT_STATUS_LABELS[header.status]
+                  : "재적 없음"
+              }
+            />
           )}
         </dl>
 

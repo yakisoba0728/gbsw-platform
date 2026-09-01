@@ -49,7 +49,10 @@ export async function findCurrentYearForUpdate(db: DbClient): Promise<number | n
  */
 export async function listByYear(year: number, db: DbClient = prisma) {
   const profiles = await db.studentProfile.findMany({
-    // 표 편집은 지금 다니는 학생을 다루는 화면이라 명단에서 빠진 학생은 뺀다.
+    // **학적으로 거르지 않는다** — 이 표가 학적을 *고치는* 자리라 졸업·퇴학 학생도
+    // 서야 한다. 상벌점 쪽이 「명단에서 빠진 학생」을 재적으로 판정하는 것과 다른
+    // 질문이다. 남은 `deletedAt` 조건은 legacy 삭제 표시를 거르는 것이고(운영에서
+    // 채워지는 일이 없다), 열과 함께 남긴다 — prisma/schema.prisma의 주석을 볼 것.
     where: { user: { role: "STUDENT", deletedAt: null } },
     select: {
       id: true,
@@ -89,7 +92,7 @@ export async function listByYear(year: number, db: DbClient = prisma) {
 
 /**
  * 학생 한 사람. 학급·번호·학적은 그 학년도 재적 기준이고, 명단에서 빠진 학생도
- * 돌려준다 — `removedAt`이 그 날짜를 싣고 화면이 「삭제됨」을 알린다.
+ * 돌려준다 — `removed`가 그 사실을 싣고 `status`가 학적(졸업·퇴학·전출…)을 말한다.
  *
  * 학생 상세 화면(`/students/<id>`)의 머리글과 「학생 정보」 탭이 함께 쓴다.
  * 무엇을 내보낼지는 서비스가 권한에 따라 가른다.
@@ -106,7 +109,7 @@ export async function findStudentDetail(
       studentCode: true,
       birthDate: true,
       user: {
-        select: { id: true, name: true, email: true, role: true, deletedAt: true },
+        select: { id: true, name: true, email: true, role: true },
       },
       enrollments: {
         where: { year },
@@ -134,7 +137,13 @@ export async function findStudentDetail(
     classNo: enrollment?.schoolClass?.classNo ?? null,
     number: enrollment?.number ?? null,
     status: enrollment?.status ?? null,
-    removedAt: profile.user.deletedAt,
+    /**
+     * 그 학년도 명단에서 빠졌는가 — 재적(ENROLLED)이 아니면 true다.
+     * `merit.repo.findStudentHeader`와 같은 판정이며, 날짜가 아니라 참·거짓인
+     * 이유도 같다: 학적에는 "언제 바뀌었나"가 없다. 날짜를 싣던 옛 값
+     * (`user.deletedAt`)은 아무도 채우지 않아 화면이 늘 꺼져 있었다.
+     */
+    removed: enrollment?.status !== "ENROLLED",
   };
 }
 

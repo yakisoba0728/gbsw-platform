@@ -1,13 +1,20 @@
 "use client";
 
-import { useActionState, useEffect, useId, useRef, useState } from "react";
+import {
+  useActionState,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import { Button } from "@/components/ui/button";
 import { cardClass } from "@/components/ui/card";
 import { Note } from "@/components/ui/note";
 import { SectionCard } from "@/components/ui/section-card";
 import { tokenFromScanUrl } from "@/modules/pass/pass.url";
 import { scanAction } from "./actions";
-import { EMPTY_SCAN_STATE } from "./scan-state";
+import { EMPTY_SCAN_STATE, type ScanState } from "./scan-state";
 import {
   createQrDetector,
   type Detector,
@@ -36,7 +43,19 @@ const TICK_MS = 400;
  */
 const RESEND_MS = 3000;
 
-export function Scanner({ origin }: { origin: string }) {
+export function Scanner({
+  origin,
+  initial = EMPTY_SCAN_STATE,
+}: {
+  origin: string;
+  /**
+   * 주소의 `?c=`로 이미 판정한 결과. **판정 카드가 서는 자리는 여기 하나다** —
+   * 페이지가 따로 그리면 앞 학생의 카드가 다음 학생의 것 위에 남는다.
+   * `useActionState`는 첫 마운트에서만 이 값을 읽으므로 스캔이 시작되면
+   * 그 뒤로는 카메라가 읽은 것만 보인다.
+   */
+  initial?: ScanState;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const codeRef = useRef<HTMLInputElement>(null);
@@ -58,9 +77,20 @@ export function Scanner({ origin }: { origin: string }) {
   } | null>(null);
   const [cameraReady, setCameraReady] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  const [state, action, pending] = useActionState(scanAction, EMPTY_SCAN_STATE);
+  const [state, action, pending] = useActionState(scanAction, initial);
   const guideId = useId();
   const statusId = useId();
+
+  /**
+   * 카메라를 처음부터 다시 켠다. `attempt`가 바뀌면 아래 effect가 다시 돈다 —
+   * 「다시 시도」 버튼과 bfcache 복귀가 같은 길을 쓴다.
+   */
+  const restartCamera = useCallback(() => {
+    setStartupError(null);
+    setCameraReady(false);
+    setSupported(null);
+    setAttempt((current) => current + 1);
+  }, []);
 
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -184,24 +214,30 @@ export function Scanner({ origin }: { origin: string }) {
     void start();
 
     /**
+     * bfcache에서 돌아온 길. 아래 `pagehide`가 이미 카메라를 껐는데 문서는 살아
+     * 있어 React가 다시 마운트하지 않는다 — 여기서 되살리지 않으면 검은 상자만
+     * 선 채로 「스캔할 준비가 되었습니다」라고 말한다.
+     */
+    function handlePageShow(event: PageTransitionEvent) {
+      if (event.persisted) restartCamera();
+    }
+
+    /**
      * 화면을 떠나는 다른 길. React가 언마운트를 못 보는 경우 —— 탭을 닫거나,
      * 브라우저가 페이지를 bfcache로 넣거나, 앱을 뒤로 보내는 때 —— 를 받는다.
      */
     window.addEventListener("pagehide", stopCamera);
+    window.addEventListener("pageshow", handlePageShow);
 
     return () => {
       window.removeEventListener("pagehide", stopCamera);
+      window.removeEventListener("pageshow", handlePageShow);
       stopCamera();
     };
-  }, [origin, attempt]);
+  }, [origin, attempt, restartCamera]);
 
-  function retryCamera() {
-    setStartupError(null);
-    setCameraReady(false);
-    setSupported(null);
-    setAttempt((current) => current + 1);
-  }
-
+  // 카메라 상태가 판정 결과보다 앞선다 — 되살아나는 동안 앞 판정을 근거로
+  // 「다음 학생증을 비춰 주세요」라고 하면 멈춘 스캐너를 계속 쓰게 된다.
   const status =
     startupError
       ? startupError.message
@@ -209,10 +245,10 @@ export function Scanner({ origin }: { origin: string }) {
         ? "카메라를 준비하는 중입니다."
         : pending
           ? "읽은 학생증을 확인하는 중입니다."
-          : state.result
-            ? "판정 결과가 표시되었습니다. 다음 학생증 QR 코드를 비춰 주세요."
-            : supported === "ok" && !cameraReady
-              ? "카메라를 연결하고 있습니다. 권한 요청이 보이면 허용해 주세요."
+          : supported === "ok" && !cameraReady
+            ? "카메라를 연결하고 있습니다. 권한 요청이 보이면 허용해 주세요."
+            : state.result
+              ? "판정 결과가 표시되었습니다. 다음 학생증 QR 코드를 비춰 주세요."
               : supported === "ok"
                 ? "스캔할 준비가 되었습니다. 학생증 QR 코드를 카메라에 비춰 주세요."
                 : "폰 기본 카메라로 학생증 QR 코드를 찍어 주세요.";
@@ -289,7 +325,7 @@ export function Scanner({ origin }: { origin: string }) {
                 variant="secondary"
                 full
                 aria-label={`${startupError.kind === "detector" ? "QR 스캔" : "카메라"} 다시 시도`}
-                onClick={retryCamera}
+                onClick={restartCamera}
               >
                 다시 시도
               </Button>

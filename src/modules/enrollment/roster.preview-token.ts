@@ -28,8 +28,11 @@ type PreviewTokenInput = {
 };
 
 function previewTokenSecret(): string {
-  const secret =
-    process.env.ROSTER_IMPORT_PREVIEW_SECRET ?? process.env.BETTER_AUTH_SECRET;
+  // 빈 문자열은 「주지 않은 것」으로 본다. compose의 `${VAR:-}`는 변수를 빼는 게
+  // 아니라 빈 값으로 넘기므로, `??`로 받으면 BETTER_AUTH_SECRET 폴백이 영영
+  // 일어나지 않고 도커 배포에서 미리보기·확정이 늘 이 함수의 throw로 죽었다.
+  const explicit = process.env.ROSTER_IMPORT_PREVIEW_SECRET;
+  const secret = explicit?.trim() ? explicit : process.env.BETTER_AUTH_SECRET;
   if (secret?.trim()) return secret;
   if (process.env.NODE_ENV === "test") return "test-only-roster-import-preview-secret";
   throw new Error("ROSTER_IMPORT_PREVIEW_SECRET 또는 BETTER_AUTH_SECRET 환경변수가 없습니다.");

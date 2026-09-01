@@ -41,6 +41,9 @@ function toMessage(error: unknown): string {
   if (error instanceof CommunityError) {
     return MESSAGES[error.message] ?? "처리하지 못했습니다.";
   }
+  // 예상 못 한 오류는 서버 콘솔에 남긴다. 화면에는 일반 문구만 나가므로
+  // 여기서 안 남기면 원인이 어디에도 없다.
+  console.error("[community] 예상 못 한 오류", error);
   return "처리하지 못했습니다.";
 }
 

@@ -8,6 +8,7 @@ import { SectionCard } from "@/components/ui/section-card";
 import { MAX_ATTACHMENTS_PER_POST } from "@/modules/community/community.schema";
 import { EMPTY_POST_STATE } from "./action-state";
 import { createPostAction, updatePostAction } from "./actions";
+import { AnonymousNote } from "./anonymous-note";
 import { AttachmentPicker, type PickedAttachment } from "./attachment-picker";
 import {
   createPostDraftNonce,
@@ -200,12 +201,7 @@ export function PostForm({
 
   return (
     <SectionCard variant="panel" title={editing ? "글 수정" : `${boardName}에 글쓰기`}>
-      {anonymous && (
-        <Note tone="warn" className="mb-4">
-          이 게시판의 글은 작성자가 화면에 보이지 않습니다. 다만 학교는 감사 기록으로
-          작성자를 확인할 수 있습니다.
-        </Note>
-      )}
+      {anonymous && <AnonymousNote kind="글" className="mb-4" />}
 
       {restored && (
         <Note tone="success" className="mb-4" role="status">

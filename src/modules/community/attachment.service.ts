@@ -4,6 +4,7 @@ import { ForbiddenError } from "@/core/authz/errors";
 import { withTransaction } from "@/core/db/client";
 import * as board from "./board.service";
 import { CommunityError } from "./community.error";
+import { stripImageMetadata } from "./community.exif";
 import * as repo from "./community.repo";
 import { MAX_PENDING_ATTACHMENTS } from "./community.schema";
 import {
@@ -26,6 +27,9 @@ import {
  *   ③ 미결 수   — 고아 정리가 "그 사람이 다음에 올릴 때"만 돌기 때문에 필요하다
  *
  * 셋을 **바이트를 쓰기 전에** 통과시킨다.
+ *
+ * 익명 게시판이면 그 사이에 하나가 더 선다 — 사진의 메타데이터를 벗기는 일이다
+ * (`community.exif.ts`). 게시판을 아는 자리가 여기뿐이라 여기서 한다.
  */
 
 /** 고아로 보는 나이. 글쓰기 한 번이 이보다 오래 걸리는 일은 없다. */
@@ -53,9 +57,34 @@ export async function uploadAttachment(
   const community = await board.getWritableBySlug(actor, input.slug);
   if (!community.allowAttachments) throw new CommunityError("ATTACHMENT_NOT_ALLOWED");
 
-  // ② 형식·용량.
+  // ② 형식·용량. 용량은 **원본 길이**로 잰다 — 벗기기가 줄여 준 만큼 더 올릴 수
+  // 있게 되면, 20MB 상한이 지키려던 것(요청 하나가 쥐는 메모리)이 흔들린다.
   const verdict = classifyUpload(input.filename, input.mimeType, input.bytes.byteLength);
   if (!verdict.ok) throw new CommunityError(verdict.code);
+
+  // ②′ 사진의 촬영 위치·기기·시각을 벗긴다.
+  //
+  // **게시판을 가리지 않는다.** 익명 게시판만 벗기면 우회로가 남는다 — 첨부는 글보다
+  // 먼저 올라가고 `attachToPost`는 올린 사람과 `postId: null`만 보므로, 실명 게시판에
+  // 올려 벗기기를 건너뛴 id를 익명 게시판 글에 실어 보내면 그만이다. 그 구멍을 막는
+  // 값이 아끼는 값보다 크다: 재인코딩이 아니라 세그먼트를 도려내는 방식이라 비용이
+  // 버퍼 한 벌 복사뿐이고, 벗길 것이 없으면 원본 참조가 그대로 돌아와 복사도 없다.
+  // 실명 게시판이라고 촬영 위치가 붙어 나갈 이유도 없다.
+  //
+  // **벗기기가 실패하면 업로드를 실패시킨다.** 조용히 원본을 저장하는 길을 두지
+  // 않는 이유는, 그 길이 열려 있으면 첨부가 「벗겨졌거나 아닐 수도 있는 것」이 되어
+  // 이 검사가 있으나 마나 해지기 때문이다. 못 알아본 사진 하나를 거절하는 쪽이
+  // GPS가 박힌 사진 하나를 통과시키는 쪽보다 싸다.
+  //
+  // **여기서 한 번만 갈아 끼운다.** 아래 어느 줄도 `input.bytes`를 다시 보면 안
+  // 된다 — 벗기면 길이가 줄어드는데 size·감사로그·응답이 원본 길이를 쓰면 DB가
+  // 말하는 크기와 디스크의 파일이 어긋난다.
+  let bytes = input.bytes;
+  if (verdict.mimeType.startsWith("image/")) {
+    const stripped = stripImageMetadata(bytes);
+    if (!stripped.ok) throw new CommunityError(stripped.code);
+    bytes = stripped.bytes;
+  }
 
   // ③ 미결 수. 정리를 먼저 돌려 방금 만료된 것이 상한을 차지하지 않게 한다.
   await sweepMyOrphans(actor.id);
@@ -84,7 +113,7 @@ export async function uploadAttachment(
         storageKey,
         filename: input.filename,
         mimeType: verdict.mimeType,
-        size: input.bytes.byteLength,
+        size: bytes.byteLength,
       },
       tx,
     );
@@ -99,7 +128,7 @@ export async function uploadAttachment(
         metadata: {
           slug: community.slug,
           filename: input.filename,
-          size: input.bytes.byteLength,
+          size: bytes.byteLength,
           mimeType: verdict.mimeType,
         },
       },
@@ -112,7 +141,7 @@ export async function uploadAttachment(
   try {
     // **경로 계산이 행의 createdAt을 쓴다.** 읽을 때도 같은 값을 쓰므로 둘이
     // 어긋날 수 없다 — 지금 시각을 다시 재면 자정을 넘기는 순간 못 찾는다.
-    await writeAttachment(storageKey, createdAt, input.bytes);
+    await writeAttachment(storageKey, createdAt, bytes);
   } catch (error) {
     // 쓰기가 실패했으면 가리킬 것이 없는 행이다. 최선을 다해 지우고 올린다 —
     // 이 정리가 실패해도 남는 것은 행 하나뿐이라 고아 정리가 나중에 걷어 간다.
@@ -123,7 +152,7 @@ export async function uploadAttachment(
   return {
     id,
     filename: input.filename,
-    size: input.bytes.byteLength,
+    size: bytes.byteLength,
     mimeType: verdict.mimeType,
   };
 }

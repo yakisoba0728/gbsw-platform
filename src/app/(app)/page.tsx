@@ -356,20 +356,19 @@ async function StudentDashboard({ user }: { user: SessionUser }) {
     listRecentPosts(user, 5),
   ]);
 
-  if (merit === "no-year") {
-    return (
-      <Stack>
-        <NoAcademicYearNotice title="상벌점" />
-      </Stack>
-    );
-  }
-
   return (
     <Stack>
-      <TwoUp>
-        <TrackCard track="SCHOOL" view={merit.school} />
-        <TrackCard track="DORM" view={merit.dorm} />
-      </TwoUp>
+      {/* 학년도가 없으면 상벌점 두 칸이 성립하지 않는다. 출입증과 새 글은 학년도와
+          무관하게 선다 — 화면 전체를 안내로 덮으면 승인된 외박이 있는지도 사라진다.
+          교사 쪽 TeacherStats와 같은 판단이다. */}
+      {merit === "no-year" ? (
+        <NoAcademicYearNotice title="상벌점" />
+      ) : (
+        <TwoUp>
+          <TrackCard track="SCHOOL" view={merit.school} />
+          <TrackCard track="DORM" view={merit.dorm} />
+        </TwoUp>
+      )}
 
       <TwoUp>
         <SectionCard
@@ -445,24 +444,24 @@ async function ParentDashboard({ user }: { user: SessionUser }) {
     getMyChildPassesAwaitingConsent(user, now, 5),
   ]);
 
-  if (merit === "no-year") {
-    return (
-      <Stack>
-        <NoAcademicYearNotice title="상벌점" />
-      </Stack>
-    );
-  }
-
   return (
     <Stack>
-      <p className="text-caption font-medium text-ink">
-        상벌점 · {honorificName(first.name, "STUDENT")}
-      </p>
+      {/* 학생 대시보드와 같다 — 학년도가 없어도 동의 대기는 그대로 선다.
+          자녀 이름 줄은 상벌점 카드의 머리이므로 함께 사라진다. */}
+      {merit === "no-year" ? (
+        <NoAcademicYearNotice title="상벌점" />
+      ) : (
+        <>
+          <p className="text-caption font-medium text-ink">
+            상벌점 · {honorificName(first.name, "STUDENT")}
+          </p>
 
-      <TwoUp>
-        <TrackCard track="SCHOOL" view={merit.school} />
-        <TrackCard track="DORM" view={merit.dorm} />
-      </TwoUp>
+          <TwoUp>
+            <TrackCard track="SCHOOL" view={merit.school} />
+            <TrackCard track="DORM" view={merit.dorm} />
+          </TwoUp>
+        </>
+      )}
 
       <SectionCard
         headingLevel={3}

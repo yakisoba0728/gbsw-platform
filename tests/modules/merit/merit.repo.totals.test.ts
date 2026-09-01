@@ -139,18 +139,17 @@ describe("listClassRoster — 반 명단 합계", () => {
   });
 
   /**
-   * 재학 조건이 빠지면 전학·자퇴한 학생이 반 명단에 되살아나고, 소프트삭제
-   * 조건이 빠지면 명단에서 뺀 학생이 다시 선다. 둘 다 값만 보는 목으로는
-   * 드러나지 않는다 — where 절을 직접 본다.
+   * 재학 조건이 빠지면 전학·자퇴·졸업한 학생이 반 명단에 되살아난다. 값만 보는
+   * 목으로는 드러나지 않는다 — where 절을 직접 본다. **명단 술어는 이 한 줄이
+   * 전부다**: 계정 쪽 조건(deletedAt)은 퇴학·전학을 못 걸러서 뺐다.
    */
-  it("그 학년도 그 반의 재학생만, 지워진 계정은 빼고 본다", async () => {
+  it("그 학년도 그 반의 재학생만 본다", async () => {
     await listClassRoster({ ...roster, totalsYear: 2026 });
 
-    expect(enrollmentFindMany.mock.calls[0][0].where).toMatchObject({
+    expect(enrollmentFindMany.mock.calls[0][0].where).toEqual({
       year: 2026,
       status: "ENROLLED",
       schoolClass: { grade: 2, classNo: 3 },
-      studentProfile: { user: { deletedAt: null } },
     });
   });
 
@@ -272,13 +271,12 @@ describe("classSummaries — 반별 요약", () => {
   });
 
   /** 반별로 접는 것이 목적이라 반 미배정은 여기서만 뺀다 — studentTotals는 남긴다. */
-  it("그 학년도 재학생 중 반이 있는 학생만, 지워진 계정은 빼고 본다", async () => {
+  it("그 학년도 재학생 중 반이 있는 학생만 본다", async () => {
     await classSummaries({ year: 2026, track: "SCHOOL", totalsYear: 2026 });
 
-    expect(enrollmentFindMany.mock.calls[0][0].where).toMatchObject({
+    expect(enrollmentFindMany.mock.calls[0][0].where).toEqual({
       year: 2026,
       status: "ENROLLED",
-      studentProfile: { user: { deletedAt: null } },
       classId: { not: null },
     });
   });
@@ -289,13 +287,12 @@ describe("classSummaries — 반별 요약", () => {
  * 반 미배정 학생이 순위에서 사라지면 안 된다.
  */
 describe("listClassRoster — 범위 없이 부르면 전교다", () => {
-  it("그 학년도 재학생만, 지워진 계정은 빼고 본다", async () => {
+  it("그 학년도 재학생만 본다", async () => {
     await listClassRoster({ year: 2026, track: "SCHOOL", totalsYear: 2026 });
 
-    expect(enrollmentFindMany.mock.calls[0][0].where).toMatchObject({
+    expect(enrollmentFindMany.mock.calls[0][0].where).toEqual({
       year: 2026,
       status: "ENROLLED",
-      studentProfile: { user: { deletedAt: null } },
     });
   });
 
@@ -330,8 +327,8 @@ describe("listClassRoster — 범위 없이 부르면 전교다", () => {
 });
 
 describe("demeritTotalsByStudent — 기준 초과 명단의 원자료", () => {
-  it("벌점만, 취소되지 않은 것만, 지워진 계정은 빼고 센다", async () => {
-    await demeritTotalsByStudent({ track: "SCHOOL", totalsYear: 2026 });
+  it("벌점만, 취소되지 않은 것만, 그 학년도 재적만 센다", async () => {
+    await demeritTotalsByStudent({ track: "SCHOOL", totalsYear: 2026, rosterYear: 2026 });
 
     expect(meritAwardGroupBy).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -341,22 +338,45 @@ describe("demeritTotalsByStudent — 기준 초과 명단의 원자료", () => {
           kind: "DEMERIT",
           status: "ACTIVE",
           year: 2026,
-          studentProfile: { user: { deletedAt: null } },
+          studentProfile: {
+            enrollments: { some: { year: 2026, status: "ENROLLED" } },
+          },
         }),
       }),
     );
   });
 
-  it("totalsYear가 null이면 학년도 조건이 없다", async () => {
-    await demeritTotalsByStudent({ track: "DORM", totalsYear: null });
+  /**
+   * **기숙사는 누적이라 이 조건이 유일한 방어선이다.** 합계 학년도가 없으니
+   * 졸업생의 3년치 벌점이 그대로 남고, 재적 조건이 빠지면 그 학생이 사감의
+   * 기준 초과 명단에 영원히 선다.
+   */
+  it("totalsYear가 null이어도 재적 조건은 남는다", async () => {
+    await demeritTotalsByStudent({ track: "DORM", totalsYear: null, rosterYear: 2026 });
 
-    expect(meritAwardGroupBy.mock.calls[0][0].where).not.toHaveProperty("year");
+    const where = meritAwardGroupBy.mock.calls[0][0].where;
+    expect(where).not.toHaveProperty("year");
+    expect(where.studentProfile).toEqual({
+      enrollments: { some: { year: 2026, status: "ENROLLED" } },
+    });
+  });
+
+  /** 합계 범위와 명단 범위는 다른 값이다 — 지난 학년도를 봐도 명단은 그 해 기준이다. */
+  it("rosterYear는 totalsYear와 따로 걸린다", async () => {
+    await demeritTotalsByStudent({ track: "SCHOOL", totalsYear: 2025, rosterYear: 2025 });
+
+    const where = meritAwardGroupBy.mock.calls[0][0].where;
+    expect(where.year).toBe(2025);
+    expect(where.studentProfile).toEqual({
+      enrollments: { some: { year: 2025, status: "ENROLLED" } },
+    });
   });
 
   it("학생을 좁혀 주면 그 학생들만 센다", async () => {
     await demeritTotalsByStudent({
       track: "SCHOOL",
       totalsYear: 2026,
+      rosterYear: 2026,
       studentProfileIds: ["sp-1", "sp-2"],
     });
 

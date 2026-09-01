@@ -146,8 +146,11 @@ export type ApplyInput = {
  */
 export async function applyRoster(year: number, input: ApplyInput, db?: DbClient) {
   const run = async (tx: DbClient) => {
-    /** 이번 반영이 폐기한 미사용 초대코드. 서비스가 같은 트랜잭션에서 감사로그로 옮긴다. */
-    let revokedInvites: { id: string; role: string }[] = [];
+    /**
+     * 이번 반영이 지운 초대코드. 서비스가 같은 트랜잭션에서 감사로그로 옮긴다.
+     * 대기분만이 아니다 — 소진된 코드도 함께 지워지므로 status를 함께 낸다.
+     */
+    let revokedInvites: { id: string; role: string; status: string }[] = [];
     const revisionStamp = new Date();
 
     // 재배정을 다시 넣기 전에 실제 삭제부터 끝낸다.
@@ -164,16 +167,19 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
       const deleteUserIds = targets.map((t) => t.userId);
       const deleteProfileIds = targets.map((t) => t.id);
 
+      // 상태를 가리지 않고 모은다. 아래 deleteMany도 가리지 않기 때문이다 —
+      // Invite.createdBy가 Restrict라, 학생이 만든 학부모 코드는 이미 소진된
+      // 것까지 지워야 그 계정이 지워진다. 대기분만 모으면 소진된 행이 기록
+      // 없이 사라진다. 무엇이었는지는 status로 남는다.
       revokedInvites = await tx.invite.findMany({
         where: {
-          status: "PENDING",
           OR: [
             { createdById: { in: deleteUserIds } },
             { usedById: { in: deleteUserIds } },
             { studentId: { in: deleteProfileIds } },
           ],
         },
-        select: { id: true, role: true },
+        select: { id: true, role: true, status: true },
       });
 
       if (deleteUserIds.length > 0) {
@@ -284,6 +290,8 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
     }
 
     const invites: {
+      /** 감사로그의 targetId. 코드 값은 로그에 싣지 않으므로 이 id가 유일한 손잡이다. */
+      id: string;
       name: string;
       code: string;
       grade: number | null;
@@ -292,7 +300,7 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
     }[] = [];
 
     for (const { row, code } of input.newStudents) {
-      await tx.invite.create({
+      const created = await tx.invite.create({
         data: {
           code,
           role: "STUDENT",
@@ -310,6 +318,7 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
         },
       });
       invites.push({
+        id: created.id,
         name: row.name,
         code,
         grade: row.grade,

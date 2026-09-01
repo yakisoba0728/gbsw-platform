@@ -99,7 +99,14 @@ export async function previewRoster(
   return { year, rows, plan, notices, rosterFingerprint, previewToken };
 }
 
-/** 전체 명단 내보내기. 읽기만 하므로 감사로그를 남기지 않는다. */
+/**
+ * 전체 명단 내보내기.
+ *
+ * **읽기지만 기록을 남긴다.** 전교생의 이름·생년월일·학생코드가 한 번에 파일로
+ * 나가는 유일한 경로라, 교사 계정 하나가 털렸을 때 「누가 언제 명단을 통째로
+ * 받았나」에 답할 자료가 여기밖에 없다. 남기는 것은 학년도와 건수뿐이다 —
+ * 이름을 실으면 감사로그 자체가 명단 사본이 된다.
+ */
 export async function exportRoster(
   actor: SessionUser,
 ): Promise<{ year: number; rows: (string | number | null)[][] }> {
@@ -108,7 +115,18 @@ export async function exportRoster(
   const year = await getCurrentYear();
   const existing = await repo.listExisting(year);
   // legacy deletedAt 표시가 남은 계정은 listExisting()에서 이미 빠진다.
-  const rows = buildExportRows(existing.filter((s) => !s.deleted));
+  const students = existing.filter((s) => !s.deleted);
+  const rows = buildExportRows(students);
+
+  await recordAudit({
+    actorUserId: actor.id,
+    action: "roster:export",
+    targetType: "AcademicYear",
+    targetId: String(year),
+    // 머리글 줄은 빼고 학생 수만 센다.
+    metadata: { year, count: students.length },
+  });
+
   return { year, rows };
 }
 
@@ -302,7 +320,7 @@ export async function applyRosterPlan(
           tx,
         );
 
-        // 아래 세 갈래는 한 번에 남긴다. 이 트랜잭션이 AcademicYear 잠금을 쥐고
+        // 아래 네 갈래는 한 번에 남긴다. 이 트랜잭션이 AcademicYear 잠금을 쥐고
         // 있는 동안 전교의 상벌점 부여가 멈추므로, 왕복 수를 줄이는 것이 곧
         // 정지 구간을 줄이는 일이다. actorName을 넘겨 이름 재조회도 없앤다.
         const entries: RecordAuditInput[] = [];
@@ -319,7 +337,8 @@ export async function applyRosterPlan(
           });
         }
 
-        // 함께 폐기된 미사용 초대코드마다 한 줄. 코드 값 자체는 남기지 않는다.
+        // 함께 지워진 초대코드마다 한 줄. 코드 값 자체는 남기지 않는다.
+        // 대기분만이 아니다 — 소진된 코드도 함께 지워지므로 status로 구분한다.
         for (const invite of revokedInvites) {
           entries.push({
             actorUserId: actor.id,
@@ -327,7 +346,23 @@ export async function applyRosterPlan(
             action: "invite:revoke:roster",
             targetType: "Invite",
             targetId: invite.id,
-            metadata: { role: invite.role },
+            metadata: { role: invite.role, status: invite.status },
+          });
+        }
+
+        // 이번 반영이 새로 낸 초대코드마다 한 줄. 단건 발급 경로가 남기는 것과
+        // 같은 액션이다 — 종이로 나가는 코드가 어디서 나왔든 발급 기록은 하나여야
+        // 「이 코드는 누가 만들었나」를 한 줄로 되짚을 수 있다.
+        // **코드 값은 metadata에 넣지 않는다.** 감사로그를 볼 수 있는 사람이
+        // 남의 가입코드를 그대로 읽게 된다.
+        for (const invite of invites) {
+          entries.push({
+            actorUserId: actor.id,
+            actorName: actor.name,
+            action: "invite:create",
+            targetType: "Invite",
+            targetId: invite.id,
+            metadata: { role: "STUDENT" },
           });
         }
 

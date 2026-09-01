@@ -19,6 +19,9 @@ import { formatDate, formatMonthDay } from "@/lib/datetime";
  * 그 이름으로 저장된 옛 행이 있고, 감사로그는 고쳐 쓰지 않는다.
  */
 export const AUDIT_ACTIONS = [
+  // 세션이 생기고 사라지는 순간. 대상 이메일은 마스킹해서 남긴다.
+  "auth:login",
+  "auth:login-failed",
   "account:bootstrap",
   "account:change-password",
   "registration:complete",
@@ -40,6 +43,8 @@ export const AUDIT_ACTIONS = [
   "academic-year:set-current",
   "enrollment:update",
   "enrollment:import",
+  // 읽기지만 남긴다 — 전교생 개인정보가 파일로 한 번에 나가는 유일한 경로다.
+  "roster:export",
   "merit:rule:create",
   "merit:rule:update",
   // 옛 행 전용. 지금은 merit:rule:delete로 남긴다.
@@ -75,6 +80,8 @@ function isAuditAction(value: string): value is AuditAction {
 }
 
 const ACTION_LABELS: Record<AuditAction, string> = {
+  "auth:login": "로그인",
+  "auth:login-failed": "로그인 실패",
   "account:bootstrap": "최초 교사 계정 생성",
   "account:change-password": "비밀번호 변경",
   "registration:complete": "가입 완료",
@@ -93,6 +100,7 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   "academic-year:set-current": "현재 학년도 변경",
   "enrollment:update": "소속·학적 수정",
   "enrollment:import": "명단 반영",
+  "roster:export": "명단 내보내기",
   "merit:rule:create": "상벌점 규정 추가",
   "merit:rule:update": "상벌점 규정 수정",
   "merit:rule:deactivate": "상벌점 규정 삭제",
@@ -120,6 +128,8 @@ const ACTION_LABELS: Record<AuditAction, string> = {
 };
 
 const ACTION_TONES: Record<AuditAction, BadgeTone> = {
+  "auth:login": "neutral",
+  "auth:login-failed": "cancelled",
   "account:bootstrap": "approved",
   "account:change-password": "neutral",
   "registration:complete": "approved",
@@ -138,6 +148,7 @@ const ACTION_TONES: Record<AuditAction, BadgeTone> = {
   "academic-year:set-current": "info",
   "enrollment:update": "info",
   "enrollment:import": "info",
+  "roster:export": "info",
   "merit:rule:create": "approved",
   "merit:rule:update": "info",
   "merit:rule:deactivate": "rejected",
@@ -278,6 +289,26 @@ function importSummary(metadata: Record<string, unknown>): string | null {
   return filled.length > 0 ? filled.join(" · ") : null;
 }
 
+/** roster:export — 몇 명분이 나갔나. 이름은 애초에 metadata에 없다. */
+function exportSummary(metadata: Record<string, unknown>): string | null {
+  const parts = [yearLabel(metadata)];
+  if (typeof metadata.count === "number") parts.push(`${metadata.count}명`);
+  const filled = parts.filter((p): p is string => p !== null);
+  return filled.length > 0 ? filled.join(" · ") : null;
+}
+
+/**
+ * invite:revoke:roster — 무슨 코드였나. 명단 반영은 소진된 코드까지 함께 지우므로
+ * (Invite.createdBy가 Restrict라 남겨 둘 수 없다) 그 구분을 함께 싣는다 —
+ * 액션 이름만 보면 대기 중인 코드를 없앤 것으로 읽힌다.
+ */
+function inviteRosterSummary(metadata: Record<string, unknown>): string | null {
+  const parts = [roleSummary(metadata)];
+  if (metadata.status === "USED") parts.push("소진된 코드");
+  const filled = parts.filter((p): p is string => p !== null);
+  return filled.length > 0 ? filled.join(" · ") : null;
+}
+
 /**
  * authz:denied — 어떤 일을 하려다 막혔는지. 저장된 값은 `merit:award` 같은
  * 코드라 그대로 띄우면 교사가 읽을 수 없다. 이미 있는 라벨 표를 거쳐 보낸다 —
@@ -312,9 +343,17 @@ function meritSubject(metadata: Record<string, unknown>): string[] {
   return parts;
 }
 
-/** merit:rule:delete — 무엇을 지웠는지. 되돌리는 화면이 없어 로그가 유일한 흔적이다. */
+/**
+ * merit:rule:delete — 무엇을 왜 지웠는지. 되돌리는 화면이 없어 로그가 유일한
+ * 흔적이다. 사유는 스키마가 필수로 받는 값이라(`deleteRuleSchema`) 여기서 빼면
+ * 교사가 적은 「기준이 바뀌어 폐기」가 어느 화면에도 안 나온다.
+ */
 function meritSubjectSummary(metadata: Record<string, unknown>): string | null {
   const parts = meritSubject(metadata);
+
+  const reason = reasonPart(metadata);
+  if (reason) parts.push(reason);
+
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
@@ -440,17 +479,22 @@ function passSummary(metadata: Record<string, unknown>): string | null {
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
+/**
+ * **사유를 받는 액션은 `reasonPart()`를 붙인다.** 「왜」는 되돌리는 화면이 없는
+ * 기록일수록 로그에만 남는 조각이라, 갈래마다 따로 쓰면 하나씩 빠진다.
+ */
 const METADATA_FORMATTERS: Partial<
   Record<AuditAction, (metadata: Record<string, unknown>) => string | null>
 > = {
   "user:update": (m) => changedSummary(m.changed),
   "enrollment:update": enrollmentUpdateSummary,
   "enrollment:import": importSummary,
+  "roster:export": exportSummary,
   "academic-year:set-current": setCurrentYearSummary,
   "invite:create": roleSummary,
   "invite:create:parent": roleSummary,
   "invite:revoke": reasonSummary,
-  "invite:revoke:roster": roleSummary,
+  "invite:revoke:roster": inviteRosterSummary,
   "registration:complete": roleSummary,
   "authz:denied": authzDeniedSummary,
   "merit:rule:delete": meritSubjectSummary,

@@ -43,6 +43,9 @@ function messageFor(error: unknown, fallback: string): string {
   if (error instanceof InviteError || error instanceof ForbiddenError) {
     return MESSAGES[error.message] ?? fallback;
   }
+  // 예상 못 한 오류는 서버 콘솔에 남긴다. 화면에는 일반 문구만 나가므로
+  // 여기서 안 남기면 원인이 어디에도 없다.
+  console.error("[invite] 예상 못 한 오류", error);
   return fallback;
 }
 

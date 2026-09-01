@@ -189,9 +189,11 @@ describe("completeRegistration() — 학생", () => {
       birthDate: "2010-03-04",
     });
 
-    expect(withTransaction).toHaveBeenCalledWith(expect.any(Function), {
-      isolationLevel: "Serializable",
-    });
+    expect(withTransaction).toHaveBeenCalledWith(
+      expect.any(Function),
+      // 명단 반영이 같은 잠금을 오래 쥐므로 가입은 기다렸다 들어간다.
+      expect.objectContaining({ isolationLevel: "Serializable" }),
+    );
     expect(findCurrentYearForUpdate).toHaveBeenCalledWith(txClient);
     expect(completeStudentRegistration.mock.calls[0]![3]).toBe(2027);
   });
