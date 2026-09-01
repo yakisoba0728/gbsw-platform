@@ -293,14 +293,22 @@ describe("uploadAttachment — 고아 정리", () => {
   it("올릴 때마다 내 오래된 고아를 지운다 — DB와 디스크 둘 다", async () => {
     const createdAt = new Date("2026-08-27T00:00:00.000Z");
     listStalePending.mockResolvedValue([
-      { id: "old1", storageKey: "a".repeat(32), createdAt },
+      { id: "old1", storageKey: "a".repeat(32), filename: "옛파일.pdf", createdAt },
     ]);
 
     await service.uploadAttachment(student, upload);
 
     expect(listStalePending).toHaveBeenCalledWith("s-1", expect.any(Date));
-    expect(deleteAttachments).toHaveBeenCalledWith(["old1"]);
+    expect(deleteAttachments).toHaveBeenCalledWith(["old1"], txClient);
     expect(deleteAttachment).toHaveBeenCalledWith("a".repeat(32), createdAt);
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "community:attachment:delete",
+        targetId: "old1",
+        metadata: expect.objectContaining({ filename: "옛파일.pdf" }),
+      }),
+      txClient,
+    );
   });
 
   it("정리가 실패해도 업로드는 성공한다 — 청소가 본 일을 막지 않는다", async () => {
@@ -346,7 +354,15 @@ describe("uploadAttachment — DB와 디스크의 순서", () => {
     writeAttachment.mockRejectedValue(new Error("ENOSPC"));
 
     await expect(service.uploadAttachment(student, upload)).rejects.toThrow("ENOSPC");
-    expect(deleteAttachments).toHaveBeenCalledWith(["a1"]);
+    expect(deleteAttachments).toHaveBeenCalledWith(["a1"], txClient);
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "community:attachment:delete",
+        targetId: "a1",
+        metadata: expect.objectContaining({ filename: "가정통신문.pdf" }),
+      }),
+      txClient,
+    );
   });
 
   it("그 정리마저 실패해도 원래 오류를 올린다", async () => {

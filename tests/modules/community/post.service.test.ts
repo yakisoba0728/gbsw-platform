@@ -282,6 +282,42 @@ describe("updatePost", () => {
     expect(deleteAttachment).toHaveBeenCalledWith("c".repeat(32), createdAt);
   });
 
+  it("디스크 정리가 실패해도 이미 저장된 수정은 성공으로 돌려준다", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    detachFromPost.mockResolvedValue([
+      {
+        id: "a9",
+        storageKey: "c".repeat(32),
+        filename: "옛파일.pdf",
+        createdAt: new Date("2026-08-01T00:00:00.000Z"),
+      },
+    ]);
+    deleteAttachment.mockRejectedValue(new Error("EROFS"));
+
+    await expect(service.updatePost(student, input)).resolves.toEqual({ slug: "free" });
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
+  it("기존 첨부와 새 첨부를 함께 요청하면 둘을 모두 보존한다", async () => {
+    listAttachments.mockResolvedValue([{ id: "a1" }]);
+    attachToPost.mockResolvedValue(1);
+
+    await service.updatePost(student, { ...input, attachmentIds: ["a1", "a2"] });
+
+    expect(detachFromPost).toHaveBeenCalledWith("p1", ["a1", "a2"], txClient);
+  });
+
+  it("요청한 첨부 중 하나라도 사라졌으면 저장과 감사로그를 막는다", async () => {
+    listAttachments.mockResolvedValue([{ id: "a1" }]);
+    attachToPost.mockResolvedValue(0);
+
+    await expect(
+      service.updatePost(student, { ...input, attachmentIds: ["a1", "a2"] }),
+    ).rejects.toThrow(new CommunityError("ATTACHMENT_NOT_FOUND"));
+    expect(recordAudit).not.toHaveBeenCalled();
+  });
+
   it("**뺀 첨부는 파일 이름과 함께 감사로그에 한 건씩 남는다** — 되돌릴 수 없는 삭제다", async () => {
     detachFromPost.mockResolvedValue([
       {
@@ -317,6 +353,25 @@ describe("updatePost", () => {
       service.updatePost(student, { ...input, attachmentIds: ["a1"] }),
     ).rejects.toThrow(new CommunityError("ATTACHMENT_NOT_ALLOWED"));
     expect(updatePost).not.toHaveBeenCalled();
+  });
+
+  it("첨부를 안 받게 바뀐 게시판은 빈 첨부 목록을 기존 파일 삭제로 읽지 않는다", async () => {
+    findPost.mockResolvedValue({
+      ...row(),
+      community: board({ allowAttachments: false }),
+    });
+    getWritableBySlug.mockResolvedValue(board({ allowAttachments: false }));
+
+    await service.updatePost(student, input);
+
+    expect(detachFromPost).not.toHaveBeenCalled();
+    expect(deleteAttachment).not.toHaveBeenCalled();
+  });
+
+  it("첨부를 받는 게시판은 제출 목록을 기준으로 떼어 낼 파일을 묻는다", async () => {
+    await service.updatePost(student, input);
+
+    expect(detachFromPost).toHaveBeenCalledWith("p1", [], txClient);
   });
 
   it("롤백되면 디스크를 안 건드린다", async () => {

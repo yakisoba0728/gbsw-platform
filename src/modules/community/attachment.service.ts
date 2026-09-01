@@ -87,7 +87,7 @@ export async function uploadAttachment(
   }
 
   // ③ 미결 수. 정리를 먼저 돌려 방금 만료된 것이 상한을 차지하지 않게 한다.
-  await sweepMyOrphans(actor.id);
+  await sweepMyOrphans(actor);
 
   const storageKey = newStorageKey();
 
@@ -145,7 +145,24 @@ export async function uploadAttachment(
   } catch (error) {
     // 쓰기가 실패했으면 가리킬 것이 없는 행이다. 최선을 다해 지우고 올린다 —
     // 이 정리가 실패해도 남는 것은 행 하나뿐이라 고아 정리가 나중에 걷어 간다.
-    await repo.deleteAttachments([id]).catch(() => {});
+    await withTransaction(async (tx) => {
+      await repo.deleteAttachments([id], tx);
+      await recordAudit(
+        {
+          actorUserId: actor.id,
+          actorName: actor.name,
+          action: "community:attachment:delete",
+          targetType: "CommunityAttachment",
+          targetId: id,
+          metadata: {
+            slug: community.slug,
+            filename: input.filename,
+            writeFailed: true,
+          },
+        },
+        tx,
+      );
+    }).catch(() => {});
     throw error;
   }
 
@@ -158,18 +175,37 @@ export async function uploadAttachment(
 }
 
 /**
- * 내 고아만 지운다. 크론 없이 수렴하고 남의 행은 건드리지 않는다.
+ * 이 사용자의 고아와, 계정이 완전히 삭제돼 uploaderUserId가 null인 고아를 지운다.
+ * 크론 없이 다음 업로드 때마다 수렴한다.
  * **실패해도 삼킨다** — 청소가 본 일을 막으면 안 된다.
  */
-async function sweepMyOrphans(uploaderUserId: string): Promise<void> {
+async function sweepMyOrphans(actor: SessionUser): Promise<void> {
   try {
     const stale = await repo.listStalePending(
-      uploaderUserId,
+      actor.id,
       new Date(Date.now() - PENDING_TTL_MS),
     );
     if (stale.length === 0) return;
 
-    await repo.deleteAttachments(stale.map((a) => a.id));
+    await withTransaction(async (tx) => {
+      await repo.deleteAttachments(
+        stale.map((attachment) => attachment.id),
+        tx,
+      );
+      for (const attachment of stale) {
+        await recordAudit(
+          {
+            actorUserId: actor.id,
+            actorName: actor.name,
+            action: "community:attachment:delete",
+            targetType: "CommunityAttachment",
+            targetId: attachment.id,
+            metadata: { filename: attachment.filename, cleanup: true },
+          },
+          tx,
+        );
+      }
+    });
     for (const attachment of stale) {
       await deleteAttachment(attachment.storageKey, attachment.createdAt);
     }

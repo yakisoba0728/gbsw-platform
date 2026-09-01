@@ -347,9 +347,14 @@ export async function updatePost(
     }
   });
 
-  // 커밋된 뒤에 디스크를 지운다.
+  // 커밋된 뒤에 디스크를 지운다. 실패해도 이미 저장된 글 수정을 실패로
+  // 보고할 수는 없으므로 서버에 남기고 다음 파일을 계속 정리한다.
   for (const file of detached) {
-    await deleteAttachment(file.storageKey, file.createdAt);
+    try {
+      await deleteAttachment(file.storageKey, file.createdAt);
+    } catch (error) {
+      console.error("[community] 분리한 첨부 파일을 지우지 못했습니다.", error);
+    }
   }
 
   return { slug: community.slug };

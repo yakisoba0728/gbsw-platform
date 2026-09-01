@@ -150,20 +150,21 @@ export async function createCommentAction(
   formData: FormData,
 ): Promise<PostFormState> {
   const actor = await requireAuth();
+  const submitted = values(formData);
 
   const parsed = createCommentSchema.safeParse({
     postId: formData.get("postId"),
     body: formData.get("body"),
   });
   if (!parsed.success) {
-    return fail(parsed.error.issues[0]?.message ?? "입력을 확인해 주세요.");
+    return fail(parsed.error.issues[0]?.message ?? "입력을 확인해 주세요.", submitted);
   }
 
   let result: { slug: string; postId: string };
   try {
     result = await commentService.createComment(actor, parsed.data);
   } catch (error) {
-    return fail(toMessage(error));
+    return fail(toMessage(error), submitted);
   }
 
   revalidatePath(`/community/${result.slug}/${result.postId}`);
