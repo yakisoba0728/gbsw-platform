@@ -393,7 +393,13 @@ export function listStalePending(
       createdAt: { lt: before },
       OR: [{ uploaderUserId }, { uploaderUserId: null }],
     },
-    select: { id: true, storageKey: true, filename: true, createdAt: true },
+    select: {
+      id: true,
+      storageKey: true,
+      filename: true,
+      uploaderUserId: true,
+      createdAt: true,
+    },
   });
 }
 

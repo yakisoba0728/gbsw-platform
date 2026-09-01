@@ -200,7 +200,11 @@ async function sweepMyOrphans(actor: SessionUser): Promise<void> {
             action: "community:attachment:delete",
             targetType: "CommunityAttachment",
             targetId: attachment.id,
-            metadata: { filename: attachment.filename, cleanup: true },
+            metadata: {
+              filename: attachment.filename,
+              cleanup: true,
+              orphaned: attachment.uploaderUserId !== actor.id,
+            },
           },
           tx,
         );
@@ -221,6 +225,27 @@ export type Download = {
   inline: boolean;
 };
 
+/** 글에 붙기 전 첨부의 소유권 거부. 감사 실패가 원래 거부를 바꾸지 않는다. */
+async function denyOwnership(
+  actor: SessionUser,
+  action: string,
+  attachmentId: string,
+): Promise<never> {
+  try {
+    await recordAudit({
+      actorUserId: actor.id,
+      actorName: actor.name,
+      action: "authz:denied",
+      targetType: "CommunityAttachment",
+      targetId: attachmentId,
+      metadata: { action },
+    });
+  } catch {
+    // 감사 기록 실패가 거부 자체를 막지 않는다.
+  }
+  throw new ForbiddenError(action);
+}
+
 export async function getDownload(
   actor: SessionUser,
   attachmentId: string,
@@ -232,7 +257,7 @@ export async function getDownload(
     // 아직 글에 안 붙은 첨부. 글쓰기 화면의 미리보기가 이 길로 온다.
     // **올린 본인만** — 게시판 권한으로는 가릴 수 없는 상태다.
     if (attachment.uploaderUserId === null || attachment.uploaderUserId !== actor.id) {
-      throw new ForbiddenError("community:attachment:read");
+      await denyOwnership(actor, "community:attachment:read", attachmentId);
     }
   } else {
     // 지워진 글의 첨부는 없는 것으로 친다 — 글이 안 보이는데 첨부만 열리면 안 된다.
