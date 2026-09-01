@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
 import { Button, buttonClass } from "@/components/ui/button";
 
 /**
@@ -14,6 +15,11 @@ export default function AppError({
   error: Error & { digest?: string };
   retry: () => void;
 }) {
+  useEffect(() => {
+    // 클라이언트에서 난 오류는 여기 말고 남는 데가 없다.
+    console.error(error);
+  }, [error]);
+
   return (
     <div className="mx-auto max-w-[420px] py-10">
       <p className="text-caption text-mut">오류</p>
@@ -22,7 +28,7 @@ export default function AppError({
       </h2>
       {/* 원인은 적지 않는다 — 사용자에게 뜻이 없고 내부 사정이 새어 나간다. */}
       <p className="mt-2 text-caption text-mut">
-        다시 시도해도 같으면 선생님께 알려 주세요.
+        다시 시도해도 같으면 학교 담당자에게 알려 주세요.
       </p>
 
       {error.digest && (
