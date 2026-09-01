@@ -117,7 +117,6 @@ export type PostPage = {
   posts: PostListItemView[];
   page: number;
   pageCount: number;
-  total: number;
   canWrite: boolean;
 };
 
@@ -146,7 +145,6 @@ export async function listPostPage(
     page,
     // 글이 없어도 한 쪽이다 — 페이지 0은 화면에서 표현할 수 없다.
     pageCount: Math.max(1, Math.ceil(total / POSTS_PER_PAGE)),
-    total,
     // 목록 화면의 「글쓰기」 버튼을 그릴지. 순수 함수를 직접 쓴다 — 버튼을
     // 그릴지 정하는 일이라 거부 기록이 필요 없다. 실제 통제는 createPost가
     // getWritableBySlug로 한다.

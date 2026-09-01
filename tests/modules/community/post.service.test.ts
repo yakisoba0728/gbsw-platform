@@ -458,7 +458,6 @@ describe("listPostPage", () => {
     const page = await service.listPostPage(other, "free", 2);
 
     expect(listPosts).toHaveBeenCalledWith("c1", 20, 20);
-    expect(page.total).toBe(45);
     expect(page.pageCount).toBe(3);
     expect(page.posts[0].commentCount).toBe(2);
   });
