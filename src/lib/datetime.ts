@@ -95,22 +95,10 @@ const monthDay = new Intl.DateTimeFormat("ko-KR", {
 
 /**
  * 8. 26. — 기간을 「8. 20. ~ 8. 26.」처럼 한 줄에 적을 때 쓴다. 연도를 뺀다:
- * 창이 이레라 두 끝이 같은 해이고, `formatKstDay`는 요일이 붙어 범위로는 길다.
+ * 창이 이레라 두 끝이 같은 해이고, 요일까지 붙이면 범위 표기로는 길다.
  */
 export function formatMonthDay(value: Date): string {
   return monthDay.format(value);
-}
-
-const dayLabel = new Intl.DateTimeFormat("ko-KR", {
-  month: "long",
-  day: "numeric",
-  weekday: "short",
-  timeZone: KST,
-});
-
-/** 8월 25일 (화) — 날짜 구분선용. 연도는 넣지 않는다(구분선 옆에 함께 적는다). */
-export function formatKstDay(value: Date): string {
-  return dayLabel.format(value);
 }
 
 const sheetDateTime = new Intl.DateTimeFormat("sv-SE", {
@@ -175,21 +163,6 @@ export function parseDateTimeInputKst(date: string, time: string): Date {
   return new Date(`${date}T${time}:00+09:00`);
 }
 
-const timeInput = new Intl.DateTimeFormat("en-GB", {
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
-  timeZone: KST,
-});
-
-/**
- * `<input type="time">`에 넣을 `HH:MM` (KST). `hourCycle: "h23"`이 핵심이다 —
- * `hour12: false`만 주면 ICU 판에 따라 자정이 `24:00`으로 나와 입력칸이 값을 버린다.
- */
-export function formatTimeInput(value: Date): string {
-  return timeInput.format(value);
-}
-
 /**
  * 그 KST 날짜의 **끝** = 다음 날 자정. **조회 창의 열린 상한**을 만드는 데 쓴다
  * (`pass.schema.ts`의 `passHistoryRange`) — 「8월 26일까지」로 고른 사람은 그날을
@@ -208,18 +181,4 @@ export function isSameKstDate(a: Date, b: Date): boolean {
 /** 그 시각이 속한 KST 날짜의 자정. 발생일(occurredOn)과 같은 눈금에 맞춘다. */
 export function kstDayStart(value: Date): Date {
   return parseDateInputKst(formatDateInput(value));
-}
-
-/**
- * KST 기준 시(0~23). 서버는 UTC로 도는데 시간대에 따라 달라지는 화면이
- * UTC를 따르면 한국 아침 8시에 밤 인사가 나간다.
- */
-export function kstHour(value: Date): number {
-  return Number(
-    new Intl.DateTimeFormat("en-GB", {
-      hour: "2-digit",
-      hour12: false,
-      timeZone: KST,
-    }).format(value),
-  );
 }
