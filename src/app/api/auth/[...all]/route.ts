@@ -1,8 +1,7 @@
 import { toNextJsHandler } from "better-auth/next-js";
 import { NextResponse, type NextRequest } from "next/server";
-import { recordAudit } from "@/core/audit/audit";
 import { auth } from "@/core/auth/auth";
-import { getSessionUser } from "@/core/auth/session";
+import { signOut } from "@/modules/auth/auth.service";
 
 const handlers = toNextJsHandler(auth);
 
@@ -44,22 +43,7 @@ async function guarded(
     return handler(request);
   }
 
-  const actor = await getSessionUser();
-  const response = await handler(request);
-  if (response.ok && actor) {
-    try {
-      await recordAudit({
-        actorUserId: actor.id,
-        action: "auth:logout",
-        targetType: "User",
-        targetId: actor.id,
-      });
-    } catch (error) {
-      // 세션 폐기와 같은 트랜잭션에 묶을 수 없으므로 기록 실패가 로그아웃을 뒤집지 않는다.
-      console.error("[auth] 로그아웃 기록을 남기지 못했습니다.", error);
-    }
-  }
-  return response;
+  return signOut(request);
 }
 
 export async function GET(request: NextRequest, context: AuthRouteContext) {

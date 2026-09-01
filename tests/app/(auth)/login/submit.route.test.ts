@@ -1,11 +1,9 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const authHandler = vi.fn();
+const authenticateWithEmail = vi.fn();
 
-vi.mock("@/core/auth/auth", () => ({
-  auth: { handler: authHandler },
-}));
+vi.mock("@/modules/auth/auth.service", () => ({ authenticateWithEmail }));
 
 const { POST, isSameOriginLoginRequest } = await import(
   "@/app/(auth)/login/submit/route"
@@ -47,17 +45,24 @@ function loginRequest({
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
-  authHandler.mockResolvedValue(
-    new Response(JSON.stringify({ user: { id: "user-1" } }), {
+  authenticateWithEmail.mockReset().mockResolvedValue({
+    ok: true,
+    response: new Response(null, {
       status: 200,
       headers: {
-        "content-type": "application/json",
         "set-cookie": "better-auth.session_token=session-value; Path=/; HttpOnly",
       },
     }),
-  );
+  });
 });
+
+function rejectAuthentication(
+  reason: "credentials" | "disabled" | "rateLimited" | "server",
+  status: number,
+): void {
+  const response = new Response(null, { status });
+  authenticateWithEmail.mockResolvedValueOnce({ ok: false, reason, response });
+}
 
 describe("login submit route", () => {
   it("교차 오리진 제출은 인증 전에 거부한다", async () => {
@@ -67,7 +72,7 @@ describe("login submit route", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(403);
-    expect(authHandler).not.toHaveBeenCalled();
+    expect(authenticateWithEmail).not.toHaveBeenCalled();
   });
 
   it("Origin null이어도 브라우저가 같은 오리진임을 증명하면 허용한다", () => {
@@ -77,7 +82,7 @@ describe("login submit route", () => {
   });
 
   it("Next 내부 URL과 공개 Host가 달라도 공개 오리진으로 되돌린다", async () => {
-    authHandler.mockResolvedValueOnce(new Response(null, { status: 401 }));
+    rejectAuthentication("credentials", 401);
     const request = loginRequest({
       accept: "text/html",
       host: "127.0.0.1:3100",
@@ -91,13 +96,13 @@ describe("login submit route", () => {
     expect(response.headers.get("location")).toMatch(
       /^http:\/\/127\.0\.0\.1:3100\/login\?/,
     );
-    expect((authHandler.mock.calls[0]?.[0] as Request).url).toBe(
-      "http://127.0.0.1:3100/api/auth/sign-in/email",
+    expect(authenticateWithEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ origin: "http://127.0.0.1:3100" }),
     );
   });
 
   it("JS 로그인 실패는 코드만 응답하고 비밀번호를 남기지 않는다", async () => {
-    authHandler.mockResolvedValueOnce(new Response(null, { status: 401 }));
+    rejectAuthentication("credentials", 401);
 
     const response = await POST(loginRequest());
     const body = await response.text();
@@ -105,15 +110,16 @@ describe("login submit route", () => {
     expect(response.status).toBe(401);
     expect(JSON.parse(body)).toEqual({ error: "credentials" });
     expect(body).not.toContain("test-password-only");
+    expect(authenticateWithEmail).toHaveBeenCalledWith({
+      email: "tester@gbsw.hs.kr",
+      password: "test-password-only",
+      origin: "http://teacher.localhost:3000",
+      requestHeaders: expect.any(Headers),
+    });
   });
 
   it("비활성 계정 오류만 계정 중지 안내로 구분한다", async () => {
-    authHandler.mockResolvedValueOnce(
-      new Response(JSON.stringify({ code: "ACCOUNT_INACTIVE" }), {
-        status: 403,
-        headers: { "content-type": "application/json" },
-      }),
-    );
+    rejectAuthentication("disabled", 403);
 
     const response = await POST(loginRequest());
 
@@ -122,12 +128,7 @@ describe("login submit route", () => {
   });
 
   it("오리진 거부 등 다른 403은 계정 중지로 오인하지 않는다", async () => {
-    authHandler.mockResolvedValueOnce(
-      new Response(JSON.stringify({ code: "INVALID_ORIGIN" }), {
-        status: 403,
-        headers: { "content-type": "application/json" },
-      }),
-    );
+    rejectAuthentication("server", 403);
 
     const response = await POST(loginRequest());
 
@@ -136,7 +137,7 @@ describe("login submit route", () => {
   });
 
   it("JS 없는 실패는 이메일 힌트만 짧은 HttpOnly 쿠키에 두고 로그인으로 돌려보낸다", async () => {
-    authHandler.mockResolvedValueOnce(new Response(null, { status: 401 }));
+    rejectAuthentication("credentials", 401);
     const request = loginRequest({
       accept: "text/html",
       origin: "null",
@@ -168,6 +169,12 @@ describe("login submit route", () => {
     expect(response.headers.get("set-cookie")).toContain(
       "better-auth.session_token=session-value",
     );
+    expect(authenticateWithEmail).toHaveBeenCalledWith({
+      email: "tester@gbsw.hs.kr",
+      password: "test-password-only",
+      origin: "http://teacher.localhost:3000",
+      requestHeaders: expect.any(Headers),
+    });
   });
 
   it("외부 next 주소는 폐기한다", async () => {

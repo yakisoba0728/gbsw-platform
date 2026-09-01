@@ -3,8 +3,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 /** 서버 액션의 경계 — FormData를 zod 스키마에 넘기는 그 지점. */
 
 const createInitialAdmin = vi.fn();
-const signInEmail = vi.fn();
-const recordAudit = vi.fn();
+const signInSilently = vi.fn();
 const redirect = vi.fn(() => {
   // 실제 next/navigation의 redirect는 예외를 던져 이후 코드를 끊는다.
   throw new Error("NEXT_REDIRECT");
@@ -12,8 +11,7 @@ const redirect = vi.fn(() => {
 
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("next/navigation", () => ({ redirect }));
-vi.mock("@/core/auth/auth", () => ({ auth: { api: { signInEmail } } }));
-vi.mock("@/core/audit/audit", () => ({ recordAudit }));
+vi.mock("@/modules/auth/auth.service", () => ({ signInSilently }));
 vi.mock("@/modules/bootstrap/bootstrap.service", () => ({ createInitialAdmin }));
 
 // 가입·인증 액션도 같은 파일에 있다. 그쪽 서비스는 Prisma를 끌고 오므로 끊는다.
@@ -74,7 +72,7 @@ function bootstrapForm(over: Record<string, string> = {}): FormData {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  signInEmail.mockResolvedValue({ user: { id: "user-new" } });
+  signInSilently.mockResolvedValue(undefined);
   checkInvite.mockResolvedValue({ role: "STUDENT" });
   requestVerification.mockResolvedValue({ verified: true });
   requireVerified.mockResolvedValue({ id: "proof-1" });
@@ -185,55 +183,12 @@ describe("createInitialAdminAction — 경계 검증", () => {
       createInitialAdminAction(BOOTSTRAP_INITIAL, bootstrapForm()),
     ).rejects.toThrow("NEXT_REDIRECT");
 
-    expect(signInEmail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        body: {
-          email: "admin@gbsw.hs.kr",
-          password: "correct-horse-battery",
-        },
-      }),
+    expect(signInSilently).toHaveBeenCalledWith(
+      "admin@gbsw.hs.kr",
+      "correct-horse-battery",
+      expect.any(Promise),
     );
     expect(redirect).toHaveBeenCalledWith("/");
-  });
-
-  it("자동 로그인으로 생긴 첫 세션을 가린 이메일과 함께 기록한다", async () => {
-    await expect(
-      createInitialAdminAction(BOOTSTRAP_INITIAL, bootstrapForm()),
-    ).rejects.toThrow("NEXT_REDIRECT");
-
-    expect(recordAudit).toHaveBeenCalledWith({
-      actorUserId: "user-new",
-      action: "auth:login",
-      targetType: "User",
-      targetId: "user-new",
-      metadata: { email: "ad***@gbsw.hs.kr" },
-    });
-  });
-
-  it("로그인이 실패해도 계정 생성은 성공으로 끝낸다", async () => {
-    signInEmail.mockRejectedValueOnce(new Error("세션 발급 실패"));
-
-    await expect(
-      createInitialAdminAction(BOOTSTRAP_INITIAL, bootstrapForm()),
-    ).rejects.toThrow("NEXT_REDIRECT");
-
-    expect(redirect).toHaveBeenCalledWith("/");
-    expect(recordAudit).not.toHaveBeenCalled();
-  });
-
-  it("자동 로그인 감사 기록이 실패해도 계정 생성은 성공으로 끝낸다", async () => {
-    const error = new Error("audit unavailable");
-    recordAudit.mockRejectedValueOnce(error);
-
-    await expect(
-      createInitialAdminAction(BOOTSTRAP_INITIAL, bootstrapForm()),
-    ).rejects.toThrow("NEXT_REDIRECT");
-
-    expect(redirect).toHaveBeenCalledWith("/");
-    expect(consoleError).toHaveBeenCalledWith(
-      "[auth] 자동 로그인 기록을 남기지 못했습니다.",
-      error,
-    );
   });
 });
 
@@ -493,33 +448,11 @@ describe("completeRegistrationAction — 경계 검증", () => {
       completeRegistrationAction(REGISTER_INITIAL, registerForm()),
     ).rejects.toThrow("NEXT_REDIRECT");
 
-    expect(signInEmail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        body: {
-          email: "hong@gbsw.hs.kr",
-          password: "correct-horse-battery",
-        },
-      }),
+    expect(signInSilently).toHaveBeenCalledWith(
+      "hong@gbsw.hs.kr",
+      "correct-horse-battery",
+      expect.any(Promise),
     );
-  });
-
-  it("가입 직후 자동 로그인도 응답의 사용자 id로 기록한다", async () => {
-    signInEmail.mockResolvedValueOnce({ user: { id: "student-new" } });
-
-    await expect(
-      completeRegistrationAction(
-        REGISTER_INITIAL,
-        registerForm({ email: "ab@gbsw.hs.kr" }),
-      ),
-    ).rejects.toThrow("NEXT_REDIRECT");
-
-    expect(recordAudit).toHaveBeenCalledWith({
-      actorUserId: "student-new",
-      action: "auth:login",
-      targetType: "User",
-      targetId: "student-new",
-      metadata: { email: "***@gbsw.hs.kr" },
-    });
   });
 });
 
