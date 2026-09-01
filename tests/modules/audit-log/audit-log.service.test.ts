@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
+import { coreMocks } from "../../helpers/core-mocks";
+import { user } from "../../helpers/session";
 
 const findPage = vi.fn();
 const countMatching = vi.fn();
 const distinctActions = vi.fn();
-const recordAudit = vi.fn();
+const { recordAudit } = coreMocks("audit-log-service-test");
 
 vi.mock("@/modules/audit-log/audit-log.repo", () => ({
   findPage,
@@ -20,19 +21,7 @@ const { PAGE_SIZE, periodStart } = await import(
   "@/modules/audit-log/audit-log.schema"
 );
 
-function user(role: SessionUser["role"]): SessionUser {
-  return {
-    id: "u1",
-    name: "테스트",
-    email: "t@gbsw.hs.kr",
-    role,
-    status: "ACTIVE",
-    deletedAt: null,
-    mustChangePassword: false,
-  };
-}
-
-const admin = user("ADMIN");
+const admin = user("ADMIN", "u1");
 const base = { period: "7d", page: 1 } as const;
 
 beforeEach(() => {
@@ -44,17 +33,17 @@ beforeEach(() => {
 
 describe("readAuditLog()", () => {
   it("관리자가 아니면 볼 수 없다", async () => {
-    await expect(readAuditLog(user("STUDENT"), { ...base })).rejects.toThrow(
+    await expect(readAuditLog(user("STUDENT", "u1"), { ...base })).rejects.toThrow(
       "FORBIDDEN",
     );
-    await expect(readAuditLog(user("PARENT"), { ...base })).rejects.toThrow(
+    await expect(readAuditLog(user("PARENT", "u1"), { ...base })).rejects.toThrow(
       "FORBIDDEN",
     );
     expect(findPage).not.toHaveBeenCalled();
   });
 
   it("권한 거부를 감사로그에 남긴다 (I5) — 페이지 가드 없이 직접 호출해도 흔적이 남는다", async () => {
-    await expect(readAuditLog(user("STUDENT"), { ...base })).rejects.toThrow(
+    await expect(readAuditLog(user("STUDENT", "u1"), { ...base })).rejects.toThrow(
       "FORBIDDEN",
     );
 

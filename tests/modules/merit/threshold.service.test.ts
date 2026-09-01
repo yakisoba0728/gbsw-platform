@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
 import { DEFAULT_DEMERIT_THRESHOLDS } from "@/core/authz/merit-track";
+import { coreMocks } from "../../helpers/core-mocks";
+import { user } from "../../helpers/session";
 
 /**
  * 벌점 기준 설정. 행이 없어도 화면이 동작해야 한다 — 한 번도 설정하지 않은
@@ -11,11 +12,11 @@ const listThresholds = vi.fn();
 const findThreshold = vi.fn();
 const createThreshold = vi.fn();
 const updateThreshold = vi.fn();
-const recordAudit = vi.fn();
-const txClient = { tx: "merit-threshold-service-test" };
-const withTransaction = vi.fn(
-  async <T>(fn: (tx: typeof txClient) => Promise<T>) => fn(txClient),
-);
+const {
+  recordAudit,
+  txClient,
+  prewiredWithTransaction: withTransaction,
+} = coreMocks("merit-threshold-service-test");
 
 vi.mock("@/modules/merit/merit.repo", () => ({
   listThresholds,
@@ -29,21 +30,9 @@ vi.mock("@/core/db/client", () => ({ withTransaction }));
 const { MeritError } = await import("@/modules/merit/merit.error");
 const service = await import("@/modules/merit/threshold.service");
 
-function user(role: SessionUser["role"], id = "admin-1"): SessionUser {
-  return {
-    id,
-    name: "이정민",
-    email: "t@gbsw.hs.kr",
-    role,
-    status: "ACTIVE",
-    deletedAt: null,
-    mustChangePassword: false,
-  };
-}
-
-const admin = user("ADMIN");
-const student = user("STUDENT", "s-1");
-const parent = user("PARENT", "p-1");
+const admin = user("ADMIN", "admin-1", { name: "이정민" });
+const student = user("STUDENT", "s-1", { name: "이정민" });
+const parent = user("PARENT", "p-1", { name: "이정민" });
 const THRESHOLD_UPDATED_AT = new Date("2026-08-17T00:00:00.000Z");
 const NEXT_UPDATED_AT = new Date("2026-08-18T00:00:00.000Z");
 
@@ -65,11 +54,7 @@ beforeEach(() => {
   createThreshold.mockResolvedValue(true);
   updateThreshold.mockResolvedValue(true);
   recordAudit.mockResolvedValue(undefined);
-  withTransaction
-    .mockReset()
-    .mockImplementation(
-      async <T>(fn: (tx: typeof txClient) => Promise<T>) => fn(txClient),
-    );
+  withTransaction.mockClear();
 });
 
 describe("readDemeritThresholds — 읽기와 폴백", () => {

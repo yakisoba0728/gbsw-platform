@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionUser } from "@/core/auth/session";
 import { MAX_ATTACHMENT_BYTES } from "@/modules/community/community.schema";
+import { user } from "../../../../helpers/session";
 
 /**
  * 첨부 라우트 둘의 **문**을 본다 — 바이트가 나가고 들어오기 전에 서는 것들이다.
@@ -29,15 +30,10 @@ const { GET } = await import(
   "@/app/api/community/attachments/[...attachment]/route"
 );
 
-const teacher: SessionUser = {
-  id: "u-admin",
+const teacher = user("ADMIN", "u-admin", {
   name: "이정민",
   email: "admin@gbsw.hs.kr",
-  role: "ADMIN",
-  status: "ACTIVE",
-  deletedAt: null,
-  mustChangePassword: false,
-};
+});
 
 /** `gate()`가 막아야 하는 네 가지. 하나라도 새면 그 계정이 파일을 올린다. */
 const BLOCKED: [string, SessionUser | null][] = [

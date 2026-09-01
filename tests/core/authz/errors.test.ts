@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { coreMocks } from "../../helpers/core-mocks";
 
-const recordAudit = vi.fn();
+const { recordAudit } = coreMocks("authz-errors-test");
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
 
 const { assertCan, ForbiddenError } = await import("@/core/authz/errors");

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
+import { user } from "../../helpers/session";
 
 /**
  * 순위 · 현황. 등수는 화면이 매기지 않고 서비스가 붙여 보내므로, 동점 처리와
@@ -40,16 +40,8 @@ vi.mock("@/modules/merit/threshold.service", () => ({
 
 const service = await import("@/modules/merit/stats.service");
 
-const admin: SessionUser = {
-  id: "admin-1",
-  name: "이정민",
-  email: "t@gbsw.hs.kr",
-  role: "ADMIN",
-  status: "ACTIVE",
-  deletedAt: null,
-  mustChangePassword: false,
-};
-const student: SessionUser = { ...admin, id: "u-1", role: "STUDENT" };
+const admin = user("ADMIN", "admin-1", { name: "이정민" });
+const student = user("STUDENT", "u-1", { name: "이정민" });
 
 /** 전교 조회(범위 없음)가 내는 모양. 순점수만 다르게 준다. */
 function total(

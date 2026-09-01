@@ -1,48 +1,42 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
+import { coreMocks } from "../../helpers/core-mocks";
+import { user } from "../../helpers/session";
 
 const createPass = vi.fn();
 const findPass = vi.fn();
-const findPassForVerify = vi.fn();
-const listForStudent = vi.fn();
 const listPendingForAdmin = vi.fn();
 const listActiveNow = vi.fn();
+const listEnrolledStudents = vi.fn();
 const listHistory = vi.fn();
-const listForParent = vi.fn();
+const countStatusesForStudent = vi.fn();
 const findOverlapping = vi.fn();
-const lockStudentForPassCreation = vi.fn();
 const findCurrentYearForUpdate = vi.fn();
 const lockEligibleStudentForPassCreation = vi.fn();
 const currentDatabaseTime = vi.fn();
 const transition = vi.fn();
 const transitionUnexpired = vi.fn();
-const findStudentProfileByUserId = vi.fn();
-const isParentOf = vi.fn();
 const displayYear = vi.fn();
-const recordAudit = vi.fn();
-const txClient = { tx: "pass-decision-service-test" };
-const withTransaction = vi.fn(
-  async <T>(fn: (tx: typeof txClient) => Promise<T>) => fn(txClient),
-);
+const {
+  recordAudit,
+  auditEntries,
+  txClient,
+  prewiredWithTransaction: withTransaction,
+} = coreMocks("pass-decision-service-test");
 
 vi.mock("@/modules/pass/pass.repo", () => ({
   createPass,
   findPass,
-  findPassForVerify,
-  listForStudent,
   listPendingForAdmin,
   listActiveNow,
+  listEnrolledStudents,
   listHistory,
-  listForParent,
+  countStatusesForStudent,
   findOverlapping,
-  lockStudentForPassCreation,
   findCurrentYearForUpdate,
   lockEligibleStudentForPassCreation,
   currentDatabaseTime,
   transition,
   transitionUnexpired,
-  findStudentProfileByUserId,
-  isParentOf,
   displayYear,
 }));
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
@@ -52,53 +46,28 @@ const { PassError } = await import("@/modules/pass/pass.error");
 const { ForbiddenError } = await import("@/core/authz/errors");
 const service = await import("@/modules/pass/decision.service");
 
-function user(role: SessionUser["role"], id: string): SessionUser {
-  return {
-    id,
-    name: "테스트",
-    email: `${id}@gbsw.hs.kr`,
-    role,
-    status: "ACTIVE",
-    deletedAt: null,
-    mustChangePassword: false,
-  };
-}
-
-const student = user("STUDENT", "u-student");
-const admin = user("ADMIN", "u-admin");
-
-/** recordAudit이 받은 입력들. 감사로그 검증이 이 헬퍼 하나를 쓴다. */
-function auditEntries(): {
-  action: string;
-  targetId?: string;
-  metadata?: Record<string, unknown>;
-}[] {
-  return recordAudit.mock.calls.map(([entry]) => entry);
-}
+const student = user("STUDENT", "u-student", {
+  email: "u-student@gbsw.hs.kr",
+});
+const admin = user("ADMIN", "u-admin", { email: "u-admin@gbsw.hs.kr" });
 
 beforeEach(() => {
   createPass.mockReset().mockResolvedValue({ id: "p-1" });
   findPass.mockReset();
-  findPassForVerify.mockReset();
-  listForStudent.mockReset().mockResolvedValue([]);
   listPendingForAdmin.mockReset().mockResolvedValue([]);
   listActiveNow.mockReset().mockResolvedValue([]);
+  listEnrolledStudents.mockReset().mockResolvedValue([]);
   listHistory.mockReset().mockResolvedValue({ entries: [], total: 0 });
-  listForParent.mockReset().mockResolvedValue([]);
+  countStatusesForStudent.mockReset().mockResolvedValue([]);
   findOverlapping.mockReset().mockResolvedValue(null);
-  lockStudentForPassCreation.mockReset().mockResolvedValue(true);
   findCurrentYearForUpdate.mockReset().mockResolvedValue(2026);
   lockEligibleStudentForPassCreation.mockReset().mockResolvedValue(true);
   currentDatabaseTime.mockReset().mockResolvedValue(NOW);
   transition.mockReset().mockResolvedValue(1);
   transitionUnexpired.mockReset().mockResolvedValue("UPDATED");
-  findStudentProfileByUserId.mockReset().mockResolvedValue({ id: "sp-1" });
-  isParentOf.mockReset().mockResolvedValue(true);
   displayYear.mockReset().mockResolvedValue(2026);
   recordAudit.mockReset().mockResolvedValue(undefined);
-  withTransaction
-    .mockReset()
-    .mockImplementation(async <T>(fn: (tx: typeof txClient) => Promise<T>) => fn(txClient));
+  withTransaction.mockClear();
 });
 
 const NOW = new Date("2026-08-27T00:00:00.000Z"); // 09:00 KST

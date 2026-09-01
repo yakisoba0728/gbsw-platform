@@ -265,7 +265,7 @@ describe("repo.createAwards — 일괄 부여 트랜잭션", () => {
 
   /**
    * 최근 부여 화면은 `batchId` 열이 없어 **입력 시각으로 「한 번의 부여」를 알아낸다**
-   * (`components/merit/recent-feed.ts`). 목으로는 못 잡는다 — Prisma가
+   * (`src/app/(app)/merit/recent/page.tsx`). 목으로는 못 잡는다 — Prisma가
    * `@default(now())`를 create마다 다시 찍는 것이 문제였고, 그건 실제 클라이언트가
    * 돌아야 드러난다. 갈리면 오류 없이 화면만 흩어진다.
    */

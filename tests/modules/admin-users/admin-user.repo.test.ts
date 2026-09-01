@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { vi } from "vitest";
+import { coreMocks } from "../../helpers/core-mocks";
 
 const userUpdate = vi.fn();
 const userUpdateMany = vi.fn();
@@ -13,7 +14,9 @@ const enrollmentUpsert = vi.fn();
 const sessionDeleteMany = vi.fn();
 const accountUpdateMany = vi.fn();
 const inviteDeleteMany = vi.fn();
-const withTransaction = vi.fn();
+const { bareWithTransaction: withTransaction } = coreMocks(
+  "admin-user-repo-test",
+);
 const queryRaw = vi.fn();
 
 const tx = {

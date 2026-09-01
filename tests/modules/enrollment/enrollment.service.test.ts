@@ -1,14 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionUser } from "@/core/auth/session";
+import { coreMocks } from "../../helpers/core-mocks";
+import { user } from "../../helpers/session";
 
 const listByYear = vi.fn();
 const findCurrentYearForUpdate = vi.fn();
 const findCurrentYear = vi.fn();
 const applyAll = vi.fn();
 const findStudentDetail = vi.fn();
-const recordAudit = vi.fn();
-const withTransaction = vi.fn();
-const txClient = { tx: true };
+const {
+  recordAudit,
+  txClient,
+  bareWithTransaction: withTransaction,
+} = coreMocks("enrollment-service-test");
 
 class NumberTakenError extends Error {}
 
@@ -36,19 +40,7 @@ const {
 
 const YEAR = 2026;
 
-function user(role: SessionUser["role"], id = "admin-1"): SessionUser {
-  return {
-    id,
-    name: "테스트",
-    email: "t@gbsw.hs.kr",
-    role,
-    status: "ACTIVE",
-    deletedAt: null,
-    mustChangePassword: false,
-  };
-}
-
-const admin = user("ADMIN");
+const admin = user("ADMIN", "admin-1");
 const student = user("STUDENT", "s-1");
 const parent = user("PARENT", "p-1");
 

@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { coreMocks } from "../../helpers/core-mocks";
 
 const create = vi.fn();
 const updateMany = vi.fn();
 const update = vi.fn();
 const findFirst = vi.fn();
 const queryRaw = vi.fn();
-const withTransaction = vi.fn();
+const { bareWithTransaction: withTransaction } = coreMocks(
+  "academic-year-repo-test",
+);
 const tx = {
   academicYear: { create, updateMany, update, findFirst },
   $queryRaw: queryRaw,

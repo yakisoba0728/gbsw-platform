@@ -1,13 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
+import { coreMocks } from "../../helpers/core-mocks";
+import { user } from "../../helpers/session";
 
 const getSession = vi.fn();
 const verifyPassword = vi.fn();
 const hashPassword = vi.fn();
 const findOwnCredentialAccountRevision = vi.fn();
 const updateOwnPassword = vi.fn();
-const recordAudit = vi.fn();
-const withTransaction = vi.fn();
+const {
+  recordAudit,
+  txClient,
+  bareWithTransaction: withTransaction,
+} = coreMocks("account-service-test");
 
 vi.mock("@/core/auth/auth", () => ({
   auth: { api: { getSession, verifyPassword } },
@@ -24,15 +28,11 @@ const { changeOwnPassword, InvalidCurrentPasswordError } = await import(
   "@/modules/account/account.service"
 );
 
-const actor: SessionUser = {
-  id: "u1",
+const actor = user("ADMIN", "u1", {
   name: "홍길동",
   email: "hong@gbsw.hs.kr",
-  role: "ADMIN",
-  status: "ACTIVE",
-  deletedAt: null,
   mustChangePassword: true,
-};
+});
 
 const input = {
   currentPassword: "old-password",
@@ -54,7 +54,7 @@ describe("changeOwnPassword()", () => {
     });
     updateOwnPassword.mockReset();
     recordAudit.mockReset();
-    withTransaction.mockReset().mockImplementation(async (fn) => fn({ tx: true }));
+    withTransaction.mockReset().mockImplementation(async (fn) => fn(txClient));
   });
 
   it("credential revision을 먼저 잡고 Better Auth에는 현재 세션과 현재 비밀번호 검증만 맡긴다", async () => {
@@ -87,13 +87,13 @@ describe("changeOwnPassword()", () => {
       },
       currentSessionId: "session-current",
       passwordHash: "hashed-new-password",
-    }, { tx: true });
+    }, txClient);
     expect(recordAudit).toHaveBeenCalledWith({
       actorUserId: "u1",
       action: "account:change-password",
       targetType: "User",
       targetId: "u1",
-    }, { tx: true });
+    }, txClient);
   });
 
   it("현재 비밀번호 검증이 실패하면 분류된 오류로 돌려주고 저장소도 감사로그도 건드리지 않는다", async () => {

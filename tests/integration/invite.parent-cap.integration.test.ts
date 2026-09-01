@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
 import { prisma } from "@/core/db/client";
 import {
   createParentInviteFor,
   InviteError,
   MAX_ACTIVE_PARENT_INVITES,
 } from "@/modules/invites/invite.service";
+import { user } from "../helpers/session";
 
 vi.mock("server-only", () => ({}));
 
@@ -15,15 +15,10 @@ const adminId = `invite-cap-admin-${suffix}`;
 const studentUserId = `invite-cap-student-${suffix}`;
 let studentProfileId = "";
 
-const actor: SessionUser = {
-  id: adminId,
+const actor = user("ADMIN", adminId, {
   name: "초대 상한 관리자",
   email: `invite-cap-admin-${suffix}@example.invalid`,
-  role: "ADMIN",
-  status: "ACTIVE",
-  deletedAt: null,
-  mustChangePassword: false,
-};
+});
 
 describe("학부모 초대 활성 상한 경쟁", () => {
   beforeAll(async () => {

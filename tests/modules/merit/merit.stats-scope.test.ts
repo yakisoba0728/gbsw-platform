@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
+import { user } from "../../helpers/session";
 
 /**
  * 통계 화면의 범위 비대칭을 못 박는다 — 기숙사는 합계가 누적인데 그래프만
@@ -41,15 +41,7 @@ vi.mock("@/modules/merit/threshold.service", () => ({
 
 const service = await import("@/modules/merit/stats.service");
 
-const admin: SessionUser = {
-  id: "admin-1",
-  name: "이정민",
-  email: "t@gbsw.hs.kr",
-  role: "ADMIN",
-  status: "ACTIVE",
-  deletedAt: null,
-  mustChangePassword: false,
-};
+const admin = user("ADMIN", "admin-1", { name: "이정민" });
 
 /** 축 계산이 날짜에 흔들리지 않도록 기준 시각을 고정한다. */
 const NOW = new Date("2026-08-16T12:00:00+09:00");
@@ -267,7 +259,7 @@ describe("getMeritSummary — 대시보드 최근 활동", () => {
   });
 
   it("권한이 없으면 거부한다", async () => {
-    const student: SessionUser = { ...admin, id: "u-1", role: "STUDENT" };
+    const student = user("STUDENT", "u-1", { name: "이정민" });
     await expect(service.getMeritSummary(student, "SCHOOL", NOW)).rejects.toThrow();
     expect(trackTotalsBetween).not.toHaveBeenCalled();
   });

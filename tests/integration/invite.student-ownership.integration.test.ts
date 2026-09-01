@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
 import { ForbiddenError } from "@/core/authz/errors";
 import { prisma } from "@/core/db/client";
 import {
   listMyParentInvites,
   revokeInvite,
 } from "@/modules/invites/invite.service";
+import { user } from "../helpers/session";
 
 vi.mock("server-only", () => ({}));
 
@@ -15,15 +15,10 @@ const studentUserId = `invite-owner-student-${suffix}`;
 const adminUserId = `invite-owner-admin-${suffix}`;
 let studentProfileId = "";
 
-const student: SessionUser = {
-  id: studentUserId,
+const student = user("STUDENT", studentUserId, {
   name: "초대 소유권 학생",
   email: `invite-owner-student-${suffix}@example.invalid`,
-  role: "STUDENT",
-  status: "ACTIVE",
-  deletedAt: null,
-  mustChangePassword: false,
-};
+});
 
 const codes = {
   mine: `OWN-MINE-${suffix}`,

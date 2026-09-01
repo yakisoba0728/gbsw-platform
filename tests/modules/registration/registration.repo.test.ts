@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { isStudentCode } from "@/lib/student-code";
+import { coreMocks } from "../../helpers/core-mocks";
 
 const userCreate = vi.fn();
 const accountCreate = vi.fn();
@@ -10,7 +11,9 @@ const inviteUpdate = vi.fn();
 const inviteUpdateMany = vi.fn();
 const academicYearFindFirst = vi.fn();
 const queryRaw = vi.fn();
-const withTransaction = vi.fn();
+const { bareWithTransaction: withTransaction } = coreMocks(
+  "registration-repo-test",
+);
 
 /**
  * `withTransaction(callback)`을 그대로 흉내 낸다 — 콜백에 tx를 넘겨 실행할 뿐,

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
+import { coreMocks } from "../../helpers/core-mocks";
+import { user } from "../../helpers/session";
 
 const countPosts = vi.fn();
 const listPosts = vi.fn();
@@ -15,11 +16,11 @@ const getReadableBySlug = vi.fn();
 const getWritableBySlug = vi.fn();
 const listReadable = vi.fn();
 const deleteAttachment = vi.fn();
-const recordAudit = vi.fn();
-const txClient = { tx: "post-service-test" };
-const withTransaction = vi.fn(
-  async <T>(fn: (tx: typeof txClient) => Promise<T>) => fn(txClient),
-);
+const {
+  recordAudit,
+  txClient,
+  prewiredWithTransaction: withTransaction,
+} = coreMocks("post-service-test");
 
 vi.mock("@/modules/community/community.repo", () => ({
   countPosts,
@@ -46,21 +47,9 @@ const { CommunityError } = await import("@/modules/community/community.error");
 const { ForbiddenError } = await import("@/core/authz/errors");
 const service = await import("@/modules/community/post.service");
 
-function user(role: SessionUser["role"], id: string, name = "김민준"): SessionUser {
-  return {
-    id,
-    name,
-    email: "t@gbsw.hs.kr",
-    role,
-    status: "ACTIVE",
-    deletedAt: null,
-    mustChangePassword: false,
-  };
-}
-
-const student = user("STUDENT", "s-1");
-const other = user("STUDENT", "s-2", "박도현");
-const admin = user("ADMIN", "a-1", "이정민");
+const student = user("STUDENT", "s-1", { name: "김민준" });
+const other = user("STUDENT", "s-2", { name: "박도현" });
+const admin = user("ADMIN", "a-1", { name: "이정민" });
 
 function board(over: Record<string, unknown> = {}) {
   return {

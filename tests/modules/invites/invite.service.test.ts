@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
+import { coreMocks } from "../../helpers/core-mocks";
+import { user } from "../../helpers/session";
 
 // generateUniqueCode()가 generate-invite-code.ts(M15로 분리, node:crypto +
 // "server-only" 마커)를 부른다 — 마커 패키지를 무해하게 만든다.
@@ -16,11 +17,11 @@ const findById = vi.fn();
 const revokePending = vi.fn();
 const findStudentById = vi.fn();
 const listStudents = vi.fn();
-const recordAudit = vi.fn();
-const txClient = { tx: "invite-service-test" };
-const withTransaction = vi.fn(async (fn: (tx: typeof txClient) => Promise<unknown>) =>
-  fn(txClient),
-);
+const {
+  recordAudit,
+  txClient,
+  prewiredWithTransaction: withTransaction,
+} = coreMocks("invite-service-test");
 
 vi.mock("@/modules/invites/invite.repo", () => ({
   insertInvite,
@@ -53,19 +54,7 @@ const {
   revokeInvite,
 } = await import("@/modules/invites/invite.service");
 
-function user(role: SessionUser["role"], id = "u1"): SessionUser {
-  return {
-    id,
-    name: "테스트",
-    email: "t@gbsw.hs.kr",
-    role,
-    status: "ACTIVE",
-    deletedAt: null,
-    mustChangePassword: false,
-  };
-}
-
-const admin = user("ADMIN");
+const admin = user("ADMIN", "u1");
 const student = user("STUDENT", "s-user");
 const parent = user("PARENT", "p-user");
 
@@ -90,11 +79,7 @@ beforeEach(() => {
   listStudents.mockReset().mockResolvedValue([]);
   revokePending.mockReset().mockResolvedValue(1);
   recordAudit.mockReset();
-  withTransaction
-    .mockReset()
-    .mockImplementation(async (fn: (tx: typeof txClient) => Promise<unknown>) =>
-      fn(txClient),
-    );
+  withTransaction.mockClear();
 });
 
 describe("관리자 코드 발급", () => {

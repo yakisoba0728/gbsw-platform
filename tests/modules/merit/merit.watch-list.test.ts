@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
+import { user } from "../../helpers/session";
 
 /**
  * 기준 초과 학생 명단. 명단이 한 명 짧아도 화면은 멀쩡해 보이므로 경계값과
@@ -38,19 +38,7 @@ vi.mock("@/modules/merit/threshold.service", () => ({ getDemeritThresholds }));
 
 const service = await import("@/modules/merit/stats.service");
 
-function user(role: SessionUser["role"]): SessionUser {
-  return {
-    id: "u-1",
-    name: "이정민",
-    email: "t@gbsw.hs.kr",
-    role,
-    status: "ACTIVE",
-    deletedAt: null,
-    mustChangePassword: false,
-  };
-}
-
-const admin = user("ADMIN");
+const admin = user("ADMIN", "u-1", { name: "이정민" });
 const NOW = new Date("2026-08-16T12:00:00+09:00");
 
 /** repo.demeritTotalsByStudent가 내는 모양. */
@@ -267,14 +255,24 @@ describe("기준 초과 명단 — 집계 범위", () => {
 describe("기준 초과 명단 — 권한", () => {
   it("학생은 볼 수 없다", async () => {
     await expect(
-      service.getMeritStats(user("STUDENT"), "SCHOOL", undefined, NOW),
+      service.getMeritStats(
+        user("STUDENT", "u-1", { name: "이정민" }),
+        "SCHOOL",
+        undefined,
+        NOW,
+      ),
     ).rejects.toThrow("FORBIDDEN");
     expect(demeritTotalsByStudent).not.toHaveBeenCalled();
   });
 
   it("학부모도 볼 수 없다", async () => {
     await expect(
-      service.getMeritStats(user("PARENT"), "SCHOOL", undefined, NOW),
+      service.getMeritStats(
+        user("PARENT", "u-1", { name: "이정민" }),
+        "SCHOOL",
+        undefined,
+        NOW,
+      ),
     ).rejects.toThrow("FORBIDDEN");
   });
 });

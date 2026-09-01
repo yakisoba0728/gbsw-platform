@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
+import { user } from "../../helpers/session";
 
 /**
  * 교사별·규정별 집계. 두 화면 모두 "누가/무엇이 얼마나"를 세는데, 계정이 지워지거나
@@ -37,16 +37,8 @@ vi.mock("@/modules/merit/threshold.service", () => ({
 
 const service = await import("@/modules/merit/stats.service");
 
-const admin: SessionUser = {
-  id: "admin-1",
-  name: "이정민",
-  email: "t@gbsw.hs.kr",
-  role: "ADMIN",
-  status: "ACTIVE",
-  deletedAt: null,
-  mustChangePassword: false,
-};
-const student: SessionUser = { ...admin, id: "u-1", role: "STUDENT" };
+const admin = user("ADMIN", "admin-1", { name: "이정민" });
+const student = user("STUDENT", "u-1", { name: "이정민" });
 
 function group(kind: string, count: number, points: number) {
   return { kind, _count: { _all: count }, _sum: { points } };

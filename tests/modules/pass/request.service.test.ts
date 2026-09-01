@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
+import { coreMocks } from "../../helpers/core-mocks";
+import { user } from "../../helpers/session";
 
 // request.service → pass.qr → "server-only". 그 마커는 웹팩의 react-server 조건에서만
 // 무해한 empty.js로 풀리고 vitest에서는 그냥 던진다 — 무해하게 만든다.
@@ -22,12 +23,13 @@ const transitionUnexpired = vi.fn();
 const findStudentProfileByUserId = vi.fn();
 const isParentOf = vi.fn();
 const displayYear = vi.fn();
-const recordAudit = vi.fn();
 const toQrPath = vi.fn((text: string) => ({ size: 24, d: `M${text}` }));
-const txClient = { tx: "pass-request-service-test" };
-const withTransaction = vi.fn(
-  async <T>(fn: (tx: typeof txClient) => Promise<T>) => fn(txClient),
-);
+const {
+  recordAudit,
+  auditEntries,
+  txClient,
+  prewiredWithTransaction: withTransaction,
+} = coreMocks("pass-request-service-test");
 
 vi.mock("@/modules/pass/pass.repo", () => ({
   createPass,
@@ -57,21 +59,11 @@ const { verifyStudentCode } = await import("@/modules/pass/pass.token");
 const { scanOrigin, tokenFromScanUrl } = await import("@/modules/pass/pass.url");
 const service = await import("@/modules/pass/request.service");
 
-function user(role: SessionUser["role"], id: string): SessionUser {
-  return {
-    id,
-    name: "테스트",
-    email: `${id}@gbsw.hs.kr`,
-    role,
-    status: "ACTIVE",
-    deletedAt: null,
-    mustChangePassword: false,
-  };
-}
-
-const student = user("STUDENT", "u-student");
-const parent = user("PARENT", "u-parent");
-const admin = user("ADMIN", "u-admin");
+const student = user("STUDENT", "u-student", {
+  email: "u-student@gbsw.hs.kr",
+});
+const parent = user("PARENT", "u-parent", { email: "u-parent@gbsw.hs.kr" });
+const admin = user("ADMIN", "u-admin", { email: "u-admin@gbsw.hs.kr" });
 
 /** 2026-08-27 09:00 KST */
 const NOW = new Date("2026-08-27T00:00:00.000Z");
@@ -95,11 +87,6 @@ const OVERNIGHT = {
   reason: "가족 행사",
 };
 
-/** recordAudit이 받은 입력들. 감사로그 검증이 이 헬퍼 하나를 쓴다. */
-function auditEntries(): { action: string; targetId?: string; metadata?: Record<string, unknown> }[] {
-  return recordAudit.mock.calls.map(([entry]) => entry);
-}
-
 beforeEach(() => {
   createPass.mockReset().mockResolvedValue({ id: "p-1" });
   findPass.mockReset();
@@ -122,9 +109,7 @@ beforeEach(() => {
     size: 24,
     d: `M${text}`,
   }));
-  withTransaction
-    .mockReset()
-    .mockImplementation(async <T>(fn: (tx: typeof txClient) => Promise<T>) => fn(txClient));
+  withTransaction.mockClear();
 });
 
 describe("requestPass", () => {

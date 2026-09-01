@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
+import { coreMocks } from "../../helpers/core-mocks";
+import { user } from "../../helpers/session";
 
 const countPending = vi.fn();
 const lockAttachmentUploader = vi.fn();
@@ -12,11 +13,11 @@ const getReadableBySlug = vi.fn();
 const writeAttachment = vi.fn();
 const readAttachment = vi.fn();
 const deleteAttachment = vi.fn();
-const recordAudit = vi.fn();
-const txClient = { tx: "attachment-service-test" };
-const withTransaction = vi.fn(
-  async <T>(fn: (tx: typeof txClient) => Promise<T>) => fn(txClient),
-);
+const {
+  recordAudit,
+  txClient,
+  prewiredWithTransaction: withTransaction,
+} = coreMocks("attachment-service-test");
 
 vi.mock("@/modules/community/community.repo", () => ({
   countPending,
@@ -45,20 +46,8 @@ const { CommunityError } = await import("@/modules/community/community.error");
 const { ForbiddenError } = await import("@/core/authz/errors");
 const service = await import("@/modules/community/attachment.service");
 
-function user(role: SessionUser["role"], id: string): SessionUser {
-  return {
-    id,
-    name: "김민준",
-    email: "t@gbsw.hs.kr",
-    role,
-    status: "ACTIVE",
-    deletedAt: null,
-    mustChangePassword: false,
-  };
-}
-
-const student = user("STUDENT", "s-1");
-const parent = user("PARENT", "p-1");
+const student = user("STUDENT", "s-1", { name: "김민준" });
+const parent = user("PARENT", "p-1", { name: "김민준" });
 
 const board = {
   id: "c1",
@@ -429,9 +418,9 @@ describe("getDownload", () => {
     });
 
     await expect(service.getDownload(student, "a1")).resolves.toBeDefined();
-    await expect(service.getDownload(user("STUDENT", "s-9"), "a1")).rejects.toThrow(
-      ForbiddenError,
-    );
+    await expect(
+      service.getDownload(user("STUDENT", "s-9", { name: "김민준" }), "a1"),
+    ).rejects.toThrow(ForbiddenError);
   });
 
   it("없는 첨부면 ATTACHMENT_NOT_FOUND", async () => {

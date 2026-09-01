@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
+import { coreMocks } from "../../helpers/core-mocks";
+import { user } from "../../helpers/session";
 
 const listUsersRepo = vi.fn();
 const findById = vi.fn();
@@ -11,9 +12,11 @@ const findCurrentYear = vi.fn();
 const setActive = vi.fn();
 const resetCredential = vi.fn();
 const deletePermanently = vi.fn();
-const recordAudit = vi.fn();
-const withTransaction = vi.fn();
-const tx = { tx: true };
+const {
+  recordAudit,
+  txClient: tx,
+  bareWithTransaction: withTransaction,
+} = coreMocks("admin-user-service-test");
 
 class EmailTakenError extends Error {}
 class NumberTakenError extends Error {}
@@ -83,19 +86,7 @@ const sameInput = {
   number: 15,
 };
 
-function user(role: SessionUser["role"], id = "admin-1"): SessionUser {
-  return {
-    id,
-    name: "테스트",
-    email: "t@gbsw.hs.kr",
-    role,
-    status: "ACTIVE",
-    deletedAt: null,
-    mustChangePassword: false,
-  };
-}
-
-const admin = user("ADMIN");
+const admin = user("ADMIN", "admin-1");
 const student = user("STUDENT", "s-1");
 
 beforeEach(() => {

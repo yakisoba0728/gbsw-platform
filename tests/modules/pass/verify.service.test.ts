@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
+import { coreMocks } from "../../helpers/core-mocks";
+import { user } from "../../helpers/session";
 
 const listForVerify = vi.fn();
 const findStudentForCard = vi.fn();
 const displayYear = vi.fn();
-const recordAudit = vi.fn();
+const { recordAudit } = coreMocks("pass-verify-service-test");
 
 vi.mock("@/modules/pass/pass.repo", () => ({
   listForVerify,
@@ -17,21 +18,11 @@ const { ForbiddenError } = await import("@/core/authz/errors");
 const service = await import("@/modules/pass/verify.service");
 const { issueStudentCode } = await import("@/modules/pass/pass.token");
 
-function user(role: SessionUser["role"], id: string): SessionUser {
-  return {
-    id,
-    name: "테스트",
-    email: `${id}@gbsw.hs.kr`,
-    role,
-    status: "ACTIVE",
-    deletedAt: null,
-    mustChangePassword: false,
-  };
-}
-
-const student = user("STUDENT", "u-student");
-const parent = user("PARENT", "u-parent");
-const admin = user("ADMIN", "u-admin");
+const student = user("STUDENT", "u-student", {
+  email: "u-student@gbsw.hs.kr",
+});
+const parent = user("PARENT", "u-parent", { email: "u-parent@gbsw.hs.kr" });
+const admin = user("ADMIN", "u-admin", { email: "u-admin@gbsw.hs.kr" });
 
 const PROFILE_ID = "clx0000000000000000000abc";
 const NOW = new Date("2026-08-27T06:00:00.000Z"); // 15:00 KST

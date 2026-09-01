@@ -1,12 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionUser } from "@/core/auth/session";
 import { ROSTER_COLUMNS, ROSTER_INFO_COLUMNS } from "@/modules/enrollment/roster.export";
+import { coreMocks } from "../../helpers/core-mocks";
+import { user } from "../../helpers/session";
 
 const listExisting = vi.fn();
 const applyRoster = vi.fn();
 const findCurrentYearForUpdate = vi.fn();
 const findCurrentYear = vi.fn();
-const recordAudit = vi.fn();
+const {
+  recordAudit,
+  txClient,
+  bareWithTransaction: withTransaction,
+} = coreMocks("enrollment-roster-service-test");
 const recordAuditMany = vi.fn();
 
 /**
@@ -27,8 +33,6 @@ function noAudit(): boolean {
 }
 const generateUniqueCode = vi.fn();
 const toExpiresAt = vi.fn();
-const withTransaction = vi.fn();
-const txClient = { tx: true };
 
 /** roster.repo.ts의 실물과 이름·상속만 같은 자리표시자. instanceof로 구분한다. */
 class InviteCodeCollisionError extends Error {}
@@ -96,18 +100,7 @@ function applyRosterPlan(
   );
 }
 
-function user(role: SessionUser["role"], id = "admin-1"): SessionUser {
-  return {
-    id,
-    name: "테스트",
-    email: "t@gbsw.hs.kr",
-    role,
-    status: "ACTIVE",
-    deletedAt: null,
-    mustChangePassword: false,
-  };
-}
-const admin = user("ADMIN");
+const admin = user("ADMIN", "admin-1");
 const student = user("STUDENT", "s-1");
 
 const 재학생 = {

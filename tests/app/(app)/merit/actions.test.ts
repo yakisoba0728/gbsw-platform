@@ -86,8 +86,6 @@ function cancelForm(over: Record<string, string> = {}): FormData {
   });
 }
 
-/** cancel-batch-button.tsx의 hidden input + ConfirmDialog의 reason. */
-
 const INITIAL = { error: null, ok: false, count: null };
 
 beforeEach(() => {

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { coreMocks } from "../../helpers/core-mocks";
 
 const enrollmentDeleteMany = vi.fn();
 const enrollmentCreateMany = vi.fn();
@@ -11,7 +12,9 @@ const inviteCreate = vi.fn();
 const inviteUpdateMany = vi.fn();
 const inviteDeleteMany = vi.fn();
 const inviteFindMany = vi.fn();
-const withTransaction = vi.fn();
+const { bareWithTransaction: withTransaction } = coreMocks(
+  "enrollment-roster-repo-test",
+);
 
 const tx = {
   enrollment: { deleteMany: enrollmentDeleteMany, createMany: enrollmentCreateMany },

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { coreMocks } from "../../helpers/core-mocks";
 
 const findInviteByCode = vi.fn();
 const emailExists = vi.fn();
@@ -7,12 +8,14 @@ const findCurrentYearForUpdate = vi.fn();
 const completeStudentRegistration = vi.fn();
 const completeAdminRegistration = vi.fn();
 const completeParentRegistration = vi.fn();
-const recordAudit = vi.fn();
+const {
+  recordAudit,
+  txClient,
+  bareWithTransaction: withTransaction,
+} = coreMocks("registration-service-test");
 const requireVerified = vi.fn();
 const consumeVerifications = vi.fn();
 const createTemporaryVerifiedProof = vi.fn();
-const withTransaction = vi.fn();
-const txClient = { tx: true };
 const isStudentCodeCollision = vi.fn();
 
 class InviteRaceError extends Error {}

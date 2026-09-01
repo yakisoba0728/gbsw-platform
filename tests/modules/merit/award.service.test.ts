@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
 import { parseDateInputKst } from "@/lib/datetime";
 import { schoolYearMonths, schoolYearRange } from "@/modules/merit/merit.chart";
 import { BULK_AWARD_LIMIT } from "@/modules/merit/merit.schema";
+import { coreMocks } from "../../helpers/core-mocks";
+import { user } from "../../helpers/session";
 
 const findRuleForUpdate = vi.fn();
 const findCurrentYearForUpdate = vi.fn();
@@ -14,19 +15,13 @@ const totals = vi.fn();
 const findStudentProfileByUserId = vi.fn();
 const findAwardableStudent = vi.fn();
 const findAwardableStudents = vi.fn();
-const recordAudit = vi.fn();
 const getCurrentYear = vi.fn();
 const createAwards = vi.fn();
-const txClient = { tx: "merit-award-service-test" };
-const withTransaction = vi.fn(
-  async <T>(
-    fn: (tx: typeof txClient) => Promise<T>,
-    _options?: unknown,
-  ) => {
-    void _options;
-    return fn(txClient);
-  },
-);
+const {
+  recordAudit,
+  txClient,
+  prewiredWithTransaction: withTransaction,
+} = coreMocks("merit-award-service-test");
 const listClassRoster = vi.fn();
 const searchStudents = vi.fn();
 const listChildren = vi.fn();
@@ -69,21 +64,9 @@ vi.mock("@/modules/academic-year/academic-year.service", () => ({
 const { MeritError } = await import("@/modules/merit/merit.error");
 const service = await import("@/modules/merit/award.service");
 
-function user(role: SessionUser["role"], id = "admin-1"): SessionUser {
-  return {
-    id,
-    name: "이정민",
-    email: "t@gbsw.hs.kr",
-    role,
-    status: "ACTIVE",
-    deletedAt: null,
-    mustChangePassword: false,
-  };
-}
-
-const admin = user("ADMIN");
-const other = user("ADMIN", "admin-2");
-const student = user("STUDENT", "u-1");
+const admin = user("ADMIN", "admin-1", { name: "이정민" });
+const other = user("ADMIN", "admin-2", { name: "이정민" });
+const student = user("STUDENT", "u-1", { name: "이정민" });
 
 const SCHOOL_RULE = {
   id: "r-1",
@@ -131,17 +114,7 @@ beforeEach(() => {
       ids.map((id) => ({ id, studentCode: "CODE", user: { id: `u-${id}`, name: `학생${id}` } })),
     );
   recordAudit.mockReset().mockResolvedValue(undefined);
-  withTransaction
-    .mockReset()
-    .mockImplementation(
-      async <T>(
-        fn: (tx: typeof txClient) => Promise<T>,
-        _options?: unknown,
-      ) => {
-        void _options;
-        return fn(txClient);
-      },
-    );
+  withTransaction.mockClear();
   createAwards.mockReset().mockResolvedValue([{ id: "a-1" }, { id: "a-2" }]);
   listClassRoster.mockReset().mockResolvedValue([]);
   searchStudents.mockReset().mockResolvedValue([]);
@@ -884,7 +857,7 @@ describe("listRecentAwards", () => {
 
   it("학부모도 볼 수 없다", async () => {
     await expect(
-      service.listRecentAwards(user("PARENT", "p-1"), {
+      service.listRecentAwards(user("PARENT", "p-1", { name: "이정민" }), {
         track: "SCHOOL",
         page: 1,
       }),
@@ -1099,7 +1072,9 @@ describe("searchStudents", () => {
         service.searchStudents(student, "김", { includeRemoved: true }),
       ).rejects.toThrow("FORBIDDEN");
       await expect(
-        service.searchStudents(user("PARENT", "p-1"), "김", { includeRemoved: true }),
+        service.searchStudents(user("PARENT", "p-1", { name: "이정민" }), "김", {
+          includeRemoved: true,
+        }),
       ).rejects.toThrow("FORBIDDEN");
       expect(searchStudents).not.toHaveBeenCalled();
     });
@@ -1116,7 +1091,7 @@ describe("getStudentHeader", () => {
       "FORBIDDEN",
     );
     await expect(
-      service.getStudentHeader(user("PARENT", "p-1"), "sp-1"),
+      service.getStudentHeader(user("PARENT", "p-1", { name: "이정민" }), "sp-1"),
     ).rejects.toThrow("FORBIDDEN");
     expect(findStudentHeader).not.toHaveBeenCalled();
   });
@@ -1159,7 +1134,7 @@ describe("listAwardYears", () => {
 
   it("학부모도 이 경로로는 볼 수 없다", async () => {
     await expect(
-      service.listAwardYears(user("PARENT", "p-1"), "sp-1"),
+      service.listAwardYears(user("PARENT", "p-1", { name: "이정민" }), "sp-1"),
     ).rejects.toThrow("FORBIDDEN");
     expect(listAwardYears).not.toHaveBeenCalled();
   });
@@ -1182,7 +1157,7 @@ describe("listMyAwardYears", () => {
 });
 
 describe("listChildAwardYears", () => {
-  const parent = user("PARENT", "p-1");
+  const parent = user("PARENT", "p-1", { name: "이정민" });
 
   it("연결된 자녀의 학년도 선택지는 볼 수 있다", async () => {
     isChildOf.mockResolvedValue(true);
@@ -1205,7 +1180,7 @@ describe("listChildAwardYears", () => {
 });
 
 describe("학부모 조회", () => {
-  const parent = user("PARENT", "p-1");
+  const parent = user("PARENT", "p-1", { name: "이정민" });
 
   it("연결된 자녀는 볼 수 있다", async () => {
     isChildOf.mockResolvedValue(true);
@@ -1416,7 +1391,7 @@ describe("exportStudentHistory", () => {
  * 학부모 화면에 뜬다. 이름도 개인정보다.
  */
 describe("listMyChildren() — 세션에서만 유도한다", () => {
-  const parent = user("PARENT", "p-1");
+  const parent = user("PARENT", "p-1", { name: "이정민" });
 
   it("두 번째 인자로 남의 학부모 id를 넣어도 세션 계정만 조회한다", async () => {
     listChildren.mockResolvedValue([]);

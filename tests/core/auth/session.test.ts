@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { user } from "../../helpers/session";
 
 const getSession = vi.fn();
 vi.mock("@/core/auth/auth", () => ({ auth: { api: { getSession } } }));
@@ -19,18 +20,9 @@ vi.mock("next/navigation", () => ({ redirect }));
 
 const { requireAuth } = await import("@/core/auth/session");
 
-function sessionUser(overrides: Record<string, unknown> = {}) {
+function sessionUser(overrides: Parameters<typeof user>[2] = {}) {
   return {
-    user: {
-      id: "u1",
-      name: "테스트",
-      email: "t@gbsw.hs.kr",
-      role: "ADMIN",
-      status: "ACTIVE",
-      deletedAt: null,
-      mustChangePassword: false,
-      ...overrides,
-    },
+    user: user("ADMIN", "u1", overrides),
   };
 }
 

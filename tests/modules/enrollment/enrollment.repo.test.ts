@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { coreMocks } from "../../helpers/core-mocks";
 
 const schoolClassUpsert = vi.fn();
 const enrollmentUpsert = vi.fn();
 const userUpdate = vi.fn();
 const sessionDeleteMany = vi.fn();
 const studentProfileFindMany = vi.fn();
-const withTransaction = vi.fn();
+const { bareWithTransaction: withTransaction } = coreMocks(
+  "enrollment-repo-test",
+);
 
 const tx = {
   schoolClass: { upsert: schoolClassUpsert },

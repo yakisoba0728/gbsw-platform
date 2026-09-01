@@ -2,8 +2,9 @@ import { randomUUID } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Client } from "pg";
 import { prisma } from "@/core/db/client";
+import { coreMocks } from "../helpers/core-mocks";
 
-const recordAudit = vi.fn();
+const { recordAudit } = coreMocks("registration-atomicity-integration-test");
 
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
 
