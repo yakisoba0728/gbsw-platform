@@ -305,8 +305,6 @@ async function deletePermanentlyWithDb(
   userId: string,
   confirmName: string,
 ): Promise<boolean> {
-  // createdById는 Restrict + non-null이라 먼저 지우지 않으면 user.delete가 막힌다.
-  await db.invite.deleteMany({ where: { createdById: userId } });
   // usedById는 SetNull이라 안 지워도 되지만, metadata에 남는 이름·생년월일을 없앤다.
   await db.invite.deleteMany({ where: { usedById: userId } });
   // studentId로 달린 학부모 코드는 StudentProfile Cascade가 함께 지운다.

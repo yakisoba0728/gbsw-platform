@@ -456,6 +456,7 @@ describe("applyRosterPlan()", () => {
       "sp-newassign",
     ]);
     expect(applyRoster.mock.calls[0]![1].createdById).toBe(admin.id);
+    expect(applyRoster.mock.calls[0]![1].createdByName).toBe(admin.name);
   });
 
   it("자기 자신을 비재학으로 돌리는 반영은 거부한다 (자기 잠금 방어)", async () => {

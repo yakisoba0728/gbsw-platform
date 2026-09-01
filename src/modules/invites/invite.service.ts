@@ -60,6 +60,7 @@ export async function createStudentInvite(
     },
     expiresAt: toExpiresAt(input.expiresInDays),
     createdById: actor.id,
+    createdByName: actor.name,
   };
 
   return withTransaction(async (tx) => {
@@ -90,6 +91,7 @@ export async function createAdminInvite(
     metadata: { name: input.name },
     expiresAt: toExpiresAt(input.expiresInDays),
     createdById: actor.id,
+    createdByName: actor.name,
   };
 
   return withTransaction(async (tx) => {
@@ -129,6 +131,7 @@ export async function createParentInvite(
     studentId: profile.id,
     expiresAt: toExpiresAt(PARENT_INVITE_EXPIRES_DAYS),
     createdById: actor.id,
+    createdByName: actor.name,
   };
 
   return withTransaction(async (tx) => {
@@ -174,6 +177,7 @@ export async function createParentInviteFor(
     studentId: student.id,
     expiresAt: toExpiresAt(input.expiresInDays),
     createdById: actor.id,
+    createdByName: actor.name,
   };
 
   return withTransaction(async (tx) => {

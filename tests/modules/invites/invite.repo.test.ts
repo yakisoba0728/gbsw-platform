@@ -2,19 +2,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const studentProfileFindMany = vi.fn();
 const inviteCount = vi.fn();
+const inviteCreate = vi.fn();
 const inviteFindMany = vi.fn();
 const queryRaw = vi.fn();
 
 vi.mock("@/core/db/client", () => ({
   prisma: {
     studentProfile: { findMany: studentProfileFindMany },
-    invite: { count: inviteCount, findMany: inviteFindMany },
+    invite: { count: inviteCount, create: inviteCreate, findMany: inviteFindMany },
     $queryRaw: queryRaw,
   },
 }));
 
 const {
   countActiveByStudent,
+  insertInvite,
   listByStudent,
   listStudents,
   lockStudentForParentInvite,
@@ -23,8 +25,29 @@ const {
 beforeEach(() => {
   studentProfileFindMany.mockReset().mockResolvedValue([]);
   inviteCount.mockReset().mockResolvedValue(0);
+  inviteCreate.mockReset().mockResolvedValue({ id: "inv-1" });
   inviteFindMany.mockReset().mockResolvedValue([]);
   queryRaw.mockReset().mockResolvedValue([{ id: "sp-1" }]);
+});
+
+describe("insertInvite()", () => {
+  it("발급자 id와 이름 스냅샷을 함께 저장한다", async () => {
+    await insertInvite({
+      code: "ABCD2345",
+      role: "ADMIN",
+      metadata: { name: "신규 교사" },
+      expiresAt: null,
+      createdById: "admin-1",
+      createdByName: "관리자",
+    });
+
+    expect(inviteCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        createdById: "admin-1",
+        createdByName: "관리자",
+      }),
+    });
+  });
 });
 
 describe("listByStudent()", () => {

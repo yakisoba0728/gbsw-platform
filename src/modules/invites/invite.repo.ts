@@ -10,6 +10,7 @@ export type InsertInviteInput = {
   studentId?: string;
   expiresAt: Date | null;
   createdById: string;
+  createdByName: string;
 };
 
 export async function insertInvite(
@@ -24,6 +25,7 @@ export async function insertInvite(
       studentId: input.studentId ?? null,
       expiresAt: input.expiresAt,
       createdById: input.createdById,
+      createdByName: input.createdByName,
     },
   });
 }
@@ -42,7 +44,6 @@ export async function listAll(year: number) {
     // id는 cuid라 시간순은 아니지만 유일하고 결정적이다.
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     include: {
-      createdBy: { select: { name: true } },
       usedBy: { select: { name: true, email: true } },
       student: {
         select: {

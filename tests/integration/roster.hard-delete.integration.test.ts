@@ -55,7 +55,14 @@ describe("applyRoster() — 학생 영구 삭제와 졸업 보존", () => {
     });
     await prisma.parentStudent.create({ data: { parentUserId, studentId: deletedProfileId } });
     await prisma.invite.create({
-      data: { code: pendingCode, role: "PARENT", status: "PENDING", createdById: deletedUserId, studentId: deletedProfileId },
+      data: {
+        code: pendingCode,
+        role: "PARENT",
+        status: "PENDING",
+        createdById: deletedUserId,
+        createdByName: "삭제 학생",
+        studentId: deletedProfileId,
+      },
     });
     const rule = await prisma.meritRule.create({
       data: { track: "SCHOOL", kind: "MERIT", label: "졸업 보존 테스트", points: 1 },
@@ -101,6 +108,7 @@ describe("applyRoster() — 학생 영구 삭제와 졸업 보존", () => {
       // 트랜잭션 안에서 다시 제외해야 한다.
       deleteStudentProfileIds: [deletedProfileId, graduatedProfileId],
       createdById: adminId,
+      createdByName: "관리자",
     });
 
     expect(await prisma.user.findUnique({ where: { id: deletedUserId } })).toBeNull();

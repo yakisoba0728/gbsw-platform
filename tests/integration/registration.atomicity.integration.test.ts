@@ -93,6 +93,7 @@ describe("completeRegistration() — 가입 원자성", () => {
         status: "PENDING",
         metadata: { name: "원자성 가입자" },
         createdById: creatorId,
+        createdByName: "원자성 발급자",
       },
     });
     await prisma.verificationCode.createMany({
@@ -200,6 +201,7 @@ describe("completeRegistration() — 가입 원자성", () => {
           number: 15,
         },
         createdById: creatorId,
+        createdByName: "학년도 경합 발급자",
       },
     });
     await prisma.verificationCode.createMany({

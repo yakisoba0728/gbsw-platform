@@ -114,6 +114,7 @@ function input(overrides: Partial<ApplyInput> = {}): ApplyInput {
     managedStudentProfileIds: ["sp-1"],
     deleteStudentProfileIds: [],
     createdById: "admin-1",
+    createdByName: "관리자",
     ...overrides,
   };
 }
@@ -168,7 +169,6 @@ describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
     expect(inviteFindMany).toHaveBeenCalledWith({
       where: {
         OR: [
-          { createdById: { in: ["u-del-1", "u-del-2"] } },
           { usedById: { in: ["u-del-1", "u-del-2"] } },
           { studentId: { in: ["sp-del-1", "sp-del-2"] } },
         ],
@@ -179,7 +179,6 @@ describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
     expect(inviteDeleteMany).toHaveBeenCalledWith({
       where: {
         OR: [
-          { createdById: { in: ["u-del-1", "u-del-2"] } },
           { usedById: { in: ["u-del-1", "u-del-2"] } },
           { studentId: { in: ["sp-del-1", "sp-del-2"] } },
         ],

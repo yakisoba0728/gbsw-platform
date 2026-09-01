@@ -78,6 +78,7 @@ describe("applyRoster() + 감사로그 원자성", () => {
         role: "PARENT",
         status: "PENDING",
         createdById: adminId,
+        createdByName: "원자성 관리자",
         studentId: profileId,
       },
     });
@@ -105,6 +106,7 @@ describe("applyRoster() + 감사로그 원자성", () => {
             managedStudentProfileIds: [profileId],
             deleteStudentProfileIds: [profileId],
             createdById: adminId,
+            createdByName: "원자성 관리자",
           },
           tx,
         );

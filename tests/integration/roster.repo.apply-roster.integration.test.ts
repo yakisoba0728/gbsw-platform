@@ -106,6 +106,7 @@ describe("applyRoster() — 명단에서 빠진 학생은 DB에서 영구 삭제
           role: "PARENT",
           status: "PENDING",
           createdById: studentUserId,
+          createdByName: "통합테스트 학생",
           studentId: studentProfileId,
         },
         {
@@ -113,6 +114,7 @@ describe("applyRoster() — 명단에서 빠진 학생은 DB에서 영구 삭제
           role: "PARENT",
           status: "PENDING",
           createdById: adminId,
+          createdByName: "통합테스트 관리자",
           studentId: studentProfileId,
         },
         {
@@ -120,6 +122,7 @@ describe("applyRoster() — 명단에서 빠진 학생은 DB에서 영구 삭제
           role: "PARENT",
           status: "USED",
           createdById: adminId,
+          createdByName: "통합테스트 관리자",
           studentId: studentProfileId,
           usedById: parentUserId,
         },
@@ -159,6 +162,7 @@ describe("applyRoster() — 명단에서 빠진 학생은 DB에서 영구 삭제
       managedStudentProfileIds: [studentProfileId],
       deleteStudentProfileIds: [studentProfileId],
       createdById: adminId,
+      createdByName: "통합테스트 관리자",
     });
 
     expect(result.revokedInvites.map((i) => i.id).sort()).toEqual(removedIds);

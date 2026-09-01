@@ -309,6 +309,7 @@ export async function applyRosterPlan(
             managedStudentProfileIds: existing.map((s) => s.studentProfileId),
             deleteStudentProfileIds: currentDeletionIdList,
             createdById: actor.id,
+            createdByName: actor.name,
           },
           tx,
         );

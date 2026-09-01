@@ -319,8 +319,10 @@ model Invite {
   /// 2차 요소 대조 실패 횟수. 5회 도달 시 코드를 폐기한다.
   failedAttempts Int @default(0)
 
-  createdById String
-  createdBy   User   @relation("InviteCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  /// 발급자가 탈퇴하면 참조만 끊고 발급 당시 이름은 스냅샷으로 보존한다.
+  createdById   String?
+  createdBy     User?  @relation("InviteCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdByName String
 
   /// 코드 하나는 계정 하나만 만든다.
   usedById String?   @unique

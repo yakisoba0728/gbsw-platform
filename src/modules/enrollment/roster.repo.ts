@@ -132,6 +132,7 @@ export type ApplyInput = {
   /** 명단에서 빠진 학생 — 계정과 학생 기록을 DB에서 완전히 지운다. */
   deleteStudentProfileIds: string[];
   createdById: string;
+  createdByName: string;
 };
 
 /**
@@ -167,14 +168,11 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
       const deleteUserIds = targets.map((t) => t.userId);
       const deleteProfileIds = targets.map((t) => t.id);
 
-      // 상태를 가리지 않고 모은다. 아래 deleteMany도 가리지 않기 때문이다 —
-      // Invite.createdBy가 Restrict라, 학생이 만든 학부모 코드는 이미 소진된
-      // 것까지 지워야 그 계정이 지워진다. 대기분만 모으면 소진된 행이 기록
-      // 없이 사라진다. 무엇이었는지는 status로 남는다.
+      // 상태를 가리지 않고 모은다. usedBy나 studentId에 삭제 대상 개인정보가
+      // 매달린 초대는 이미 소진됐어도 함께 지우므로, status를 감사로그로 옮긴다.
       revokedInvites = await tx.invite.findMany({
         where: {
           OR: [
-            { createdById: { in: deleteUserIds } },
             { usedById: { in: deleteUserIds } },
             { studentId: { in: deleteProfileIds } },
           ],
@@ -183,12 +181,11 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
       });
 
       if (deleteUserIds.length > 0) {
-        // Invite.createdBy는 Restrict라 사용자 삭제 전에 끊어야 한다. usedBy와
-        // studentId 쪽도 함께 지워 초대 metadata에 삭제 대상 정보가 남지 않게 한다.
+        // usedBy와 studentId 쪽을 지워 초대 metadata에 삭제 대상 정보가 남지 않게 한다.
+        // 발급자 참조는 SetNull + 이름 스냅샷이라 이 삭제 대상이 아니다.
         await tx.invite.deleteMany({
           where: {
             OR: [
-              { createdById: { in: deleteUserIds } },
               { usedById: { in: deleteUserIds } },
               { studentId: { in: deleteProfileIds } },
             ],
@@ -306,6 +303,7 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
           role: "STUDENT",
           status: "PENDING",
           createdById: input.createdById,
+          createdByName: input.createdByName,
           expiresAt: input.inviteExpiresAt,
           // 가입 때 2차 요소로 대조하는 값. 발급 화면과 같은 모양이어야 한다.
           metadata: {

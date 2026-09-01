@@ -66,6 +66,7 @@ describe("학생 학부모 초대 소유권", () => {
           metadata: { name: "학생이 만든 보호자" },
           studentId: studentProfileId,
           createdById: student.id,
+          createdByName: student.name,
         },
         {
           code: codes.admin,
@@ -73,6 +74,7 @@ describe("학생 학부모 초대 소유권", () => {
           metadata: { name: "교사가 만든 보호자" },
           studentId: studentProfileId,
           createdById: adminUserId,
+          createdByName: "초대 소유권 관리자",
         },
         {
           code: codes.wrongRole,
@@ -80,6 +82,7 @@ describe("학생 학부모 초대 소유권", () => {
           metadata: { name: "역할이 다른 코드" },
           studentId: studentProfileId,
           createdById: student.id,
+          createdByName: student.name,
         },
       ],
     });

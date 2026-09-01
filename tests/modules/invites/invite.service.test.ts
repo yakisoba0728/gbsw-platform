@@ -178,6 +178,7 @@ describe("학부모 코드 발급", () => {
     const arg = insertInvite.mock.calls[0]![0];
     expect(arg.role).toBe("PARENT");
     expect(arg.studentId).toBe("student-1");
+    expect(arg.createdByName).toBe(student.name);
   });
 
   it("학생이 만든 학부모 코드는 입력 없이도 90일 뒤 만료한다", async () => {

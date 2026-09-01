@@ -419,11 +419,13 @@ describe("resetCredential()", () => {
 });
 
 describe("deletePermanently()", () => {
-  it("발급한 코드(createdById)를 먼저 지워야 계정 삭제가 Restrict에 안 걸린다", async () => {
+  it("발급한 코드는 스냅샷과 함께 남기고 계정만 삭제한다", async () => {
     await deletePermanently("u-9", "김학생");
 
     expect(withTransaction).toHaveBeenCalledTimes(1);
-    expect(inviteDeleteMany).toHaveBeenCalledWith({ where: { createdById: "u-9" } });
+    expect(inviteDeleteMany).not.toHaveBeenCalledWith({
+      where: { createdById: "u-9" },
+    });
     expect(userDeleteMany).toHaveBeenCalledWith({ where: { id: "u-9", name: "김학생" } });
   });
 
@@ -452,7 +454,10 @@ describe("deletePermanently()", () => {
     await deletePermanently("u-9", "김학생", tx as never);
 
     expect(withTransaction).not.toHaveBeenCalled();
-    expect(inviteDeleteMany).toHaveBeenCalledWith({ where: { createdById: "u-9" } });
+    expect(inviteDeleteMany).not.toHaveBeenCalledWith({
+      where: { createdById: "u-9" },
+    });
+    expect(inviteDeleteMany).toHaveBeenCalledWith({ where: { usedById: "u-9" } });
     expect(userDeleteMany).toHaveBeenCalledWith({ where: { id: "u-9", name: "김학생" } });
   });
 });

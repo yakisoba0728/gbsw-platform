@@ -61,6 +61,7 @@ describe("학부모 초대 활성 상한 경쟁", () => {
           metadata: { name: `기존 보호자 ${index}` },
           studentId: studentProfileId,
           createdById: adminId,
+          createdByName: actor.name,
         }),
       ),
     });
