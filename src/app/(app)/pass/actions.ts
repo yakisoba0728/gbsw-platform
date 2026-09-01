@@ -43,7 +43,6 @@ const MESSAGES: Record<string, string> = {
   PASS_EXPIRED: "이미 종료된 신청은 처리할 수 없습니다.",
   STUDENT_NOT_ELIGIBLE: "현재 학년도에 재학 중인 활성 학생에게만 부여할 수 있습니다.",
   PASS_BUSY: "명단 반영 중일 수 있습니다. 잠시 후 다시 시도해 주세요.",
-  PASS_NOT_ACTIVE: "지금 쓸 수 있는 출입증이 아닙니다.",
 };
 
 const FORBIDDEN_MESSAGE = "권한이 없습니다.";

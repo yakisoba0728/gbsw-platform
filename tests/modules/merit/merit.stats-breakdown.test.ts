@@ -82,7 +82,7 @@ describe("getTeacherStats", () => {
       ],
       byName: [],
     });
-    findUserNames.mockResolvedValue([{ id: "t-1", name: "김선생", email: "" }]);
+    findUserNames.mockResolvedValue([{ id: "t-1", name: "김선생" }]);
 
     const { rows } = await service.getTeacherStats(admin, "SCHOOL");
 
@@ -98,7 +98,7 @@ describe("getTeacherStats", () => {
       byUser: [{ awardedByUserId: "t-1", ...group("MERIT", 1, 5) }],
       byName: [],
     });
-    findUserNames.mockResolvedValue([{ id: "t-1", name: "새이름", email: "" }]);
+    findUserNames.mockResolvedValue([{ id: "t-1", name: "새이름" }]);
 
     const { rows } = await service.getTeacherStats(admin, "SCHOOL");
     expect(rows[0].name).toBe("새이름");
@@ -112,7 +112,7 @@ describe("getTeacherStats", () => {
         { awardedByName: "또다른선생", ...group("MERIT", 1, 3) },
       ],
     });
-    findUserNames.mockResolvedValue([{ id: "t-1", name: "김선생", email: "" }]);
+    findUserNames.mockResolvedValue([{ id: "t-1", name: "김선생" }]);
 
     const { rows, teacherCount } = await service.getTeacherStats(admin, "SCHOOL");
 
@@ -134,9 +134,9 @@ describe("getTeacherStats", () => {
       byName: [],
     });
     findUserNames.mockResolvedValue([
-      { id: "a", name: "나선생", email: "" },
-      { id: "b", name: "다선생", email: "" },
-      { id: "c", name: "가선생", email: "" },
+      { id: "a", name: "나선생" },
+      { id: "b", name: "다선생" },
+      { id: "c", name: "가선생" },
     ]);
 
     const { rows } = await service.getTeacherStats(admin, "SCHOOL");

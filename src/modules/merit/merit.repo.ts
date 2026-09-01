@@ -1,6 +1,5 @@
 import { prisma, type DbClient, withTransaction } from "@/core/db/client";
 import type { Prisma } from "@/generated/prisma/client";
-import { isUniqueViolation } from "@/core/db/unique-violation";
 import {
   addKindPoints,
   addKindTotals,
@@ -230,15 +229,6 @@ export type ThresholdWrite = {
   updatedByName: string;
 };
 
-function isThresholdCreateConflict(error: unknown): boolean {
-  return (
-    isUniqueViolation(error, "track") ||
-    (typeof error === "object" &&
-      error !== null &&
-      (error as { code?: unknown }).code === "P2002")
-  );
-}
-
 export async function createThreshold(
   data: ThresholdWrite,
   db: DbClient = prisma,
@@ -247,7 +237,13 @@ export async function createThreshold(
     await db.meritThreshold.create({ data });
     return true;
   } catch (error) {
-    if (isThresholdCreateConflict(error)) return false;
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      (error as { code?: unknown }).code === "P2002"
+    ) {
+      return false;
+    }
     throw error;
   }
 }
@@ -263,19 +259,6 @@ export async function updateThreshold(
     data: rest,
   });
   return count === 1;
-}
-
-/** @deprecated Use createThreshold/updateThreshold so callers keep revision checks. */
-export async function upsertThreshold(
-  data: ThresholdWrite,
-  db: DbClient = prisma,
-): Promise<void> {
-  const { track, ...rest } = data;
-  await db.meritThreshold.upsert({
-    where: { track },
-    create: { track, ...rest },
-    update: rest,
-  });
 }
 
 // ── 부여 ──────────────────────────────────────────────────────
@@ -1095,7 +1078,7 @@ export async function findUserNames(ids: string[]) {
   if (ids.length === 0) return [];
   return prisma.user.findMany({
     where: { id: { in: ids } },
-    select: { id: true, name: true, email: true },
+    select: { id: true, name: true },
   });
 }
 
