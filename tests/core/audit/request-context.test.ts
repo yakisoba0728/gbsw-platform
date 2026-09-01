@@ -27,14 +27,14 @@ describe("readRequestContext() — IP", () => {
     headers.mockReset();
   });
 
-  it("x-forwarded-for의 첫 항목이 원 IP다 — 뒤 항목은 프록시 자신이다", async () => {
+  it("x-forwarded-for의 마지막 항목이 한 홉 프록시가 실제로 본 상대다", async () => {
     requestWith({ "x-forwarded-for": "1.2.3.4, 5.6.7.8" });
-    await expect(readRequestContext()).resolves.toMatchObject({ ip: "1.2.3.4" });
+    await expect(readRequestContext()).resolves.toMatchObject({ ip: "5.6.7.8" });
   });
 
-  it("첫 항목의 앞뒤 공백을 지운다 — 공백이 붙으면 같은 IP가 다른 버킷으로 세어진다", async () => {
-    requestWith({ "x-forwarded-for": "  1.2.3.4  , 5.6.7.8" });
-    await expect(readRequestContext()).resolves.toMatchObject({ ip: "1.2.3.4" });
+  it("마지막 항목의 앞뒤 공백을 지운다 — 공백이 붙으면 같은 IP가 다른 버킷으로 세어진다", async () => {
+    requestWith({ "x-forwarded-for": "1.2.3.4,  5.6.7.8  " });
+    await expect(readRequestContext()).resolves.toMatchObject({ ip: "5.6.7.8" });
   });
 
   it("항목이 하나뿐이어도 그대로 읽는다", async () => {
@@ -42,9 +42,14 @@ describe("readRequestContext() — IP", () => {
     await expect(readRequestContext()).resolves.toMatchObject({ ip: "203.0.113.9" });
   });
 
-  it("IPv6도 그대로 통과시킨다 — 자르거나 정규화하지 않는다", async () => {
-    requestWith({ "x-forwarded-for": "2001:db8::1, 5.6.7.8" });
+  it("마지막 항목의 IPv6도 그대로 통과시킨다 — 자르거나 정규화하지 않는다", async () => {
+    requestWith({ "x-forwarded-for": "1.2.3.4, 2001:db8::1" });
     await expect(readRequestContext()).resolves.toMatchObject({ ip: "2001:db8::1" });
+  });
+
+  it("덧붙임 모드 프록시에서는 클라이언트가 지어낸 첫 항목을 무시한다", async () => {
+    requestWith({ "x-forwarded-for": "203.0.113.99, 198.51.100.23" });
+    await expect(readRequestContext()).resolves.toMatchObject({ ip: "198.51.100.23" });
   });
 
   it("헤더 이름의 대소문자를 가리지 않는다", async () => {
@@ -67,8 +72,13 @@ describe("readRequestContext() — IP", () => {
     await expect(readRequestContext()).resolves.toMatchObject({ ip: "198.51.100.7" });
   });
 
-  it("첫 항목이 비면 두 번째가 아니라 x-real-ip로 떨어진다", async () => {
+  it("빈 항목은 버리고 마지막 실제 홉을 읽는다", async () => {
     requestWith({ "x-forwarded-for": " , 5.6.7.8", "x-real-ip": "198.51.100.7" });
+    await expect(readRequestContext()).resolves.toMatchObject({ ip: "5.6.7.8" });
+  });
+
+  it("쉼표만 있는 x-forwarded-for는 x-real-ip로 떨어진다", async () => {
+    requestWith({ "x-forwarded-for": " , ", "x-real-ip": "198.51.100.7" });
     await expect(readRequestContext()).resolves.toMatchObject({ ip: "198.51.100.7" });
   });
 

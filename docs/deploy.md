@@ -131,9 +131,9 @@ docker compose logs app       # 앱이 뜨다 죽었나
 gbsw.example.hs.kr {
 	reverse_proxy 127.0.0.1:3000 {
 		# **이 두 줄을 빠뜨리면 안 된다.** Caddy는 X-Forwarded-For를 덮어쓰지 않고
-		# 클라이언트가 보낸 값 **뒤에 덧붙인다.** 앱은 그 헤더의 첫 항목을 접속 IP로
-		# 믿으므로(src/core/audit/request-context.ts), 그대로 두면 헤더를 지어 보내는
-		# 사람이 감사로그에 아무 IP나 심을 수 있다. {remote_host}는 실제 TCP 상대다.
+		# 클라이언트가 보낸 값 **뒤에 덧붙인다.** 앱은 한 홉 프록시 규약에 따라
+		# 마지막 항목을 읽지만(src/core/audit/request-context.ts), 이것은 덧붙임 실수에
+		# 대한 둘째 방어선일 뿐이다. {remote_host}로 덮어써야 위조한 단일 값도 지워진다.
 		header_up X-Forwarded-For {remote_host}
 		header_up X-Real-IP {remote_host}
 	}
@@ -209,8 +209,11 @@ server {
 }
 ```
 
-> **`X-Forwarded-For`를 반드시 프록시가 덮어써야 한다.** 앱은 이 헤더의 첫 항목을
-> 접속 IP로 믿고 감사로그에 남긴다(`src/core/audit/request-context.ts`).
+> **`X-Forwarded-For`를 반드시 프록시가 덮어써야 한다.** 앱은 한 홉 프록시가
+> 덧붙인 마지막 항목을 접속 IP로 읽지만(`src/core/audit/request-context.ts`), 프록시가
+> 헤더를 손대지 않고 넘긴 위조값은 구분할 수 없다. 마지막 항목 읽기는 둘째 방어선이지
+> 덮어쓰기 설정을 빼도 된다는 뜻이 아니다. `X-Forwarded-Proto`는 IP 홉 목록이 아니라
+> 원 요청의 scheme을 전하는 별도 헤더라 같은 선택 규칙을 적용하지 않는다.
 
 ---
 
