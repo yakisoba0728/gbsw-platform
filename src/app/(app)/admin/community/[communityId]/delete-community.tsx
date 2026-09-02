@@ -6,17 +6,12 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EMPTY_COMMUNITY_FORM_STATE } from "../action-state";
 import { deleteCommunityAction } from "../actions";
 
-/**
- * 게시판 제거. 되돌릴 수 없어 사유를 받는다 — 글이 남아 있는데 아무도 못 보게
- * 되는 일이라, 나중에 "왜 없어졌나"를 감사로그가 답할 수 있어야 한다.
- */
 export function DeleteCommunity({
   communityId,
   updatedAt,
   name,
 }: {
   communityId: string;
-  /** ISO 문자열. 낙관적 잠금에 실어 보낸다. */
   updatedAt: string;
   name: string;
 }) {

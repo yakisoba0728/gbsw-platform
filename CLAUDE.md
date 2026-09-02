@@ -42,7 +42,7 @@ Route / Server Action  →  Service  →  Repo
 - **커뮤니티의 게시판별 읽기·쓰기만 이 규칙 밖이다.** 게시판마다 다르고 교사가 화면에서
   바꾸는 값이라 컴파일 시점 표에 담기지 않는다 — 판정은 `modules/community/community.access.ts`
   의 순수 함수 둘이 하고, 게시판을 다루는 권한(`community:manage`·`community:moderate`)만
-  `can()`에 있다. 거부는 `ForbiddenError` + `authz:denied`를 손으로 남긴다.
+  `can()`에 있다. 거부는 `denyAccess()`로 감사 기록 후 `ForbiddenError`를 던진다.
   **다른 모듈이 이것을 따라하면 안 된다** — 역할로 가를 수 있는 권한은 `can()`에 넣는다.
 - 역할 검사만으로 부족한 경우(본인 소유 데이터 등)는 서비스에서 **소유권 검사**를 추가한다.
   세션에서 유도할 수 있는 식별자는 절대 클라이언트 입력으로 받지 않는다.
@@ -62,8 +62,7 @@ Route / Server Action  →  Service  →  Repo
   따른다.
 - 권한 거부는 `core/authz/errors.ts`의 `assertCan(actor, action)`을 쓴다 — `can()` 검사와
   `ForbiddenError` throw, 거부 감사로그(`authz:denied`) 기록을 한 번에 한다. `can()`만으로
-  못 가르는 거부(소유권 검사 등)는 `ForbiddenError`를 직접 던지고 같은 방식으로 감사로그를
-  남긴다 (`invite.service.ts`의 `revokeInvite` 참고).
+  못 가르는 거부(소유권 검사 등)는 `denyAccess(actor, action, details)`를 쓴다.
 
 ## 아키텍처 결정: 단일 Next.js (Nest 분리 안 함)
 

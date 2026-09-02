@@ -6,21 +6,6 @@ import {
   NUMBER_RANGE_MESSAGE,
 } from "@/modules/enrollment/enrollment.schema";
 
-/**
- * 초대코드 발급·폐기 액션의 **경계** — 폼의 FormData가 zod 스키마에 닿는 지점.
- * (auth)/register/actions.test.ts와 같은 목적이다.
- *
- * FormData는 화면이 실제로 보내는 name 그대로 만든다.
- * 출처: admin/invites/invite-form.tsx(발급 3종, 유효기간은 ExpiryField 공용) ·
- * revoke-button.tsx(폐기).
- *
- * 특히 **ForbiddenError가 "이미 사용되었거나 폐기된 코드입니다"로 안내되지 않는지**
- * 를 본다 — 감사로그에는 authz:denied가 정확히 남는데 화면만 다른 원인을 가리키던
- * 결함이 이 파일에 있었다.
- */
-
-// 목은 구현 없이 선언하고 기본값은 beforeEach에서 준다 —
-// tests/modules/**의 서비스 테스트와 같은 방식이다.
 const requireAuth = vi.fn();
 const revalidatePath = vi.fn();
 
@@ -54,7 +39,6 @@ function form(fields: Record<string, string>): FormData {
   return fd;
 }
 
-/** invite-form.tsx의 StudentForm이 보내는 필드 그대로. */
 function studentForm(over: Record<string, string> = {}): FormData {
   return form({
     name: "홍길동",
@@ -67,12 +51,10 @@ function studentForm(over: Record<string, string> = {}): FormData {
   });
 }
 
-/** invite-form.tsx의 AdminForm이 보내는 필드 그대로. */
 function adminForm(over: Record<string, string> = {}): FormData {
   return form({ name: "김교사", expiresInDays: "", ...over });
 }
 
-/** invite-form.tsx의 ParentForm이 보내는 필드 그대로. */
 function parentForm(over: Record<string, string> = {}): FormData {
   return form({
     studentId: "sp-1",
@@ -126,9 +108,6 @@ describe("createStudentInviteAction — 경계 검증", () => {
     expect(createStudentInvite.mock.calls[0]?.[1].expiresInDays).toBe(30);
   });
 
-  // 유효기간 칸은 type="number"를 쓰지 않는다(포커스된 number 칸은 리셋 뒤 값을
-  // 잃는다). 브라우저 range 가드가 없으니 범위·비숫자를 **스키마가 한국어로**
-  // 막아야 한다 — 문구가 빠지면 zod 영문 기본 문구가 화면에 그대로 나간다.
   it.each([
     ["0", "하한 미만"],
     ["366", "상한 초과"],
@@ -171,18 +150,7 @@ describe("createStudentInviteAction — 경계 검증", () => {
     expect(state.error).toBe("존재하지 않는 날짜입니다.");
   });
 
-  /*
-   * 한때 이 셋만 스키마에 문구가 없어 zod의 영문 기본 메시지
-   * ("Too big: expected number to be <=3")가 그대로 화면에 나갔다. 액션의
-   * `?? "입력값을 확인해 주세요."` 폴백은 issues[0].message가 이미 채워져 있어
-   * 절대 닿지 않는다 — 폴백이 있다는 사실이 오히려 안심시켜서 더 오래 남았다.
-   *
-   * 문구는 enrollment.schema의 상수를 쓴다. 명단 업로드·표 편집이 같은 값을
-   * 검사하므로, 학교가 범위를 넓히면 세 경로의 문구가 함께 따라와야 한다.
-   */
   it("학년·반·번호 범위 오류도 한국어로 알린다", async () => {
-    // 문구를 여기 다시 적지 않는다 — 학교가 범위를 넓히면 이 테스트만 옛 숫자에
-    // 남아, 정작 검증하려던 "세 경로가 같은 문구를 쓴다"를 못 보게 된다.
     const cases: [Record<string, string>, string][] = [
       [{ grade: "9" }, GRADE_RANGE_MESSAGE],
       [{ classNo: "0" }, CLASS_NO_RANGE_MESSAGE],
@@ -234,11 +202,6 @@ describe("createStudentInviteAction — 경계 검증", () => {
     expect(state.error).toBe("코드를 발급하지 못했습니다.");
   });
 
-  /*
-   * React 19는 액션이 끝난 폼을 성공·실패 가리지 않고 reset()한다. 실패 상태가
-   * 제출값을 들고 오지 않으면 이름·생년월일·학년·반·번호를 처음부터 다시 친다 —
-   * 화면은 이 값으로만 되살릴 수 있다.
-   */
   it("실패하면 여섯 칸을 그대로 돌려준다", async () => {
     const state = await createStudentInviteAction(
       INITIAL,
@@ -332,7 +295,6 @@ describe("createParentInviteForAction — 경계 검증", () => {
   });
 
   it("학생을 안 고르면 서비스를 부르지 않는다", async () => {
-    // 조건에 맞는 학생이 없으면 <option disabled>만 남아 값이 비어 온다.
     const state = await createParentInviteForAction(
       INITIAL,
       parentForm({ studentId: "" }),
@@ -352,10 +314,6 @@ describe("createParentInviteForAction — 경계 검증", () => {
     expect(state.error).toBe("이 학생에게 쓰지 않은 코드가 2개 있습니다.");
   });
 
-  /*
-   * 6줄짜리 목록에서 학생을 다시 찾는 것이 이 폼에서 가장 비싼 재입력이다 —
-   * 한도 초과처럼 다시 눌러 볼 만한 오류일수록 고른 학생이 남아야 한다.
-   */
   it("실패하면 고른 학생을 그대로 돌려준다", async () => {
     createParentInviteFor.mockRejectedValueOnce(
       new InviteError("TOO_MANY_ACTIVE_INVITES"),
@@ -380,11 +338,6 @@ describe("createParentInviteForAction — 경계 검증", () => {
 describe("revokeInviteAction — 경계 검증", () => {
   const REVOKE = { ok: false, error: null };
 
-  /**
-   * 폐기는 되돌릴 수 없어서 확인 모달이 사유를 받는다. 사유가 비면 서비스까지
-   * 가지 않는다 — 감사로그가 「사유: …」를 그리는 자리라 빈 값이 남으면
-   * 왜 없앴는지를 되짚을 수 없다.
-   */
   it("사유가 비면 서비스를 부르지 않는다", async () => {
     const state = await revokeInviteAction(REVOKE, form({ inviteId: "inv-1", reason: "  " }));
 
@@ -412,10 +365,6 @@ describe("revokeInviteAction — 경계 검증", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/parent-invite");
   });
 
-  /*
-   * 이 저장소가 명시적으로 고쳤던 결함이다 — 폐기 액션의 catch-all이 권한 거부를
-   * "이미 사용되었거나 폐기된 코드입니다"로 덮었다. 되돌아오면 여기서 잡힌다.
-   */
   it("권한 거부를 '이미 사용된 코드'로 안내하지 않는다", async () => {
     revokeInvite.mockRejectedValueOnce(new ForbiddenError("invite:revoke"));
 

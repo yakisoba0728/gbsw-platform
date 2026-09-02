@@ -8,12 +8,11 @@ export type Draft = {
   status: EnrollmentStatus;
 };
 
-export function toDraft(row: StudentRow): Draft {
+function toDraft(row: StudentRow): Draft {
   return {
     grade: row.grade == null ? "" : String(row.grade),
     classNo: row.classNo == null ? "" : String(row.classNo),
     number: row.number == null ? "" : String(row.number),
-    // 배정이 없는 학생은 재학으로 시작한다 — 이 화면에서 채우는 게 보통이다.
     status: (row.status as EnrollmentStatus) ?? "ENROLLED",
   };
 }
@@ -36,10 +35,6 @@ function sameDraft(a: Draft, b: Draft): boolean {
   );
 }
 
-/**
- * 교사가 실제로 건드린 필드만 override로 들고 있다. 나머지는 늘 최신 rows에서
- * 읽으므로 저장 뒤 새로 내려온 값이 그대로 보인다.
- */
 export function draftFor(
   row: StudentRow,
   overrides: Record<string, Partial<Draft>>,

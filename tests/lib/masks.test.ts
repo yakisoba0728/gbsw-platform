@@ -20,7 +20,6 @@ describe("formatPhone()", () => {
       "01012345678",
       "010-1234-5678",
       "010 1234 5678",
-      // 스스로 치환해 넘기면 안 된다 — 그러면 국제 표기를 한 번도 안 태운다.
       "+82 10-1234-5678",
       "+821012345678",
       "+82 010-1234-5678",
@@ -80,7 +79,6 @@ describe("formatVerificationCode()", () => {
 
 describe("커서 복원", () => {
   it("영숫자 n개를 지난 지점을 찾는다", () => {
-    // "010-1234-5678" 에서 숫자 3개를 지난 지점은 하이픈 앞이다.
     expect(offsetAfterSignificant("010-1234-5678", 3)).toBe(3);
     expect(offsetAfterSignificant("010-1234-5678", 4)).toBe(5);
     expect(offsetAfterSignificant("010-1234-5678", 0)).toBe(0);

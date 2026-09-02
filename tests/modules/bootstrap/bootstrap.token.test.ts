@@ -26,7 +26,6 @@ describe("부트스트랩 토큰", () => {
 
   it("길이가 다른 입력에도 예외 없이 false를 준다", () => {
     issueToken();
-    // timingSafeEqual은 길이가 다르면 던지므로 방어되어 있어야 한다.
     expect(() => matchesToken("짧음")).not.toThrow();
     expect(matchesToken("짧음")).toBe(false);
   });
@@ -61,7 +60,6 @@ describe("부트스트랩 토큰", () => {
     const token = issueToken();
 
     expect(token).toMatch(/^[A-Za-z0-9_-]+$/);
-    // 256비트를 base64url로 인코딩하면 43자.
     expect(token).toHaveLength(43);
   });
 });

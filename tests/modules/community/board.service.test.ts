@@ -39,7 +39,6 @@ const input = {
   slug: "notice",
   name: "공지사항",
   description: null,
-  // 서비스는 zod를 통과한 타입을 받으므로 역할도 좁은 리터럴이다.
   readRoles: ["STUDENT", "PARENT"] as ("STUDENT" | "PARENT")[],
   writeRoles: [] as ("STUDENT" | "PARENT")[],
   anonymous: false,
@@ -147,7 +146,7 @@ describe("updateCommunity", () => {
       ...patch,
       name: "공지사항",
       sortOrder: 0,
-      readRoles: ["PARENT", "STUDENT"] as ("STUDENT" | "PARENT")[], // 순서만 다르다
+      readRoles: ["PARENT", "STUDENT"] as ("STUDENT" | "PARENT")[],
       writeRoles: ["STUDENT"] as ("STUDENT" | "PARENT")[],
     });
 
@@ -170,7 +169,7 @@ describe("updateCommunity", () => {
     );
   });
 
-  it("**익명을 끄면 거부한다** — 쌓인 글의 작성자가 전부 드러난다", async () => {
+  it("익명을 끄면 거부한다 — 쌓인 글의 작성자가 전부 드러난다", async () => {
     findCommunity.mockResolvedValue(board({ anonymous: true }));
 
     await expect(

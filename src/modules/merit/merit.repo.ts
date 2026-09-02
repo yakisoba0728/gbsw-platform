@@ -14,15 +14,13 @@ import type {
   UpdateRuleInput,
 } from "./merit.schema";
 
-/** Prisma 호출만 둔다. 권한 검사도, 업무 규칙도 여기 두지 않는다. */
-
-// ── 규정 ──────────────────────────────────────────────────────
+export { findCurrentYearForUpdate } from "@/modules/academic-year/academic-year.repo";
 
 export async function createRule(
   input: CreateRuleInput,
   db: DbClient = prisma,
 ): Promise<{ id: string }> {
-  const rule = await db.meritRule.create({
+  return db.meritRule.create({
     data: {
       track: input.track,
       kind: input.kind,
@@ -33,7 +31,6 @@ export async function createRule(
     },
     select: { id: true },
   });
-  return rule;
 }
 
 export async function findRule(id: string, db: DbClient = prisma) {
@@ -53,12 +50,9 @@ export async function findRule(id: string, db: DbClient = prisma) {
   });
 }
 
-export type MeritRuleSnapshot = NonNullable<Awaited<ReturnType<typeof findRule>>>;
+type MeritRuleSnapshot = NonNullable<Awaited<ReturnType<typeof findRule>>>;
 
-/**
- * 부여는 규정 삭제와 같은 행을 잠근 뒤 상태를 본다. 그래야 삭제 트랜잭션이
- * 먼저 커밋되면 비활성을 보고 멈추고, 부여가 먼저 잠그면 삭제가 그 뒤로 선다.
- */
+/* 규정 삭제와 부여는 같은 행 잠금으로 직렬화한다. */
 export async function findRuleForUpdate(
   id: string,
   db: DbClient,
@@ -81,22 +75,6 @@ export async function findRuleForUpdate(
   return rows[0] ?? null;
 }
 
-export async function findCurrentYearForUpdate(db: DbClient): Promise<number | null> {
-  await db.$queryRaw<Array<{ year: number }>>`
-    SELECT "year"
-    FROM "AcademicYear"
-    ORDER BY "year"
-    FOR UPDATE
-  `;
-
-  const current = await db.academicYear.findFirst({
-    where: { isCurrent: true },
-    select: { year: true },
-  });
-  return current?.year ?? null;
-}
-
-/** track·kind는 인자에 없다 — 생성 시 고정이다. */
 export async function updateRule(
   id: string,
   data: Omit<UpdateRuleInput, "ruleId" | "updatedAt">,
@@ -115,10 +93,6 @@ export async function updateRule(
   return count === 1;
 }
 
-/**
- * 규정 삭제. 행은 지우지 않고 active를 내린다 — 이미 나간 부여가 ruleId를
- * 참조한다(onDelete: Restrict).
- */
 export async function markRuleDeleted(
   id: string,
   expectedUpdatedAt: Date,
@@ -131,23 +105,14 @@ export async function markRuleDeleted(
   return count;
 }
 
-/**
- * 종류 정렬 순서. 상점이 먼저다 — Prisma의 `kind: "asc"`는 사전순이라
- * "DEMERIT" < "MERIT"으로 벌점이 앞선다. 가져온 뒤 여기서 다시 세운다.
- */
 const KIND_ORDER: Record<string, number> = { MERIT: 0, DEMERIT: 1, OFFSET: 2 };
 
-/**
- * 규정 정렬: 종류 → 분류 → 점수. 학교 규정표가 이 순서다.
- * 분류는 가나다순이고, 분류 없는 규정은 맨 뒤로 간다.
- */
 function byKindCategoryPoints<
   T extends { kind: string; category: string | null; points: number },
 >(a: T, b: T): number {
   const kind = (KIND_ORDER[a.kind] ?? 9) - (KIND_ORDER[b.kind] ?? 9);
   if (kind !== 0) return kind;
 
-  // 분류 없음은 맨 뒤. 빈 문자열과 null을 같게 본다.
   const ca = a.category ?? "";
   const cb = b.category ?? "";
   if (ca !== cb) {
@@ -160,11 +125,9 @@ function byKindCategoryPoints<
   return a.points - b.points;
 }
 
-/** 규정 관리 화면의 목록. 삭제된 규정은 나오지 않는다. */
 export async function listRules(track: MeritTrack) {
   const rules = await prisma.meritRule.findMany({
     where: { track, active: true },
-    // 순서는 byKindCategoryPoints가 세운다. 여기서는 결과가 매번 같도록 기준만 준다.
     orderBy: [{ label: "asc" }],
     select: {
       id: true,
@@ -182,7 +145,6 @@ export async function listRules(track: MeritTrack) {
   return rules.sort(byKindCategoryPoints);
 }
 
-/** 부여 화면의 선택지. 비활성은 빠진다. 여기서도 상점이 먼저다. */
 export async function listActiveRules(track: MeritTrack) {
   const rules = await prisma.meritRule.findMany({
     where: { track, active: true },
@@ -192,12 +154,6 @@ export async function listActiveRules(track: MeritTrack) {
   return rules.sort(byKindCategoryPoints);
 }
 
-// ── 벌점 기준 ─────────────────────────────────────────────────
-
-/**
- * 저장된 기준 전부. 행이 트랙 수만큼이라 한 번에 다 읽는다.
- * 없는 트랙은 빠져 나오고, 기본값으로 채우는 일은 서비스가 한다.
- */
 const THRESHOLD_SELECT = {
   track: true,
   warn: true,
@@ -219,7 +175,7 @@ export async function findThreshold(track: MeritTrack, db: DbClient = prisma) {
   });
 }
 
-export type ThresholdWrite = {
+type ThresholdWrite = {
   track: MeritTrack;
   warn: number;
   danger: number;
@@ -259,9 +215,7 @@ export async function updateThreshold(
   return count === 1;
 }
 
-// ── 부여 ──────────────────────────────────────────────────────
-
-export type NewAward = {
+type NewAward = {
   studentProfileId: string;
   year: number;
   ruleId: string;
@@ -269,7 +223,6 @@ export type NewAward = {
   kind: string;
   label: string;
   points: number;
-  /** 실제로 일어난 날 (KST 자정). 입력 시각은 createdAt이 따로 남긴다. */
   occurredOn: Date;
   note: string | null;
   awardedByUserId: string;
@@ -294,16 +247,11 @@ export async function findAward(id: string) {
       label: true,
       points: true,
       status: true,
-      // 취소 감사로그에 학생 이름을 남기려고 함께 가져온다.
       studentProfile: { select: { user: { select: { name: true } } } },
     },
   });
 }
 
-/**
- * 취소. ACTIVE인 행만 고친다 — 두 교사가 동시에 눌러도 먼저 쓴 사람의
- * 이름·사유·시각을 덮지 않는다. 0이면 그 사이 남이 먼저 취소했다는 뜻이다.
- */
 export async function cancelAward(
   id: string,
   by: { userId: string; name: string; reason: string },
@@ -322,10 +270,6 @@ export async function cancelAward(
   return result.count;
 }
 
-/**
- * 한 학생의 내역. year가 null이면 학년도 조건이 붙지 않는다(기숙사=누적).
- * 정렬은 발생일 기준이다 — 확인서를 읽는 사람이 사건 순서를 거꾸로 읽지 않게.
- */
 export async function listAwards(params: {
   studentProfileId: string;
   track: MeritTrack;
@@ -337,9 +281,6 @@ export async function listAwards(params: {
       track: params.track,
       ...(params.year === null ? {} : { year: params.year }),
     },
-    // 쪽을 나누지 않는 질의라 줄이 사라지지는 않는다. 그래도 마지막 키는 유일해야
-    // 한다 — 일괄 부여는 한 트랜잭션이라 그 안의 행은 발생일도 입력 시각(트랜잭션
-    // 시작 시각)도 같고, 그러면 같은 확인서를 다시 열 때마다 두 줄의 위아래가 바뀐다.
     orderBy: [{ occurredOn: "desc" }, { createdAt: "desc" }, { id: "desc" }],
     select: {
       id: true,
@@ -354,13 +295,11 @@ export async function listAwards(params: {
       cancelledAt: true,
       cancelReason: true,
       occurredOn: true,
-      // 화면이 두 날짜를 나란히 보여줄 수 있게 입력 시각도 함께 낸다.
       createdAt: true,
     },
   });
 }
 
-/** 합계. 취소된 기록은 빠지고, year가 null이면 전체 누적이다. */
 export async function totals(params: {
   studentProfileId: string;
   track: MeritTrack;
@@ -377,14 +316,6 @@ export async function totals(params: {
   });
 }
 
-// ── 학생 찾기 ─────────────────────────────────────────────────
-
-/**
- * 세션 userId → 학생 신원. **계정 상태로도 재적으로도 거르지 않는다.**
- * 로그인 자체를 `core/auth/login-eligibility`가 막으므로 여기까지 온 사람은 이미
- * 활성 계정이고, 재적을 겹쳐 걸면 학적이 흔들리는 동안 학생이 자기 기록을 통째로
- * 못 본다 — 본인 기록을 보는 일은 명단에 있는지와 다른 질문이다.
- */
 export async function findStudentProfileByUserId(userId: string) {
   return prisma.studentProfile.findFirst({
     where: { userId },
@@ -392,22 +323,6 @@ export async function findStudentProfileByUserId(userId: string) {
   });
 }
 
-/**
- * 부여 대상을 찾는다 — **그 학년도에 재적(ENROLLED) 중인 학생만.** 조회 경로는
- * 명단에서 빠진 학생도 보지만 부여는 열지 않으며, 그 경계가 이 where 절이다.
- * 서버 액션을 직접 부르면 아무 id나 보낼 수 있으므로 마지막 방어선은 여기다.
- *
- * 술어가 `Enrollment`인 것이 요점이다. 퇴학·전학은 `user.deletedAt`을 채우지
- * 않는다 — 명단 반영은 학적을 비재학으로 바꾸고 계정을 INACTIVE로 내릴 뿐이다
- * (`roster.repo.applyRoster`). 계정 쪽을 보던 옛 조건은 어떤 퇴학생도 막지 못했다.
- *
- * 반 명단(`listClassRoster`)·통계 모집단(`activeAwardWhere`)과 **같은 술어**를
- * 쓴다: 부여할 수 있는 학생과 명단에 있는 학생은 같은 집합이어야 한다. 반이 없어도
- * (ENROLLED · grade/classNo null) 통과한다 — 반 미배정은 재적이 아닌 것과 다르다.
- *
- * 학년도를 인자로 받는다. 호출부는 `findCurrentYearForUpdate`로 잠그고 읽은 값을
- * 같은 트랜잭션에서 넘긴다 — 검사와 저장이 다른 학년도를 보면 안 된다.
- */
 export async function findAwardableStudent(
   id: string,
   year: number,
@@ -415,29 +330,16 @@ export async function findAwardableStudent(
 ) {
   return db.studentProfile.findFirst({
     where: { id, enrollments: { some: { year, status: "ENROLLED" } } },
-    // 부여가 쓰는 것은 id(존재 확인)와 이름(감사로그)뿐이다.
     select: { id: true, user: { select: { name: true } } },
   });
 }
 
-// ── 일괄 부여·취소 ────────────────────────────────────────────
-
-/**
- * 여러 건을 한 트랜잭션으로 넣는다. createMany가 아닌 이유는 감사로그를 건별로
- * 남기려면 각 행의 id가 필요해서다.
- */
 export async function createAwards(
   items: NewAward[],
   db?: DbClient,
 ): Promise<{ id: string }[]> {
   const run = async (client: DbClient) => {
-    // **한 번의 부여는 한 시각이다.** 열에 붙은 DB 기본값(CURRENT_TIMESTAMP)은
-    // 여기까지 오지 않는다 — Prisma가 `@default(now())`를 클라이언트에서 찍어
-    // 보내므로 create마다 값이 다시 나고, 실제로 한 트랜잭션 안의 행이
-    // 밀리초 단위로 갈렸다(.411 · .414 · .415).
-    //
-    // 최근 부여 화면은 이 값으로 「한 번의 부여」를 알아낸다(`recent-feed.ts`).
-    // 갈리면 반 전체에 한 번 준 것이 서로 무관한 스무 줄로 흩어진다.
+    // 일괄 부여는 모든 기록에 같은 createdAt을 쓴다.
     const createdAt = new Date();
 
     const created: { id: string }[] = [];
@@ -456,15 +358,10 @@ export async function createAwards(
 
   return withTransaction(
     run,
-    // 100명 × 1문장. 기본 5초로도 충분하지만 느린 디스크에서 여유를 둔다.
     { timeout: 30_000, maxWait: 5_000 },
   );
 }
 
-/**
- * 여러 부여 대상을 한 번에 찾는다. 조건은 단건과 같다.
- * 못 찾은 id가 있으면 결과 길이가 줄어든다 — 호출부가 길이로 판별한다.
- */
 export async function findAwardableStudents(
   ids: string[],
   year: number,
@@ -475,15 +372,10 @@ export async function findAwardableStudents(
       id: { in: ids },
       enrollments: { some: { year, status: "ENROLLED" } },
     },
-    // 단건 부여와 같은 것만 쓴다 — id와 감사로그용 이름.
     select: { id: true, user: { select: { name: true } } },
   });
 }
 
-/**
- * groupBy(학생·종류) 결과를 학생별 합계로 접는다. 접는 규칙은 merit-track이
- * 갖고 있다 — 여기서 손으로 나누면 종류가 늘 때 이 파일만 옛 계산을 계속한다.
- */
 function foldByStudent(
   sums: {
     studentProfileId: string;
@@ -500,21 +392,10 @@ function foldByStudent(
   return byStudent;
 }
 
-/**
- * 그 학년도 그 반의 재학생 + 트랙별 합계. 학생 목록과 합계를 따로 질의해 잇는다 —
- * groupBy만 쓰면 기록이 없는 학생이 빠져 명단에 구멍이 생긴다.
- */
 export async function listClassRoster(params: {
   year: number;
   track: MeritTrack;
-  /** 합계를 셀 학년도. null이면 전체 누적(기숙사). */
   totalsYear: number | null;
-  /**
-   * 좁힐 범위. 둘 다 없으면 전교, 학년만 주면 그 학년 전체다.
-   *
-   * **범위를 안 주면 반이 없는 학생도 낸다.** 반 미배정은 놓치기 가장 쉬운 자리라
-   * 전교를 훑는 화면에서 그 학생이 사라지면 안 된다.
-   */
   grade?: number;
   classNo?: number;
 }) {
@@ -529,13 +410,9 @@ export async function listClassRoster(params: {
   const enrollments = await prisma.enrollment.findMany({
     where: {
       year: params.year,
-      // 재적 그 자체가 명단 술어다 — 계정 쪽 조건을 겹쳐 걸지 않는다.
-      // 퇴학·전학은 계정이 아니라 이 status에 나타난다.
       status: "ENROLLED",
       ...inClass,
     },
-    // 한 반만 볼 때는 번호순이 곧 명단 순서다. 전교를 훑을 때는 학년·반이 앞에
-    // 서야 읽힌다 — 번호만으로 세우면 1학년 1번 다음에 3학년 1번이 온다.
     orderBy: [
       { grade: "asc" },
       { classNo: "asc" },
@@ -567,7 +444,6 @@ export async function listClassRoster(params: {
 
   const byStudent = foldByStudent(sums);
 
-  // 기록이 하나도 없는 학생도 0으로 남는다 — 명단에 구멍이 생기면 안 된다.
   return enrollments.map((e) => ({
     studentProfileId: e.studentProfile.id,
     studentCode: e.studentProfile.studentCode,
@@ -579,20 +455,11 @@ export async function listClassRoster(params: {
   }));
 }
 
-/**
- * 이름 또는 학생코드로 찾는다. 30명에서 자른다. 명단에서 빠진 학생은 옵트인해야
- * 나온다 — 옵션에 기본값을 두지 않아 호출부가 매번 어느 쪽인지 적게 한다.
- *
- * 「빠졌다」는 **그 학년도 재적이 아니다**라는 뜻이고, 부여 게이트
- * (`findAwardableStudent`)와 같은 술어다 — 기본 검색에서 나온 학생에게는
- * 반드시 부여할 수 있어야 한다.
- */
 export async function searchStudents(
   query: string,
   year: number,
   options: {
     includeRemoved: boolean;
-    /** 학번을 읽어낸 경우에만 온다. 파싱은 서비스가 한다. */
     studentNumber?: { grade: number; classNo: number; number: number };
   },
 ) {
@@ -601,15 +468,12 @@ export async function searchStudents(
   return prisma.studentProfile.findMany({
     where: {
       user: { role: "STUDENT" },
-      // 옵트인하면 조건을 통째로 뺀다 — 졸업·퇴학·전출까지 한 칸에서 찾는다.
       ...(options.includeRemoved
         ? {}
         : { enrollments: { some: { year, status: "ENROLLED" } } }),
       OR: [
         { user: { name: { contains: query, mode: "insensitive" } } },
         { studentCode: { contains: query, mode: "insensitive" } },
-        // 학번은 그 학년도 재적에만 있다 — 명단에서 빠진 학생은 이 갈래로 안 잡히고
-        // 학생코드로만 찾힌다. 여기서 year를 빼면 작년 번호로 남의 학생이 나온다.
         ...(studentNumber
           ? [
               {
@@ -627,16 +491,11 @@ export async function searchStudents(
       ],
     },
     take: 30,
-    // 이름은 유일하지 않다. 동명이인이 30번째 자리를 다투면 누가 잘려 나가는지가
-    // 호출마다 달라져, 같은 검색어를 다시 쳤을 때 있던 학생이 사라진다.
-    // 자르는 자리를 유일한 키로 고정한다.
     orderBy: [{ user: { name: "asc" } }, { id: "asc" }],
     select: {
       id: true,
       studentCode: true,
       user: { select: { name: true } },
-      // 학적으로 거르지 않는다 — 재학인 줄만 가져오면 화면이 "반 미배정"과
-      // "졸업"을 구분할 수 없다. 명단에서 빠졌는지도 이 줄이 답한다(서비스가 접는다).
       enrollments: {
         where: { year },
         take: 1,
@@ -651,8 +510,6 @@ export async function searchStudents(
   });
 }
 
-/** 이 학생에게 기록이 있는 학년도들 (내림차순). 학년도 선택지에 쓴다.
- * 교내(SCHOOL)만 학년도 개념이 있다 — 기숙사는 누적이라 조건에 넣지 않는다. */
 export async function listAwardYears(studentProfileId: string): Promise<number[]> {
   const rows = await prisma.meritAward.findMany({
     where: { studentProfileId, track: "SCHOOL" },
@@ -663,17 +520,9 @@ export async function listAwardYears(studentProfileId: string): Promise<number[]
   return rows.map((r) => r.year);
 }
 
-/**
- * 학부모의 자녀들. **거르지 않는다** — 아래 isChildOf와 같은 판단이다.
- * 졸업했다고 부모가 아니게 되지 않고, 이 목록이 자녀 기록에 닿는 유일한 입구라
- * 재적으로 거르면 졸업한 자녀의 상벌점을 부모가 다시 볼 길이 없어진다.
- * (오등록 정리는 계정을 행째 지우고, ParentStudent는 그때 Cascade로 함께 사라진다.)
- */
 export async function listChildren(parentUserId: string) {
   return prisma.parentStudent.findMany({
     where: { parentUserId },
-    // 대시보드가 첫 자녀의 상벌점을 요약하므로 첫 행은 새로고침마다 같아야 한다.
-    // 동명이인은 불변 식별자인 학생 프로필 id로 동점을 끊는다.
     orderBy: [
       { student: { user: { name: "asc" } } },
       { student: { id: "asc" } },
@@ -684,10 +533,6 @@ export async function listChildren(parentUserId: string) {
   });
 }
 
-/**
- * 이 학부모와 이 학생이 연결되어 있는가. 소유권 검사의 전부다.
- * 연결만 본다 — 명단에서 빠졌다고 부모가 아니게 되지 않는다 (listChildren과 같다).
- */
 export async function isChildOf(
   parentUserId: string,
   studentProfileId: string,
@@ -699,12 +544,6 @@ export async function isChildOf(
   return link !== null;
 }
 
-/**
- * 화면 머리글용 신원 — 이름·학생코드와 그 학년도의 학급(스냅샷이 아니라 조인이다).
- * **재적으로 거르지 않는다** — 걸러 버리면 명단에서 빠진 학생의 기록에 닿는 경로가
- * 없어진다. 빠졌다는 사실은 아래 `removed`가 싣고, 화면은 그것으로 부여 폼을 감춘다.
- * 실제로 막는 것은 화면이 아니라 위의 `findAwardableStudent`다.
- */
 export async function findStudentHeader(id: string, year: number) {
   const profile = await prisma.studentProfile.findFirst({
     where: { id },
@@ -735,13 +574,6 @@ export async function findStudentHeader(id: string, year: number) {
     classNo: enrollment?.classNo ?? null,
     number: enrollment?.number ?? null,
     status: enrollment?.status ?? null,
-    /**
-     * 그 학년도 명단에서 빠졌는가 — 재적(ENROLLED)이 아니면 true다. 재적 줄이
-     * 아예 없는 경우(학년도가 막 넘어간 직후)도 여기 든다.
-     *
-     * 날짜가 아니라 참·거짓인 이유: 학적에는 "언제 바뀌었나"가 없다. 날짜를 싣던
-     * 옛 값(`user.deletedAt`)은 아무도 채우지 않아 화면이 늘 꺼져 있었다.
-     */
     removed: enrollment?.status !== "ENROLLED",
   };
 }
@@ -764,9 +596,6 @@ const RECENT_AWARD_SELECT = {
     select: {
       id: true,
       user: { select: { name: true } },
-      // 학년도로 걸러 오지 않는다 — 중첩 where는 바깥 행의 `year`를 참조할 수
-      // 없다. 한 학생의 재적은 학년도당 한 줄(최대 3줄)이므로 통째로 받아
-      // 매핑에서 그 기록의 학년도에 맞는 것을 고른다.
       enrollments: {
         select: {
           year: true,
@@ -806,7 +635,6 @@ function recentAwardWhere(filter: RecentAwardFilter): Prisma.MeritAwardWhereInpu
 }
 
 function toRecentAwardRow(row: RecentAwardRecord) {
-  // 그 기록이 난 학년도의 재적. 같은 이름이 둘일 때 학급·번호가 유일한 구분이다.
   const enrollment = row.studentProfile.enrollments.find((e) => e.year === row.year);
 
   return {
@@ -831,11 +659,6 @@ function toRecentAwardRow(row: RecentAwardRecord) {
   };
 }
 
-/**
- * 최근 부여 한 페이지. 취소된 것도 포함한다 — 취소 역시 일어난 일이다.
- * 여기만 입력순(createdAt)이다 — 발생일순으로 세우면 방금 넣은 지난주 기록이
- * 아래로 내려가, 잘못 넣은 것을 되돌리러 온 사람이 못 찾는다.
- */
 export async function findRecentAwardPage(
   filter: RecentAwardFilter,
   skip: number,
@@ -843,12 +666,6 @@ export async function findRecentAwardPage(
 ) {
   const rows = await prisma.meritAward.findMany({
     where: recentAwardWhere(filter),
-    // 보조 정렬키가 없으면 쪽 경계가 흔들린다. 일괄 부여 한 번이 넣은 반 전체는
-    // **밀리초까지 같은 createdAt**을 갖는데(`createAwards`가 한 시각을 찍어
-    // 넣는다), SQL은 정렬키가 같은 행 사이의 순서를 보장하지 않는다 — OFFSET이
-    // 달라지면 동점 구간 순서가 뒤집혀 어느 쪽에도 안 나오는 줄이나 두 번 나오는
-    // 줄이 생긴다. id는 cuid라 시간순은 아니지만 유일하고 결정적이다 — 쪽 경계를
-    // 고정하는 데 필요한 것은 시간순이 아니라 유일성이다.
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     skip,
     take,
@@ -862,13 +679,9 @@ export async function countRecentAwards(filter: RecentAwardFilter): Promise<numb
   return prisma.meritAward.count({ where: recentAwardWhere(filter) });
 }
 
-/** 같은 필터의 전체 결과. 화면 페이지와 달리 다운로드용이라 take를 두지 않는다. */
 export async function findRecentAwardsForExport(filter: RecentAwardFilter) {
   const rows = await prisma.meritAward.findMany({
     where: recentAwardWhere(filter),
-    // 쪽을 나누지 않으니 줄이 사라질 일은 없다. 그래도 화면 페이지와 같은 키로
-    // 세운다 — 내보낸 파일을 화면과 나란히 놓고 대조하고, 같은 필터로 두 번
-    // 내려받은 파일을 diff하면 순서 차이만으로 어긋나면 안 된다.
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     select: RECENT_AWARD_SELECT,
   });
@@ -876,31 +689,19 @@ export async function findRecentAwardsForExport(filter: RecentAwardFilter) {
   return rows.map(toRecentAwardRow);
 }
 
-// ── 통계 ──────────────────────────────────────────────────────
-
 type ActiveAwardScope =
   | {
-      /** 개인 상세는 퇴·졸업 뒤에도 본인 과거 기록을 그대로 읽는다. */
       studentProfileId: string;
       rosterYear?: never;
       studentProfileIds?: never;
     }
   | {
-      /** 통계 모집단은 이 학년도의 재학생이다. 합계 학년도와는 별개다. */
       rosterYear: number;
-      /** 반 범위가 있으면 재적 조건과 교집합한다. 빈 배열도 빈 모집단이다. */
       studentProfileIds?: string[];
       studentProfileId?: never;
     };
 
-/**
- * ACTIVE 부여 기록의 공통 술어. 트랙·합계 학년도·학생 모집단을 한곳에서 조립한다.
- *
- * 통계 갈래는 rosterYear를 타입으로 강제하고 재학(ENROLLED) 관계를 언제나 건다.
- * 학생 id 목록은 그 관계를 대체하지 않고 더 좁힌다 — 퇴학생 id가 섞여도 다시
- * 살아나지 않는다. 개인 상세 갈래만 직접 id로 과거 기록을 보며 재적을 묻지 않는다.
- * 최근 7일(trackTotalsBetween)과 미사용 규정(unusedRules)은 의미가 달라 쓰지 않는다.
- */
+/* 통계는 rosterYear의 ENROLLED 학생만, 개인 이력은 학적과 무관하게 조회한다. */
 function activeAwardWhere(
   params: {
     track: MeritTrack;
@@ -929,19 +730,9 @@ function activeAwardWhere(
   };
 }
 
-/**
- * 규정별 집계의 공통 원자료. 「많이 나온 항목」과 규정별 통계가 함께 쓴다.
- *
- * **ruleId로 묶고 자르지 않는다.** 기록의 label은 부여 시점 스냅샷이라 규정 이름을
- * 고치면 같은 규정이 이름별로 나뉜 채 오는데(updateRuleSchema가 label을 받는다),
- * 여기서 상위 N개로 잘라 버리면 그 규정이 두 칸을 차지한 채 잘려 순위가 틀린다 —
- * 6건짜리 두 줄로 갈라진 12건 규정이 10건 규정에게 진다. 접는 일도 자르는 일도
- * 서비스가 해야 한다. repo는 스냅샷별 집계와 현재 규정 메타데이터만 함께 돌려준다.
- */
 export async function awardsByRule(params: {
   track: MeritTrack;
   totalsYear: number | null;
-  /** 모집단을 정할 명단 학년도. 합계 범위와 별개이며 생략할 수 없다. */
   rosterYear: number;
   studentProfileIds?: string[];
 }) {
@@ -957,8 +748,6 @@ export async function awardsByRule(params: {
     _sum: { points: true },
   });
 
-  // 분류·활성 상태는 부여 기록에 복사되지 않는다. 현재 이름도 함께 읽어 서비스가
-  // 이름 변경 전후 스냅샷을 한 규정으로 접게 한다. 빈 집계면 두 번째 질의를 생략한다.
   const rules =
     rows.length === 0
       ? []
@@ -970,13 +759,6 @@ export async function awardsByRule(params: {
   return { rows, rules };
 }
 
-/**
- * 부여자별 집계 — "누가 얼마나 줬나".
- *
- * `awardedByUserId`로 묶는다. 계정이 지워지면 SetNull이 되므로 null 묶음이 생기고,
- * 그쪽은 이름 스냅샷(`awardedByName`)으로 다시 묶어야 "삭제된 계정 3명"이 한 덩어리로
- * 뭉치지 않는다 — 두 질의로 나누는 이유다. 이름을 붙이는 일은 서비스가 한다.
- */
 export async function teacherTotals(params: {
   track: MeritTrack;
   totalsYear: number | null;
@@ -995,7 +777,6 @@ export async function teacherTotals(params: {
       _count: { _all: true },
       _sum: { points: true },
     }),
-    // 계정이 사라진 기록. 이름 스냅샷이 유일하게 남은 신원이다.
     prisma.meritAward.groupBy({
       by: ["awardedByName", "kind"],
       where: { ...where, awardedByUserId: null },
@@ -1007,7 +788,6 @@ export async function teacherTotals(params: {
   return { byUser, byName };
 }
 
-/** 부여자 이름을 살아 있는 계정에서 읽는다 — 스냅샷이 아니라 지금 이름을 보여준다. */
 export async function findUserNames(ids: string[]) {
   if (ids.length === 0) return [];
   return prisma.user.findMany({
@@ -1016,10 +796,6 @@ export async function findUserNames(ids: string[]) {
   });
 }
 
-/**
- * 한 번도 쓰이지 않은 규정. 규정표를 다듬을 때 쓴다 — 쓰지 않는 항목이 부여
- * 목록을 길게 만들어 고르는 시간을 늘린다.
- */
 export async function unusedRules(params: {
   track: MeritTrack;
   totalsYear: number | null;
@@ -1040,11 +816,9 @@ export async function unusedRules(params: {
   });
 }
 
-/** 트랙 전체 합계 — 통계 화면 머리글. */
 export async function trackTotals(params: {
   track: MeritTrack;
   totalsYear: number | null;
-  /** 모집단을 정할 명단 학년도. 합계 범위와 별개이며 생략할 수 없다. */
   rosterYear: number;
   studentProfileIds?: string[];
 }) {
@@ -1061,21 +835,9 @@ export async function trackTotals(params: {
   });
 }
 
-/**
- * 트랙 집계를 **발생일 창**으로 자른다 — 대시보드의 "최근 7일"이 쓴다.
- *
- * 학년도로 자르지 않는 게 핵심이다: 3월 초에는 지난 7일이 두 학년도에 걸치는데,
- * 학년도 필터를 함께 걸면 2월 며칠치가 소리 없이 빠져 "이번 주는 조용했다"로 읽힌다.
- * 창은 날짜만 정한다.
- *
- * kind를 인자로 받는 이유도 같다 — 상쇄점을 뺄지는 화면마다 다른 판단이라
- * 여기서 정하지 않는다.
- */
 export async function trackTotalsBetween(params: {
   track: MeritTrack;
-  /** 발생일 하한(포함). KST 자정이어야 한다 — occurredOn이 그 눈금이다. */
   since: Date;
-  /** 발생일 상한(제외). */
   until: Date;
   kinds: readonly MeritKind[];
 }) {
@@ -1092,24 +854,10 @@ export async function trackTotalsBetween(params: {
   });
 }
 
-/**
- * 학생별 벌점 합계. 줄은 재적이 아니라 **부여 쪽에서** 모은다 — 이 명단이 답할
- * 것은 "벌점이 기준을 넘은 사람"이고, 기록이 없는 학생은 셀 이유가 없다.
- * 순점수가 아니라 벌점 총합만 센다.
- *
- * 모집단은 `rosterYear`의 재적으로 자른다. **기숙사는 누적(totalsYear = null)이라
- * 이 조건이 없으면 졸업생이 기준 초과 명단에 영원히 남는다** — 사감이 오늘 볼
- * 명단에 3년 전 졸업생이 섞이면 명단 자체를 안 믿게 된다. 반 미배정
- * (ENROLLED · grade/classNo null)은 그대로 남는다: 술어는 반이 아니라 재적이고,
- * 놓치면 안 되는 쪽이 그쪽이다.
- */
 export async function demeritTotalsByStudent(params: {
   track: MeritTrack;
-  /** null이면 전체 누적(기숙사). */
   totalsYear: number | null;
-  /** 모집단을 정할 명단 학년도. 합계 범위(totalsYear)와 별개다. */
   rosterYear: number;
-  /** 주면 이 학생들 것만. 반을 골라 보는 화면이 쓴다. */
   studentProfileIds?: string[];
 }) {
   return prisma.meritAward.groupBy({
@@ -1127,11 +875,6 @@ export async function demeritTotalsByStudent(params: {
   });
 }
 
-/**
- * 이름·학생코드와 그 학년도의 소속. 기준 초과 명단이 id 목록에 신원을 붙인다.
- * **거르지 않는다** — 모집단은 위 `demeritTotalsByStudent`가 이미 재적으로
- * 잘랐고, 여기서 한 번 더 걸면 같은 규칙이 두 곳에 생겨 언젠가 갈린다.
- */
 export async function findStudentsWithClass(ids: string[], year: number) {
   if (ids.length === 0) return [];
 
@@ -1154,21 +897,11 @@ export async function findStudentsWithClass(ids: string[], year: number) {
   });
 }
 
-// ── 그래프용 조회 ─────────────────────────────────────────────
-
-/**
- * 그래프에 쓸 원자료. 애플리케이션에서 묶는다 — Prisma groupBy로는 월 단위로
- * 자를 수 없고, 월 구분은 KST 기준이어야 한다(UTC면 밤 9시 이후가 전날로 밀린다).
- * 분류는 스냅샷되지 않으므로 규정 쪽에서 함께 가져온다.
- */
 export async function listAwardsForChart(params: {
   track: MeritTrack;
   totalsYear: number | null;
-  /** 이 날 이후에 **일어난** 것만. 기숙사(누적)의 최근 12개월을 자를 때 쓴다. */
   since?: Date;
-  /** 모집단을 정할 명단 학년도. 합계 범위와 별개이며 생략할 수 없다. */
   rosterYear: number;
-  /** 주면 이 학생들 것만. 반을 골라 보는 화면이 쓴다. */
   studentProfileIds?: string[];
 }) {
   return prisma.meritAward.findMany({
@@ -1179,7 +912,6 @@ export async function listAwardsForChart(params: {
         rosterYear: params.rosterYear,
         studentProfileIds: params.studentProfileIds,
       }),
-      // 하한도 발생일로 잡는다 — createdAt으로 자르면 축과 기준이 어긋난다.
       ...(params.since ? { occurredOn: { gte: params.since } } : {}),
     },
     select: {

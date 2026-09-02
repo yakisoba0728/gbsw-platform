@@ -14,7 +14,6 @@ export const auth = betterAuth({
 
   emailAndPassword: {
     enabled: true,
-    // 자체 회원가입은 막는다. 계정 생성은 초대 흐름과 시드로만.
     disableSignUp: true,
     minPasswordLength: 10,
     maxPasswordLength: 128,
@@ -23,7 +22,6 @@ export const auth = betterAuth({
   user: {
     additionalFields: {
       phone: { type: "string", required: false },
-      // 클라이언트가 직접 넣지 못하게 input:false — 서버에서만 설정한다.
       status: {
         type: "string",
         required: false,
@@ -36,7 +34,6 @@ export const auth = betterAuth({
         input: false,
         defaultValue: false,
       },
-      // 명단에서 빠져 소프트 삭제된 계정. 세션 훅과 requireAuth()가 함께 본다.
       deletedAt: {
         type: "date",
         required: false,
@@ -50,15 +47,10 @@ export const auth = betterAuth({
     window: 60,
     max: 100,
     customRules: {
-      // 비밀번호 대입 공격 완화
       "/sign-in/email": { window: 60, max: 10 },
     },
   },
 
-  /**
-   * 중지·삭제된 계정은 세션 발급 자체를 막는다 — /api/auth/sign-in/email은
-   * requireAuth() 밖이라 여기서 막지 않으면 쿠키가 나간다.
-   */
   databaseHooks: {
     session: {
       create: {
@@ -83,7 +75,6 @@ export const auth = betterAuth({
   },
 
   plugins: [
-    // 계정 컬럼(role·banned…)만 이 플러그인이 관리한다. 업무 권한은 can.ts뿐이다.
     admin({
       ac,
       roles: adminRoles,
@@ -91,7 +82,6 @@ export const auth = betterAuth({
       defaultRole: "STUDENT",
     }),
 
-    // 서버 액션에서 Set-Cookie가 적용되게 해준다. 반드시 마지막.
     nextCookies(),
   ],
 });

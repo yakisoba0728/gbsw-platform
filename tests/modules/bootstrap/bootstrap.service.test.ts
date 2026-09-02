@@ -34,7 +34,6 @@ const input = {
   confirmPassword: "correct-horse-battery",
 };
 
-/** 사용자 0명 상태로 만들고 토큰을 발급받는다. */
 async function issueForEmptyDb(): Promise<string> {
   countUsers.mockResolvedValue(0);
   const token = await issueBootstrapTokenIfNeeded();
@@ -95,7 +94,6 @@ describe("canShowBootstrapForm()", () => {
     const token = await issueForEmptyDb();
 
     expect(await canShowBootstrapForm(token)).toBe(true);
-    // 화면을 두 번 열어도 여전히 유효해야 한다.
     expect(await canShowBootstrapForm(token)).toBe(true);
   });
 });
@@ -117,7 +115,6 @@ describe("createInitialAdmin()", () => {
 
     expect(createAdminUser).not.toHaveBeenCalled();
     expect(recordAudit).not.toHaveBeenCalled();
-    // 더 이상 필요 없으므로 토큰도 회수된다.
     expect(matchesToken(token)).toBe(false);
   });
 
@@ -127,7 +124,6 @@ describe("createInitialAdmin()", () => {
     await expect(createInitialAdmin("위조된-토큰", input)).rejects.toThrow();
 
     expect(createAdminUser).not.toHaveBeenCalled();
-    // 진짜 토큰은 살아 있어야 한다.
     expect(matchesToken(token)).toBe(true);
   });
 
@@ -140,9 +136,7 @@ describe("createInitialAdmin()", () => {
     const created = createAdminUser.mock.calls[0]![0];
     expect(created.name).toBe("홍길동");
     expect(created.email).toBe("admin@gbsw.hs.kr");
-    // 전화번호는 필수다 — 최초 관리자만 예외로 두면 번호 없는 교사 계정이 남는다.
     expect(created.phone).toBe("010-1234-5678");
-    // 평문 비밀번호가 저장 경로로 새어나가면 안 된다.
     expect(created.passwordHash).not.toBe(input.password);
     expect(created.passwordHash.length).toBeGreaterThan(20);
     expect(createAdminUser.mock.calls[0]![1]).toBe(txClient);
@@ -169,7 +163,6 @@ describe("createInitialAdmin()", () => {
 
     await expect(createInitialAdmin(token, input)).rejects.toThrow("DB 오류");
 
-    // 아직 관리자가 없으므로 다시 시도할 수 있어야 한다.
     expect(matchesToken(token)).toBe(true);
     expect(recordAudit).not.toHaveBeenCalled();
   });
@@ -181,7 +174,6 @@ describe("createInitialAdmin()", () => {
     await expect(createInitialAdmin(token, input)).rejects.toThrow("audit failed");
 
     expect(createAdminUser).toHaveBeenCalledOnce();
-    // 사용자·감사가 같은 트랜잭션이므로 실패 후 다시 시도할 수 있어야 한다.
     expect(matchesToken(token)).toBe(true);
   });
 });

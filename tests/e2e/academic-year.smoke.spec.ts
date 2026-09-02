@@ -81,7 +81,6 @@ test.afterAll(async () => {
   try {
     await client.query("BEGIN");
     if (fixtureYears) {
-      // 실패한 전환도 복구한다. 테스트가 만든 두 학년도만 내리고 원래 값을 복원한다.
       await client.query('LOCK TABLE "AcademicYear" IN SHARE ROW EXCLUSIVE MODE');
       await client.query(
         'UPDATE "AcademicYear" SET "isCurrent" = false WHERE "year" = ANY($1::int[])',
@@ -142,7 +141,6 @@ test("현재 학년도를 연속 변경해도 선택값과 현재 표시가 일�
   }
 
   await select.selectOption(String(nextYear));
-  // 화면을 유지한 채 테스트 소유 행만 없애 실제 서버 액션의 실패 경로를 만든다.
   await pool.query('DELETE FROM "AcademicYear" WHERE "year" = $1 AND "isCurrent" = false', [
     nextYear,
   ]);
@@ -157,7 +155,6 @@ test("현재 학년도를 연속 변경해도 선택값과 현재 표시가 일�
     select.getByRole("option", { name: `${initialYear}학년도 (현재)`, exact: true }),
   ).toHaveCount(1);
 
-  // 추가 폼은 입력칸을 비우되, 전환 폼의 아직 지정하지 않은 선택은 유지해야 한다.
   const newYear = page.getByRole("spinbutton", { name: "새 학년도", exact: true });
   await newYear.fill(String(nextYear));
   await page.getByRole("button", { name: "추가", exact: true }).click();
@@ -170,7 +167,6 @@ test("현재 학년도를 연속 변경해도 선택값과 현재 표시가 일�
     select.getByRole("option", { name: `${initialYear}학년도 (현재)`, exact: true }),
   ).toHaveCount(1);
 
-  // 다시 선택하지 않고 재시도한다. 성공 뒤에도 새로고침 없이 왕복해야 한다.
   await designateSelectedYear(nextYear);
   await expectCurrentYear(nextYear);
   await expect(switchError).toHaveCount(0);

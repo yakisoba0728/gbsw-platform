@@ -90,9 +90,7 @@ describe("requestCode() 목업 동작", () => {
     const result = await requestCode("PHONE", "010-1234-5678");
 
     expect(result.mockCode).toMatch(/^\d{6}$/);
-    // 발송사 설정이 안 끝나도 흐름을 눌러볼 수 있어야 한다.
     expect(sendVerification).not.toHaveBeenCalled();
-    // 코드 자체는 DB에 남아야 확인 단계가 동작한다.
     expect(insertCode).toHaveBeenCalled();
   });
 

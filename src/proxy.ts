@@ -5,10 +5,7 @@ import {
   verifyPassFlash,
 } from "@/modules/pass/pass-flash";
 
-/**
- * `/pass` 성공 안내를 한 요청에만 전달한다. 브라우저가 보낸 같은 이름의 헤더는
- * 먼저 지우고, 서버 서명이 유효한 HttpOnly 쿠키만 내부 요청 헤더로 승격한다.
- */
+// 입력 헤더를 지우고, 서명된 일회용 쿠키만 /pass 안내 헤더로 전달한다.
 export function proxy(request: NextRequest) {
   if (request.method !== "GET" || request.nextUrl.pathname !== "/pass") {
     return NextResponse.next();

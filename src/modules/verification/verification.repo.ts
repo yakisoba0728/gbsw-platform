@@ -1,7 +1,5 @@
 import { prisma, type DbClient } from "@/core/db/client";
 
-/** Prisma 호출만 둔다. 이 모듈은 감사로그를 남기지 않는다 (service 주석 참고). */
-
 export async function countRecentSends(
   channel: string,
   target: string,
@@ -13,7 +11,6 @@ export async function countRecentSends(
   });
 }
 
-/** 같은 IP에서 최근 보낸 횟수 (I4). channel을 가리지 않고 센다. */
 export async function countRecentSendsByIp(
   ip: string,
   since: Date,
@@ -24,16 +21,13 @@ export async function countRecentSendsByIp(
   });
 }
 
-/**
- * 한도 검사와 proof 발급 사이의 틈을 닫는다. 같은 대상·같은 IP 버킷은 트랜잭션
- * 안에서 순서대로 세고 만든다.
- */
 export async function lockSendRateLimitBuckets(
   channel: string,
   target: string,
   ip: string | null,
   db: DbClient,
 ): Promise<void> {
+  // 모든 요청이 대상 → IP 순으로 잠가 count와 insert를 직렬화한다.
   await db.$executeRaw`
     SELECT pg_advisory_xact_lock(hashtextextended(${`verification:target:${channel}:${target}`}, 0))
   `;
@@ -45,7 +39,6 @@ export async function lockSendRateLimitBuckets(
   `;
 }
 
-/** 같은 대상의 아직 안 쓴 코드를 모두 만료시킨다 — 마지막 코드만 유효하게. */
 export async function expirePending(
   channel: string,
   target: string,
@@ -69,7 +62,6 @@ export async function insertCode(input: {
   return db.verificationCode.create({ data: input });
 }
 
-/** 아직 살아 있는 최신 코드 한 건. */
 export async function findLiveCode(
   channel: string,
   target: string,
@@ -104,7 +96,6 @@ export async function markVerified(id: string, now: Date): Promise<void> {
   });
 }
 
-/** 가입 시점에 "확인 끝났고 아직 안 쓴" 코드를 찾는다. */
 export async function findVerified(
   channel: string,
   target: string,
@@ -135,7 +126,6 @@ export async function consume(
   return count;
 }
 
-/** 발송 실패로 무의미해진 코드를 지운다. */
 export async function deleteById(id: string): Promise<void> {
   await prisma.verificationCode.delete({ where: { id } });
 }

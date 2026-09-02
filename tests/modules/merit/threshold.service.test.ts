@@ -3,11 +3,6 @@ import { DEFAULT_DEMERIT_THRESHOLDS } from "@/core/authz/merit-track";
 import { coreMocks } from "../../helpers/core-mocks";
 import { user } from "../../helpers/session";
 
-/**
- * 벌점 기준 설정. 행이 없어도 화면이 동작해야 한다 — 한 번도 설정하지 않은
- * 상태가 정상이라 "빈 DB"가 첫 번째 케이스다.
- */
-
 const listThresholds = vi.fn();
 const findThreshold = vi.fn();
 const createThreshold = vi.fn();
@@ -36,7 +31,6 @@ const parent = user("PARENT", "p-1", { name: "이정민" });
 const THRESHOLD_UPDATED_AT = new Date("2026-08-17T00:00:00.000Z");
 const NEXT_UPDATED_AT = new Date("2026-08-18T00:00:00.000Z");
 
-/** repo.listThresholds가 내는 모양 (updatedAt·이름 스냅샷 포함). */
 function row(track: string, warn: number, danger: number) {
   return {
     track,
@@ -102,8 +96,6 @@ describe("listThresholdSettings — 설정 화면이 보는 값", () => {
     const school = rows.find((r) => r.track === "SCHOOL")!;
     expect(school.warn).toBe(15);
     expect(school.updatedByName).toBe("이정민");
-    // 한 번도 저장 안 한 트랙은 "설정된 적 없음"이 드러나야 한다 —
-    // 기본값인지 학교가 정한 값인지 화면에서 구분되어야 하기 때문이다.
     const dorm = rows.find((r) => r.track === "DORM")!;
     expect(dorm).toMatchObject({ ...DEFAULT_DEMERIT_THRESHOLDS.DORM, configured: false });
     expect(school.configured).toBe(true);

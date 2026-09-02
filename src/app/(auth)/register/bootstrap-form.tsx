@@ -28,11 +28,6 @@ export function BootstrapForm({ token }: { token: string }) {
       </h1>
       <p className="mb-8 text-caption text-mut">이 화면은 한 번만 열립니다.</p>
 
-      {/*
-        비제어 칸이라 실패 뒤 폼 자동 리셋(React 19)에 지워진다. 액션이 되돌려준
-        제출값을 defaultValue로 다시 심어 살린다 — 리셋은 이 커밋의 DOM 갱신이
-        끝난 뒤에 돌아서 새 defaultValue를 본다. 비밀번호 두 칸은 일부러 뺐다.
-      */}
       <Label htmlFor="name">이름</Label>
       <Input size="lg"
         id="name"

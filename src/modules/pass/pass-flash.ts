@@ -4,7 +4,7 @@ export const PASS_FLASH_COOKIE = "gbsw.pass-flash";
 export const PASS_FLASH_HEADER = "x-gbsw-pass-flash";
 export const PASS_FLASH_MAX_AGE_SECONDS = 120;
 
-export const PASS_FLASH_KINDS = ["requested", "consented", "approved"] as const;
+const PASS_FLASH_KINDS = ["requested", "consented", "approved"] as const;
 export type PassFlashKind = (typeof PASS_FLASH_KINDS)[number];
 
 type Payload = {

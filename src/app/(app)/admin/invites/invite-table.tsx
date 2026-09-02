@@ -18,18 +18,10 @@ export type InviteRow = {
   role: string;
   roleLabel: string;
   status: string;
-  /**
-   * 아직 가입에 쓸 수 있는가. 서버(`panel.tsx`)가 `isInviteUsable`로 정해 넘긴다 —
-   * `expiresAt`은 여기 오면 이미 표시용 문자열이라 만료를 다시 잴 수 없다.
-   */
   usable: boolean;
-  /** 코드에 등록된 사람 이름 */
   name: string;
-  /** "1학년 4반 21번" — 학생 코드이거나 학부모 코드의 자녀 */
   classLabel: string | null;
-  /** 학생 코드에만 있음 */
   birthDate: string | null;
-  /** 학부모 코드일 때 자녀 이름 */
   childName: string | null;
   createdAt: string;
   expiresAt: string | null;
@@ -50,7 +42,6 @@ const STATUS_LABEL: Record<string, string> = {
   REVOKED: "폐기",
 };
 
-/** 기본은 폐기 제외. 폐기된 코드는 골라야만 보인다. */
 const STATUS_FILTERS = [
   { key: "PENDING", label: "대기" },
   { key: "EXPIRED", label: "만료" },
@@ -59,11 +50,6 @@ const STATUS_FILTERS = [
   { key: "ALL", label: "모두" },
 ] as const;
 
-/**
- * 화면이 세고 그리는 상태. DB에는 만료가 없어 기한이 지난 코드도 PENDING으로
- * 남는다 — 그대로 세면 「대기 20」이 쓸 수 없는 코드 20개를 가리키고, 교사는
- * 재발급하지 않는다. 폐기 버튼만은 원래 status를 본다: 만료된 코드도 치울 수 있다.
- */
 function displayStatus(row: InviteRow): string {
   return row.status === "PENDING" && !row.usable ? "EXPIRED" : row.status;
 }
@@ -78,10 +64,6 @@ const ROLE_FILTERS = [
 type StatusKey = (typeof STATUS_FILTERS)[number]["key"];
 type RoleKey = (typeof ROLE_FILTERS)[number]["key"];
 
-/**
- * 좁은 폭에서는 카드로 접힌다. 표로 두면 768·1024에서 오른쪽 절반(상태·발급일·
- * 폐기)이 통째로 스크롤 뒤에 숨어, 폐기 버튼에 닿을 방법이 없었다.
- */
 const COLUMNS: readonly Column<InviteRow>[] = [
   {
     key: "code",
@@ -160,7 +142,6 @@ const COLUMNS: readonly Column<InviteRow>[] = [
   },
   {
     key: "revoke",
-    // 폐기 버튼 열 — 머리글에 이름이 없다.
     header: "",
     card: "actions",
     cell: (row) =>
@@ -184,7 +165,6 @@ export function InviteTable({ rows }: { rows: InviteRow[] }) {
     const q = query.trim().toLowerCase();
 
     return rows.filter((row) => {
-      // "모두"에서도 폐기는 따로 골라야 보인다. 만료는 "모두"에 든다.
       if (status === "ALL" ? row.status === "REVOKED" : displayStatus(row) !== status) {
         return false;
       }

@@ -70,7 +70,7 @@ beforeEach(() => {
   withTransaction.mockClear();
 });
 
-const NOW = new Date("2026-08-27T00:00:00.000Z"); // 09:00 KST
+const NOW = new Date("2026-08-27T00:00:00.000Z");
 
 function pending(over: Record<string, unknown> = {}) {
   return {
@@ -474,8 +474,6 @@ describe("cancelPass", () => {
     ).rejects.toThrow(new PassError("ALREADY_CANCELLED"));
   });
 
-  // 학생이 무를 수 있는 것은 request.service의 withdrawPass뿐이다 — 승인된 것을
-  // 무르는 이 경로는 교사의 일이고, 남의 출입증까지 닿는다.
   it("학생은 취소할 수 없다", async () => {
     findPass.mockResolvedValue(pending({ status: "APPROVED" }));
     await expect(
@@ -492,7 +490,6 @@ describe("목록", () => {
     expect(listPendingForAdmin).toHaveBeenCalledWith(NOW, 2026);
   });
 
-  // 「지금 나가 있는 학생」 전원의 이름·학급·행선지가 나오는 자리다.
   it("지금 유효한 목록도 교사만 본다", async () => {
     await expect(service.listActivePasses(student, NOW)).rejects.toThrow(ForbiddenError);
     expect(listActiveNow).not.toHaveBeenCalled();
@@ -517,7 +514,6 @@ describe("전체 내역", () => {
     expect(listHistory).not.toHaveBeenCalled();
   });
 
-  /** 내보내기 조건은 쪽 번호만 빠진 같은 모양이다. */
   const exportInput = {
     type: undefined,
     status: undefined,
@@ -539,7 +535,6 @@ describe("전체 내역", () => {
 
     expect(listHistory).toHaveBeenCalledWith(
       expect.objectContaining({
-        // 8/1 00:00 KST ~ 8/27 00:00 KST (끝날을 통째로 포함한다)
         since: new Date("2026-07-31T15:00:00.000Z"),
         until: new Date("2026-08-26T15:00:00.000Z"),
         skip: 40,
@@ -547,12 +542,9 @@ describe("전체 내역", () => {
       }),
       2026,
     );
-    expect(result.pageCount).toBe(3); // 45건 / 20
+    expect(result.pageCount).toBe(3);
   });
 
-  // 학생 상세의 출입증 탭이 쓰는 갈래다. 기본 30일 창은 전교를 훑지 않으려는
-  // 장치이지 한 사람의 누적을 자르라는 규칙이 아니다 — 걷지 않으면 9월에 나간
-  // 기록이 12월에 안 보인다.
   it("한 학생으로 좁히고 시작일을 안 골랐으면 30일 하한을 걷는다", async () => {
     await service.listPassHistory(admin, {
       ...query,
@@ -573,7 +565,7 @@ describe("전체 내역", () => {
     expect(listHistory).toHaveBeenCalledWith(
       expect.objectContaining({
         studentProfileId: "sp-1",
-        since: new Date("2026-07-31T15:00:00.000Z"), // 8/1 00:00 KST
+        since: new Date("2026-07-31T15:00:00.000Z"),
       }),
       2026,
     );
@@ -605,7 +597,6 @@ describe("전체 내역", () => {
       expect.objectContaining({ skip: 0, take: null }),
       2026,
     );
-    // 파일 이름이 곧 기간이다 — 조건을 바꿔 두 번 받아도 서로 덮어쓰지 않는다.
     expect(filename).toBe("출입증내역_2026-08-01~2026-08-26.xlsx");
   });
 });

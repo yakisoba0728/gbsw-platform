@@ -9,7 +9,6 @@ import { CommunityList } from "./community-list";
 export const metadata: Metadata = { title: "커뮤니티 관리" };
 
 export default async function AdminCommunityPage() {
-  // 페이지에서 한 번, 서비스에서 또 한 번 검사한다 (defense-in-depth).
   const actor = await requirePermission("community:manage");
   const boards = await listForManage(actor);
 

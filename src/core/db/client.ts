@@ -9,10 +9,9 @@ if (!connectionString) {
   );
 }
 
-// Prisma 7은 드라이버 어댑터로만 SQL에 접속한다.
 const adapter = new PrismaPg({ connectionString });
 
-// 핫 리로드마다 커넥션 풀이 새로 생기지 않게 개발에서는 globalThis에 붙인다.
+// 개발 핫 리로드마다 커넥션 풀이 늘어나지 않도록 재사용한다.
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
 };
@@ -25,7 +24,7 @@ if (process.env.NODE_ENV !== "production") {
 
 export type DbClient = Prisma.TransactionClient;
 
-export type TransactionOptions = {
+type TransactionOptions = {
   maxWait?: number;
   timeout?: number;
   isolationLevel?: Prisma.TransactionIsolationLevel;

@@ -180,8 +180,6 @@ describe("getPost", () => {
   });
 
   it("익명 게시판이면 작성자가 없다", async () => {
-    // 서비스는 조인된 post.community가 아니라 getReadableBySlug가 돌려준 것을
-    // 쓴다 — 권한을 판정한 그 행이 곧 뷰가 보는 행이어야 한다. 둘을 함께 세운다.
     findPost.mockResolvedValue({ ...row(), community: board({ anonymous: true }) });
     getReadableBySlug.mockResolvedValue(board({ anonymous: true }));
 
@@ -228,8 +226,6 @@ describe("updatePost", () => {
 
   beforeEach(() => {
     findPost.mockResolvedValue({ ...row(), community: board() });
-    // 넓어진 repo 계약을 흉내 낸다: 이미 같은 글에 붙은 것(kept)과 내 미결
-    // 첨부(pending)는 모두 세고, 지워졌거나 남의 것은 세지 않는다.
     attachToPost.mockImplementation(async (ids: string[]) =>
       ids.filter((id) => attachableIds.has(id)).length,
     );
@@ -250,7 +246,7 @@ describe("updatePost", () => {
     expect(updatePost).not.toHaveBeenCalled();
   });
 
-  it("**교사도 남의 글은 못 고친다** — 조정은 삭제이지 대필이 아니다", async () => {
+  it("교사도 남의 글은 못 고친다 — 조정은 삭제이지 대필이 아니다", async () => {
     await expect(service.updatePost(admin, input)).rejects.toThrow(ForbiddenError);
     expect(updatePost).not.toHaveBeenCalled();
   });
@@ -397,7 +393,7 @@ describe("updatePost", () => {
     });
   });
 
-  it("**뺀 첨부는 파일 이름과 함께 감사로그에 한 건씩 남는다** — 되돌릴 수 없는 삭제다", async () => {
+  it("뺀 첨부는 파일 이름과 함께 감사로그에 한 건씩 남는다 — 되돌릴 수 없는 삭제다", async () => {
     detachFromPost.mockResolvedValue([
       {
         id: "a9",
@@ -424,8 +420,6 @@ describe("updatePost", () => {
       ...row(),
       community: board({ allowAttachments: false }),
     });
-    // updatePost는 읽기 문이 아니라 쓰기 문을 지난다 (읽기 전용으로 얼린
-    // 게시판에서 옛 글쓴이가 본문을 갈아 끼우지 못하게 한 뒤로).
     getWritableBySlug.mockResolvedValue(board({ allowAttachments: false }));
 
     await expect(
@@ -509,7 +503,7 @@ describe("deletePost", () => {
     );
   });
 
-  it("**남의 글을 사유 없이 지우려 하면 거부한다** — 화면을 건너뛴 요청도 막는다", async () => {
+  it("남의 글을 사유 없이 지우려 하면 거부한다 — 화면을 건너뛴 요청도 막는다", async () => {
     await expect(
       service.deletePost(admin, { postId: "p1", reason: null }),
     ).rejects.toThrow(new CommunityError("REASON_REQUIRED"));
@@ -568,10 +562,6 @@ describe("listPostPage", () => {
   });
 });
 
-/**
- * 대시보드의 「새 글」. 게시판이 섞여 오므로 **글마다 제 게시판의 anonymous를
- * 골라** 뷰 변환기에 넘겨야 한다 — 그 배선이 이 함수에만 있다.
- */
 describe("listRecentPosts", () => {
   const anonymousBoard = board({
     id: "c2",
@@ -597,7 +587,6 @@ describe("listRecentPosts", () => {
     expect(result[1].author).toBeNull();
     expect(result[1].communityName).toBe("고민 게시판");
     expect(JSON.stringify(result)).not.toContain("최유진");
-    // 실명 쪽까지 함께 지워 버린 것을 「익명이 잘 됐다」로 읽지 않는다.
     expect(JSON.stringify(result)).toContain("김민준");
   });
 

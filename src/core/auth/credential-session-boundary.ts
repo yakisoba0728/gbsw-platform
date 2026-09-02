@@ -44,15 +44,7 @@ function getCredentialSignInBody(context: HookContext): SignInEmailBody | null {
   return { email: maybeBody.email, password: maybeBody.password };
 }
 
-export function isCredentialSignInHookContext(context: HookContext): boolean {
-  return getCredentialSignInBody(context) !== null;
-}
-
-/**
- * Better Auth verifies the password before inserting the session. A concurrent
- * password change can commit between those two steps, so the session insert is
- * rechecked against the current credential row while holding its row lock.
- */
+// 비밀번호 변경과 같은 행을 잠가, 이전 비밀번호로 늦게 생성된 세션을 취소한다.
 export async function assertCredentialSignInSessionStillCurrent(
   session: CreatedSession | null | undefined,
   context: HookContext,
@@ -83,6 +75,7 @@ export async function assertCredentialSignInSessionStillCurrent(
     return "stale";
   });
 
+  // 삭제를 커밋한 뒤 던져야 취소한 세션이 롤백으로 되살아나지 않는다.
   if (check === "stale") throw unauthorizedCredentialSignIn();
 }
 

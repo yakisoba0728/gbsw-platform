@@ -1,11 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { user } from "../../helpers/session";
 
-/**
- * 교사별·규정별 집계. 두 화면 모두 "누가/무엇이 얼마나"를 세는데, 계정이 지워지거나
- * 규정이 지워진 뒤에도 기록은 남는다 — 그 뒤처리를 못 박는다.
- */
-
 const teacherTotals = vi.fn();
 const findUserNames = vi.fn();
 const awardsByRule = vi.fn();
@@ -16,7 +11,6 @@ vi.mock("@/modules/merit/merit.repo", () => ({
   findUserNames,
   awardsByRule,
   unusedRules,
-  // 같은 모듈의 나머지 export — 팩토리에 없으면 undefined가 되어 다른 서비스가 깨진다.
   trackTotals: vi.fn(),
   trackTotalsBetween: vi.fn(),
   listAwardsForChart: vi.fn(),
@@ -112,7 +106,6 @@ describe("getTeacherStats", () => {
 
     const { rows, teacherCount } = await service.getTeacherStats(admin, "SCHOOL");
 
-    // 삭제된 계정끼리 한 덩어리로 뭉치면 안 된다 — 이름별로 나뉜다.
     expect(teacherCount).toBe(3);
     expect(rows.filter((r) => r.removed).map((r) => r.name).sort()).toEqual(
       ["또다른선생", "떠난선생"].sort(),
@@ -180,7 +173,6 @@ describe("getRuleStats", () => {
       ],
       rules: [
         { id: "r-1", label: "등교 지각", category: "생활", active: true },
-        // 규정 관리에서 지웠지만 이미 나간 기록은 남는다.
         { id: "r-2", label: "봉사", category: "봉사", active: false },
       ],
     });
@@ -203,9 +195,6 @@ describe("getRuleStats", () => {
   });
 
   it("이름이 바뀐 규정을 한 줄로 접고 건수를 합친다", async () => {
-    // 부여 기록의 label은 부여 시점 스냅샷이라, 규정 이름을 고친 뒤 다시 부여하면
-    // 같은 ruleId가 이름별로 나뉜 채 온다. 접지 않으면 화면이 ruleId를 막대 폭과
-    // 행 key로 쓰므로 뒤 줄이 앞 줄을 덮고, 「쓰인 규정」이 규정 수를 세지 않는다.
     awardsByRule.mockResolvedValue({
       rows: [
         { ruleId: "r-1", label: "지각", kind: "DEMERIT", _count: { _all: 5 }, _sum: { points: 10 } },
@@ -217,7 +206,6 @@ describe("getRuleStats", () => {
           _sum: { points: 4 },
         },
       ],
-      // 규정 이름은 이미 "등교 지각"으로 고쳐졌다. 기록에 박힌 "지각"은 옛 스냅샷이다.
       rules: [{ id: "r-1", label: "등교 지각", category: "생활", active: true }],
     });
 
@@ -225,8 +213,6 @@ describe("getRuleStats", () => {
 
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ ruleId: "r-1", count: 7, points: 14, kind: "DEMERIT" });
-    // 이름은 규정의 **현재** 이름이다 — 건수가 더 많다는 이유로 옛 이름("지각")을
-    // 남기면 방금 이름을 고친 사람이 자기가 고친 항목을 못 찾는다.
     expect(rows[0].label).toBe("등교 지각");
     expect(totalCount).toBe(7);
   });
@@ -267,8 +253,6 @@ describe("getRuleStats", () => {
 
     const { unused } = await service.getRuleStats(admin, "SCHOOL");
     expect(unused).toHaveLength(1);
-    // unusedRules는 「재학생이 안 쓴 규정」이 아니라 「아무도 안 쓴 규정」을 찾는다.
-    // 모집단 통일 뒤에도 rosterYear를 넘기지 않는다.
     expect(unusedRules).toHaveBeenCalledWith({ track: "SCHOOL", totalsYear: 2026 });
   });
 });

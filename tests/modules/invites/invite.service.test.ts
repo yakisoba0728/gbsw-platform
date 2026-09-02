@@ -2,8 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { coreMocks } from "../../helpers/core-mocks";
 import { user } from "../../helpers/session";
 
-// generateUniqueCode()가 generate-invite-code.ts(M15로 분리, node:crypto +
-// "server-only" 마커)를 부른다 — 마커 패키지를 무해하게 만든다.
 vi.mock("server-only", () => ({}));
 
 const insertInvite = vi.fn();
@@ -299,7 +297,6 @@ describe("목록", () => {
   });
 
   it("학부모 코드 발급용 학생 목록도 관리자만 본다", async () => {
-    // 전교생의 이름·학반번호가 통째로 나가는 조회다. 발급 권한과 같은 문을 쓴다.
     await expect(listStudentsForInvite(student)).rejects.toThrow("FORBIDDEN");
     await expect(listStudentsForInvite(parent)).rejects.toThrow("FORBIDDEN");
     expect(listStudents).not.toHaveBeenCalled();
@@ -336,10 +333,6 @@ describe("폐기", () => {
     );
   });
 
-  /**
-   * 폐기하면 목록에서 대기 상태가 사라진다. 「왜 없앴나」를 되짚을 자료가
-   * 감사로그밖에 없어서 사유를 필수로 받는다 — 안 실리면 받는 의미가 없다.
-   */
   it("사유를 감사로그에 남긴다", async () => {
     findById.mockResolvedValue({ id: "inv1", studentId: null });
 
@@ -453,17 +446,10 @@ describe("폐기", () => {
   });
 });
 
-/**
- * 이 함수가 돌려주는 것은 **학부모 가입코드 자체**다. 남의 코드를 읽으면 그
- * 학생의 학부모로 가입할 수 있다. 그래서 studentId를 인자로 받지 않고 세션에서
- * 유도한다 — 같은 모듈의 `listInvites`가 인자를 받는 모양이라 흉내 내기 쉽고,
- * 한 번 붙으면 조용히 열린다. `getMyMerit`에는 같은 회귀 테스트가 이미 있다.
- */
 describe("listMyParentInvites() — 세션에서만 유도한다", () => {
   it("두 번째 인자로 남의 학생 id를 넣어도 세션 학생만 조회한다", async () => {
     getStudentProfileByUserId.mockResolvedValue({ id: "sp-mine" });
 
-    // 시그니처가 (sessionUser, studentId)로 바뀌면 이 호출이 남의 것을 준다.
     await (listMyParentInvites as (...args: unknown[]) => Promise<unknown>)(
       student,
       "sp-남의학생",

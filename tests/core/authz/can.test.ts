@@ -2,10 +2,6 @@ import { describe, expect, it } from "vitest";
 import { can, RULES, type Action } from "@/core/authz/can";
 import { ROLES, type Role } from "@/core/authz/roles";
 
-/**
- * 액션을 추가할 때 여기에도 기대값을 추가한다.
- * 표에 없는 액션이 생기면 아래 "모든 액션이 표에 있다" 테스트가 깨진다.
- */
 const EXPECTED: Record<Action, Role[]> = {
   "user:manage": ["ADMIN"],
   "student:manage": ["ADMIN"],

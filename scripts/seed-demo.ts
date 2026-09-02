@@ -1,19 +1,3 @@
-/**
- * 시연용 데이터 만들기.
- *
- *   npm run seed:demo -- --yes-local-demo-db
- *
- * **화면을 눌러보기 위한 가짜 데이터다.** 초대코드 발급 → 가입 → 학부모 연동 →
- * 상벌점 부여까지 **실제 서비스를 그대로 호출한다** — 권한 검사도 감사로그도
- * 진짜로 돈다. Prisma를 직접 건드리는 곳은 두 군데뿐이고 각각 이유를 적었다.
- *
- * 만드는 계정은 전부 `@demo.invalid`(예약 도메인이라 실제로 메일이 안 간다)이며
- * 이름 앞에 표시가 없다 — 대신 이메일로 한 번에 골라낼 수 있다. 지우려면:
- *
- *   npm run seed:demo -- --clean --yes-local-demo-db
- *
- * 실계정(admin@gbsw.hs.kr, yakihyuk0728@gmail.com)은 건드리지 않는다.
- */
 import { pathToFileURL } from "node:url";
 
 const DEMO_DOMAIN = "demo.invalid";
@@ -39,10 +23,8 @@ const STUDENTS: StudentSpec[] = [
   { name: "최유진", birthDate: "2010-09-21", grade: 1, classNo: 1, number: 3 },
 ];
 
-/** 시연용 관리자. 관리자 화면(반별 목록·통계·최근 부여)을 눌러보려면 필요하다. */
 const DEMO_ADMIN = { name: "시연 교사", email: `teacher@${DEMO_DOMAIN}` };
 
-/** 학부모를 붙일 학생 (이름으로 찾는다). */
 const PARENTS = [
   { childName: "김민준", parentName: "김성호" },
   { childName: "정하윤", parentName: "정미경" },
@@ -126,7 +108,6 @@ export async function cleanUp(
   });
   const profileIds = profiles.map((p) => p.id);
 
-  // 부여 → 재적 → 프로필 → (초대) → 계정 순으로 지운다. 외래키가 이 순서를 요구한다.
   await prisma.meritAward.deleteMany({ where: { studentProfileId: { in: profileIds } } });
   await prisma.enrollment.deleteMany({ where: { studentProfileId: { in: profileIds } } });
   await prisma.parentStudent.deleteMany({
@@ -142,7 +123,6 @@ export async function cleanUp(
     },
   });
   await prisma.studentProfile.deleteMany({ where: { id: { in: profileIds } } });
-  // 감사로그의 actorUserId는 SetNull이라 계정을 지워도 기록은 남는다 (설계대로).
   await prisma.user.deleteMany({ where: { id: { in: ids } } });
 
   console.log(`시연 계정 ${users.length}개와 딸린 데이터를 지웠습니다.`);
@@ -177,7 +157,6 @@ async function build(prisma: Awaited<typeof import("../src/core/db/client")>["pr
     return;
   }
 
-  // 관리자 행위자. requireAuth()가 만들어 주는 것과 같은 모양이다.
   const adminRow = await prisma.user.findFirst({
     where: { role: "ADMIN", deletedAt: null },
     orderBy: { createdAt: "asc" },
@@ -196,8 +175,7 @@ async function build(prisma: Awaited<typeof import("../src/core/db/client")>["pr
   };
   console.log(`행위자: ${admin.name} (${admin.email})\n`);
 
-  // ── 1. 학생 초대 + 가입 ───────────────────────────────────
-  const studentIds = new Map<string, string>(); // 이름 → StudentProfile.id
+  const studentIds = new Map<string, string>();
 
   for (const [i, spec] of STUDENTS.entries()) {
     const invite = await invites.createStudentInvite(admin, {
@@ -229,7 +207,6 @@ async function build(prisma: Awaited<typeof import("../src/core/db/client")>["pr
     );
   }
 
-  // ── 1-2. 시연 관리자 ──────────────────────────────────────
   {
     const invite = await invites.createAdminInvite(admin, {
       name: DEMO_ADMIN.name,
@@ -248,7 +225,6 @@ async function build(prisma: Awaited<typeof import("../src/core/db/client")>["pr
     console.log(`관리자 가입: ${DEMO_ADMIN.name}`);
   }
 
-  // ── 2. 학부모 초대 + 가입 ─────────────────────────────────
   for (const [i, link] of PARENTS.entries()) {
     const studentId = studentIds.get(link.childName)!;
     const invite = await invites.createParentInviteFor(admin, {
@@ -272,7 +248,6 @@ async function build(prisma: Awaited<typeof import("../src/core/db/client")>["pr
     console.log(`학부모 가입: ${link.parentName} → ${link.childName}`);
   }
 
-  // ── 3. 상벌점 부여 ────────────────────────────────────────
   console.log("");
   const rules = {
     school: await ruleService.listActiveRules(admin, "SCHOOL"),
@@ -286,12 +261,6 @@ async function build(prisma: Awaited<typeof import("../src/core/db/client")>["pr
 
   const awarded: { label: string; count: number }[] = [];
 
-  // 부여는 발생일을 요구한다. 여기서는 전부 오늘로 넣고, 아래 4단계에서 과거로
-  // 흩는다 — 서비스가 "현재 학년도 안, 미래 아님"을 검사하므로 지어낸 날짜를
-  // 서비스에 통과시키려면 학년도 시작일을 여기서 다시 계산해야 하고, 그건 검사
-  // 규칙을 두 벌로 만드는 일이다.
-
-  // 단건 — 여러 학생에게 서로 다른 항목
   const singles: [name: string, track: "school" | "dorm", needle: string, note: string | null][] =
     [
       ["김민준", "school", "프로그램 개발을 통한", null],
@@ -314,20 +283,16 @@ async function build(prisma: Awaited<typeof import("../src/core/db/client")>["pr
   }
   awarded.push({ label: "단건 부여", count: singles.length });
 
-  // 일괄 — 2학년 3반 전원에게 벌점 (점호 지각 같은 상황)
   const class2_3 = STUDENTS.filter((s) => s.grade === 2 && s.classNo === 3).map(
     (s) => studentIds.get(s.name)!,
   );
   const bulk = await merit.bulkAwardMerit(admin, {
     studentProfileIds: class2_3,
     ruleId: find("dorm", "인원 점검 시 지각"),
-    // 날짜를 메모에 적지 않는다 — 발생일 열이 생기기 전에는 그렇게 새어 나갔고,
-    // 그래서 월별 추이가 엉뚱한 달을 셌다.
     note: "22시 점호",
   });
   awarded.push({ label: "일괄 부여 (2학년 3반)", count: bulk.count });
 
-  // 벌점을 많이 쌓아 임계 강조가 보이게 한다 (정하윤)
   for (const needle of ["재학 기간 중 문신", "교내·외에서 흡연"]) {
     await merit.awardMerit(admin, {
       studentProfileId: studentIds.get("정하윤")!,
@@ -337,7 +302,6 @@ async function build(prisma: Awaited<typeof import("../src/core/db/client")>["pr
   }
   awarded.push({ label: "임계 확인용 벌점 (정하윤)", count: 2 });
 
-  // 상쇄점 — 선도관리위원회 의결
   await merit.awardMerit(admin, {
     studentProfileId: studentIds.get("정하윤")!,
     ruleId: find("school", "선도관리위원회 징계후"),
@@ -345,7 +309,6 @@ async function build(prisma: Awaited<typeof import("../src/core/db/client")>["pr
   });
   awarded.push({ label: "상쇄점 (정하윤)", count: 1 });
 
-  // 취소 한 건 — 취소 표시와 합계 제외를 눈으로 보기 위해
   const toCancel = await prisma.meritAward.findFirst({
     where: { studentProfileId: studentIds.get("서아름")!, status: "ACTIVE" },
     select: { id: true },
@@ -358,14 +321,6 @@ async function build(prisma: Awaited<typeof import("../src/core/db/client")>["pr
     awarded.push({ label: "취소", count: 1 });
   }
 
-  // ── 4. 날짜 흩뿌리기 ──────────────────────────────────────
-  // 여기만 Prisma를 직접 건드린다. 위에서 전부 오늘로 넣었으므로 그대로 두면
-  // 월별 추이 그래프가 한 달에 몰린다. 시연용으로 과거 달에 흩어 놓는다 —
-  // 실제 운영에서는 하지 않는 일이다.
-  //
-  // **발생일과 입력일을 조금 어긋나게 만든다.** 세 건 중 두 건은 일어난 뒤
-  // 하루·이틀 지나서 입력된 것으로 둔다 — 두 날짜를 나란히 보여주는 화면
-  // (내역 표의 "입력 …", 확인서 각주)이 시연 데이터에서 실제로 보여야 한다.
   const all = await prisma.meritAward.findMany({
     where: { studentProfile: { user: { email: { endsWith: `@${DEMO_DOMAIN}` } } } },
     select: { id: true },
@@ -373,16 +328,14 @@ async function build(prisma: Awaited<typeof import("../src/core/db/client")>["pr
   });
   const now = new Date();
   for (const [i, row] of all.entries()) {
-    const monthsBack = i % 5; // 0~4개월 전으로 흩는다
+    const monthsBack = i % 5;
     const when = new Date(now);
     when.setMonth(when.getMonth() - monthsBack);
     when.setDate(Math.min(3 + ((i * 7) % 25), 28));
-    // 이번 달로 흩어진 건이 오늘을 넘지 않게 한다 — 미래에 일어난 기록은
-    // 화면에서 바로 눈에 띄고, 있을 수 없는 상태다.
     const occurred = when > now ? now : when;
 
     const entered = new Date(occurred);
-    entered.setDate(entered.getDate() + (i % 3)); // 0·1·2일 뒤에 입력
+    entered.setDate(entered.getDate() + (i % 3));
 
     await prisma.meritAward.update({
       where: { id: row.id },
@@ -405,7 +358,6 @@ async function build(prisma: Awaited<typeof import("../src/core/db/client")>["pr
   console.log(`지우기: npm run seed:demo -- --clean ${REQUIRED_OPT_IN}`);
 }
 
-/** 이메일·휴대폰 인증을 목업 코드로 통과시킨다. */
 async function verify(
   verification: typeof import("../src/modules/verification/verification.service"),
   code: string,

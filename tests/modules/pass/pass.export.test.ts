@@ -7,10 +7,8 @@ import {
 } from "@/modules/pass/pass.export";
 import { passHistoryRange } from "@/modules/pass/pass.schema";
 
-/** 조회 창 — 시트 첫 줄에 적히고 파일 이름에도 쓰인다. */
 const RANGE = passHistoryRange({ from: "2026-08-01", to: "2026-08-26" });
 
-/** 2026-08-26 14:00 ~ 18:00 KST. 외출은 시각이 알맹이다. */
 const outing: PassHistoryExportRow = {
   type: "OUTING",
   status: "APPROVED",
@@ -35,7 +33,6 @@ const outing: PassHistoryExportRow = {
   cancelReason: null,
 };
 
-/** 8/26 18:00 ~ 8/28 09:00 KST — 8월 26·27일 이틀 밤. */
 const overnight: PassHistoryExportRow = {
   type: "OVERNIGHT",
   status: "APPROVED",
@@ -60,7 +57,6 @@ const overnight: PassHistoryExportRow = {
   cancelReason: null,
 };
 
-/** 머리글 이름으로 열을 집는다 — 열이 늘거나 자리가 바뀌어도 검증이 안 어긋난다. */
 function column(sheet: (string | number)[][], header: string): number {
   const index = sheet[1]!.indexOf(header);
   expect(index).toBeGreaterThanOrEqual(0);
@@ -112,11 +108,6 @@ describe("toPassHistorySheet", () => {
     );
   });
 
-  /**
-   * **이 파일이 있는 이유다.** 외박의 종료는 예전에 「종료일 다음 날 자정」이라
-   * 그대로 적으면 하루 밀렸고, 시트는 날짜만 적어 그것을 피했다. 이제는 학생이
-   * 시각을 직접 적으므로 **저장값을 그대로 적는다** — 되돌릴 것이 없다.
-   */
   it("외박도 시각까지 적는다 — 적은 시각이 그대로 나온다", () => {
     const sheet = toPassHistorySheet([overnight], {}, RANGE);
     const row = sheet[2]!;
@@ -127,7 +118,6 @@ describe("toPassHistorySheet", () => {
 
   it("월말을 넘겨도 적은 날 그대로다", () => {
     const sheet = toPassHistorySheet(
-      // 8/31 21:00 ~ 9/1 09:00 KST — 8월 31일 하룻밤.
       [
         {
           ...overnight,
@@ -151,11 +141,6 @@ describe("toPassHistorySheet", () => {
     expect(row[column(sheet, "결재시각")]).toBe("2026-08-26 10:00:00");
   });
 
-  /**
-   * 시트는 정렬해 보라고 내보내는 것이다. 두 유형이 한 열에 섞이므로 **한 열의
-   * 모든 칸이 같은 모양(`YYYY-MM-DD HH:MM:SS`)**이어야 글자순이 곧 시각순이다 —
-   * 날짜만 적는 칸이 하나라도 섞이면 그 규약이 깨진다.
-   */
   it("유형이 섞여도 한 열의 모양이 같다 — 글자순으로 정렬하면 시각순이다", () => {
     const sheet = toPassHistorySheet([overnight, outing], {}, RANGE);
     const start = column(sheet, "시작");
@@ -199,7 +184,6 @@ describe("toPassHistorySheet", () => {
     expect(row[column(sheet, "학년")]).toBe(2);
     expect(row[column(sheet, "반")]).toBe(3);
     expect(row[column(sheet, "번호")]).toBe(5);
-    // 앞자리가 뜻을 갖는 글자다 — 수로 내면 엑셀이 지수 표기로 접을 수 있다.
     expect(row[column(sheet, "학번")]).toBe("2305");
   });
 
@@ -227,7 +211,6 @@ describe("toPassHistorySheet", () => {
     const direct = toPassHistorySheet([overnight], {}, RANGE);
     expect(direct[2]![column(direct, "보호자확인")]).toBe("박서연");
 
-    // 외출은 보호자 확인이 없다.
     const none = toPassHistorySheet([outing], {}, RANGE);
     expect(none[2]![column(none, "보호자확인")]).toBe("");
   });
@@ -287,17 +270,12 @@ describe("toPassHistorySheet", () => {
 });
 
 describe("열 너비표", () => {
-  /**
-   * 너비를 빠뜨린 열은 엑셀 기본 너비(8.43자)로 열려 한글이 옆 칸을 덮어쓴다.
-   * 머리글이 늘었는데 표를 안 고치면 여기서 먼저 깨진다.
-   */
   it("너비 수가 머리글 수와 같다", () => {
     const sheet = toPassHistorySheet([], {}, RANGE);
     expect(PASS_HISTORY_SHEET_WIDTHS).toHaveLength(sheet[1]!.length);
     expect(PASS_HISTORY_SHEET_WIDTHS.every((width) => width > 0)).toBe(true);
   });
 
-  /** 접을 열을 잘못 짚으면 엉뚱한 열이 두 줄이 된다. */
   it("접는 열은 행선지 · 사유 · 비고다", () => {
     const sheet = toPassHistorySheet([], {}, RANGE);
     expect(PASS_HISTORY_SHEET_WRAP.map((i) => sheet[1]![i])).toEqual([

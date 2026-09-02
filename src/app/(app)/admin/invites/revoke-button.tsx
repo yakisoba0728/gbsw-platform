@@ -6,13 +6,6 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { REVOKE_INITIAL } from "./action-state";
 import { revokeInviteAction } from "./actions";
 
-/**
- * 초대코드 폐기. 되돌릴 수 없는 동작이라 앱의 다른 파괴적 동작과 같은 모달을 쓴다 —
- * 상벌점 취소·규정 삭제가 사유를 받는 동안 이것만 표 한 줄에서 곧바로 실행됐다.
- *
- * 사유는 감사로그에만 남는다. 폐기하면 목록에서 대기 상태가 사라지는데, 「왜
- * 없앴나」를 되짚을 자료가 거기밖에 없다 — 로그 화면이 「사유: …」로 그려 준다.
- */
 export function RevokeButton({
   inviteId,
   ariaLabel,

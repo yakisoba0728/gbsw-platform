@@ -16,15 +16,10 @@ import { getTeacherStats, type TeacherStats } from "@/modules/merit/stats.servic
 import { honorificName } from "@/core/authz/roles";
 import { TeacherChart } from "./teacher-chart";
 
-/** 표와 그래프가 함께 쓰는 한 줄. 비중은 화면에서만 계산한다. */
 type Row = TeacherStats["rows"][number] & { key: string; share: string };
 
 export type TeachersPromise = Promise<TeacherStats | null>;
 
-/**
- * 현재 학년도가 없으면 안내로 바꾼다. 페이지에서 try/catch로 잡으면 거기서 기다리게 되고,
- * 경계 밖에서 던지면 error.tsx로 새어 화면 전체가 오류가 된다.
- */
 export async function loadTeachers(
   actor: SessionUser,
   track: MeritTrack,
@@ -38,7 +33,6 @@ export async function loadTeachers(
   }
 }
 
-/** 집계 범위 한 줄. 본문과 같은 약속을 기다리므로 질의가 늘지 않는다. */
 export async function TeachersHint({
   promise,
   track,
@@ -52,7 +46,6 @@ export async function TeachersHint({
   return <>{isYearScoped(track) ? `${stats.year}학년도 집계` : "입학부터 전체 누적"}</>;
 }
 
-/** 집계에서 나오는 것 전부. 조건이 바뀔 때 뼈대로 바뀌는 것은 여기까지다. */
 export async function TeachersBody({ promise }: { promise: TeachersPromise }) {
   const stats = await promise;
   if (!stats) return <NoAcademicYearNotice />;
@@ -60,7 +53,6 @@ export async function TeachersBody({ promise }: { promise: TeachersPromise }) {
   const totals = sumRows(stats.rows);
   const rows: Row[] = stats.rows.map((row) => ({
     ...row,
-    // 서비스가 계정 있는 사람과 이름만 남은 사람을 가르는 방식을 그대로 쓴다.
     key: row.userId ? `u:${row.userId}` : `n:${row.name}`,
     share: sharePercent(row.awardCount, totals.awardCount),
   }));
@@ -71,7 +63,6 @@ export async function TeachersBody({ promise }: { promise: TeachersPromise }) {
 
   return (
     <>
-      {/* 뷰포트가 아니라 놓인 자리의 폭을 본다 — 통계 개요와 같은 기준이다. */}
       <div className="@container">
         <div className="grid grid-cols-2 gap-3 @md:grid-cols-3 @2xl:grid-cols-5">
           <StatTile label="부여자" value={`${stats.teacherCount}명`} />
@@ -88,10 +79,6 @@ export async function TeachersBody({ promise }: { promise: TeachersPromise }) {
   );
 }
 
-/**
- * 합계 칸 · 막대 그래프 · 표 자리. 개수를 화면과 맞춘다 — 어긋나면 집계가 도착할 때
- * 자리가 통째로 다시 짜인다. 바깥과 같은 space-y-4라 간격도 그대로다.
- */
 export function TeachersSkeleton() {
   return (
     <div className="space-y-4" aria-busy="true" aria-live="polite">
@@ -99,7 +86,6 @@ export function TeachersSkeleton() {
       <Skeleton className="h-[236px]" />
       <SkeletonTable rows={8} />
 
-      {/* 맨 뒤에 둔다 — 앞에 두면 space-y가 첫 칸을 16px 밀어 내린다. */}
       <span className="sr-only">불러오는 중</span>
     </div>
   );
@@ -114,11 +100,8 @@ function TeacherTable({ rows }: { rows: Row[] }) {
       cell: (row) => (
         <span className="flex flex-wrap items-center gap-2">
           <span className="font-medium text-ink">
-            {/* 부여자는 언제나 교사다. 최근 부여·내역 화면과 같은 호칭을 쓴다 —
-                같은 사람이 화면마다 다르게 불리면 안 된다. */}
             {honorificName(row.name, "ADMIN")}
           </span>
-          {/* 계정이 사라져도 부여 기록은 남는다 — 이름만 남았다는 사실을 적는다. */}
           {row.removed && <Badge tone="cancelled">삭제된 계정</Badge>}
         </span>
       ),
@@ -129,7 +112,6 @@ function TeacherTable({ rows }: { rows: Row[] }) {
       width: "w-[84px]",
       sort: "descending",
       card: "trailing",
-      // 카드 모드에는 머리글이 없다 — 단위를 붙여야 점수와 헷갈리지 않는다.
       cell: (row) => <span className="font-medium text-ink">{row.awardCount}건</span>,
     },
     {
@@ -199,7 +181,6 @@ function TeacherTable({ rows }: { rows: Row[] }) {
   );
 }
 
-/** 전체 합계 — 비중의 분모이자 머리글 숫자다. */
 function sumRows(rows: TeacherStats["rows"]) {
   return rows.reduce(
     (sum, row) => ({
@@ -212,7 +193,6 @@ function sumRows(rows: TeacherStats["rows"]) {
   );
 }
 
-/** `32%` · `2.4%`. 10% 미만은 소수 한 자리까지 적는다 — 반올림하면 전부 0%가 된다. */
 function sharePercent(part: number, whole: number): string {
   if (whole <= 0) return "0%";
   const pct = (part / whole) * 100;

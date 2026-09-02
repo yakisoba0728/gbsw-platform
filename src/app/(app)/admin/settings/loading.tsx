@@ -1,7 +1,6 @@
 import { cardClass } from "@/components/ui/card";
 import { Skeleton, SkeletonScreen } from "@/components/ui/skeleton";
 
-/** `/admin/settings`의 뼈대. 트랙이 늘면 여기 반복 횟수도 함께 늘린다. */
 export default function Loading() {
   return (
     <SkeletonScreen className="mx-auto max-w-3xl space-y-4">
@@ -13,7 +12,6 @@ export default function Loading() {
         {Array.from({ length: 2 }, (_, i) => (
           <div key={i} className="border-b border-line2 px-5 py-4 last:border-0">
             <div className="flex flex-wrap items-end gap-2.5">
-              {/* 라벨(≈25px) + 입력칸(md 36px). `Input`의 크기 눈금을 따라간다. */}
               <Skeleton className="h-[61px] w-26 rounded-field" />
               <Skeleton className="h-[61px] w-31 rounded-field" />
               <Skeleton className="h-[61px] w-31 rounded-field" />

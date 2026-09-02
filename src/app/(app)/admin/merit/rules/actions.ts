@@ -18,10 +18,6 @@ const MESSAGES = {
   RULE_CONFLICT: "다른 교사가 규정을 바꿨습니다. 새로고침 후 다시 저장해 주세요.",
 } satisfies Record<string, string>;
 
-/**
- * 실패 상태에는 제출값을 함께 싣는다 — React 19가 액션이 끝난 폼을 리셋하므로
- * 이 값이 없으면 화면이 오류만 보여 주고 입력은 지워 버린다.
- */
 function fail(error: string, values?: RuleFormValues): RuleFormState {
   return { error, ok: false, values };
 }
@@ -34,7 +30,6 @@ export async function createRuleAction(
 ): Promise<RuleFormState> {
   const actor = await requireAuth();
 
-  // track은 지금 보고 있는 탭이 정한다 — 폼이 되찾을 값이 아니라 되싣지 않는다.
   const values: RuleFormValues = {
     kind: text(formData, "kind"),
     label: text(formData, "label"),
@@ -71,7 +66,6 @@ export async function updateRuleAction(
 ): Promise<RuleFormState> {
   const actor = await requireAuth();
 
-  // ruleId를 함께 실어야 표가 어느 행에 값을 되돌릴지 안다.
   const values: RuleFormValues = {
     ruleId: text(formData, "ruleId"),
     label: text(formData, "label"),
@@ -108,7 +102,6 @@ export async function deleteRuleAction(
 ): Promise<RuleFormState> {
   const actor = await requireAuth();
 
-  // 삭제는 제출값을 되싣지 않는다 — 사유 칸은 ConfirmDialog가 소유한 모달 안에 있다.
   const parsed = deleteRuleSchema.safeParse({
     ruleId: formData.get("ruleId"),
     updatedAt: formData.get("updatedAt"),

@@ -22,25 +22,8 @@ import {
 } from "./scanner-detector";
 import { VerdictCard } from "./verdict-card";
 
-/**
- * 사이트 안 스캐너. 못 쓰는 경우가 둘인데 **원인이 다르고 할 일도 다르다.**
- *
- * - `http`로 열렸다 → 브라우저가 카메라 API를 통째로 감춘다. 고칠 사람은 서버에
- *   인증서를 붙여야 한다. 「이 브라우저는 지원하지 않습니다」라고 하면 멀쩡한 폰을
- *   탓하게 된다 (교내 LAN 테스트 배포에서 실제로 그랬다).
- * - `BarcodeDetector`가 없다 → 그 브라우저의 사정이다. 다른 브라우저로 열면 된다.
- *
- * **어느 쪽이든 폴백은 온전한 경로다**: 폰 기본 카메라로 찍으면 /scan?c=…가 열려
- * 같은 판정이 나온다. 그래서 QR 디코딩 라이브러리를 넣지 않는다.
- */
-/** 프레임을 얼마나 자주 보는가. 400ms면 정문에서 체감상 즉시다. */
 const TICK_MS = 400;
 
-/**
- * 같은 학생증을 다시 보내기까지 기다리는 시간. 정문에서 한 학생이 지나가고
- * 다음 학생이 오는 데 걸리는 시간보다 짧아야 하고, 카드가 깜빡이지 않을 만큼은
- * 길어야 한다.
- */
 const RESEND_MS = 3000;
 
 export function Scanner({
@@ -48,26 +31,12 @@ export function Scanner({
   initial = EMPTY_SCAN_STATE,
 }: {
   origin: string;
-  /**
-   * 주소의 `?c=`로 이미 판정한 결과. **판정 카드가 서는 자리는 여기 하나다** —
-   * 페이지가 따로 그리면 앞 학생의 카드가 다음 학생의 것 위에 남는다.
-   * `useActionState`는 첫 마운트에서만 이 값을 읽으므로 스캔이 시작되면
-   * 그 뒤로는 카메라가 읽은 것만 보인다.
-   */
   initial?: ScanState;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const codeRef = useRef<HTMLInputElement>(null);
-  /**
-   * 마지막으로 보낸 코드와 그 시각.
-   *
-   * **학생증은 값이 안 바뀐다.** 예전 출입증 QR은 20초마다 갈려서 「같은 값이면
-   * 건너뛴다」로 충분했지만, 지금 그렇게 두면 같은 학생을 두 번째로 찍을 방법이
-   * 화면을 새로 고치는 것뿐이 된다. 그래서 값이 아니라 **시간 창**으로 막는다.
-   */
   const sentRef = useRef<{ code: string; at: number } | null>(null);
-  /** null은 아직 확인 전. 셋으로 갈리는 이유는 안내 문구가 갈리기 때문이다. */
   const [supported, setSupported] = useState<
     "ok" | "unsupported" | "insecure" | "error" | null
   >(null);
@@ -81,10 +50,6 @@ export function Scanner({
   const guideId = useId();
   const statusId = useId();
 
-  /**
-   * 카메라를 처음부터 다시 켠다. `attempt`가 바뀌면 아래 effect가 다시 돈다 —
-   * 「다시 시도」 버튼과 bfcache 복귀가 같은 길을 쓴다.
-   */
   const restartCamera = useCallback(() => {
     setStartupError(null);
     setCameraReady(false);
@@ -98,13 +63,6 @@ export function Scanner({
     let stopped = false;
     let detector: Detector | null = null;
 
-    /**
-     * 카메라를 끈다. **여러 번 불려도 안전해야 한다** — 정리와 `pagehide`가
-     * 같은 이동에서 둘 다 부를 수 있다.
-     *
-     * 트랙을 멈추는 것만으로는 부족하다. `<video>`가 스트림을 계속 물고 있으면
-     * 브라우저에 따라 렌즈 표시등이 남으므로 `srcObject`까지 비운다.
-     */
     function stopCamera() {
       stopped = true;
       if (timer) clearTimeout(timer);
@@ -121,11 +79,7 @@ export function Scanner({
       if (stopped || !detector || !videoRef.current) return;
       try {
         const [found] = await detector.detect(videoRef.current);
-        // **읽은 주소로 이동하지 않는다.** 출처와 경로가 맞을 때만 토큰을 꺼낸다.
         const code = found ? tokenFromScanUrl(found.rawValue, origin) : null;
-        // 같은 코드를 400ms마다 다시 보내지 않는다 — 학생이 QR을 들고 서 있으면
-        // 초당 두 번씩 보내게 되고 판정 카드가 깜빡인다. 다음 학생이 오면 값이
-        // 달라져 곧바로 나가고, 같은 학생이라도 창을 넘기면 다시 나간다.
         const last = sentRef.current;
         const fresh =
           !last || last.code !== code || Date.now() - last.at > RESEND_MS;
@@ -135,24 +89,12 @@ export function Scanner({
           formRef.current.requestSubmit();
         }
       } catch {
-        // 한 프레임 실패는 무시한다 — 다음 프레임이 있다.
       }
-      // **여기서 다시 본다.** 위의 await 사이에 화면을 떠났을 수 있고, 그때
-      // 조건 없이 예약하면 정리가 끝난 뒤에도 루프가 한 바퀴 더 돈다.
       if (stopped) return;
       timer = setTimeout(tick, TICK_MS);
     }
 
-    /**
-     * 지원 여부 판정이 여기 있는 이유: effect 본문에서 곧바로 setState를 부르면
-     * react-hooks/set-state-in-effect가 막는다(연쇄 렌더). 어차피 「검출기를 만들
-     * 수 있는가」는 카메라를 켜는 일의 첫 단계라 이 자리가 제자리다.
-     */
     async function start() {
-      // **먼저 안전한 맥락인지 본다.** http로 열면 브라우저가 BarcodeDetector도
-      // getUserMedia도 아예 감춘다 — 그때 「이 브라우저는 지원하지 않습니다」라고
-      // 하면 멀쩡한 폰을 탓하게 되고, 고칠 사람은 주소를 https로 바꿔야 한다는
-      // 것을 영영 모른다.
       if (!window.isSecureContext) {
         setSupported("insecure");
         return;
@@ -186,10 +128,6 @@ export function Scanner({
         return;
       }
 
-      // **이 await 사이에 화면을 떠났을 수 있다.** 그때 정리는 이미 지나갔고
-      // `stream`은 아직 null이었으므로 아무것도 안 껐다 — 여기서 직접 끄지
-      // 않으면 카메라가 영영 켜진 채 남는다. 화면을 나가도 렌즈 표시등이
-      // 한참 뒤에야 꺼지던 원인이 이것이다.
       if (stopped || !videoRef.current) {
         opened.getTracks().forEach((track) => track.stop());
         return;
@@ -200,9 +138,7 @@ export function Scanner({
       try {
         await videoRef.current.play();
       } catch {
-        // 재생 거부는 무시한다 — 프레임은 여전히 읽힌다.
       }
-      // play()도 기다리는 자리다. 같은 이유로 한 번 더 본다.
       if (stopped) {
         stopCamera();
         return;
@@ -213,19 +149,11 @@ export function Scanner({
 
     void start();
 
-    /**
-     * bfcache에서 돌아온 길. 아래 `pagehide`가 이미 카메라를 껐는데 문서는 살아
-     * 있어 React가 다시 마운트하지 않는다 — 여기서 되살리지 않으면 검은 상자만
-     * 선 채로 「스캔할 준비가 되었습니다」라고 말한다.
-     */
+    /* BFCache 복귀는 재마운트하지 않으므로 카메라를 다시 시작한다. */
     function handlePageShow(event: PageTransitionEvent) {
       if (event.persisted) restartCamera();
     }
 
-    /**
-     * 화면을 떠나는 다른 길. React가 언마운트를 못 보는 경우 —— 탭을 닫거나,
-     * 브라우저가 페이지를 bfcache로 넣거나, 앱을 뒤로 보내는 때 —— 를 받는다.
-     */
     window.addEventListener("pagehide", stopCamera);
     window.addEventListener("pageshow", handlePageShow);
 
@@ -236,8 +164,6 @@ export function Scanner({
     };
   }, [origin, attempt, restartCamera]);
 
-  // 카메라 상태가 판정 결과보다 앞선다 — 되살아나는 동안 앞 판정을 근거로
-  // 「다음 학생증을 비춰 주세요」라고 하면 멈춘 스캐너를 계속 쓰게 된다.
   const status =
     startupError
       ? startupError.message
@@ -285,11 +211,8 @@ export function Scanner({
           className="space-y-3 @3xl:order-1"
           aria-label="학생증 카메라 스캔"
         >
-          {/* 카메라를 못 열면 상자를 걷는다 — 남겨 두면 오류 배너 위에 검은 사각형이
-              그대로 서서, 잠깐 로딩 중인 것처럼 읽힌다. */}
           {supported === "ok" && !startupError && (
             <div className={cardClass("flush", "relative overflow-hidden")}>
-              {/* muted·playsInline이 없으면 iOS가 전체화면으로 띄운다. */}
               <video
                 ref={videoRef}
                 className="aspect-square w-full bg-ink object-cover"

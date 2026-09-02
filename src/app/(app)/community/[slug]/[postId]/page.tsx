@@ -14,7 +14,7 @@ import { getPost } from "@/modules/community/post.service";
 import { AttachmentList } from "./attachment-list";
 import { CommentForm } from "./comment-form";
 import { CommentList } from "./comment-list";
-import { DeletePost } from "./delete-post";
+import { DeleteContent } from "./delete-content";
 import { PostDraftCleanup } from "../post-draft-cleanup";
 import { postDraftKey } from "../post-draft";
 
@@ -32,9 +32,6 @@ export default async function PostPage({
     Promise.all([getPost(actor, postId), listComments(actor, postId)]),
   );
 
-  // **주소의 게시판과 글의 게시판이 다르면 정규 주소로 보낸다.** 안 그러면
-  // 뒤로가기·「수정」 링크가 엉뚱한 게시판을 가리키고, 첨부 고르개가 그 slug로
-  // 파일을 올려 게시판 설정(첨부 허용 여부)을 우회하는 길이 생긴다.
   if (slug !== view.community.slug) {
     redirect(`/community/${view.community.slug}/${postId}`);
   }
@@ -46,7 +43,6 @@ export default async function PostPage({
       <PostDraftCleanup draftKey={postDraftKey(actor.id, slug)} />
       <BackLink href={`/community/${slug}`}>{view.community.name}</BackLink>
 
-      {/* 제목 앞뒤로 다른 것이 오는 카드라 SectionCard로는 표현할 수 없다. */}
       <article className={cardClass("page")}>
         <h2 className="text-xl font-semibold text-ink">{post.title}</h2>
 
@@ -59,8 +55,6 @@ export default async function PostPage({
           </p>
 
           <span className="flex gap-1">
-            {/* 읽기 전용으로 얼린 게시판에서는 수정도 막힌다 — 버튼은 보이는데
-                눌리지 않는 일이 없게 서비스와 같은 근거를 본다. */}
             {post.canEdit && view.canWrite && (
               <Link
                 href={`/community/${slug}/${postId}/edit`}
@@ -70,12 +64,16 @@ export default async function PostPage({
               </Link>
             )}
             {post.canDelete && (
-              <DeletePost postId={postId} byModerator={!post.isMine} />
+              <DeleteContent
+                kind="post"
+                id={postId}
+                byModerator={!post.isMine}
+                accessibleName="현재 글 삭제"
+              />
             )}
           </span>
         </div>
 
-        {/* 마크다운. 날 HTML은 파싱하지 않고 허용 목록으로 한 번 더 거른다. */}
         <Markdown className="mt-5 text-ink">{post.body}</Markdown>
 
         <AttachmentList attachments={view.attachments} />

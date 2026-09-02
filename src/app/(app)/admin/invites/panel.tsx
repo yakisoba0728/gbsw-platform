@@ -36,7 +36,6 @@ function classLabel(
   });
 }
 
-/** DB 행을 화면이 쓸 형태로 눕힌다. metadata 원본은 클라이언트로 내보내지 않는다. */
 function toRow(invite: Listed): InviteRow {
   const base = {
     id: invite.id,
@@ -44,8 +43,6 @@ function toRow(invite: Listed): InviteRow {
     role: invite.role,
     roleLabel: isRole(invite.role) ? ROLE_LABELS[invite.role] : invite.role,
     status: invite.status,
-    // 만료 판정은 여기서 끝낸다. 아래 expiresAt은 표시용 문자열이라 화면에는
-    // 비교할 값이 남지 않고, 클라이언트에서 시각을 다시 재면 hydration이 갈린다.
     usable: isInviteUsable(invite),
     createdAt: formatDate(invite.createdAt),
     expiresAt: invite.expiresAt ? formatDate(invite.expiresAt) : null,
@@ -92,24 +89,12 @@ function toRow(invite: Listed): InviteRow {
   };
 }
 
-/**
- * 초대 탭 — 초대코드 발급 + 발급 내역.
- *
- * 예전 `/admin/invites` 화면의 본문 그대로다. 두 단으로 서는 기준이 되는
- * `@container`는 page.tsx가 갖는다.
- */
 export async function InvitesPanel() {
   const actor = await requirePermission("invite:list");
 
-  // 목록 조회는 시작만 하고 기다리지 않는다. 기다리면 이 함수 전체가 멈춰서 발급 폼까지
-  // 함께 뼈대가 된다 — 글자를 넣던 폼이 사라지는 것이 이 화면에서 가장 나쁜 일이다.
   const invitesPromise = listInvites(actor);
-  // 아래 학년도 안내로 빠지면 이 약속을 아무도 기다리지 않는다. 받는 곳 없는 거절은
-  // 요청을 통째로 무너뜨리므로 여기서 미리 받아 둔다 — 자식의 await는 그대로 거절을 본다.
   invitesPromise.catch(() => {});
 
-  // 학생 목록은 조회 결과가 아니라 발급 폼의 재료다 — 경계 밖에 서므로 여기서 기다린다.
-  // listStudentsForInvite도 getCurrentYear()를 부르니 현재 학년도가 없으면 안내로 떨어진다.
   let students: Awaited<ReturnType<typeof listStudentsForInvite>>;
   try {
     students = await listStudentsForInvite(actor);
@@ -118,7 +103,6 @@ export async function InvitesPanel() {
     throw error;
   }
 
-  // 모달이 학년·반으로 묶어 보여주므로 미리 이어 붙인 라벨이 아니라 낱개로 넘긴다.
   const options: PickerStudent[] = students.map((s) => {
     const enrollment = s.enrollments[0];
     return {
@@ -132,16 +116,8 @@ export async function InvitesPanel() {
 
   return (
     <>
-      {/*
-        @6xl(1152px)부터 두 단이다. @2xl(672px)로 두었더니 오른쪽 칸이 296px인데
-        목록 표는 680px을 요구해, 그 사이 폭에서는 표의 오른쪽 절반이 반드시
-        잘렸다 — 왼쪽 폼 아래는 비어 있는 채로.
-      */}
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 @6xl:grid-cols-[360px_1fr]">
         <InviteForm students={options} />
-        {/* key를 주지 않는다. 발급·폐기 뒤 revalidate에서도 이 경계가 다시 매달리는데,
-            key가 있으면 그때마다 목록이 뼈대로 깜빡인다 — 지금은 새 목록이 닿을 때까지
-            옛 목록이 그대로 서 있는다. */}
         <Suspense fallback={<InviteListSkeleton />}>
           <InviteList promise={invitesPromise} />
         </Suspense>
@@ -150,14 +126,11 @@ export async function InvitesPanel() {
   );
 }
 
-/** 목록. 조건이 없는 화면이라 늦게 와도 되는 것은 이것뿐이다. */
 async function InviteList({
   promise,
 }: {
   promise: ReturnType<typeof listInvites>;
 }) {
-  // 학년도가 조회 도중에 사라지면 거절이 여기로 온다. 경계 밖으로 새면 error.tsx가 받아
-  // 화면 전체가 오류가 되므로 이 칸에서 안내로 받는다.
   let invites: Awaited<ReturnType<typeof listInvites>>;
   try {
     invites = await promise;
@@ -169,10 +142,6 @@ async function InviteList({
   return <InviteTable rows={invites.map(toRow)} />;
 }
 
-/**
- * 목록 자리. loading.tsx의 오른쪽 칸과 같은 짜임이라 내용이 도착할 때 안 튄다.
- * 이때 폼은 이미 서 있어 뼈대는 이 칸뿐이므로, "불러오는 중"도 여기서만 알린다.
- */
 function InviteListSkeleton() {
   return (
     <SkeletonScreen className={cardClass("flush", "min-w-0")}>

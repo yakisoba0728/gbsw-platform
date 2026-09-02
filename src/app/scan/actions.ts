@@ -6,15 +6,6 @@ import { verifyCodeSchema } from "@/modules/pass/pass.schema";
 import { verifyStudentQr } from "@/modules/pass/verify.service";
 import type { ScanState } from "./scan-state";
 
-/**
- * **이 파일은 액션 하나만 내보낸다.** `"use server"` 파일의 export는 전부 서버
- * 참조(함수)로 바뀌므로 상태 타입과 빈 상태는 `scan-state.ts`에 둔다.
- */
-
-/**
- * 사이트 안 스캐너가 부른다. 카메라가 읽은 **코드만** 받는다 — 주소가 아니다.
- * 출처·경로 확인은 클라이언트가 이미 했고, 코드 모양은 verifyStudentCode가 다시 본다.
- */
 export async function scanAction(
   _prev: ScanState,
   formData: FormData,

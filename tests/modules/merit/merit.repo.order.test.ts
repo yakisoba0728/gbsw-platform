@@ -8,11 +8,6 @@ vi.mock("@/core/db/client", () => ({
 
 const { listActiveRules, listRules } = await import("@/modules/merit/merit.repo");
 
-/**
- * kind는 문자열 열이라 Prisma의 `kind: "asc"`는 사전순으로 정렬한다 —
- * "DEMERIT" < "MERIT"이라 **벌점이 먼저 나왔다.** 규정표는 상점부터 읽는 것이
- * 자연스럽고 원본 표도 그 순서다. 이 테스트가 그 회귀를 막는다.
- */
 function rule(over: Partial<Record<string, unknown>> = {}) {
   return {
     id: "r",
@@ -42,12 +37,10 @@ describe("listRules — 종류 → 분류 → 점수", () => {
 
     const rows = await listRules("SCHOOL");
 
-    // 상점(m1 2점 → m2 10점) 다음에 벌점(d2 1점 → d1 3점). 분류가 같으면 점수순이다.
     expect(rows.map((r) => r.id)).toEqual(["m1", "m2", "d2", "d1"]);
   });
 
   it("같은 종류 안에서는 분류가 점수보다 먼저다", async () => {
-    // 점수만 보면 1점짜리가 앞서지만, 분류가 다르면 분류가 이긴다.
     meritRuleFindMany.mockResolvedValue([
       rule({ id: "b-low", category: "학교 활동", points: 1 }),
       rule({ id: "a-high", category: "교내 환경", points: 10 }),

@@ -94,7 +94,6 @@ beforeEach(() => {
     status: "ACTIVE",
     studentProfile: { user: { name: "김민준" } },
   });
-  // 고친 행 수를 돌려준다. 1 = 내가 취소했다, 0 = 그 사이 남이 먼저 취소했다.
   cancelAward.mockReset().mockResolvedValue(1);
   listAwards.mockReset().mockResolvedValue([]);
   totals.mockReset().mockResolvedValue([]);
@@ -107,7 +106,6 @@ beforeEach(() => {
     studentCode: "K7M2XQ4A",
     user: { id: "u-1", name: "김민준" },
   });
-  // 일괄 부여는 한 번에 조회한다 — 넘긴 id 전부를 찾은 것으로 기본 설정한다.
   findAwardableStudents
     .mockReset()
     .mockImplementation(async (ids: string[]) =>
@@ -120,7 +118,6 @@ beforeEach(() => {
   searchStudents.mockReset().mockResolvedValue([]);
   listChildren.mockReset().mockResolvedValue([]);
   isChildOf.mockReset().mockResolvedValue(true);
-  // 실제로 취소된 것의 id만 돌려준다 — 기본은 넘긴 것 전부가 취소된 경우다.
   listAwardYears.mockReset().mockResolvedValue([2026, 2025]);
   findRecentAwardPage.mockReset().mockResolvedValue([]);
   countRecentAwards.mockReset().mockResolvedValue(0);
@@ -128,7 +125,6 @@ beforeEach(() => {
   findStudentHeader.mockReset().mockResolvedValue(HEADER);
 });
 
-/** 화면 머리글. removed가 false면 그 학년도 명단에 남아 있는 학생이다. */
 const HEADER = {
   studentProfileId: "sp-1",
   studentCode: "K7M2XQ4A",
@@ -140,12 +136,7 @@ const HEADER = {
   removed: false,
 };
 
-/**
- * 발생일은 2026학년도(2026-03-01 ~ 2027-02-28) 안이고 NOW보다 앞이다.
- * 기준 시각을 인자로 넘기는 이유는 오늘 날짜가 바뀌어도 테스트가 안 흔들리게 하기 위해서다.
- */
 const NOW = new Date("2026-08-16T10:00:00+09:00");
-/** 발생일은 입력이 아니라 NOW의 KST 날짜다. */
 const OCCURRED_ON = parseDateInputKst("2026-08-16");
 
 const awardInput = {
@@ -176,7 +167,6 @@ describe("awardMerit", () => {
 
   it("학년도는 항상 현재 학년도다", async () => {
     findCurrentYearForUpdate.mockResolvedValue(2027);
-    // 발생일 검사는 그 학년도 창을 보므로 기준 시각도 함께 옮긴다.
     await service.awardMerit(
       admin,
       awardInput,
@@ -255,10 +245,6 @@ describe("awardMerit", () => {
     expect(createAward).not.toHaveBeenCalled();
   });
 
-  /**
-   * 재적 검사는 **잠근 학년도**로 해야 한다. 트랜잭션 밖에서 물으면 그 사이
-   * 학년도가 넘어갔을 때 작년 재적을 보고 올해 기록을 넣는다.
-   */
   it("부여 대상 검사는 잠근 학년도로, 같은 트랜잭션 안에서 한다", async () => {
     await service.awardMerit(admin, awardInput, NOW);
 
@@ -295,12 +281,6 @@ describe("awardMerit", () => {
   });
 });
 
-/**
- * 발생일 검사. 발생일은 이제 입력이 아니라 **부여한 날(KST)** 이라 미래일 수 없다.
- * 그래도 학년도 창 검사는 남는다 — 3월이 지났는데 현재 학년도를 안 넘기면 오늘이
- * 그 학년도 창 밖이 되고, 조용히 저장되면 그 기록은 어느 집계에도 안 잡힌다.
- * monthlyTotals가 축 밖의 기록을 말없이 버리기 때문이다. 두 부여 경로를 함께 본다.
- */
 describe("발생일 (현재 학년도 2026 = 2026-03-01 ~ 2027-02-28)", () => {
   const cases: [name: string, run: (now: Date) => Promise<unknown>][] = [
     ["단건", (now) => service.awardMerit(admin, awardInput, now)],
@@ -309,14 +289,12 @@ describe("발생일 (현재 학년도 2026 = 2026-03-01 ~ 2027-02-28)", () => {
       (now) =>
         service.bulkAwardMerit(
           admin,
-          // createAwards 목이 2건을 돌려주므로 대상도 2명이어야 짝이 맞는다.
           { studentProfileIds: ["sp-1", "sp-2"], ruleId: "r-1", note: null },
           now,
         ),
     ],
   ];
 
-  /** 두 경로를 한 줄로 세는 헬퍼 — 어느 쪽이 돌았든 "썼는가"만 본다. */
   const writes = () => createAward.mock.calls.length + createAwards.mock.calls.length;
 
   for (const [name, run] of cases) {
@@ -331,8 +309,6 @@ describe("발생일 (현재 학년도 2026 = 2026-03-01 ~ 2027-02-28)", () => {
     });
 
     it(`${name} — 학년도를 안 넘긴 채 3월을 맞으면 거부한다`, async () => {
-      // 현재 학년도는 2026인데 오늘은 2027학년도다. 여기서 막지 않으면 그 기록은
-      // 2026 집계에도, 2027 집계에도 안 잡힌다.
       await expect(run(new Date("2027-03-02T10:00:00+09:00"))).rejects.toThrow(
         "OCCURRED_OUT_OF_YEAR",
       );
@@ -347,8 +323,6 @@ describe("발생일 (현재 학년도 2026 = 2026-03-01 ~ 2027-02-28)", () => {
     });
 
     it(`${name} — 저장되는 발생일은 그날의 KST 자정이다`, async () => {
-      // UTC로는 아직 8월 16일이지만 KST로는 17일이다. 시각이 아니라 날짜여야
-      // 월별 추이·최근 7일이 같은 눈금을 본다.
       await run(new Date("2026-08-16T15:30:00Z"));
 
       const written =
@@ -358,7 +332,6 @@ describe("발생일 (현재 학년도 2026 = 2026-03-01 ~ 2027-02-28)", () => {
   }
 
   it("월별 추이 축의 첫 달·마지막 달과 창이 어긋나지 않는다", () => {
-    // 이 두 값이 갈리는 순간, 검사를 통과한 기록이 그래프에서 조용히 사라진다.
     const axis = schoolYearMonths(2026);
     const { start, endExclusive } = schoolYearRange(2026);
 
@@ -367,7 +340,6 @@ describe("발생일 (현재 학년도 2026 = 2026-03-01 ~ 2027-02-28)", () => {
   });
 });
 
-/** KST 기준 `YYYY-MM` — 축의 key와 같은 모양. */
 function monthKeyKst(date: Date): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Seoul",
@@ -449,10 +421,6 @@ describe("cancelAward", () => {
     );
   });
 
-  /**
-   * 두 관리자가 동시에 누르면 나중 사람은 0을 받는다. 그때 감사로그까지
-   * 남기면 "두 사람이 취소했다"는 거짓 기록이 생긴다.
-   */
   it("그 사이 남이 먼저 취소했으면(0행) 실패하고 감사로그를 남기지 않는다", async () => {
     cancelAward.mockResolvedValue(0);
 
@@ -558,10 +526,6 @@ describe("getMyMerit", () => {
   });
 
   it("두 번째 인자를 학생 id처럼 넘겨도 세션 학생만 조회한다", async () => {
-    // 시그니처 길이만 재던 예전 단언은 (user, studentProfileId, track) 형태여도
-    // 그대로 통과해서, 검사하려던 것을 실제로 검사하지 못했다. 두 번째 인자가
-    // track이라는 사실을 동작으로 확인한다 — 남의 id를 넣어도 repo에는 세션에서
-    // 유도한 sp-1만 간다.
     findStudentProfileByUserId.mockResolvedValue({
       id: "sp-1",
       user: { name: "김민준" },
@@ -573,7 +537,6 @@ describe("getMyMerit", () => {
     expect(totals).toHaveBeenCalledWith(
       expect.objectContaining({ studentProfileId: "sp-1", track: "SCHOOL" }),
     );
-    // 호출 인자 어디에도 남의 id가 끼어들 자리가 없다.
     for (const [arg] of totals.mock.calls) {
       expect(arg.studentProfileId).toBe("sp-1");
     }
@@ -599,12 +562,10 @@ describe("bulkAwardMerit", () => {
   it("한 번의 쓰기로 넣되 기록끼리 묶지 않는다", async () => {
     await service.bulkAwardMerit(admin, bulk, NOW);
 
-    // 트랜잭션은 하나다 — 한 명이라도 실패하면 아무도 받지 않아야 한다.
     expect(createAwards).toHaveBeenCalledTimes(1);
     const items = createAwards.mock.calls[0][0];
     expect(items).toHaveLength(2);
     expect(createAwards.mock.calls[0][1]).toBe(txClient);
-    // 서로를 잇는 값이 없다. 되돌리는 것도 한 건씩이다.
     expect(items[0]).not.toHaveProperty("batchId");
     expect(items[1]).not.toHaveProperty("batchId");
   });
@@ -616,7 +577,6 @@ describe("bulkAwardMerit", () => {
       ([arg]) => arg.action === "merit:award",
     );
     expect(meritLogs).toHaveLength(2);
-    // 줄마다 그 학생의 것이다 — 묶음 식별자를 남기지 않는다.
     expect(meritLogs[0][0].metadata).not.toHaveProperty("batchId");
   });
 
@@ -649,7 +609,6 @@ describe("bulkAwardMerit", () => {
   });
 
   it("한 명이라도 없는 학생이면 아무것도 넣지 않는다", async () => {
-    // 한 번에 조회하므로 "못 찾음"은 결과 길이가 모자란 것으로 나타난다.
     findAwardableStudents.mockResolvedValue([
       { id: "sp-1", studentCode: "C", user: { id: "u", name: "n" } },
     ]);
@@ -699,10 +658,6 @@ describe("bulkAwardMerit", () => {
     expect(result).toEqual({ count: 2 });
   });
 
-  /**
-   * 인원 방어. zod가 경계에서 먼저 막지만 업무 규칙이라 서비스도 센다 —
-   * 액션을 거치지 않는 호출(앞으로 생길 진입점)에서 이 줄이 유일한 방어다.
-   */
   describe("인원 상한", () => {
     it("빈 목록이면 조회도 쓰기도 하지 않는다", async () => {
       await expect(
@@ -726,7 +681,6 @@ describe("bulkAwardMerit", () => {
       expect(recordAudit).not.toHaveBeenCalled();
     });
 
-    /** 세는 것은 중복을 뺀 뒤다 — 같은 학생을 두 번 골라 상한에 걸리면 안 된다. */
     it("중복은 상한에 세지 않는다", async () => {
       const ids = Array.from({ length: BULK_AWARD_LIMIT }, (_, i) => `sp-${i}`);
 
@@ -808,10 +762,6 @@ describe("getClassRoster", () => {
   });
 });
 
-/**
- * 최근 부여 흐름. 취소된 것도 함께 보여준다 — 목록이 조용히 짧아지면
- * 되돌리러 온 사람이 방금 한 일을 못 찾는다.
- */
 describe("listRecentAwards", () => {
   const ROWS = [
     { id: "a-1", kind: "MERIT", status: "ACTIVE" },
@@ -884,10 +834,6 @@ describe("listRecentAwards", () => {
   });
 });
 
-/**
- * 검색 결과. 학적과 removed를 함께 내보낸다 — 부여를 막는 근거가 그 값이라,
- * 주는 사람이 고르기 전에 알 수 있어야 한다.
- */
 describe("searchStudents", () => {
   function found(over: Record<string, unknown> = {}) {
     return {
@@ -931,7 +877,6 @@ describe("searchStudents", () => {
     expect(row.status).toBe("GRADUATED");
   });
 
-  /** 마지막 자리를 그대로 보이면 지금도 그 반인 것처럼 읽힌다. */
   it("재학이 아니면 반·번호는 비운다", async () => {
     searchStudents.mockResolvedValue([
       found({
@@ -963,11 +908,6 @@ describe("searchStudents", () => {
     });
   });
 
-  /**
-   * 학번 검색은 서비스가 읽어 repo에 넘기는 배선이다. 안 넘겨도 이름·학생코드
-   * 갈래가 그대로 돌아 화면은 멀쩡해 보이고, 교사가 외우고 있는 유일한 값인
-   * 학번만 조용히 안 먹힌다.
-   */
   describe("학번(4자리) 검색", () => {
     it("2305를 2학년 3반 5번으로 읽어 넘긴다", async () => {
       await service.searchStudents(admin, "2305");
@@ -993,7 +933,6 @@ describe("searchStudents", () => {
       expect(searchStudents.mock.calls[0][2].studentNumber).toBeUndefined();
     });
 
-    /** 0학년·0반·0번은 없다. 학생코드로 읽혀야 하는 값이다. */
     it("0이 낀 4자리는 학번이 아니다", async () => {
       await service.searchStudents(admin, "2005");
 
@@ -1020,7 +959,6 @@ describe("searchStudents", () => {
     expect(searchStudents).not.toHaveBeenCalled();
   });
 
-  /** 빠진 학생은 명시적으로 요청했을 때만 섞는다. */
   describe("명단에서 빠진 학생 (감사 M-2)", () => {
     it("기본은 옵트인하지 않은 것으로 넘긴다", async () => {
       await service.searchStudents(admin, "김민준");
@@ -1038,7 +976,6 @@ describe("searchStudents", () => {
       });
     });
 
-    /** 화면은 이 값으로 학급 자리에 학적을 세운다 — 부여 게이트와 같은 술어다. */
     it("재적이 아니면 removed가 true다", async () => {
       searchStudents.mockResolvedValue([
         found({
@@ -1053,7 +990,6 @@ describe("searchStudents", () => {
       });
 
       expect(row.removed).toBe(true);
-      // 소속은 재학인 줄에서만 쓴다 — 마지막 자리를 그대로 보이면 안 된다.
       expect(row.grade).toBeNull();
       expect(row.status).toBe("GRADUATED");
     });
@@ -1083,10 +1019,6 @@ describe("searchStudents", () => {
   });
 });
 
-/**
- * 화면 머리글. null을 주면 상세가 notFound()로 떨어져 기록에 닿는 경로가
- * 없어진다 — 목록에서만 빼고 상세는 배지와 함께 보여준다.
- */
 describe("getStudentHeader", () => {
   it("관리자만 볼 수 있다", async () => {
     await expect(service.getStudentHeader(student, "sp-1")).rejects.toThrow(
@@ -1117,10 +1049,6 @@ describe("getStudentHeader", () => {
   });
 });
 
-/**
- * 학년도 선택지. 세 호출부가 서로 다른 근거로 studentProfileId를 얻고,
- * 셋 다 서비스에서 다시 검사한다는 것이 요점이다.
- */
 describe("listAwardYears", () => {
   it("관리자는 아무 학생의 학년도 선택지를 볼 수 있다", async () => {
     expect(await service.listAwardYears(admin, "sp-9")).toEqual([2026, 2025]);
@@ -1215,7 +1143,6 @@ describe("학부모 조회", () => {
   });
 });
 
-/** 엑셀 내보내기. 권한·조회 범위·파일명이 전부 서비스 안에서 정해지는가. */
 describe("exportClassRoster", () => {
   const ROSTER = [
     {
@@ -1241,7 +1168,6 @@ describe("exportClassRoster", () => {
     });
 
     expect(result.filename).toBe("2026_2학년3반_교내상벌점.xlsx");
-    // 범위 줄 + 머리글 줄 + 학생 한 줄.
     expect(result.rows).toHaveLength(3);
     expect(result.rows[0]).toEqual(["2026학년도 2학년 3반 · 교내"]);
   });
@@ -1387,11 +1313,6 @@ describe("exportStudentHistory", () => {
   });
 });
 
-/**
- * 자녀 선택 크롬(`merit/page.tsx`)이 이걸로 그려진다. 실제 조회는 `getChildMerit`의
- * `assertIsChildOf`가 다시 막지만, 여기서 세션 유도가 깨지면 남의 자녀 **이름**이
- * 학부모 화면에 뜬다. 이름도 개인정보다.
- */
 describe("listMyChildren() — 세션에서만 유도한다", () => {
   const parent = user("PARENT", "p-1", { name: "이정민" });
 
@@ -1408,18 +1329,10 @@ describe("listMyChildren() — 세션에서만 유도한다", () => {
   });
 });
 
-/**
- * `OCCURRED_IN_FUTURE`는 지금 도달하지 않는다 — 발생일이 화면 입력이 아니라
- * `kstDayStart(now)`에서 유도되기 때문이다. 그 검사를 지우지 않고 두는 이유가
- * 「발생일은 부여 시각보다 뒤일 수 없다」는 불변식이라서이므로, 유도 자체를
- * 여기서 붙든다. 유도가 깨져 발생일이 다시 입력으로 바뀌면 그때는 저 검사가
- * 실제로 일을 하기 시작한다.
- */
 describe("발생일은 부여 시각에서 유도된다", () => {
   it("입력에 발생일을 넣어도 무시되고 오늘(KST 자정)이 들어간다", async () => {
     await service.awardMerit(
       admin,
-      // 스키마에 없는 키다 — 서비스까지 새어 들어가지 않는다는 것을 확인한다.
       { ...awardInput, occurredOn: "2099-01-01" } as typeof awardInput,
       NOW,
     );

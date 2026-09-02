@@ -1,7 +1,6 @@
 import { cardClass } from "@/components/ui/card";
 import { Skeleton, SkeletonScreen } from "@/components/ui/skeleton";
 
-/** `/community`의 뼈대 — 게시판 카드 격자. */
 export default function Loading() {
   return (
     <SkeletonScreen className="@container mx-auto max-w-5xl">

@@ -6,7 +6,6 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EMPTY_PASS_STATE } from "./action-state";
 import { cancelAction } from "./actions";
 
-/** 교사가 승인된 출입증을 무른다. 사유는 선택이지만 남으면 감사로그에 실린다. */
 export function CancelButton({ passId }: { passId: string }) {
   const [state, action, pending] = useActionState(cancelAction, EMPTY_PASS_STATE);
 

@@ -26,11 +26,6 @@ const { YearTakenError, createYear, setCurrent } = await import(
   "@/modules/academic-year/academic-year.repo"
 );
 
-/**
- * year는 @id라 유일 제약 위반이 PK 위반(`AcademicYear_pkey`)으로 온다.
- * 아래는 Prisma 7.9 + @prisma/adapter-pg에서 **실제로 관측한** 오류다
- * (admin-user.repo.test.ts와 같은 방식 — 위반 컬럼은 constraint.fields에 온다).
- */
 function realWorldP2002() {
   return Object.assign(new Error("Unique constraint failed"), {
     name: "PrismaClientKnownRequestError",

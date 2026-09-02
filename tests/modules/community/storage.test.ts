@@ -10,15 +10,15 @@ const MB = 1024 * 1024;
 
 describe("classifyUpload", () => {
   it("허용 이미지는 인라인이다", () => {
-    expect(classifyUpload("사진.png", "image/png", 1000)).toEqual({
+    expect(classifyUpload("사진.png", 1000)).toEqual({
       ok: true,
       mimeType: "image/png",
       inline: true,
     });
   });
 
-  it("**PDF는 인라인이다** — 누르면 내려받지 않고 브라우저 뷰어가 연다", () => {
-    expect(classifyUpload("보고서.pdf", "application/pdf", 1000)).toEqual({
+  it("PDF는 인라인이다 — 누르면 내려받지 않고 브라우저 뷰어가 연다", () => {
+    expect(classifyUpload("보고서.pdf", 1000)).toEqual({
       ok: true,
       mimeType: "application/pdf",
       inline: true,
@@ -27,17 +27,17 @@ describe("classifyUpload", () => {
 
   it("한글·오피스 문서는 내려받기다 — 브라우저가 열 수 없다", () => {
     for (const name of ["가정통신문.hwp", "표.xlsx", "글.docx", "묶음.zip"]) {
-      expect(classifyUpload(name, "", 1000)).toMatchObject({ inline: false });
+      expect(classifyUpload(name, 1000)).toMatchObject({ inline: false });
     }
   });
 
   it("한글 문서(hwp·hwpx)를 받는다", () => {
-    expect(classifyUpload("가정통신문.hwp", "", 1000).ok).toBe(true);
-    expect(classifyUpload("가정통신문.hwpx", "", 1000).ok).toBe(true);
+    expect(classifyUpload("가정통신문.hwp", 1000).ok).toBe(true);
+    expect(classifyUpload("가정통신문.hwpx", 1000).ok).toBe(true);
   });
 
-  it("**svg는 거부한다** — 같은 출처에서 열리면 스크립트가 돈다", () => {
-    expect(classifyUpload("icon.svg", "image/svg+xml", 100)).toEqual({
+  it("svg는 거부한다 — 같은 출처에서 열리면 스크립트가 돈다", () => {
+    expect(classifyUpload("icon.svg", 100)).toEqual({
       ok: false,
       code: "ATTACHMENT_TYPE",
     });
@@ -46,27 +46,27 @@ describe("classifyUpload", () => {
   it.each(["a.html", "a.htm", "a.js", "a.exe", "a.sh", "a"])(
     "%s는 거부한다",
     (name) => {
-      expect(classifyUpload(name, "text/html", 100).ok).toBe(false);
+      expect(classifyUpload(name, 100).ok).toBe(false);
     },
   );
 
   it("확장자가 맞아도 20MB를 넘으면 거부한다", () => {
-    expect(classifyUpload("큰파일.pdf", "application/pdf", 20 * MB + 1)).toEqual({
+    expect(classifyUpload("큰파일.pdf", 20 * MB + 1)).toEqual({
       ok: false,
       code: "ATTACHMENT_TOO_LARGE",
     });
   });
 
   it("정확히 20MB는 통과한다", () => {
-    expect(classifyUpload("딱맞음.pdf", "application/pdf", 20 * MB).ok).toBe(true);
+    expect(classifyUpload("딱맞음.pdf", 20 * MB).ok).toBe(true);
   });
 
   it("빈 파일은 거부한다", () => {
-    expect(classifyUpload("빈.pdf", "application/pdf", 0).ok).toBe(false);
+    expect(classifyUpload("빈.pdf", 0).ok).toBe(false);
   });
 
-  it("**타입은 확장자가 정한다 — 브라우저가 보낸 mimeType을 믿지 않는다**", () => {
-    expect(classifyUpload("보고서.pdf", "text/html", 1000)).toEqual({
+  it("타입은 확장자가 정한다", () => {
+    expect(classifyUpload("보고서.pdf", 1000)).toEqual({
       ok: true,
       mimeType: "application/pdf",
       inline: true,
@@ -74,15 +74,15 @@ describe("classifyUpload", () => {
   });
 
   it("대문자 확장자도 같다", () => {
-    expect(classifyUpload("사진.PNG", "", 100)).toMatchObject({
+    expect(classifyUpload("사진.PNG", 100)).toMatchObject({
       ok: true,
       inline: true,
     });
   });
 
   it("점이 여럿이면 마지막 것이 확장자다", () => {
-    expect(classifyUpload("보고서.png.exe", "", 100).ok).toBe(false);
-    expect(classifyUpload("2026.08.보고서.pdf", "", 100).ok).toBe(true);
+    expect(classifyUpload("보고서.png.exe", 100).ok).toBe(false);
+    expect(classifyUpload("2026.08.보고서.pdf", 100).ok).toBe(true);
   });
 });
 
@@ -139,7 +139,6 @@ describe("contentDisposition", () => {
     const value = contentDisposition('a"b\r\nX-Evil: 1.pdf', false);
     expect(value).not.toContain("\r");
     expect(value).not.toContain("\n");
-    // ASCII 폴백 안에 따옴표가 남으면 filename="…"가 거기서 닫힌다.
     const ascii = value.slice(value.indexOf('filename="') + 10);
     expect(ascii.slice(0, ascii.indexOf('"'))).not.toContain('"');
   });

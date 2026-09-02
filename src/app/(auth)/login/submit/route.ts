@@ -9,10 +9,6 @@ import {
 const EMAIL_MAX_LENGTH = 320;
 const PASSWORD_MAX_LENGTH = 128;
 
-/**
- * 로그인 CSRF를 막되, Origin이 `null`인 JS 비활성화 브라우저는
- * Fetch Metadata 또는 Referer로 같은 오리진 제출임을 확인한다.
- */
 function candidateRequestOrigins(request: NextRequest): string[] {
   const forwardedProtocol = request.headers
     .get("x-forwarded-proto")
@@ -37,6 +33,7 @@ function candidateRequestOrigins(request: NextRequest): string[] {
   return [...origins];
 }
 
+// Origin이 null인 JS 비활성 브라우저도 같은 오리진임을 별도 확인해야 한다.
 function validatedRequestOrigin(request: NextRequest): string | null {
   const expected = candidateRequestOrigins(request);
   const origin = request.headers.get("origin");
@@ -55,10 +52,6 @@ function validatedRequestOrigin(request: NextRequest): string | null {
   } catch {
     return null;
   }
-}
-
-export function isSameOriginLoginRequest(request: NextRequest): boolean {
-  return validatedRequestOrigin(request) !== null;
 }
 
 function copySetCookies(from: Response, to: NextResponse): void {
@@ -86,6 +79,7 @@ function failureResponse(
   if (destination) location.searchParams.set("next", destination);
 
   const response = NextResponse.redirect(location, 303);
+  // JS 없는 재시도에도 이메일을 URL에 노출하지 않는다.
   response.cookies.set(LOGIN_EMAIL_HINT_COOKIE, email, {
     httpOnly: true,
     sameSite: "lax",

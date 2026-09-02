@@ -1,12 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ForbiddenError } from "@/core/authz/errors";
 
-/**
- * 학생이 직접 만드는 학부모 코드 액션의 경계.
- * FormData는 parent-invite-form.tsx가 보내는 `name` 하나 그대로 만든다.
- */
-
-// 목은 구현 없이 선언하고 기본값은 beforeEach에서 준다.
 const requireAuth = vi.fn();
 const revalidatePath = vi.fn();
 const createParentInvite = vi.fn();
@@ -62,7 +56,6 @@ describe("createParentInviteAction — 경계 검증", () => {
     );
 
     expect(createParentInvite.mock.calls[0]?.[1]).not.toHaveProperty("studentId");
-    // 서비스 인자도 (actor, input) 둘뿐이다 — 세 번째로 새어 나가지 않는다.
     expect(createParentInvite.mock.calls[0]).toHaveLength(2);
   });
 

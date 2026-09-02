@@ -9,18 +9,11 @@ import { listStudents } from "@/modules/enrollment/enrollment.service";
 import { StudentTable, type StudentRow } from "./student-table";
 import { YearSwitcher } from "./year-switcher";
 
-/**
- * 학생 탭 — 학년도 전환 + 재적(학년·반·번호·재학상태) 편집.
- *
- * 예전 `/admin/students` 화면의 본문 그대로다.
- */
 export async function StudentsPanel() {
   const actor = await requirePermission("student:manage");
 
   const years = await listYears(actor);
 
-  // 현재 학년도가 없으면 표는 못 그리지만 학년도 카드는 띄워야 한다 — 학년도를
-  // 지정할 수 있는 화면이 여기뿐이다.
   let rows: StudentRow[] | null = null;
   try {
     const students = await listStudents(actor);
@@ -39,12 +32,9 @@ export async function StudentsPanel() {
     if (!(error instanceof AcademicYearError)) throw error;
   }
 
-  // 학년도가 바뀌면 표를 새로 마운트한다 — 안 그러면 이전 학년도의 편집 상태가
-  // 새 목록 위에 남는다.
   const currentYear = years.find((y) => y.isCurrent)?.year;
 
   return (
-    // grid로 두면 암시적 열이 max-content라 표의 minWidth가 페이지를 밀어낸다.
     <div className="flex flex-col gap-4">
       <div className="flex justify-end">
         <Link

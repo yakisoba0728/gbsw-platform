@@ -2,12 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ForbiddenError } from "@/core/authz/errors";
 import { MeritError } from "@/modules/merit/merit.error";
 
-/**
- * 서버 액션의 경계 — FormData가 zod 스키마에 닿는 지점. 서비스 테스트는 입력
- * 객체를 손으로 넘기므로 "액션이 폼의 어떤 필드를 안 읽는다"를 못 본다.
- * 그래서 FormData는 화면의 .tsx가 실제로 보내는 name 그대로 만든다.
- */
-
 const requireAuth = vi.fn();
 const revalidatePath = vi.fn();
 
@@ -56,7 +50,6 @@ function form(fields: Record<string, string | string[]>): FormData {
   return fd;
 }
 
-/** award-form.tsx가 보내는 필드 그대로 (ruleId는 RulePicker의 hidden input). */
 function awardForm(over: Record<string, string> = {}): FormData {
   return form({
     studentProfileId: "sp-1",
@@ -66,7 +59,6 @@ function awardForm(over: Record<string, string> = {}): FormData {
   });
 }
 
-/** class-roster.tsx가 보내는 필드 그대로. 체크박스는 같은 name으로 여러 개 온다. */
 function bulkForm(over: Record<string, string | string[]> = {}): FormData {
   return form({
     studentProfileIds: ["sp-1", "sp-2", "sp-3"],
@@ -76,7 +68,6 @@ function bulkForm(over: Record<string, string | string[]> = {}): FormData {
   });
 }
 
-/** components/merit/cancel-button.tsx의 hidden input 둘 + ConfirmDialog의 reason. */
 function cancelForm(over: Record<string, string> = {}): FormData {
   return form({
     awardId: "aw-1",
@@ -126,12 +117,10 @@ describe("awardAction — 경계 검증", () => {
         note: "점호 지각",
       }),
     );
-    // 발생일은 경계에서 받지 않는다 — 서비스가 오늘로 정한다.
     expect(awardMerit.mock.calls[0]?.[1]).not.toHaveProperty("occurredOn");
   });
 
   it("항목을 안 고르면 서비스를 부르지 않고 한국어로 알린다", async () => {
-    // RulePicker는 아무것도 안 고르면 빈 문자열을 보낸다 (hidden input).
     const state = await awardAction(INITIAL, awardForm({ ruleId: "" }));
 
     expect(awardMerit).not.toHaveBeenCalled();
@@ -165,7 +154,6 @@ describe("awardAction — 경계 검증", () => {
 
     const state = await awardAction(INITIAL, awardForm());
 
-    // 부여 화면에 발생일 입력이 없다 — 날짜를 고르라는 안내는 없는 칸을 찾게 한다.
     expect(state.error).toContain("현재 학년도");
     expect(state.error).not.toContain("날짜");
   });
@@ -175,8 +163,6 @@ describe("awardAction — 경계 검증", () => {
 
     const state = await awardAction(INITIAL, awardForm({ note: " 점호 지각 " }));
 
-    // 액션이 끝나면 React가 폼을 reset한다. 이 값이 메모 칸의 defaultValue가 되어
-    // 지워지는 대신 되살아난다 — zod가 다듬기 전 글자 그대로여야 한다.
     expect(state.note).toBe(" 점호 지각 ");
   });
 
@@ -203,8 +189,6 @@ describe("awardAction — 경계 검증", () => {
     expect(state.error).toContain("현재 학년도가 없습니다");
   });
 
-  // 명단 일괄 반영이 AcademicYear 잠금을 최대 120초 쥔다 — 그 사이 부여가 예산을
-  // 넘기면 Prisma가 P2028을 준다. 폴백으로 새면 왜 막혔는지 화면에도 로그에도 안 남는다.
   it("트랜잭션이 예산을 넘기면 일시적 경합으로 안내하고 서버에 남긴다", async () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     awardMerit.mockRejectedValueOnce(Object.assign(new Error("tx"), { code: "P2028" }));
@@ -341,7 +325,6 @@ describe("exportClassRosterAction — 경계 검증", () => {
     await exportClassRosterAction({ grade: 1, classNo: 1, track: "SCHOOL" });
 
     expect(exportClassRoster.mock.calls[0]?.[1].year).toBeUndefined();
-    // 현재 학년도를 읽는 일도 서비스로 넘어갔다 — 액션은 이제 안 부른다.
     expect(getCurrentYear).not.toHaveBeenCalled();
   });
 
@@ -381,7 +364,6 @@ describe("exportClassRosterAction — 경계 검증", () => {
     });
 
     expect(result.error).toBe("이 작업을 할 권한이 없습니다.");
-    // 정상적인 거부이므로 예상 못 한 오류로 서버 로그에 남지 않는다.
     expect(logged).not.toHaveBeenCalled();
     logged.mockRestore();
   });

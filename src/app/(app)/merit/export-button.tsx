@@ -19,12 +19,6 @@ import {
   exportStudentHistoryAction,
 } from "./actions";
 
-/*
- * 상벌점의 세 내보내기. 저장 절차는 `components/ui/sheet-download`가 갖고 있고,
- * 여기는 어느 액션을 부르고 어떤 열 너비를 쓰는지만 정한다.
- */
-
-/** 반별 목록을 내보낸다. */
 export function ExportButton(props: {
   grade: number;
   classNo: number;
@@ -39,7 +33,6 @@ export function ExportButton(props: {
   return <SheetDownloadButton {...download} />;
 }
 
-/** 한 학생의 내역을 내보낸다. */
 export function ExportHistoryButton(props: {
   studentProfileId: string;
   track: MeritTrack;
@@ -54,7 +47,6 @@ export function ExportHistoryButton(props: {
   return <SheetDownloadButton {...download} label="내역 내보내기" />;
 }
 
-/** 최근 부여의 현재 필터 전체를 내려받는다. 페이지 번호는 일부러 받지 않는다. */
 export function ExportRecentAwardsButton(props: RecentAwardsExportInput) {
   const download = useSheetDownload(
     () => exportRecentAwardsAction(props),

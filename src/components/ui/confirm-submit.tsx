@@ -3,16 +3,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Button, type ButtonVariant } from "@/components/ui/button";
 
-/**
- * **이미 다 채운 폼**을 한 번 더 묻는 버튼.
- *
- * `ConfirmDialog`와 나뉘는 지점이 분명하다 — 그쪽은 모달 안에서 사유를 받아 자기
- * 폼으로 보내고, 이쪽은 **바깥 폼을 그대로 제출한다.** 신청·부여처럼 화면이 이미
- * 행선지·사유·기간을 다 받은 자리는 모달에서 또 물을 것이 없다.
- *
- * 바깥 폼을 찾는 방법은 `button.form`이다 — 이 버튼이 그 폼 안에 있으므로
- * ref를 타고 올라갈 필요가 없다.
- */
 export function ConfirmSubmit({
   label,
   title,
@@ -33,18 +23,13 @@ export function ConfirmSubmit({
   description: ReactNode;
   confirmLabel: string;
   pendingLabel: string;
-  /** 실제 서버 작업이 진행 중일 때만 true. 이때만 pendingLabel을 보여 준다. */
   pending: boolean;
-  /** 입력 전제조건이 충족되지 않아 아직 누를 수 없는 상태. 로딩 상태와 구분한다. */
   disabled?: boolean;
-  /** 같은 동사가 한 화면에 반복될 때 대상을 포함한 접근 가능한 이름. */
   ariaLabel?: string;
   variant?: ButtonVariant;
   size?: "sm" | "md" | "lg";
   full?: boolean;
-  /** 버튼이 폼 밖에 있을 때의 form 속성. `button.form`이 이 값을 따라간다. */
   form?: string;
-  /** 모달을 열 때 한 번. 결과 문구에 쓸 값을 붙잡아 두는 자리다. */
   onOpen?: () => void;
 }) {
   const baseId = useId();
@@ -65,7 +50,6 @@ export function ConfirmSubmit({
 
   function confirm() {
     setOpen(false);
-    // 폼의 required 검사를 건너뛰지 않는다 — requestSubmit이 그대로 돌린다.
     triggerRef.current?.form?.requestSubmit();
   }
 
@@ -82,7 +66,6 @@ export function ConfirmSubmit({
         aria-label={ariaLabel}
         aria-busy={pending || undefined}
         onClick={() => {
-          // 빈 칸이 있으면 모달을 열기 전에 브라우저가 먼저 짚어 준다.
           const form = triggerRef.current?.form;
           if (form && !form.reportValidity()) return;
           onOpen?.();

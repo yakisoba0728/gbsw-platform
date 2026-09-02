@@ -2,14 +2,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { Markdown } from "@/components/ui/markdown";
 
-/**
- * 마크다운은 이 저장소가 한 번 배제했다가 되돌린 결정이다. 배제한 근거는
- * **「서식을 넣으면 HTML 살균이 이 모듈에서 가장 위험한 코드가 된다」**였으므로,
- * 그 위험이 실제로 막혀 있는지를 여기서 붙든다.
- *
- * `renderToStaticMarkup`으로 서버가 실제로 내보내는 HTML을 보고 검사한다 —
- * 컴포넌트 트리를 들여다보면 살균 뒤의 결과를 못 본다.
- */
 function html(markdown: string): string {
   return renderToStaticMarkup(<Markdown>{markdown}</Markdown>);
 }
@@ -81,13 +73,12 @@ describe("Markdown — 문법이 실제로 동작한다", () => {
 });
 
 describe("Markdown — 위험한 것을 막는다", () => {
-  it("**날 HTML을 그리지 않는다** — 태그는 사라지고 글자는 남는다", () => {
+  it("날 HTML을 그리지 않는다 — 태그는 사라지고 글자는 남는다", () => {
     expect(html("<script>alert(1)</script>")).not.toContain("<script");
-    // 태그만 없어지고 안의 글자는 살아남는다 — 글이 통째로 증발하지 않는다.
     expect(html("<b>안녕</b> 뒤에 글")).toContain("안녕 뒤에 글");
   });
 
-  it("**코드로 감싸면 HTML이 글자 그대로 보인다** — 코드 얘기를 쓸 수 있다", () => {
+  it("코드로 감싸면 HTML이 글자 그대로 보인다 — 코드 얘기를 쓸 수 있다", () => {
     expect(html("```\n<script>alert(1)</script>\n```")).toContain(
       "&lt;script&gt;alert(1)&lt;/script&gt;",
     );
@@ -126,7 +117,7 @@ describe("Markdown — 위험한 것을 막는다", () => {
     expect(out).not.toMatch(/href="\s*vbscript:/i);
   });
 
-  it("**이미지 문법은 태그로 나가지 않는다** — 바깥 서버에 조회를 보내지 않는다", () => {
+  it("이미지 문법은 태그로 나가지 않는다 — 바깥 서버에 조회를 보내지 않는다", () => {
     const out = html("![사진](https://evil.kr/track.png)");
     expect(out).not.toContain("<img");
   });
@@ -134,7 +125,6 @@ describe("Markdown — 위험한 것을 막는다", () => {
   it("체크박스 목록의 input도 나가지 않는다", () => {
     const out = html("- [ ] 할 일\n- [x] 한 일");
     expect(out).not.toContain("<input");
-    // 목록 자체는 그려진다.
     expect(out).toContain("<li");
   });
 });

@@ -4,19 +4,6 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { canonicalJson } from "@/lib/canonical-json";
 import type { RosterRow } from "./roster.parse";
 
-/**
- * 「미리보기에서 본 그 내용만 반영한다」를 지키는 봉인.
- *
- * 확정 반영은 클라이언트가 돌려보낸 행을 다시 분류하고 학년도·명단 지문·삭제
- * 대상까지 다시 검사하지만, **넘어온 행 자체가 미리보기 때 보여준 그 행인지는
- * 그 검사들로 덮이지 않는다** — 지문은 DB 쪽 명단이 안 변했는지를 볼 뿐이다.
- * 그 마지막 한 칸을 이 HMAC이 맡는다.
- *
- * 그래서 서비스 계층에 둔다. 서버 액션에 두면 진입점을 옮기거나 같은 서비스를
- * 부르는 두 번째 진입점이 생길 때 이 보증만 조용히 사라지고, 서비스만 읽어서는
- * 빠진 줄을 알 수 없다.
- */
-
 const TOKEN_VERSION = "v1";
 const SHA256_BASE64URL = /^[A-Za-z0-9_-]{43}$/u;
 
@@ -28,9 +15,6 @@ type PreviewTokenInput = {
 };
 
 function previewTokenSecret(): string {
-  // 빈 문자열은 「주지 않은 것」으로 본다. compose의 `${VAR:-}`는 변수를 빼는 게
-  // 아니라 빈 값으로 넘기므로, `??`로 받으면 BETTER_AUTH_SECRET 폴백이 영영
-  // 일어나지 않고 도커 배포에서 미리보기·확정이 늘 이 함수의 throw로 죽었다.
   const explicit = process.env.ROSTER_IMPORT_PREVIEW_SECRET;
   const secret = explicit?.trim() ? explicit : process.env.BETTER_AUTH_SECRET;
   if (secret?.trim()) return secret;
@@ -38,6 +22,7 @@ function previewTokenSecret(): string {
   throw new Error("ROSTER_IMPORT_PREVIEW_SECRET 또는 BETTER_AUTH_SECRET 환경변수가 없습니다.");
 }
 
+// 확인한 명단·삭제 대상·DB 상태를 함께 서명해 적용 요청의 바꿔치기를 막는다.
 function tokenPayload(input: PreviewTokenInput): string {
   return canonicalJson({
     year: input.year,

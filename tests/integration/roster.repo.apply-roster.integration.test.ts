@@ -3,18 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/core/db/client";
 import { applyRoster } from "@/modules/enrollment/roster.repo";
 
-/**
- * 실 Postgres(gbsw_test, 개발 DB와 분리)에 대고 applyRoster()의
- * "명단에서 빠짐 → 학생 영구 삭제" 경로를 검증한다.
- *
- * repo 단위 테스트(tests/modules/enrollment/roster.repo.test.ts)는 $transaction을
- * `(fn) => fn(tx)`로 흉내 낸다 — 실제 트랜잭션이 도는지, Cascade·세션 정리가
- * 의도한 범위로 도는지는 목으로는 검증되지 않는다.
- *
- * 이 파일이 만든 데이터만 정리한다(afterAll) — 전역 deleteMany()는 쓰지 않는다.
- */
-
-const YEAR = 8102; // 실제 학년도와 절대 겹치지 않는, 이 테스트 전용 값.
+const YEAR = 8102;
 
 describe("applyRoster() — 명단에서 빠진 학생은 DB에서 영구 삭제된다", () => {
   const adminId = randomUUID();
@@ -72,7 +61,6 @@ describe("applyRoster() — 명단에서 빠진 학생은 DB에서 영구 삭제
       },
     });
 
-    // 영구 삭제 Cascade가 세션을 실제로 지우는지 보려면 지울 세션이 있어야 한다.
     await prisma.session.create({
       data: {
         id: sessionId,
@@ -97,9 +85,6 @@ describe("applyRoster() — 명단에서 빠진 학생은 DB에서 영구 삭제
     });
     parentStudentId = link.id;
 
-    // 삭제 대상 세 갈래 — 학생이 직접 만든 코드(createdById), 관리자가 이 학생
-    // 몫으로 만든 코드(studentId), 이미 사용된 코드(usedById/studentId).
-    // PENDING 두 건만 revokedInvites로 돌아오지만 DB 행은 셋 다 삭제된다.
     await prisma.invite.createMany({
       data: [
         {
@@ -132,7 +117,6 @@ describe("applyRoster() — 명단에서 빠진 학생은 DB에서 영구 삭제
   });
 
   afterAll(async () => {
-    // 이미 삭제된 행은 noop이다. 테스트가 중간에 실패했을 때의 잔여물만 정리한다.
     await prisma.invite.deleteMany({
       where: { code: { in: [pendingByStudentCode, pendingByAdminCode, usedCode] } },
     });
@@ -144,8 +128,6 @@ describe("applyRoster() — 명단에서 빠진 학생은 DB에서 영구 삭제
   });
 
   it("User/StudentProfile과 의존 행을 cascade로 지우고 학부모 계정은 보존한다", async () => {
-    // 소진된 코드도 함께 지워지므로 함께 돌려받아야 한다 — 대기분만 모으면
-    // 소진된 행이 감사로그 한 줄 없이 사라진다. 무엇이었는지는 status가 남긴다.
     const removedIds = (
       await prisma.invite.findMany({
         where: {

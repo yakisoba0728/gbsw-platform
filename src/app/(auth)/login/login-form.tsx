@@ -12,7 +12,6 @@ import {
   loginErrorMessage,
 } from "./login-state";
 
-/** 배너와 로그인 실패가 같은 문구를 쓴다. */
 const PASSWORD_CHANGED_MESSAGE = "비밀번호가 변경되었습니다. 다시 로그인해 주세요.";
 
 export function LoginForm({
@@ -24,9 +23,7 @@ export function LoginForm({
 }: {
   disabled?: boolean;
   passwordChanged?: boolean;
-  /** 로그인 뒤 돌아갈 경로. 이미 safeNext를 통과한 값이다. */
   next?: string | null;
-  /** JS 없는 POST 실패 뒤 잠깐 복원할 이메일. 비밀번호는 복원하지 않는다. */
   initialEmail?: string;
   initialError?: string | null;
 }) {
@@ -67,7 +64,6 @@ export function LoginForm({
         return;
       }
 
-      // 세션 쿠키가 붙은 상태로 서버 컴포넌트를 다시 그리게 한다.
       router.replace(result.redirectTo);
       router.refresh();
     } catch {

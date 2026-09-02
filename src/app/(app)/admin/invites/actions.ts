@@ -24,13 +24,10 @@ import type {
   RevokeState,
 } from "./action-state";
 
-/** 화면이 `./actions`에서 가져가던 경로를 유지한다. 값은 action-state.ts에 있다. */
 export type { InviteFormState, InviteFormValues, RevokeState };
 
-/** 서비스가 던지는 오류 코드를 화면 문구로 옮긴다. */
 const MESSAGES = {
   FORBIDDEN: "권한이 없습니다.",
-  // 유일한 코드를 뽑지 못했다 — 일시적 장애라 다시 누르면 풀린다.
   CODE_GENERATION_FAILED: "코드를 만들지 못했습니다. 다시 시도해 주세요.",
   TOO_MANY_ACTIVE_INVITES: `이 학생에게 쓰지 않은 코드가 ${MAX_ACTIVE_PARENT_INVITES}개 있습니다.`,
   STUDENT_NOT_FOUND: "학생을 찾을 수 없습니다.",
@@ -38,7 +35,6 @@ const MESSAGES = {
   NOT_PENDING: "이미 쓰였거나 폐기된 코드입니다.",
 } satisfies Record<string, string>;
 
-/** 코드로 가를 수 있는 오류는 사전에서, 나머지는 액션별 폴백으로. */
 const messageFor = actionMessage(InviteError, MESSAGES, "[invite]");
 
 function optionalDays(value: FormDataEntryValue | null): number | undefined {
@@ -135,7 +131,6 @@ export async function createParentInviteForAction(
 ): Promise<InviteFormState> {
   const actor = await requireAuth();
 
-  // 6줄짜리 목록에서 학생을 다시 찾는 것이 이 폼에서 가장 비싼 재입력이다.
   const values: InviteFormValues = {
     studentId: text(formData, "studentId"),
     name: text(formData, "name"),
@@ -185,7 +180,6 @@ export async function revokeInviteAction(
 
   try {
     await revokeInvite(actor, parsed.data);
-    // 교사 목록과 학생의 학부모 코드 목록 양쪽에서 쓰인다.
     revalidatePath("/admin/users");
     revalidatePath("/parent-invite");
     return { ok: true, error: null };

@@ -35,7 +35,6 @@ const BASE_PATH = "/merit/rules";
 type RulesPromise = ReturnType<typeof listRulesForReading>;
 type RuleRecord = Awaited<RulesPromise>[number];
 
-/** 건수와 표가 같은 함수를 써야 「3개 중 1개」라고 적어 놓고 두 줄을 보여주지 않는다. */
 function visibleRules(
   all: RuleRecord[],
   q: string,
@@ -96,13 +95,6 @@ const COLUMNS: readonly Column<RuleRecord>[] = [
   },
 ];
 
-/**
- * 학생·학부모가 읽는 규정표. 교사의 규정 관리(`/admin/merit/rules`)와 자료는 같고
- * **고치는 길이 없다** — 권한도 함수도 따로다(`merit:rule:read`).
- *
- * 「무엇을 하면 몇 점인지」를 찾으러 오는 화면이라 검색과 종류 거르기를 함께 둔다.
- * 교내·기숙사는 메뉴로 가르지 않고 화면 안의 탭이 고른다 — 다른 상벌점 화면과 같다.
- */
 export default async function MeritRulesPage({
   searchParams,
 }: {
@@ -116,8 +108,6 @@ export default async function MeritRulesPage({
   const kind: MeritKind | null = isMeritKind(raw.kind) ? raw.kind : null;
   const filtering = q !== "" || kind !== null;
 
-  // 기다리지 않고 약속만 넘긴다 — 기다리면 검색칸과 탭까지 함께 뼈대로 덮여,
-  // 방금 글자를 넣은 칸이 사라진다. 두 경계가 같은 약속을 나눠 질의는 한 번이다.
   const rulesPromise = listRulesForReading(actor, track);
   const boundaryKey = JSON.stringify({ track, q, kind });
 
@@ -130,7 +120,6 @@ export default async function MeritRulesPage({
         aside={
           <TrackTabs
             current={track}
-            // 트랙을 바꾸면 검색 조건은 버린다 — 목록이 달라 0건이 빈 화면처럼 읽힌다.
             hrefFor={(nextTrack) => `${BASE_PATH}?track=${nextTrack}`}
           />
         }
@@ -191,7 +180,6 @@ export default async function MeritRulesPage({
   );
 }
 
-/** 총 건수. 표와 같은 약속을 기다리므로 질의가 늘지 않는다. */
 async function RuleCount({
   promise,
   q,
@@ -247,7 +235,6 @@ async function RulesResult({
       aside={<span className="text-xs text-mut">{rules.length}개</span>}
     >
       {rules.length === 0 ? (
-        // 「규정이 없다」와 「조건에 안 맞는다」는 다른 말이다.
         <EmptyState variant="inside">
           {filtering ? "조건에 맞는 규정이 없습니다." : "등록된 규정이 없습니다."}
         </EmptyState>

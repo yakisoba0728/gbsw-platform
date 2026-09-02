@@ -34,8 +34,8 @@ describe("isStudentCode()", () => {
   it("길이·알파벳이 어긋나면 거부한다", () => {
     expect(isStudentCode("")).toBe(false);
     expect(isStudentCode("ABC")).toBe(false);
-    expect(isStudentCode("abcdefgh")).toBe(false); // 소문자
-    expect(isStudentCode("A1BCDEFG")).toBe(false); // 1은 알파벳 밖
+    expect(isStudentCode("abcdefgh")).toBe(false);
+    expect(isStudentCode("A1BCDEFG")).toBe(false);
     expect(isStudentCode(null)).toBe(false);
   });
 });

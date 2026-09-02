@@ -2,11 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { meritKindDelta, meritKindSign } from "@/core/authz/merit-track";
 import { user } from "../../helpers/session";
 
-/**
- * 상쇄점이 합계에 반영되는지 확인한다. 집계에서 종류 하나를 빠뜨리면 내역에는
- * 점수가 찍혀 있는데 순점수가 꿈쩍도 안 한다. 순점수 = 상점 + 상쇄점 − 벌점.
- */
-
 describe("meritKindDelta — 부호 규칙", () => {
   it("상점과 상쇄점은 +, 벌점은 −", () => {
     expect(meritKindDelta("MERIT")).toBe(1);
@@ -25,8 +20,6 @@ describe("meritKindDelta — 부호 규칙", () => {
     expect(meritKindSign("DEMERIT")).toBe("−");
   });
 });
-
-// ── 서비스 집계 ────────────────────────────────────────────────
 
 const totals = vi.fn();
 const listAwards = vi.fn();
@@ -54,8 +47,6 @@ vi.mock("@/modules/academic-year/academic-year.service", () => ({
   getCurrentYear: vi.fn().mockResolvedValue(2026),
   AcademicYearError: class extends Error {},
 }));
-// 기준은 이 파일이 검증하는 대상이 아니다 — 목으로 고정해 두어야 학교가 기준을
-// 바꿔도 여기 테스트가 흔들리지 않는다 (merit.watch-list.test.ts가 그쪽을 본다).
 vi.mock("@/modules/merit/threshold.service", () => ({
   getDemeritThresholds: vi.fn().mockResolvedValue({ warn: 20, danger: 30 }),
 }));
@@ -65,7 +56,6 @@ const statsService = await import("@/modules/merit/stats.service");
 
 const admin = user("ADMIN", "admin-1", { name: "이정민" });
 
-/** 상점 10 · 벌점 20 · 상쇄 6 → 순점수 −4 */
 const MIXED = [
   { kind: "MERIT", _sum: { points: 10 } },
   { kind: "DEMERIT", _sum: { points: 20 } },
@@ -99,14 +89,12 @@ describe("학생 합계", () => {
   it("상쇄점을 상점에 더하지 않는다", async () => {
     const view = await service.getStudentMerit(admin, "sp-1", "SCHOOL");
 
-    // 상쇄점을 상점으로 접었다면 여기가 16이 된다. 표창 기준이 흔들리는 지점이다.
     expect(view.totals.merit).toBe(10);
   });
 
   it("상쇄점을 벌점으로 접지도 않는다", async () => {
     const view = await service.getStudentMerit(admin, "sp-1", "SCHOOL");
 
-    // 이진 분기(`kind === "MERIT" ? … : 벌점`)를 그대로 뒀다면 여기가 26이 된다.
     expect(view.totals.demerit).toBe(20);
   });
 

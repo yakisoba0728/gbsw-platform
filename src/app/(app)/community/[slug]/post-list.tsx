@@ -3,10 +3,6 @@ import { DataTable, type Column } from "@/components/ui/table";
 import { formatDate } from "@/lib/datetime";
 import type { PostListItemView } from "@/modules/community/community.view";
 
-/**
- * 글 목록. **익명 게시판이면 작성자 열을 아예 뺀다** — 「익명」이 스무 줄
- * 늘어서는 것은 정보가 아니다. 그 사실은 게시판 이름 아래의 안내 한 줄이 말한다.
- */
 function columns(slug: string, anonymous: boolean): Column<PostListItemView>[] {
   const cols: Column<PostListItemView>[] = [
     {

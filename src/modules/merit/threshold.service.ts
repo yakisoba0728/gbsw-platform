@@ -13,22 +13,11 @@ import { MeritError } from "./merit.error";
 import * as repo from "./merit.repo";
 import type { ThresholdInput } from "./merit.schema";
 
-/**
- * 벌점 경고·위험 기준. 기본값은 마이그레이션이 아니라 읽을 때 채운다 — 행을
- * 심으면 기본값이 코드와 DB 두 곳에 생겨 다시 만나지 않는다.
- */
-
-/**
- * 저장된 기준을 읽어 트랙별로 채운다. 없는 트랙은 코드 기본값.
- * 한 요청 안에서는 한 번만 조회한다(React cache).
- * 권한을 걸지 않는다 — 공개된 학칙 수치이고, 통제할 것은 바꾸는 쪽이다.
- */
 export const readDemeritThresholds = cache(
   async (): Promise<Record<MeritTrack, DemeritThresholds>> => {
     const rows = await repo.listThresholds();
     const byTrack = new Map(rows.map((row) => [row.track, row]));
 
-    // MERIT_TRACKS를 돌며 만든다 — DB의 track을 키로 쓰면 사라진 트랙의 행이 섞인다.
     return Object.fromEntries(
       MERIT_TRACKS.map((track) => {
         const row = byTrack.get(track);
@@ -43,25 +32,19 @@ export const readDemeritThresholds = cache(
   },
 );
 
-/** 트랙 하나의 기준. 화면·통계가 실제로 부르는 입구다. */
 export async function getDemeritThresholds(
   track: MeritTrack,
 ): Promise<DemeritThresholds> {
   return (await readDemeritThresholds())[track];
 }
 
-export type ThresholdSetting = DemeritThresholds & {
+type ThresholdSetting = DemeritThresholds & {
   track: MeritTrack;
-  /**
-   * 학교가 한 번이라도 저장했는가. false면 화면이 보는 값은 코드 기본값이다 —
-   * "정한 20점"과 "아무도 안 정해서 남은 20점"은 다른 사실이다.
-   */
   configured: boolean;
   updatedAt: Date | null;
   updatedByName: string | null;
 };
 
-/** 설정 화면이 보는 목록. 순서는 MERIT_TRACKS를 따른다. */
 export async function listThresholdSettings(
   actor: SessionUser,
 ): Promise<ThresholdSetting[]> {
@@ -92,18 +75,12 @@ export async function listThresholdSettings(
   });
 }
 
-/**
- * 기준 저장. 값이 그대로면 쓰지도 기록하지도 않는다. 단, 행이 아직 없으면
- * 기본값과 같아도 저장한다 — "학교가 이 값을 확인했다"는 사실이 기록이다.
- */
 export async function setDemeritThresholds(
   actor: SessionUser,
   input: ThresholdInput,
 ): Promise<void> {
   await assertCan(actor, "merit:threshold:manage");
 
-  // 재검증이 아니라 업무 불변식이다 — 위험이 경고 이하면 경고 구간이 통째로
-  // 사라지는데 화면에는 아무 이상이 없어 보인다. 폼을 안 거치는 호출부도 막는다.
   if (input.danger <= input.warn) throw new MeritError("INVALID_THRESHOLD_ORDER");
 
   await withTransaction(async (tx) => {

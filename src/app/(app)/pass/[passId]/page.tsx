@@ -36,9 +36,6 @@ export default async function PassDetailPage({
   const { passId } = await params;
   const actor = await requireAuth();
 
-  // 없는 출입증은 404, 남의 출입증은 403이다 — 「없다」와 「못 본다」를 섞지 않는다.
-  // 403을 오류 경계로 흘려 보내면 「화면을 열지 못했습니다」만 떠서 원인을 안
-  // 알려 준다. 거부 감사로그는 서비스가 이미 남겼다.
   let pass: Awaited<ReturnType<typeof getPassDetail>>;
   try {
     pass = await getPassDetail(actor, passId);
@@ -48,11 +45,6 @@ export default async function PassDetailPage({
     throw error;
   }
 
-  // QR은 이 화면에 없다. 학생증 한 장(`/pass/qr`)이 그 일을 하고, 여기는
-  // 「이 신청이 지금 어떤 상태인가」만 답한다.
-  // 결재가 끝난 출입증을 무를 수 있는 **유일한 자리**다. `/pass`의 취소 버튼은
-  // 「지금 나가 있는 학생」 구역에만 있어 아직 시작 전인 건은 손댈 곳이 없었다 —
-  // 다음 주말 외박을 승인한 뒤 취소하려면 그 주말까지 기다려야 했다.
   const canCancel =
     can(actor, "pass:cancel") && isRevocable(pass.status, pass.endAt, new Date());
 

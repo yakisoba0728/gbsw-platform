@@ -15,7 +15,6 @@ export default async function NewPostPage({
 }) {
   const actor = await requireAuth();
   const { slug } = await params;
-  // 쓰기 권한이 없으면 여기서 403으로 막힌다. 서버 액션이 다시 검사한다.
   const community = await orDenied(getWritableBySlug(actor, slug));
 
   return (

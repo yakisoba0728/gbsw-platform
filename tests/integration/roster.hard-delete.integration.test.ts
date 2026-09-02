@@ -97,14 +97,10 @@ describe("applyRoster() — 학생 영구 삭제와 졸업 보존", () => {
 
   it("삭제 학생은 cascade로 사라지고 GRADUATED 학생은 남는다", async () => {
     await applyRoster(YEAR, {
-      // 졸업생은 새 학년도 명단에서 완전히 빠져 있다. 그래도 과거의 졸업
-      // 학적과 연결 기록은 삭제 불변식이 지켜야 한다.
       assignments: [],
       newStudents: [],
       inviteExpiresAt: null,
       managedStudentProfileIds: [deletedProfileId, graduatedProfileId],
-      // 방어선 검증: 잘못된 호출자가 졸업생 id까지 삭제 요청에 섞어도 repo가
-      // 트랜잭션 안에서 다시 제외해야 한다.
       deleteStudentProfileIds: [deletedProfileId, graduatedProfileId],
       createdById: adminId,
       createdByName: "관리자",

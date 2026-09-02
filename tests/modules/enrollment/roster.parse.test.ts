@@ -280,7 +280,6 @@ describe("fileNotices() — 파일 단위 안내 (Important 결함 회귀)", () 
 
 describe("parseCsv() + normalizeRows() — 회귀: 빈 줄 뒤 줄 번호", () => {
   it("CSV 중간에 빈 줄이 있어도 뒤 줄의 line이 파일 기준과 같다", () => {
-    // 파일 기준 줄 번호: 1행 머리글, 2행 김동혁, 3행 빈 줄, 4행 이순신.
     const csv = [
       HEADER.join(","),
       "김동혁,2010-07-28,1,3,3,재학",

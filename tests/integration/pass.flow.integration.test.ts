@@ -13,17 +13,6 @@ import {
 
 vi.mock("server-only", () => ({}));
 
-/**
- * 단위 테스트가 목으로 덮는 경합 규칙을 실제 DB에서 확인한다.
- *
- * 1. 조건부 갱신(transition)이 정말로 동시 결재를 하나로 만드는가
- * 2. 겹침 질의(findOverlapping)의 경계가 맞는가 — 맞닿은 구간은 겹치지 않는다
- * 3. 학생 신청과 교사 직접 부여가 각각 학생 행 잠금 안에서 겹침을 재검사하는가
- * 4. 외박의 신청→보호자 확인→교사 승인이 상태와 메모를 실제 DB에 남기는가
- *
- * 자기가 만든 행만 지운다. 다른 테스트의 시드를 건드리지 않는다.
- */
-
 const SUFFIX = "pass-flow-integration";
 const ids = {
   user: `u-${SUFFIX}`,
@@ -135,8 +124,6 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  // 한 DELETE에서 학생(출입증 Cascade)과 교사(결재자 SetNull)를 함께 지우면
-  // PostgreSQL의 참조 동작 순서가 충돌할 수 있어 테스트 행을 먼저 명시적으로 걷는다.
   await prisma.auditLog.deleteMany({
     where: { actorUserId: { in: [ids.user, ids.admin, ids.parent] } },
   });
@@ -276,7 +263,6 @@ describe("transition — 조건부 갱신 (동시 결재)", () => {
     });
 
     expect(first).toBe(1);
-    // 0이어야 서비스가 ALREADY_DECIDED로 떨어져 감사로그가 두 줄 안 남는다.
     expect(second).toBe(0);
 
     const after = await prisma.pass.findUniqueOrThrow({ where: { id: created.id } });
@@ -464,8 +450,6 @@ describe("requestPass — 겹침 생성 경합", () => {
 });
 
 describe("issuePass — 겹침 생성 경합", () => {
-  // 앞선 신청 경합들이 같은 학생의 먼 미래 Pass를 남긴다. 직접 부여는 잠금 뒤
-  // 실제 DB 시각부터 시작하므로 그 기록과도 겹칠 수 있어, 각 사례를 독립시킨다.
   beforeEach(async () => {
     await prisma.pass.deleteMany({ where: { studentProfileId: ids.profile } });
   });

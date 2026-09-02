@@ -10,7 +10,6 @@ export type BadgeTone =
   | "info"
   | "neutral";
 
-/** 옅은 바탕 + 같은 계열 테두리 + 진한 글자. 세 겹이라 색맹에게도 형태가 남는다. */
 const TONES: Record<BadgeTone, string> = {
   merit: "border-blue-line bg-blue-soft text-blue",
   demerit: "border-rose-line bg-rose-soft text-rose",
@@ -32,7 +31,6 @@ export function Badge({
 }: {
   tone?: BadgeTone;
   children: React.ReactNode;
-  /** 기본값은 tone이 정한다. 명시하면 그 값을 따른다. */
   dot?: boolean;
   className?: string;
 }) {

@@ -26,7 +26,6 @@ export async function AdminView({
   approved: boolean;
 }) {
   const now = new Date();
-  // 셋은 서로를 안 기다린다.
   const [pendingResult, activeResult, students] = await Promise.all([
     listPendingPasses(actor, now),
     listActivePasses(actor, now),
@@ -44,20 +43,12 @@ export async function AdminView({
         </Note>
       )}
 
-      {/*
-       * 합계 칸 둘을 뺐다. 「결재 대기 0건」이라 적힌 상자 바로 아래에 「결재
-       * 대기」 카드가 서고 그 안에 다시 「결재할 신청이 없습니다」가 있어서,
-       * 같은 사실이 한 화면에 세 번 적혔다. 건수는 카드 제목 옆이 제자리다 —
-       * 목록과 같은 것을 세는 숫자라 목록에서 떨어져 있을 이유가 없다.
-       */}
       <div className="grid gap-4 @4xl:grid-cols-[1fr_20rem]">
         <div className="space-y-4">
           <SectionCard
             title="결재 대기"
             hint={countHint(pending.length, pendingResult.total, "건")}
             aside={
-              // 이 카드도 아래 카드도 「지금」만 답한다 — 어제 나간 것을 되짚을
-              // 길은 전체 내역뿐이라 결재 대기 옆에 세운다.
               <div className="flex flex-wrap gap-2">
                 <Link
                   href="/pass/history"

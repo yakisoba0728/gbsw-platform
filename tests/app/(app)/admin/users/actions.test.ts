@@ -1,25 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ForbiddenError } from "@/core/authz/errors";
 
-/**
- * 계정 관리 액션의 **경계** — 폼의 FormData가 zod 스키마에 닿는 지점.
- * (auth)/register/actions.test.ts와 같은 목적이다.
- *
- * 예전에는 이 파일만 경계가 반쯤 비어 있었다(userId·active·confirmName을
- * `String(formData.get(...))`로 읽었다). 지금은 네 액션 모두 스키마를 지난다 —
- * 아래 "서비스를 부르지 않는다" 검사들이 그 경계를 지킨다.
- *
- * FormData는 admin/users/[userId]/user-forms.tsx가 실제로 보내는 name 그대로
- * 만든다. 이 화면은 폼이 넷이고 **학생인지·재학 중인지에 따라 보내는 필드가
- * 달라진다**(비학생은 birthDate·학년·반·번호를 아예 안 보내고, 학적이 재학이
- * 아니면 학년·반·번호만 빠진다) — 세 조합을 모두 세운다.
- */
-
-// 목은 구현 없이 선언하고 기본값은 beforeEach에서 준다.
 const requireAuth = vi.fn();
 const revalidatePath = vi.fn();
 const redirect = vi.fn(() => {
-  // 실제 next/navigation의 redirect는 예외를 던져 이후 코드를 끊는다.
   throw new Error("NEXT_REDIRECT");
 });
 
@@ -55,7 +39,6 @@ function form(fields: Record<string, string>): FormData {
   return fd;
 }
 
-/** EditUserForm이 **재학 중인 학생**에게 그릴 때 보내는 필드 전부. */
 function studentForm(over: Record<string, string> = {}): FormData {
   return form({
     userId: "u-1",
@@ -71,7 +54,6 @@ function studentForm(over: Record<string, string> = {}): FormData {
   });
 }
 
-/** EditUserForm이 **비학생**(관리자·학부모)에게 그릴 때 보내는 필드 — 넷뿐이다. */
 function adminForm(over: Record<string, string> = {}): FormData {
   return form({
     userId: "u-2",
@@ -216,13 +198,6 @@ describe("updateUserAction — 경계 검증", () => {
     expect(state.error).toBe("저장하지 못했습니다.");
   });
 
-  /*
-   * 예전엔 userId만 zod를 안 거쳤다 (`String(formData.get("userId") ?? "")`).
-   * 빈 문자열이 서비스까지 흘러가 NOT_FOUND로 되돌아왔으니 화면 문구는 맞았지만,
-   * 규약("zod 검증은 경계에서 한 번만")에서 벗어난 유일한 묶음이었다 — 서비스
-   * 쪽 방어를 하나 손보는 순간 여기로 무엇이든 들어올 수 있게 된다.
-   * 이제 네 액션 모두 경계에서 막는다.
-   */
   it("userId가 없으면 서비스를 부르지 않는다", async () => {
     const fd = studentForm();
     fd.delete("userId");
@@ -259,11 +234,6 @@ describe("updateUserAction — 경계 검증", () => {
     expect(revalidatePath).not.toHaveBeenCalled();
   });
 
-  /*
-   * React 19는 액션이 끝나면 성공·실패를 가리지 않고 폼을 reset()한다. 폼의
-   * 일곱 칸은 defaultValue만 준 비제어 입력이라, 실패 상태가 제출값을 싣지
-   * 않으면 관리자가 고친 내용이 전부 서버 값으로 되감긴다.
-   */
   it("검증에 걸려도 제출값을 그대로 돌려준다 — 틀린 값도 함께", async () => {
     const state = await updateUserAction(
       UPDATE_INITIAL,
@@ -375,11 +345,6 @@ describe("setUserActiveAction — 경계 검증", () => {
     expect(state.error).toBe("계정을 찾을 수 없습니다.");
   });
 
-  /*
-   * 예전에는 `formData.get("active") === "true"`라 오탈자든 빠진 값이든 전부
-   * false(=비활성)로 읽혔다 — 모르는 값이 계정을 잠그는 쪽으로 조용히 기울어
-   * 있었다. 이제 "true"/"false"가 아니면 거부한다.
-   */
   it("active가 아는 값이 아니면 비활성으로 읽지 않고 막는다", async () => {
     const state = await setUserActiveAction(
       USER_INITIAL,
@@ -406,7 +371,6 @@ describe("resetPasswordAction — 경계 검증", () => {
     expect(state.tempPassword).toBe("temp-1234-abcd");
   });
 
-  // 확인 모달이 받은 사유. 담을 자리가 없어 감사로그 metadata로만 간다.
   it("사유를 적으면 서비스까지 실려 간다", async () => {
     await resetPasswordAction(
       USER_INITIAL,
@@ -475,11 +439,6 @@ describe("deleteUserPermanentlyAction — 경계 검증", () => {
     expect(redirect).toHaveBeenCalledWith("/admin/users");
   });
 
-  /*
-   * redirect()는 특수한 오류를 던져 흐름을 끊는다. try 안에서 부르면 catch가
-   * 그걸 삼켜 "완전히 삭제하지 못했습니다"로 잘못 보고한다 — 액션이 redirect를
-   * try 밖에 둔 이유이고, 안으로 들어가면 이 테스트가 깨진다.
-   */
   it("redirect의 오류를 '삭제하지 못했습니다'로 삼키지 않는다", async () => {
     await expect(
       deleteUserPermanentlyAction(

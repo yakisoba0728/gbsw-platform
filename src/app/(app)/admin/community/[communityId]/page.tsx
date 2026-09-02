@@ -18,8 +18,6 @@ export default async function CommunityDetailPage({
   const actor = await requirePermission("community:manage");
   const { communityId } = await params;
 
-  // 없앤 게시판도 여기서는 보여야 한다 — 그래서 getReadableBySlug가 아니라
-  // 관리 목록에서 고른다. 그쪽은 없앤 게시판을 없는 것으로 친다.
   const boards = await listForManage(actor);
   const board = boards.find((row) => row.id === communityId);
   if (!board) notFound();

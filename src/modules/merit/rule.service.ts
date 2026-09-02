@@ -36,13 +36,8 @@ export async function createRule(
   });
 }
 
-/** 감사로그에 이름을 남길 항목들. 순서가 곧 표시 순서다. */
 const EDITABLE = ["label", "points", "category", "description"] as const;
 
-/**
- * 규정 수정. track·kind는 인자에 없다 — 생성 시 고정이다.
- * 바뀐 항목이 없으면 쓰지도 기록하지도 않는다.
- */
 export async function updateRule(
   actor: SessionUser,
   input: UpdateRuleInput,
@@ -80,8 +75,6 @@ export async function updateRule(
       metadata: {
         changed,
         label: next.label,
-        // 이미 나간 기록은 스냅샷이라 안 바뀐다 — 그래도 전/후를 남겨야
-        // "왜 이 학생만 3점이지"를 나중에 설명할 수 있다.
         pointsFrom: current.points,
         pointsTo: next.points,
       },
@@ -89,10 +82,6 @@ export async function updateRule(
   });
 }
 
-/**
- * 규정 삭제. 목록과 부여 선택지에서 빠지되 행 자체는 남는다.
- * 이미 지워진 규정이면 아무 일도 하지 않는다 — 감사로그가 두 줄 쌓이지 않게.
- */
 export async function deleteRule(
   actor: SessionUser,
   input: DeleteRuleInput,
@@ -102,7 +91,6 @@ export async function deleteRule(
   await withTransaction(async (tx) => {
     const current = await repo.findRule(input.ruleId, tx);
     if (!current) throw new MeritError("RULE_NOT_FOUND");
-    // 이미 지운 규정에 사유만 새로 남기지 않는다 — 삭제는 한 번만 일어난 일이다.
     if (!current.active) return;
     if (current.updatedAt.getTime() !== input.updatedAt.getTime()) {
       throw new MeritError("RULE_CONFLICT");
@@ -110,8 +98,6 @@ export async function deleteRule(
 
     const deleted = await repo.markRuleDeleted(input.ruleId, input.updatedAt, tx);
     if (deleted === 0) {
-      // 동시 삭제는 먼저 성공한 요청 한 건만 감사한다. 반면 동시 수정이면
-      // 최신 규정을 지우지 말고 화면을 새로 읽게 한다.
       const latest = await repo.findRule(input.ruleId, tx);
       if (latest?.active) throw new MeritError("RULE_CONFLICT");
       return;
@@ -139,24 +125,11 @@ export async function listRules(actor: SessionUser, track: MeritTrack) {
   return repo.listRules(track);
 }
 
-/**
- * 규정을 **읽기만** 하는 경로. 학생·학부모의 규정 화면이 쓴다.
- *
- * 관리용 `listRules`와 자료가 같은데도 함수를 따로 두는 이유는 **게이트가
- * 달라서다** — 같은 함수에 권한을 둘 붙이면 「읽기를 열었더니 고치기도 열렸다」가
- * 조용히 가능해진다. `listActiveRules`(부여 선택지)를 따로 둔 것과 같은 판단이다.
- *
- * 비활성 규정은 애초에 나오지 않는다 — `repo.listRules`가 `active: true`만 읽는다.
- */
 export async function listRulesForReading(actor: SessionUser, track: MeritTrack) {
   await assertCan(actor, "merit:rule:read");
   return repo.listRules(track);
 }
 
-/**
- * 부여 화면의 선택지. `merit:award`로 막는다 — 규정 관리 권한이 아니다.
- * 나중에 부여만 열 때 이 구분이 없으면 규정 관리 권한을 함께 줘야 한다.
- */
 export async function listActiveRules(actor: SessionUser, track: MeritTrack) {
   await assertCan(actor, "merit:award");
   return repo.listActiveRules(track);

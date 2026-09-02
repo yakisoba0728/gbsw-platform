@@ -12,7 +12,6 @@ export type EmailAuthenticationResult =
   | { ok: true; response: Response }
   | { ok: false; reason: LoginAuditReason; response: Response };
 
-/** `ab12cd@gbsw.hs.kr` → `ab***@gbsw.hs.kr`. */
 function maskEmail(email: string): string {
   const at = email.indexOf("@");
   if (at < 0) return "***";
@@ -22,10 +21,7 @@ function maskEmail(email: string): string {
   return local.length <= 2 ? `***@${domain}` : `${local.slice(0, 2)}***@${domain}`;
 }
 
-/**
- * 로그인 성공·실패를 기록한다. 이메일은 가리고 비밀번호는 받지 않는다.
- * 세션 쓰기와 같은 트랜잭션에 묶을 수 없어 감사 실패는 로그인 결과를 뒤집지 않는다.
- */
+// 감사 저장 실패가 이미 결정된 로그인 성공·실패를 바꾸지 않게 한다.
 async function recordLoginAttempt(input: {
   ok: boolean;
   email: string;
@@ -70,7 +66,6 @@ async function signedInUserId(response: Response): Promise<string | null> {
   }
 }
 
-/** Better Auth 이메일 로그인과 결과 해석·감사를 한 동작으로 묶는다. */
 export async function authenticateWithEmail(input: {
   email: string;
   password: string;
@@ -105,7 +100,6 @@ export async function authenticateWithEmail(input: {
   return { ok: true, response };
 }
 
-/** 방금 만든 계정으로 로그인한다. 실패해도 이미 끝난 계정 생성은 성공으로 둔다. */
 export async function signInSilently(
   email: string,
   password: string,
@@ -119,7 +113,6 @@ export async function signInSilently(
     });
     userId = result.user.id;
   } catch {
-    // 사용자가 /login에서 다시 로그인할 수 있다.
     return;
   }
 
@@ -136,10 +129,6 @@ export async function signInSilently(
   }
 }
 
-/**
- * 세션 사용자를 먼저 읽고 Better Auth에 폐기를 맡긴 뒤 성공만 기록한다.
- * 감사 실패는 이미 끝난 로그아웃을 뒤집지 않으며 원래 Response를 그대로 돌려준다.
- */
 export async function signOut(request: Request): Promise<Response> {
   const actor = await getSessionUser();
   const response = await auth.handler(request);

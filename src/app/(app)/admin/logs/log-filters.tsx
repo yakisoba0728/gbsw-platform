@@ -15,7 +15,6 @@ const PERIOD_LABEL: Record<AuditPeriod, string> = {
   all: "전체",
 };
 
-/** 필터는 URL 쿼리에 싣는다 — 새로고침·뒤로가기·링크 공유가 그대로 동작한다. */
 export function LogFilters({
   actions,
   period,
@@ -37,22 +36,12 @@ export function LogFilters({
       if (value) query.set(key, value);
       else query.delete(key);
     }
-    // 필터가 바뀌면 첫 페이지로 돌아간다.
     query.delete("page");
     router.push(`${pathname}?${query.toString()}`);
   }
 
   return (
-    // 카드 머리글 안에 들어간다 — 여백·구분선은 머리글이 이미 갖고 있다.
     <>
-      {/*
-       * 동작은 **칩이 아니라 고르는 칸**이다. 감사로그의 동작은 스물일곱 가지이고
-       * 앞으로도 는다 — 칩으로 늘어놓으면 넉 줄짜리 알약 벽이 되어, 표보다 필터가
-       * 화면을 더 차지하고 그 안에서 원하는 하나를 눈으로 찾아야 한다.
-       *
-       * 기간은 넷뿐이고 늘 하나가 켜져 있어 세그먼티드로 남는다. 둘을 다른 모양으로
-       * 두는 것이 이 줄의 요점이다: 왼쪽은 눈금, 오른쪽은 목록.
-       */}
       <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-3">
         <fieldset className="m-0 min-w-0 border-0 p-0">
           <legend className="mb-1.5 block text-caption font-medium text-ink">
@@ -89,8 +78,6 @@ export function LogFilters({
         </div>
       </div>
 
-      {/* 검색은 GET으로 보낸다 — 지금 고른 기간·동작은 hidden으로 함께 실어야
-          검색과 동시에 필터가 풀리지 않는다. */}
       <SearchForm
         action="/admin/logs"
         name="actor"

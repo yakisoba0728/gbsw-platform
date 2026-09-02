@@ -8,10 +8,6 @@ import { honorificName } from "@/core/authz/roles";
 
 export const metadata: Metadata = { title: "설정" };
 
-/**
- * 학교 전체에 한 번에 적용되는 값. 지금은 벌점 기준 하나뿐이며, 설정이 늘면
- * SectionCard를 하나씩 얹는다. 학년도 전환은 명단 작업의 일부라 여기 두지 않는다.
- */
 export default async function SettingsPage() {
   const actor = await requirePermission("merit:threshold:manage");
 
@@ -38,8 +34,6 @@ export default async function SettingsPage() {
             danger={row.danger}
             configured={row.configured}
             updatedAt={row.updatedAt?.toISOString() ?? null}
-            // 날짜 문자열은 서버에서 만든다 — 클라이언트에서 만들면 SSR이 그린
-            // 값과 어긋나 하이드레이션이 깨진다.
             updatedLabel={
               row.updatedAt
                 ? `${row.updatedByName ? honorificName(row.updatedByName, "ADMIN") : "(알 수 없음)"} · ${formatDateTime(row.updatedAt)}`

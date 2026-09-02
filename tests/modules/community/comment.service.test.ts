@@ -156,7 +156,6 @@ describe("listComments", () => {
 
     expect(views[0].author).toBeNull();
     expect(JSON.stringify(views)).not.toContain("김민준");
-    // 글쓴이 배지는 익명에서도 켜진다 — 누구인지는 여전히 모른다.
     expect(views[0].byPostAuthor).toBe(true);
   });
 
@@ -203,7 +202,7 @@ describe("deleteComment", () => {
     );
   });
 
-  it("**남의 댓글을 사유 없이 지우려 하면 거부한다** — 화면을 건너뛴 요청도 막는다", async () => {
+  it("남의 댓글을 사유 없이 지우려 하면 거부한다 — 화면을 건너뛴 요청도 막는다", async () => {
     await expect(service.deleteComment(admin, { ...input, reason: null })).rejects.toThrow(
       new CommunityError("REASON_REQUIRED"),
     );

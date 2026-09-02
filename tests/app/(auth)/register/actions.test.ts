@@ -1,11 +1,8 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-/** 서버 액션의 경계 — FormData를 zod 스키마에 넘기는 그 지점. */
-
 const createInitialAdmin = vi.fn();
 const signInSilently = vi.fn();
 const redirect = vi.fn(() => {
-  // 실제 next/navigation의 redirect는 예외를 던져 이후 코드를 끊는다.
   throw new Error("NEXT_REDIRECT");
 });
 
@@ -14,7 +11,6 @@ vi.mock("next/navigation", () => ({ redirect }));
 vi.mock("@/modules/auth/auth.service", () => ({ signInSilently }));
 vi.mock("@/modules/bootstrap/bootstrap.service", () => ({ createInitialAdmin }));
 
-// 가입·인증 액션도 같은 파일에 있다. 그쪽 서비스는 Prisma를 끌고 오므로 끊는다.
 const checkInvite = vi.fn();
 const completeRegistration = vi.fn();
 const requestVerification = vi.fn();
@@ -48,13 +44,11 @@ const {
   confirmVerificationAction,
 } = await import("@/app/(auth)/register/actions");
 
-/** 폼이 처음 그릴 때의 상태. 실패하면 여기에 제출값이 실려 돌아온다. */
 const BOOTSTRAP_INITIAL = {
   error: null,
   values: { name: "", email: "", phone: "" },
 };
 
-/** 부트스트랩 폼(bootstrap-form.tsx)이 실제로 보내는 필드 그대로. */
 function bootstrapForm(over: Record<string, string> = {}): FormData {
   const fd = new FormData();
   const fields: Record<string, string> = {
@@ -133,15 +127,12 @@ describe("createInitialAdminAction — 경계 검증", () => {
     expect(redirect).not.toHaveBeenCalled();
   });
 
-  // 실패로 액션이 끝나면 React 19가 폼을 자동 reset()한다. 비제어 칸(이름·이메일·
-  // 전화)은 여기서 돌려준 값을 defaultValue로 다시 심어야 살아남는다.
   it("검증에 걸리면 제출한 이름·이메일·전화를 그대로 돌려준다", async () => {
     const state = await createInitialAdminAction(
       BOOTSTRAP_INITIAL,
       bootstrapForm({ phone: "01012", email: "Admin@GBSW.hs.kr" }),
     );
 
-    // 스키마가 다듬기 전, 사람이 친 그대로여야 한다 — 칸에 도로 심을 값이다.
     expect(state.values).toEqual({
       name: "홍길동",
       email: "Admin@GBSW.hs.kr",
@@ -164,7 +155,6 @@ describe("createInitialAdminAction — 경계 검증", () => {
     });
   });
 
-  // 비밀번호는 지워지는 편이 안전하다. 돌려주면 화면에 다시 심긴다.
   it("돌려주는 값에 비밀번호는 없다", async () => {
     const state = await createInitialAdminAction(
       BOOTSTRAP_INITIAL,
@@ -192,20 +182,13 @@ describe("createInitialAdminAction — 경계 검증", () => {
   });
 });
 
-// ── 초대코드 가입 ─────────────────────────────────────────────
-//
-// 폼은 register-flow.tsx다. 1단계는 `code` 하나, 2단계는 나머지 여섯을 보내고
-// 학생일 때만 `birthDate`를 더 보낸다.
-
 const CODE = "GBSW-A3K9-2M7P";
 
-/** 폼이 처음 그릴 때의 상태. 실패하면 여기에 제출값이 실려 돌아온다. */
 const REGISTER_INITIAL = {
   error: null,
   values: { name: "", birthDate: "" },
 };
 
-/** ProfileStep이 학생에게 그릴 때 보내는 필드 전부. */
 function registerForm(over: Record<string, string> = {}): FormData {
   const fd = new FormData();
   const fields: Record<string, string> = {
@@ -368,7 +351,6 @@ describe("completeRegistrationAction — 경계 검증", () => {
     expect(state.error).toBe("존재하지 않는 생년월일입니다.");
   });
 
-  // 로그인 이전 화면이라 정제해 둔 오류만 그대로 보여준다 (CLAUDE.md 오류 규약).
   it("우리가 던진 오류는 문구를 그대로 보여준다", async () => {
     completeRegistration.mockRejectedValueOnce(
       new RegistrationError("이름 또는 생년월일이 코드와 다릅니다."),
@@ -400,8 +382,6 @@ describe("completeRegistrationAction — 경계 검증", () => {
     expect(redirect).not.toHaveBeenCalled();
   });
 
-  // 실패로 액션이 끝나면 React 19가 폼을 자동 reset()한다. 비제어 칸(이름·생년월일)은
-  // 여기서 돌려준 값을 defaultValue로 다시 심어야 살아남는다.
   it("검증에 걸리면 제출한 이름·생년월일을 그대로 돌려준다", async () => {
     const state = await completeRegistrationAction(
       REGISTER_INITIAL,
@@ -424,7 +404,6 @@ describe("completeRegistrationAction — 경계 검증", () => {
     expect(state.values).toEqual({ name: "김철수", birthDate: "2009-12-31" });
   });
 
-  // 비밀번호는 지워지는 편이 안전하다. 돌려주면 화면에 다시 심긴다.
   it("돌려주는 값에 비밀번호는 없다", async () => {
     const state = await completeRegistrationAction(
       REGISTER_INITIAL,
@@ -456,10 +435,6 @@ describe("completeRegistrationAction — 경계 검증", () => {
   });
 });
 
-// ── 인증 요청·확인 ────────────────────────────────────────────
-//
-// 폼 중첩이 불가능해 인수를 그대로 받는다. safeParse 경계는 그대로 있다.
-
 describe("requestVerificationAction — 경계 검증", () => {
   it("채널·대상·가입코드가 맞으면 서비스까지 도달한다", async () => {
     const result = await requestVerificationAction(
@@ -472,7 +447,6 @@ describe("requestVerificationAction — 경계 검증", () => {
     expect(result.ok).toBe(true);
   });
 
-  // 코드 보유자만 발송을 촉발할 수 있다 (I4). 빠지면 아무나 비용을 태운다.
   it("가입코드가 비면 발송을 촉발하지 않는다", async () => {
     const result = await requestVerificationAction("PHONE", "010-1234-5678", "");
 

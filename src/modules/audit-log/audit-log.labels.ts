@@ -9,17 +9,7 @@ import { isPassType, PASS_TYPE_LABELS } from "@/core/authz/pass-type";
 import { honorificName, isRole, ROLE_LABELS } from "@/core/authz/roles";
 import { formatDate, formatMonthDay } from "@/lib/datetime";
 
-/**
- * 감사로그 화면 전용 라벨. 저장값은 영문 그대로 두고 표기만 한글로 바꾼다.
- * 모르는 값이 와도 화면이 비지 않게 원본 문자열로 떨어진다.
- */
-
-/**
- * 화면이 아는 감사로그 액션. 지금 코드가 더는 남기지 않는 값도 들어 있다 —
- * 그 이름으로 저장된 옛 행이 있고, 감사로그는 고쳐 쓰지 않는다.
- */
 export const AUDIT_ACTIONS = [
-  // 명시적 로그인·로그아웃. 만료와 비밀번호 변경에 따른 세션 정리는 포함하지 않는다.
   "auth:login",
   "auth:login-failed",
   "auth:logout",
@@ -27,12 +17,9 @@ export const AUDIT_ACTIONS = [
   "account:change-password",
   "registration:complete",
   "invite:create",
-  // 옛 행 전용. 지금은 invite:create 하나로 남긴다.
   "invite:create:parent",
   "invite:revoke",
-  // 2차 요소를 반복해 틀려 코드가 스스로 폐기됐을 때. 행위자가 없다.
   "invite:auto-revoke",
-  // 명단에서 빠진 학생의 미사용 코드가 함께 폐기됐을 때. 행위자가 있다.
   "invite:revoke:roster",
   "user:update",
   "user:activate",
@@ -44,12 +31,10 @@ export const AUDIT_ACTIONS = [
   "academic-year:set-current",
   "enrollment:update",
   "enrollment:import",
-  // 읽기지만 남긴다 — 전교생 개인정보가 브라우저나 파일로 한 번에 나간다.
   "roster:preview",
   "roster:export",
   "merit:rule:create",
   "merit:rule:update",
-  // 옛 행 전용. 지금은 merit:rule:delete로 남긴다.
   "merit:rule:deactivate",
   "merit:rule:delete",
   "merit:threshold:update",
@@ -71,7 +56,6 @@ export const AUDIT_ACTIONS = [
   "community:comment:delete",
   "community:attachment:create",
   "community:attachment:delete",
-  // 서비스가 can() 검사로 거부했을 때. 페이지를 건너뛴 요청만 여기 닿는다.
   "authz:denied",
 ] as const;
 
@@ -160,14 +144,12 @@ const ACTION_TONES: Record<AuditAction, BadgeTone> = {
   "merit:rule:deactivate": "rejected",
   "merit:rule:delete": "rejected",
   "merit:threshold:update": "info",
-  // 상점·벌점 양쪽에서 나오는 액션이라 종류 색(merit/demerit)을 쓰지 않는다.
   "merit:award": "info",
   "merit:cancel": "cancelled",
   "pass:request": "pending",
   "pass:consent": "info",
   "pass:approve": "approved",
   "pass:reject": "rejected",
-  // 신청 없이 바로 나가는 길이라 승인과 같은 색이다.
   "pass:issue": "approved",
   "pass:cancel": "cancelled",
   "community:create": "approved",
@@ -183,12 +165,10 @@ const ACTION_TONES: Record<AuditAction, BadgeTone> = {
   "authz:denied": "rejected",
 };
 
-/** 모르는 값이면 원본 문자열을 그대로 돌려준다. */
 export function auditActionLabel(action: string): string {
   return isAuditAction(action) ? ACTION_LABELS[action] : action;
 }
 
-/** 모르는 값이면 중립 톤으로 떨어진다. */
 export function auditActionTone(action: string): BadgeTone {
   return isAuditAction(action) ? ACTION_TONES[action] : "neutral";
 }
@@ -212,9 +192,6 @@ export function auditTargetLabel(targetType: string): string {
   return TARGET_LABELS[targetType] ?? targetType;
 }
 
-// ── metadata → 문장 ────────────────────────────────────────────
-
-/** user:update·enrollment:update의 changed 배열에 쓰이는 필드 이름. */
 const FIELD_LABELS: Record<string, string> = {
   name: "이름",
   email: "이메일",
@@ -238,7 +215,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** changed: ["grade","status"] → "학년 · 학적 바뀜" */
 function changedSummary(changed: unknown): string | null {
   if (!Array.isArray(changed) || changed.length === 0) return null;
   const labels = changed
@@ -253,26 +229,22 @@ function yearLabel(metadata: Record<string, unknown>): string | null {
 }
 
 function enrollmentUpdateSummary(metadata: Record<string, unknown>): string | null {
-  // batch는 내부 식별자라 화면에 띄우지 않는다.
   const parts = [yearLabel(metadata), changedSummary(metadata.changed)].filter(
     (p): p is string => p !== null,
   );
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
-/** academic-year:set-current의 from. 최초 지정이면 from이 null이라 표시할 게 없다. */
 function setCurrentYearSummary(metadata: Record<string, unknown>): string | null {
   return typeof metadata.from === "number" ? `${metadata.from}학년도에서 변경` : null;
 }
 
-/** invite:create·invite:create:parent·registration:complete가 공유하는 role 표시. */
 function roleSummary(metadata: Record<string, unknown>): string | null {
   const role = metadata.role;
   if (typeof role !== "string") return null;
   return isRole(role) ? ROLE_LABELS[role] : role;
 }
 
-/** enrollment:import 건수 필드. 0인 항목은 뺀다. `deleted`는 옛 행에만 있는 키다. */
 const IMPORT_COUNT_LABELS: ReadonlyArray<readonly [key: string, label: string]> = [
   ["newStudents", "신규"],
   ["newAssignment", "신규배정"],
@@ -295,7 +267,6 @@ function importSummary(metadata: Record<string, unknown>): string | null {
   return filled.length > 0 ? filled.join(" · ") : null;
 }
 
-/** roster:export — 몇 명분이 나갔나. 이름은 애초에 metadata에 없다. */
 function exportSummary(metadata: Record<string, unknown>): string | null {
   const parts = [yearLabel(metadata)];
   if (typeof metadata.count === "number") parts.push(`${metadata.count}명`);
@@ -303,7 +274,6 @@ function exportSummary(metadata: Record<string, unknown>): string | null {
   return filled.length > 0 ? filled.join(" · ") : null;
 }
 
-/** roster:preview — 파일과 전교 명단을 대조한 건수만 보여준다. */
 function rosterPreviewSummary(metadata: Record<string, unknown>): string | null {
   const parts = [yearLabel(metadata)];
   if (typeof metadata.fileRows === "number") {
@@ -319,11 +289,6 @@ function rosterPreviewSummary(metadata: Record<string, unknown>): string | null 
   return filled.length > 0 ? filled.join(" · ") : null;
 }
 
-/**
- * invite:revoke:roster — 무슨 코드였나. 명단 반영은 소진된 코드까지 함께 지우므로
- * (Invite.createdBy가 Restrict라 남겨 둘 수 없다) 그 구분을 함께 싣는다 —
- * 액션 이름만 보면 대기 중인 코드를 없앤 것으로 읽힌다.
- */
 function inviteRosterSummary(metadata: Record<string, unknown>): string | null {
   const parts = [roleSummary(metadata)];
   if (metadata.status === "USED") parts.push("소진된 코드");
@@ -331,22 +296,14 @@ function inviteRosterSummary(metadata: Record<string, unknown>): string | null {
   return filled.length > 0 ? filled.join(" · ") : null;
 }
 
-/**
- * authz:denied — 어떤 일을 하려다 막혔는지. 저장된 값은 `merit:award` 같은
- * 코드라 그대로 띄우면 교사가 읽을 수 없다. 이미 있는 라벨 표를 거쳐 보낸다 —
- * 표에 없는 값(권한 액션과 감사로그 액션은 이름이 겹치지 않을 수 있다)은
- * 지금까지처럼 원본 문자열로 떨어진다.
- */
 function authzDeniedSummary(metadata: Record<string, unknown>): string | null {
   const action = metadata.action;
   return typeof action === "string" ? `시도: ${auditActionLabel(action)}` : null;
 }
 
-/** 상벌점 기록의 공통 앞부분 — "김민준님 · 기숙사 · 벌점 3점 · 점호 지각". */
 function meritSubject(metadata: Record<string, unknown>): string[] {
   const parts: string[] = [];
 
-  // 행위자 칸이 「이정민 선생님」인데 상세만 맨이름이면 한 줄 안에서 말이 갈린다.
   if (typeof metadata.studentName === "string") {
     parts.push(honorificName(metadata.studentName, "STUDENT"));
   }
@@ -365,11 +322,6 @@ function meritSubject(metadata: Record<string, unknown>): string[] {
   return parts;
 }
 
-/**
- * merit:rule:delete — 무엇을 왜 지웠는지. 되돌리는 화면이 없어 로그가 유일한
- * 흔적이다. 사유는 스키마가 필수로 받는 값이라(`deleteRuleSchema`) 여기서 빼면
- * 교사가 적은 「기준이 바뀌어 폐기」가 어느 화면에도 안 나온다.
- */
 function meritSubjectSummary(metadata: Record<string, unknown>): string | null {
   const parts = meritSubject(metadata);
 
@@ -382,7 +334,6 @@ function meritSubjectSummary(metadata: Record<string, unknown>): string | null {
 function meritAwardSummary(metadata: Record<string, unknown>): string | null {
   const parts = meritSubject(metadata);
 
-  // 발생일은 늘 적는다. 줄 옆의 입력 시각과 나란히 놓여야 뒤늦은 입력이 보인다.
   if (typeof metadata.occurredOn === "string") {
     const occurredOn = new Date(metadata.occurredOn);
     if (!Number.isNaN(occurredOn.getTime())) {
@@ -390,20 +341,15 @@ function meritAwardSummary(metadata: Record<string, unknown>): string | null {
     }
   }
 
-  // 묶음 개념을 없애기 전(2026-08-18)에 남은 기록에만 batchId가 있다. 감사로그는
-  // append-only라 지난 줄을 고쳐 쓰지 않으므로, 그 줄들이 "일괄"을 잃지 않게 남긴다.
-  // 새 기록에는 이 키가 없어 이 줄이 걸리지 않는다.
   if (typeof metadata.batchId === "string") parts.push("일괄");
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
-/** 「사유: …」 한 조각. 사유를 받는 기록이 늘어도 문구가 갈라지지 않게 모아 둔다. */
 function reasonPart(metadata: Record<string, unknown>): string | null {
   const reason = metadata.reason;
   return typeof reason === "string" && reason.length > 0 ? `사유: ${reason}` : null;
 }
 
-/** merit:cancel — 무엇을 취소했는지와 사유. */
 function meritCancelSummary(metadata: Record<string, unknown>): string | null {
   const parts = meritSubject(metadata);
 
@@ -413,17 +359,10 @@ function meritCancelSummary(metadata: Record<string, unknown>): string | null {
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
-/**
- * invite:revoke — 사유만 싣는다.
- *
- * 폐기하면 목록에서 대기 상태가 사라져 「왜 없앴나」를 되짚을 자료가 여기밖에
- * 없다. 이 갈래가 없으면 기본값으로 떨어져 「reason 잘못 발급」처럼 날것으로 찍힌다.
- */
 function reasonSummary(metadata: Record<string, unknown>): string | null {
   return reasonPart(metadata);
 }
 
-/** user:update — 바뀐 항목과 조치 사유를 함께 남긴다. */
 function userUpdateSummary(metadata: Record<string, unknown>): string | null {
   const parts = [changedSummary(metadata.changed), reasonPart(metadata)].filter(
     (part): part is string => part !== null,
@@ -431,7 +370,6 @@ function userUpdateSummary(metadata: Record<string, unknown>): string | null {
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
-/** merit:rule:update — 바뀐 필드 요약 + 점수 전/후. 점수가 그대로면 생략한다. */
 function meritRuleUpdateSummary(metadata: Record<string, unknown>): string | null {
   const summary = changedSummary(metadata.changed);
 
@@ -446,10 +384,6 @@ function meritRuleUpdateSummary(metadata: Record<string, unknown>): string | nul
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
-/**
- * merit:threshold:update — "교내 · 경고 20→15 · 위험 30→25".
- * 기준은 덮어쓰기라 옛 값이 이 로그에만 남는다. 안 바뀐 쪽은 생략한다.
- */
 function meritThresholdSummary(metadata: Record<string, unknown>): string | null {
   const parts: string[] = [];
 
@@ -470,25 +404,12 @@ function meritThresholdSummary(metadata: Record<string, unknown>): string | null
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
-/** metadata의 ISO 문자열을 Date로. 못 읽으면 null이다 (옛 행·손상된 값). */
 function dateFrom(value: unknown): Date | null {
   if (typeof value !== "string") return null;
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-/**
- * pass:* 여섯 갈래가 함께 쓰는 문장. 없는 키는 그냥 빠지므로 액션마다
- * 다른 조각을 실어도 같은 함수가 받는다.
- *
- * **`reason`은 반려·취소 사유 전용이다.** 신청·부여의 사유(학생이 적은
- * 「정기 검진」)는 metadata에 싣지 않고 `destination`만 남긴다 — 같은 키에
- * 두 가지 뜻이 들어오면 감사로그의 「사유: …」가 무엇을 가리키는지 갈린다.
- * 신청 사유는 출입증 상세에 그대로 있다.
- *
- * 기간은 `startAt`·`endAt`이 **둘 다** 있을 때만 찍는다. 반쪽 범위는
- * 「8. 28. ~ 」처럼 읽혀 없느니만 못하다.
- */
 function passSummary(metadata: Record<string, unknown>): string | null {
   const parts: string[] = [];
 
@@ -509,10 +430,6 @@ function passSummary(metadata: Record<string, unknown>): string | null {
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
-/**
- * **사유를 받는 액션은 `reasonPart()`를 붙인다.** 「왜」는 되돌리는 화면이 없는
- * 기록일수록 로그에만 남는 조각이라, 갈래마다 따로 쓰면 하나씩 빠진다.
- */
 const METADATA_FORMATTERS: Partial<
   Record<AuditAction, (metadata: Record<string, unknown>) => string | null>
 > = {
@@ -545,10 +462,6 @@ const METADATA_FORMATTERS: Partial<
   "community:delete": reasonSummary,
 };
 
-/**
- * metadata를 한 문장으로 바꾼다. 모르는 액션은 key value 나열로 떨어진다.
- * 빈 객체·비객체면 null이다 (화면에서 "—").
- */
 export function formatAuditMetadata(action: string, metadata: unknown): string | null {
   if (!isRecord(metadata)) return null;
 

@@ -1,13 +1,26 @@
 import { prisma, type DbClient, withTransaction } from "@/core/db/client";
 import { isUniqueViolation } from "@/core/db/unique-violation";
 
-/** Prisma 호출만 둔다. 권한 검사도, 업무 규칙도 여기 두지 않는다. */
-
-export async function findCurrent() {
-  return prisma.academicYear.findFirst({
+export async function findCurrent(db: DbClient = prisma) {
+  return db.academicYear.findFirst({
     where: { isCurrent: true },
     select: { year: true },
   });
+}
+
+export async function findCurrentYear(db: DbClient = prisma): Promise<number | null> {
+  return (await findCurrent(db))?.year ?? null;
+}
+
+/** 전환과 저장 모두 모든 학년도 행을 같은 순서로 잠근 뒤 현재 값을 읽는다. */
+export async function findCurrentYearForUpdate(db: DbClient): Promise<number | null> {
+  await db.$queryRaw<Array<{ year: number }>>`
+    SELECT "year"
+    FROM "AcademicYear"
+    ORDER BY "year"
+    FOR UPDATE
+  `;
+  return findCurrentYear(db);
 }
 
 export async function listYears() {
@@ -17,25 +30,17 @@ export async function listYears() {
   });
 }
 
-/** 이미 있는 학년도를 또 만들려고 할 때. */
 export class YearTakenError extends Error {}
 
 export async function createYear(year: number, db: DbClient = prisma): Promise<void> {
   try {
     await db.academicYear.create({ data: { year } });
   } catch (error) {
-    // year는 @id라 유일 제약 위반이 PK 위반으로 온다.
     if (isUniqueViolation(error, "year")) throw new YearTakenError();
     throw error;
   }
 }
 
-/**
- * 현재 학년도를 옮긴다. 부분 유니크 인덱스 `AcademicYear_single_current`가
- * Prisma가 표현하지 못해 초기 마이그레이션 SQL에만 있다. Prisma 7.9.1의 migrate
- * diff가 드리프트로 보지 않는 것을 빈 마이그레이션으로 확인했으며, Prisma 메이저
- * 업그레이드 때 다시 확인한다.
- */
 export type SetCurrentResult = {
   changed: boolean;
   previousYear: number | null;
@@ -45,30 +50,19 @@ async function setCurrentWithDb(
   db: DbClient,
   year: number,
 ): Promise<SetCurrentResult> {
-  // 전환 요청끼리 같은 순서로 모든 학년도 행을 잠근다. 현재 행만 조회한 뒤
-  // 바꾸면 두 요청이 같은 `from`을 읽고 서로의 결과를 덮을 수 있다.
-  await db.$queryRaw<Array<{ year: number }>>`
-    SELECT "year"
-    FROM "AcademicYear"
-    ORDER BY "year"
-    FOR UPDATE
-  `;
-
-  const current = await db.academicYear.findFirst({
-    where: { isCurrent: true },
-    select: { year: true },
-  });
-  if (current?.year === year) {
-    return { changed: false, previousYear: current.year };
+  const previousYear = await findCurrentYearForUpdate(db);
+  if (previousYear === year) {
+    return { changed: false, previousYear };
   }
 
+  // 단일 현재 학년도 제약은 마이그레이션 SQL의 AcademicYear_single_current가 보장한다.
   await db.academicYear.updateMany({
     where: { isCurrent: true },
     data: { isCurrent: false },
   });
   await db.academicYear.update({ where: { year }, data: { isCurrent: true } });
 
-  return { changed: true, previousYear: current?.year ?? null };
+  return { changed: true, previousYear };
 }
 
 export async function setCurrent(

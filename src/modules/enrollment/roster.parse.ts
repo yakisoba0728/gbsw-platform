@@ -17,21 +17,12 @@ import {
   MIN_NUMBER,
   NUMBER_RANGE_MESSAGE,
 } from "@/modules/enrollment/enrollment.schema";
+// 내보내기는 브라우저에서도 쓰므로 서버 전용 파서를 역으로 참조하면 안 된다.
 import { ROSTER_COLUMNS } from "@/modules/enrollment/roster.export";
 import { MAX_ROSTER_ROWS, ROSTER_FILE_MAX_BYTES } from "./roster.schema";
 
-/**
- * 명단 파일을 정규화된 행으로 옮긴다. 형식별 코드는 `string[][]`까지만 만들고
- * 머리글 해석과 값 검사는 normalizeRows 하나가 맡는다.
- *
- * 머리글 이름은 roster.export.ts에서 가져온다 — 이 파일이 서버 전용 의존성을
- * 물고 있어 반대로 두면 브라우저 번들이 그걸 끌고 들어간다.
- */
-
 export type RosterRow = {
-  /** 파일 기준 줄 번호. 머리글이 1행이므로 첫 학생은 2행이다. */
   line: number;
-  /** 비어 있으면 신규 학생이다. `학생코드` 열이 없는 파일은 전 줄이 신규가 된다. */
   studentCode: string;
   name: string;
   birthDate: string;
@@ -54,9 +45,6 @@ const ZIP64_SENTINEL = 0xffffffff;
 const ZIP_DATA_DESCRIPTOR_SIGNATURE = 0x08074b50;
 
 export const XLSX_PREFLIGHT_LIMITS = {
-  // 액션의 file.size 검사와 같은 값이어야 한다 (roster.schema의 ROSTER_FILE_MAX_BYTES).
-  // 여기가 더 크면 그 사이 파일이 파서까지 와서 「압축을 풀었을 때 너무 큰」이라는
-  // 엉뚱한 문구로 떨어진다. 짝은 import/actions.test.ts가 붙든다.
   maxCompressedBytes: ROSTER_FILE_MAX_BYTES,
   maxUncompressedBytes: 25 * 1024 * 1024,
   maxEntryUncompressedBytes: 10 * 1024 * 1024,
@@ -329,6 +317,7 @@ function countWorksheetRows(xml: string): number {
   return count;
 }
 
+/** ZIP 메타데이터뿐 아니라 실제 XML 압축 해제 크기와 행 수를 파싱 전에 제한한다. */
 export function preflightXlsx(buffer: Buffer): void {
   const entries = readCentralDirectory(buffer);
   const worksheets = entries.filter((entry) =>
@@ -370,15 +359,11 @@ export function preflightXlsx(buffer: Buffer): void {
   }
 }
 
-/** 한글 라벨 → 저장 상수. 파서만 이 방향을 안다. */
 const STATUS_BY_LABEL = new Map(
   Object.entries(ENROLLMENT_STATUS_LABELS).map(([k, v]) => [v, k as EnrollmentStatus]),
 );
 
-/**
- * CSV를 표로 만든다. 빈 줄도 그대로 담는다 — 여기서 걸러내면 뒷줄이 당겨져
- * normalizeRows가 매기는 줄 번호가 실제 파일과 어긋난다.
- */
+// 빈 줄을 남겨야 후속 검증의 줄 번호가 원본 파일과 일치한다.
 export function parseCsv(text: string): string[][] {
   const src = text.replace(/^﻿/, "");
   const table: string[][] = [];
@@ -419,7 +404,6 @@ export function parseCsv(text: string): string[][] {
   return table;
 }
 
-/** 엑셀이 날짜를 어떻게 비틀어 놓든 YYYY-MM-DD로 되돌린다. */
 function toDateString(raw: string): string | null {
   const v = raw.trim();
   if (!v) return null;
@@ -431,8 +415,8 @@ function toDateString(raw: string): string | null {
     return isCanonicalDateInput(date) ? date : null;
   }
 
-  // 엑셀 날짜 일련번호 (1900-01-01 = 1, 1900 윤년 버그 보정 포함)
   if (/^\d{5}$/.test(v)) {
+    // Excel의 1900 윤년 오류를 포함한 날짜 일련번호를 Unix 시각으로 바꾼다.
     const ms = (Number(v) - 25569) * 86_400_000;
     const d = new Date(ms);
     if (!Number.isNaN(d.getTime())) {
@@ -459,20 +443,16 @@ export function normalizeRows(table: string[][]): RosterRow[] {
 
   const header = table[0]!.map((h) => h.trim().normalize("NFC"));
   const at = (name: string) => header.indexOf(name);
-  // 학생코드 열은 없어도 오류가 아니다 — 그 경우 전 줄이 신규로 분류된다.
   const missing = ROSTER_COLUMNS.filter((c) => c !== "학생코드" && at(c) === -1);
 
   const idx = Object.fromEntries(
     ROSTER_COLUMNS.map((c) => [c, at(c)]),
   ) as Record<(typeof ROSTER_COLUMNS)[number], number>;
 
-  // macOS를 거친 파일은 한글이 조합형으로 섞여 온다. DB 쪽(listExisting)과 같은
-  // NFC로 맞춰야 눈에 같은 이름이 다른 값으로 잡히지 않는다.
   const cell = (r: string[], name: (typeof ROSTER_COLUMNS)[number]) =>
     idx[name] === -1 ? "" : (r[idx[name]] ?? "").trim().normalize("NFC");
 
   return table.slice(1).flatMap((raw, i) => {
-    // 전부 빈 줄은 파일 끝의 잔여물이다. 오류로 세지 않는다.
     if (raw.every((c) => c.trim() === "")) return [];
 
     const errors: string[] = [];
@@ -496,9 +476,7 @@ export function normalizeRows(table: string[][]): RosterRow[] {
     const classNoRaw = cell(raw, "반");
     const numberRaw = cell(raw, "번호");
 
-    // 넷 다 비면 "이 학년도 배정 없음"이라 오류가 아니다 — 내보내기가 졸업생을
-    // 이 모양으로 내므로, 오류로 잡으면 내보내 그대로 올린 파일이 막힌다.
-    // 일부만 비면 손댄 흔적이라 아래에서 오류로 잡는다.
+    // 졸업생 내보내기의 빈 배정은 정상이다. 일부만 비어 있으면 아래에서 검증한다.
     const noAssignment = !statusLabel && !gradeRaw && !classNoRaw && !numberRaw;
 
     let status: EnrollmentStatus | null = null;
@@ -518,13 +496,10 @@ export function normalizeRows(table: string[][]): RosterRow[] {
       classNo = toInt(classNoRaw);
       number = toInt(numberRaw);
 
-      // 반과 번호는 재학일 때만 의미가 있다. 졸업·자퇴 줄에 비어 있는 건 정상이다.
       if (status === "ENROLLED" && (grade === null || classNo === null || number === null)) {
         errors.push("재학이면 학년·반·번호가 모두 있어야 합니다.");
       }
 
-      // 표 편집과 같은 범위를 여기서도 강제한다 — 안 그러면 "학년 11" 같은 오타가
-      // 미리보기를 그냥 통과한다.
       if (status === "ENROLLED") {
         if (grade !== null && (grade < MIN_GRADE || grade > MAX_GRADE)) {
           errors.push(GRADE_RANGE_MESSAGE);
@@ -552,7 +527,6 @@ export function normalizeRows(table: string[][]): RosterRow[] {
   });
 }
 
-/** 줄이 아니라 파일 전체에 한 번 해당하는 안내. 미리보기 맨 위에 나온다. */
 export function fileNotices(table: string[][]): string[] {
   if (table.length === 0) return [];
 
@@ -581,12 +555,10 @@ export async function parseRoster(input: {
   }
 
   preflightXlsx(input.buffer);
-  // 첫 시트만 필요하다.
   const rows = await readSheet(input.buffer);
   const table = rows.map((row) =>
     row.map((c) => {
       if (c === null || c === undefined) return "";
-      // 날짜 서식 칸은 Date로 온다. KST로 잘라야 하루가 밀리지 않는다.
       if (c instanceof Date) {
         return new Intl.DateTimeFormat("en-CA", {
           timeZone: "Asia/Seoul",

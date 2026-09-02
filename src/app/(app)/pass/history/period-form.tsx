@@ -9,7 +9,6 @@ import { PASS_HISTORY_DEFAULT_DAYS, type PassHistoryQuery } from "@/modules/pass
 const PATH = "/pass/history";
 const REVERSED_PERIOD_MESSAGE = "시작일은 종료일보다 늦을 수 없습니다.";
 
-/** 날짜 두 칸의 관계를 입력하는 순간 검증하는 전체 내역 GET 폼. */
 export function PeriodForm({
   query,
   serverError,

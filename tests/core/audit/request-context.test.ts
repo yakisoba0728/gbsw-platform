@@ -5,19 +5,6 @@ vi.mock("next/headers", () => ({ headers }));
 
 const { readRequestContext } = await import("@/core/audit/request-context");
 
-/**
- * 감사로그의 접속 정보이자, 인증코드 **IP별 발송 제한의 입력**이다.
- *
- * verification.service.ts는 IP별 20회/시간으로 알리고 잔액 소진과 학교 이름
- * 스팸을 막는다(대상별 5회/시간은 공격자가 번호를 바꾸면 우회되므로 두 번째
- * 방어선이다). 그 방어선이 서 있는 값이 여기서 나온다 — 여기가 조용히 null을
- * 돌려주면 제한이 통째로 꺼지고, 잘못된 IP를 돌려주면 엉뚱한 사람이 막힌다.
- *
- * 지금까지 audit.test.ts·verification.service.test.ts는 이 함수를 **목으로
- * 대체**했다. 목이 돌려주던 값이 실제로 나오는 값인지는 아무도 보지 않았다.
- */
-
-/** 실제 Headers를 넘긴다 — get()의 대소문자 무시 동작까지 그대로 태운다. */
 function requestWith(init: Record<string, string>) {
   headers.mockResolvedValue(new Headers(init));
 }
@@ -147,12 +134,6 @@ describe("readRequestContext() — 요청 밖에서 불렀을 때", () => {
     headers.mockReset();
   });
 
-  /**
-   * 가장 중요한 케이스다. recordAudit()이 매번 이 함수를 부르므로, 여기서 예외가
-   * 밖으로 나가면 감사 기록 실패가 본 동작(상벌점 부여·계정 수정)을 되돌린다 —
-   * "감사 실패가 본 동작을 되돌리면 안 된다"(core/audit/audit.ts)는 규약이
-   * 이 try/catch에 걸려 있다. instrumentation 훅·시드 스크립트가 실제 경로다.
-   */
   it("headers()가 던지면 예외를 밖으로 내보내지 않고 빈 컨텍스트로 떨어진다", async () => {
     headers.mockImplementation(() => {
       throw new Error("`headers` was called outside a request scope.");

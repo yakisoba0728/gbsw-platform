@@ -4,25 +4,33 @@ import { coreMocks } from "../../helpers/core-mocks";
 const { recordAudit } = coreMocks("authz-errors-test");
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
 
-const { assertCan, ForbiddenError } = await import("@/core/authz/errors");
-
-/**
- * 권한 거부의 단일 경로. 한 번에 세 가지를 한다 —
- * can() 검사 / authz:denied 감사로그 / ForbiddenError throw.
- *
- * 감사로그가 남는다는 것은 네 개 서비스 테스트가 간접적으로 확인하지만,
- * **"감사 기록이 실패해도 거부는 그대로 던진다"**는 try/catch 분기는 지금까지
- * 어디서도 검증되지 않았다. 그 분기가 죽으면 감사 DB가 흔들리는 순간 권한 거부가
- * 통째로 다른 오류로 바뀐다 — 액션의 catch는 그걸 "일시적 장애"로 읽고 일반
- * 문구를 내보내며, 권한 침해 시도와 장애가 다시 똑같이 보이게 된다.
- * (이 헬퍼가 생긴 이유가 바로 그 둘을 가르는 것이었다.)
- *
- * can()은 목하지 않는다 — 실제 표(RULES)를 그대로 태워야 "허용인데 막힌다"·
- * "거부인데 통과한다"를 잡을 수 있다.
- */
+const { assertCan, denyAccess, ForbiddenError } = await import("@/core/authz/errors");
 
 const ADMIN = { id: "admin-1", role: "ADMIN" };
 const STUDENT = { id: "stu-1", role: "STUDENT" };
+
+describe("denyAccess()", () => {
+  beforeEach(() => {
+    recordAudit.mockReset().mockResolvedValue(undefined);
+  });
+
+  it("소유권 거부도 대상과 행위자 스냅샷, 메타데이터를 보존한다", async () => {
+    await expect(denyAccess(STUDENT, "pass:withdraw", {
+      actorName: "학생",
+      targetType: "Pass",
+      targetId: "pass-1",
+      metadata: { reason: "NOT_OWNER" },
+    })).rejects.toMatchObject({ action: "pass:withdraw", message: "FORBIDDEN" });
+    expect(recordAudit).toHaveBeenCalledWith({
+      actorUserId: STUDENT.id,
+      actorName: "학생",
+      action: "authz:denied",
+      targetType: "Pass",
+      targetId: "pass-1",
+      metadata: { reason: "NOT_OWNER", action: "pass:withdraw" },
+    });
+  });
+});
 
 describe("ForbiddenError", () => {
   it("Error를 상속한다 — 액션의 catch가 instanceof로 가른다", () => {
@@ -54,7 +62,7 @@ describe("assertCan() — 통과", () => {
   it("허용은 감사로그를 남기지 않는다", async () => {
     await assertCan(ADMIN, "user:manage");
     await assertCan(ADMIN, "merit:award");
-    await assertCan(STUDENT, "invite:create:parent"); // 학생에게 허용된 유일한 액션
+    await assertCan(STUDENT, "invite:create:parent");
     expect(recordAudit).not.toHaveBeenCalled();
   });
 });

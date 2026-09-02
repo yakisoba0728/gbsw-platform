@@ -37,7 +37,6 @@ function fail(error: string, values?: PostFormValues): PostFormState {
 
 const messageFor = actionMessage(CommunityError, MESSAGES, "[community]");
 
-/** 폼이 보낸 문자열 그대로. **본문은 다듬지 않는다** — 줄바꿈이 글쓴이의 모양이다. */
 function values(formData: FormData): PostFormValues {
   return {
     title: String(formData.get("title") ?? ""),
@@ -71,10 +70,6 @@ export async function createPostAction(
   }
 
   revalidatePath(`/community/${created.slug}`);
-  // redirect는 예외를 던진다 — try 밖에서 부른다. 안에서 부르면 catch가 그것을
-  // 오류로 삼켜 「처리하지 못했습니다」가 뜬다.
-  // 클라이언트가 이번 제출과 같은 sessionStorage 초안만 지울 수 있게 난수를
-  // fragment로 돌려준다. JS 없는 제출에는 난수가 없으므로 fragment도 붙이지 않는다.
   const completion = draftNonce ? postDraftCompletionHash(draftNonce) : "";
   redirect(`/community/${created.slug}/${created.postId}${completion}`);
 }
@@ -158,7 +153,6 @@ export async function createCommentAction(
   }
 
   revalidatePath(`/community/${result.slug}/${result.postId}`);
-  // 목록의 댓글 수가 바뀐다.
   revalidatePath(`/community/${result.slug}`);
   return { ok: true, error: null };
 }

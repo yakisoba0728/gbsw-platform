@@ -23,7 +23,6 @@ const credentials = {
   confirmPassword: z.string(),
 };
 
-/** 역할은 여기 없다 — 서버가 코드 레코드에서만 읽는다. birthDate는 학생만 채운다. */
 export const completeRegistrationSchema = z
   .object({
     code: inviteCodeSchema,

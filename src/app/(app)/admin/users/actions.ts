@@ -23,7 +23,6 @@ import {
   updateUser,
 } from "@/modules/admin-users/admin-user.service";
 
-/** 서비스가 던지는 오류 코드를 화면 문구로 옮긴다. */
 const MESSAGES = {
   FORBIDDEN: "권한이 없습니다.",
   NOT_FOUND: "계정을 찾을 수 없습니다.",
@@ -41,14 +40,12 @@ const MESSAGES = {
   NUMBER_TAKEN: "같은 반에 같은 번호가 있습니다.",
 } satisfies Record<string, string>;
 
-/** 코드로 가를 수 있는 오류는 사전에서, 나머지는 액션별 폴백으로. */
 const messageFor = actionMessage(AdminUserError, MESSAGES, "[admin-users]");
 
 function fail(error: string): UserActionState {
   return { ok: false, error, tempPassword: null };
 }
 
-/** 목록과 상세가 같은 데이터를 보므로 둘 다 새로 그린다. */
 function revalidate(userId: string) {
   revalidatePath("/admin/users");
   revalidatePath(`/admin/users/${userId}`);
@@ -77,9 +74,6 @@ export async function setUserActiveAction(
   }
 
   revalidate(userId);
-  // 매번 새 객체를 돌려준다. 확인 모달은 상태의 **동일성**으로 결과가 왔음을
-  // 아는데, 고정 객체(USER_ACTION_INITIAL)를 다시 주면 두 번째 성공에서
-  // 모달이 열린 채 남는다.
   return { ok: true, error: null, tempPassword: null };
 }
 
@@ -107,8 +101,6 @@ export async function resetPasswordAction(
   }
 }
 
-// ── 완전 삭제 (오등록 정리) ───────────────────────────────────
-
 export async function deleteUserPermanentlyAction(
   _prev: UserActionState,
   formData: FormData,
@@ -130,19 +122,10 @@ export async function deleteUserPermanentlyAction(
     return fail(messageFor(error, "완전 삭제하지 못했습니다."));
   }
 
-  // redirect()는 특수한 오류를 던져 흐름을 끊는다. try 안에 두면 위 catch가
-  // 그걸 삼켜 실패로 잘못 보고한다.
   revalidatePath("/admin/users");
   redirect("/admin/users");
 }
 
-// ── 정보 수정 ─────────────────────────────────────────────────
-
-/**
- * 실패 상태에 실을 제출값. 저장이 거부돼도 폼은 자동 리셋되므로, 이 값이
- * defaultValue로 되돌아가지 않으면 교사가 고친 일곱 칸이 전부 서버 값으로
- * 되감긴다. 없는 칸(비학생의 학년·반·번호)은 빈 문자열이다 — 폼이 그리지도 않는다.
- */
 function submittedValues(formData: FormData): UpdateUserValues {
   const text = (name: string): string => {
     const value = formData.get(name);
@@ -186,13 +169,11 @@ export async function updateUserAction(
     };
   }
 
-  // userId와 사유는 서비스가 따로 받는다. 입력 객체에 섞이면 안 된다.
   const { userId, reason, ...input } = parsed.data;
 
   try {
     const { changed } = await updateUser(actor, userId, input, reason);
     revalidate(userId);
-    // 성공하면 제출값을 싣지 않는다 — 저장된 서버 값이 보여야 한다.
     return { error: null, changed, values: null };
   } catch (error) {
     return {

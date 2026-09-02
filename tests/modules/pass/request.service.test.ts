@@ -2,9 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { coreMocks } from "../../helpers/core-mocks";
 import { user } from "../../helpers/session";
 
-// request.service → pass.qr → "server-only". 그 마커는 웹팩의 react-server 조건에서만
-// 무해한 empty.js로 풀리고 vitest에서는 그냥 던진다 — 무해하게 만든다.
-// (tests/modules/pass/pass.qr.test.ts와 같은 처리다.)
 vi.mock("server-only", () => ({}));
 
 const createPass = vi.fn();
@@ -65,7 +62,6 @@ const student = user("STUDENT", "u-student", {
 const parent = user("PARENT", "u-parent", { email: "u-parent@gbsw.hs.kr" });
 const admin = user("ADMIN", "u-admin", { email: "u-admin@gbsw.hs.kr" });
 
-/** 2026-08-27 09:00 KST */
 const NOW = new Date("2026-08-27T00:00:00.000Z");
 
 const OUTING = {
@@ -221,8 +217,6 @@ describe("withdrawPass", () => {
     ]);
   });
 
-  // 확인 모달이 받은 사유가 가는 곳. Pass 행의 취소 사유 칸과 감사로그 둘 다다 —
-  // 앞은 학생 화면이 읽고, 뒤는 나중에 「왜 그랬나」를 되짚는 자료가 된다.
   it("사유를 적으면 취소 사유와 감사로그에 함께 남는다", async () => {
     await service.withdrawPass(student, { passId: "p-1", reason: "일정이 바뀜" });
 
@@ -372,11 +366,6 @@ describe("consentPass", () => {
   });
 });
 
-/**
- * `/pass/<passId>`의 유일한 인가다 — 그 페이지에는 다른 가드가 없고, 이 함수가
- * 주는 행에는 사유·행선지·결재 메모까지 들어 있다. 세 갈래가 각기 다른 근거로
- * 통과하므로 갈래마다 한 줄씩 못 박는다.
- */
 describe("getPassDetail", () => {
   const detail = { id: "p-9", studentProfileId: "sp-1", type: "OUTING" };
 
@@ -408,7 +397,6 @@ describe("getPassDetail", () => {
   });
 
   it("자녀 것이면 보호자도 통과한다", async () => {
-    // 학부모 계정에는 학생 프로필이 없다 — 통과 근거는 ParentStudent 관계뿐이다.
     findStudentProfileByUserId.mockResolvedValue(null);
 
     await expect(service.getPassDetail(parent, "p-9")).resolves.toBe(detail);
@@ -516,15 +504,12 @@ describe("getMyStudentQr", () => {
     expect(verifyStudentCode(token!, at)).toEqual({ studentProfileId: "student0001" });
   });
 
-  // **학생증의 성질이다.** 승인된 출입증이 하나도 없어도 나온다 — 학생증은
-  // 승인의 결과물이 아니라 신원이고, 찍었을 때 「출입증 없음」이 정상적인 답이다.
   it("승인된 출입증이 없어도 준다 — 출입증을 아예 조회하지 않는다", async () => {
     await expect(service.getMyStudentQr(student)).resolves.toBeDefined();
     expect(findPass).not.toHaveBeenCalled();
     expect(listForStudent).not.toHaveBeenCalled();
   });
 
-  // 20초마다 갈린다 — 찍어 둔 사진을 못 쓰게 하는 성질이다.
   it("20초가 지나면 다른 코드가 나온다", async () => {
     const at = new Date("2026-08-27T05:30:00.000Z");
     const a = await service.getMyStudentQr(student, at);
@@ -549,7 +534,6 @@ describe("getMyStudentQr", () => {
     ]);
   });
 
-  // 교사·보호자에게는 없다. 남이 대신 띄울 수 있으면 학생증이 아니게 된다.
   it.each([
     ["교사", admin],
     ["학부모", parent],

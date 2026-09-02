@@ -2,11 +2,7 @@ import { sameDatabaseTarget } from "./scripts/database-target.mjs";
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
-/**
- * Playwright는 실제 INSERT/DELETE를 수행하므로 일반 DATABASE_URL로 절대
- * fallback하지 않는다. 전용 변수가 있어도 같은 물리 DB를 가리키면 오타로 보고
- * 중단한다 — 사용자명·비밀번호·schema 쿼리가 달라도 DB 자체는 같을 수 있다.
- */
+// E2E는 데이터를 변경하므로 일반 DATABASE_URL로 대체하지 않는다.
 export function resolveE2eDatabaseUrl(
   environment: Environment,
   fileEnvironment: Environment,

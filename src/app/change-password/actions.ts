@@ -15,7 +15,6 @@ export async function changePasswordAction(
   _prev: ChangePasswordState,
   formData: FormData,
 ): Promise<ChangePasswordState> {
-  // 강제 변경 대기 상태를 푸는 유일한 경로라 이 액션은 통과해야 한다 (M12).
   const actor = await requireAuth({ allowMustChangePassword: true });
 
   const parsed = changePasswordSchema.safeParse({

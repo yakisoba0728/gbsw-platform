@@ -3,8 +3,6 @@ import { hrefWith } from "@/lib/search-params";
 
 describe("hrefWith", () => {
   it("현재 쿼리를 그대로 보존한다", () => {
-    // 이 규칙이 이 파일의 존재 이유다 — 반을 고른 채 트랙 탭만 눌러도
-    // 그 반이 유지되어야 한다.
     const href = hrefWith(
       "/merit",
       { track: "SCHOOL", grade: "1", classNo: "4" },
@@ -24,7 +22,6 @@ describe("hrefWith", () => {
   });
 
   it("patch의 null은 그 키를 지운다", () => {
-    // 학생 상세의 트랙 탭: 기숙사는 누적이라 학년도가 의미 없다.
     const href = hrefWith(
       "/merit/students/abc",
       { track: "SCHOOL", year: "2025" },
@@ -41,8 +38,6 @@ describe("hrefWith", () => {
   });
 
   it("배열 값은 버린다", () => {
-    // 같은 키를 여러 번 받는 화면이 없다 — 주소를 손으로 고친 경우뿐이라
-    // 기본값으로 떨어뜨린다.
     const href = hrefWith("/merit", { track: ["SCHOOL", "DORM"], grade: "2" }, {});
 
     expect(href).toBe("/merit?grade=2");
@@ -53,7 +48,6 @@ describe("hrefWith", () => {
   });
 
   it("남는 쿼리가 없으면 물음표를 붙이지 않는다", () => {
-    // /merit/stats의 "전교 보기": 반 조건을 지우면 경로만 남아야 한다.
     expect(hrefWith("/merit/stats", { grade: "1", classNo: "4" }, {
       grade: null,
       classNo: null,

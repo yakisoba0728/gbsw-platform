@@ -314,11 +314,6 @@ describe("현재 학년도 전환과 확정 저장 경합", () => {
     ).toBe(0);
   });
 
-  /**
-   * 세 번째 쓰기 경로. 앞의 둘과 달리 이 경로는 학년도를 **잠그지 않고** 읽고
-   * 있었다 — Serializable로 감싸도 학년도를 바꾸는 쪽이 기본 격리수준이라
-   * 직렬화 검사가 돌지 않아, 둘 다 성공하고 저장이 지나간 학년도에 커밋됐다.
-   */
   it("학생 표 저장은 전환이 먼저 커밋되면 구년도 Enrollment를 수정하지 않는다", async () => {
     created.academicYears.push(SAVE_RACE_FROM_YEAR, SAVE_RACE_TO_YEAR);
     const adminId = randomUUID();
@@ -359,7 +354,6 @@ describe("현재 학년도 전환과 확정 저장 경합", () => {
     expect(await save).toMatchObject({ message: "YEAR_MISMATCH" });
     await switcher.cleanup();
 
-    // 번호가 그대로여야 한다. 잠금이 없으면 여기서 9가 나온다 — 오류 없이.
     const enrollment = await prisma.enrollment.findUniqueOrThrow({
       where: {
         studentProfileId_year: { studentProfileId, year: SAVE_RACE_FROM_YEAR },

@@ -15,11 +15,6 @@ export type ManagedBoard = {
   active: boolean;
 };
 
-/**
- * 역할 배열을 화면 글자로. **비어 있으면 「교사만」이다** — 교사는 늘 통과하므로
- * 빈 배열이 "아무도 못 본다"가 아니라 "교사만 본다"를 뜻한다. 그것을 화면이
- * 말하지 않으면 교사가 자기 게시판을 못 찾는다고 생각한다.
- */
 function roleText(roles: string[]): string {
   if (roles.length === 0) return "교사만";
   return roles
@@ -64,7 +59,6 @@ const COLUMNS: readonly Column<ManagedBoard>[] = [
     header: "",
     card: "actions",
     className: "text-right",
-    // 없앤 게시판은 고칠 것이 없다 — 셀이 null이면 카드 모드에서 자리도 안 생긴다.
     cell: (board) =>
       board.active ? (
         <Link
@@ -86,7 +80,6 @@ export function CommunityList({ boards }: { boards: readonly ManagedBoard[] }) {
       rowKey={(board) => board.id}
       columns={COLUMNS}
       narrow="cards"
-      // 없앤 게시판은 흐리게 — 목록에 남아 있되 살아 있는 것과 섞이지 않는다.
       rowClassName={(board) => (board.active ? "" : "text-mut")}
     />
   );

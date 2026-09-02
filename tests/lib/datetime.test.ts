@@ -12,25 +12,6 @@ import {
   kstNextDayStart,
 } from "@/lib/datetime";
 
-/**
- * 날짜만 뜻이 있는 값(생년월일·발생일)이 저장되는 유일한 입구다.
- *
- * 여기가 어긋나도 화면에는 아무 이상이 안 보인다 — UTC 자정으로 저장해도 KST로
- * 표시하면 09:00으로 밀릴 뿐 날짜는 그대로다. 저장된 instant 자체가 9시간 다르고,
- * 그 차이는 이름+생년월일로 학생을 매칭하는 명단 반영에서 처음 터진다. 그때는
- * 이미 잘못된 값이 DB에 쌓인 뒤다.
- *
- * 그래서 이 파일은 "화면에 뭐가 보이나"가 아니라 **정확한 instant**를 못 박는다.
- */
-
-/**
- * 개발자 노트북은 대개 TZ=Asia/Seoul이고 배포 컨테이너는 UTC다. UTC 기준으로
- * 자르는 구현은 노트북에서만 통과한다 — 아래 테스트들이 그 함정을 막는다.
- *
- * node는 process.env.TZ를 다시 대입하면 즉시 반영한다(v24 확인). 원복은 반드시
- * finally에서 한다 — 단언이 실패해도 다음 테스트에 새면 안 된다. 값이 원래
- * 없었다면 delete여야 한다(대입하면 "undefined"라는 **문자열**이 박힌다).
- */
 const ORIGINAL_TZ = process.env.TZ;
 
 function withTz<T>(tz: string, fn: () => T): T {
@@ -43,7 +24,6 @@ function withTz<T>(tz: string, fn: () => T): T {
   }
 }
 
-/** 대한민국(+09:00)을 사이에 끼고 양쪽으로 벌어진 타임존들. */
 const OTHER_ZONES = ["UTC", "America/New_York", "Pacific/Kiritimati", "Asia/Seoul"];
 
 afterEach(() => {
@@ -90,11 +70,8 @@ describe("formatDateInput()", () => {
   });
 
   it("KST 늦은 밤은 UTC로 이미 다음 날이다 — 여기서 UTC로 자르면 하루가 밀린다", () => {
-    // 20:00Z = KST 다음 날 05:00. UTC 기준 구현이면 "2026-08-17"이 나온다.
     expect(formatDateInput(new Date("2026-08-17T20:00:00.000Z"))).toBe("2026-08-18");
-    // KST 23:59 = 같은 날. UTC로는 14:59Z라 이쪽은 UTC 구현도 맞힌다 — 대조군.
     expect(formatDateInput(new Date("2026-08-17T23:59:00+09:00"))).toBe("2026-08-17");
-    // KST 00:00 = 전날 15:00Z. UTC 기준 구현이면 "2026-08-16"이 나온다.
     expect(formatDateInput(new Date("2026-08-17T00:00:00+09:00"))).toBe("2026-08-17");
   });
 
@@ -111,7 +88,6 @@ describe("formatDateInput()", () => {
   });
 
   it("서버 타임존이 무엇이든 KST 날짜를 낸다", () => {
-    // 20:00Z는 뉴욕에서 아직 8/17, 키리바시에서는 이미 8/18이다. 셋 다 KST 답이어야 한다.
     const instant = new Date("2026-08-17T20:00:00.000Z");
     for (const tz of OTHER_ZONES) {
       expect(withTz(tz, () => formatDateInput(instant))).toBe("2026-08-18");
@@ -122,7 +98,7 @@ describe("formatDateInput()", () => {
 describe("formatDateInput() ↔ parseDateInputKst() 왕복", () => {
   const dates = [
     "1970-01-01",
-    "2009-03-08", // 서머타임이 있는 나라라면 걸리는 날
+    "2009-03-08",
     "2026-01-01",
     "2026-02-28",
     "2026-03-01",
@@ -131,7 +107,7 @@ describe("formatDateInput() ↔ parseDateInputKst() 왕복", () => {
     "2026-08-17",
     "2026-10-31",
     "2026-12-31",
-    "2028-02-29", // 윤년
+    "2028-02-29",
     "2100-12-31",
   ];
 
@@ -158,9 +134,8 @@ describe("formatDateInput() ↔ parseDateInputKst() 왕복", () => {
 
 describe("isSameKstDate()", () => {
   it("UTC 날짜가 달라도 KST 날짜가 같으면 같은 날로 본다", () => {
-    // 둘 다 KST 8/17. UTC로는 8/16과 8/17로 갈린다.
-    const kstMorning = new Date("2026-08-17T01:00:00+09:00"); // 2026-08-16T16:00Z
-    const kstEvening = new Date("2026-08-17T22:00:00+09:00"); // 2026-08-17T13:00Z
+    const kstMorning = new Date("2026-08-17T01:00:00+09:00");
+    const kstEvening = new Date("2026-08-17T22:00:00+09:00");
     expect(kstMorning.toISOString().slice(0, 10)).not.toBe(
       kstEvening.toISOString().slice(0, 10),
     );
@@ -168,8 +143,8 @@ describe("isSameKstDate()", () => {
   });
 
   it("UTC 날짜는 같은데 KST 날짜가 갈리면 다른 날로 본다", () => {
-    const beforeMidnight = new Date("2026-08-17T14:00:00.000Z"); // KST 8/17 23:00
-    const afterMidnight = new Date("2026-08-17T16:00:00.000Z"); // KST 8/18 01:00
+    const beforeMidnight = new Date("2026-08-17T14:00:00.000Z");
+    const afterMidnight = new Date("2026-08-17T16:00:00.000Z");
     expect(isSameKstDate(beforeMidnight, afterMidnight)).toBe(false);
   });
 
@@ -193,8 +168,8 @@ describe("isSameKstDate()", () => {
   });
 
   it("서버 타임존이 무엇이든 같은 답이다", () => {
-    const a = new Date("2026-08-17T14:00:00.000Z"); // KST 8/17
-    const b = new Date("2026-08-17T16:00:00.000Z"); // KST 8/18
+    const a = new Date("2026-08-17T14:00:00.000Z");
+    const b = new Date("2026-08-17T16:00:00.000Z");
     for (const tz of OTHER_ZONES) {
       expect(withTz(tz, () => isSameKstDate(a, b))).toBe(false);
       expect(withTz(tz, () => isSameKstDate(a, a))).toBe(true);
@@ -203,10 +178,6 @@ describe("isSameKstDate()", () => {
 });
 
 describe("formatDate() / formatDateTime()", () => {
-  /**
-   * 문구 자체는 ICU 버전에 달려 있다. 그래도 못 박는 이유는 소스의 주석이
-   * 이 형식을 예시로 적고 있어서다 — 형식이 바뀌면 주석도 같이 고쳐야 한다.
-   */
   it("소스 주석에 적힌 형식 그대로 낸다", () => {
     expect(formatDate(new Date("2026-08-17T00:00:00+09:00"))).toBe("2026. 8. 17.");
     expect(formatDateTime(new Date("2026-08-17T08:13:51+09:00"))).toBe(
@@ -215,7 +186,6 @@ describe("formatDate() / formatDateTime()", () => {
   });
 
   it("KST로 읽는다 — UTC로 읽으면 날짜가 밀린다", () => {
-    // KST 8/18 05:00. UTC로 읽으면 8/17로 나온다.
     expect(formatDate(new Date("2026-08-17T20:00:00.000Z"))).toBe("2026. 8. 18.");
   });
 
@@ -261,7 +231,6 @@ describe("kstDayStart", () => {
   });
 
   it("UTC가 아니라 KST 날짜다 — 여기가 어긋나면 창이 하루 밀린다", () => {
-    // UTC로는 아직 8월 16일이지만 KST로는 17일이 시작됐다.
     expect(kstDayStart(new Date("2026-08-16T15:30:00Z"))).toEqual(
       new Date("2026-08-17T00:00:00+09:00"),
     );
@@ -275,14 +244,12 @@ describe("formatMonthDay()", () => {
   });
 
   it("KST 기준이다 — UTC로 자르면 하루 밀린다", () => {
-    // UTC로는 8월 25일 15:10이지만 KST로는 26일 00:10이다.
     expect(formatMonthDay(new Date("2026-08-25T15:10:00Z"))).toBe("8. 26.");
   });
 });
 
 describe("parseDateTimeInputKst", () => {
   it("KST 시각으로 읽는다", () => {
-    // 2026-08-27 14:30 KST = 05:30 UTC
     expect(parseDateTimeInputKst("2026-08-27", "14:30").toISOString()).toBe(
       "2026-08-27T05:30:00.000Z",
     );

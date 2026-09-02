@@ -5,9 +5,7 @@ import { fileURLToPath } from "node:url";
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const standaloneRoot = path.join(projectRoot, ".next", "standalone");
 
-// Next 16.3은 outputFileTracingExcludes와 무관하게, 빌드 때 읽은 이 두 파일을
-// standalone에 별도로 복사한다(next/dist/build/index.js). 운영 컨테이너는
-// compose가 환경변수를 직접 주입하므로 로컬 비밀 파일은 런타임에 필요 없다.
+// Next가 tracing 제외와 별개로 복사한다. 런타임 비밀은 환경으로만 주입한다.
 const copiedEnvFiles = [".env", ".env.production"];
 
 const present = [];

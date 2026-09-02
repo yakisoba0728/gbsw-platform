@@ -21,7 +21,6 @@ describe("createCommunitySchema", () => {
     expect(parsed.success).toBe(true);
     if (!parsed.success) return;
     expect(parsed.data.slug).toBe("notice");
-    // 빈 설명은 null로 떨어진다 — "선택 안 함"과 "빈 값"이 갈리지 않게.
     expect(parsed.data.description).toBeNull();
     expect(parsed.data.anonymous).toBe(false);
     expect(parsed.data.allowAttachments).toBe(true);
