@@ -5,13 +5,10 @@ export type PostDraft = {
   savedAt: number;
 };
 
-/** 오래된 글이 몇 달 뒤 갑자기 되살아나지 않게 일주일만 보관한다. */
 export const POST_DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const POST_DRAFT_NONCE_PATTERN = /^[a-f0-9]{32}$/;
 
 export function postDraftKey(userId: string, slug: string): string {
-  // 사용자까지 묶는다 — 같은 브라우저에서 로그아웃 뒤 다른 사람이 로그인해도
-  // 앞사람의 작성 중 내용을 보여 주지 않는다.
   return `gbsw:community:new-post:${userId}:${slug}`;
 }
 
@@ -26,16 +23,15 @@ export function createPostDraftNonce(): string {
   return crypto.randomUUID().replaceAll("-", "");
 }
 
-/** 제출 뒤 입력에는 새 난수를 붙여 이전 제출의 성공 cleanup과 갈라 놓는다. */
 export function postDraftNonceAfterSubmission(
   currentNonce: string,
   submittedNonce: string | null,
   createNonce: () => string = createPostDraftNonce,
 ): string {
+  // 제출 이후 작성한 초안은 앞선 제출의 완료 처리로 삭제하지 않는다.
   return currentNonce === submittedNonce ? createNonce() : currentNonce;
 }
 
-/** 실패 응답이 돌려준 값보다 제출 뒤 따로 저장된 초안이 최신인지 판별한다. */
 export function postDraftIsNewerThanSubmission(
   draftNonce: string,
   submittedNonce: string | null,
@@ -43,7 +39,6 @@ export function postDraftIsNewerThanSubmission(
   return submittedNonce !== null && draftNonce !== submittedNonce;
 }
 
-/** 저장 지연 중인 값은 sessionStorage에 남은 이전 값보다 항상 최신이다. */
 export function postDraftForRestore(
   storedDraft: PostDraft | null,
   pendingDraft: Pick<PostDraft, "title" | "body" | "nonce"> | null,
@@ -98,7 +93,6 @@ export function parsePostDraft(
   }
 }
 
-/** 성공 redirect의 난수와 현재 브라우저 초안이 같은 제출에서 왔는지 확인한다. */
 export function postDraftMatchesCompletion(
   rawDraft: string,
   hash: string,

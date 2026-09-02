@@ -1,13 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { user } from "../../helpers/session";
 
-/**
- * 순위 · 현황. 등수는 화면이 매기지 않고 서비스가 붙여 보내므로, 동점 처리와
- * 정렬 기준이 여기서만 확인된다 — 표는 서비스가 준 순서를 그대로 그린다.
- */
-
 const listClassRoster = vi.fn();
-// 같은 모듈의 나머지 export — 팩토리에 없으면 undefined가 되어 다른 서비스가 깨진다.
 const trackTotals = vi.fn();
 const trackTotalsBetween = vi.fn();
 const awardsByRule = vi.fn();
@@ -30,8 +24,6 @@ vi.mock("@/modules/academic-year/academic-year.service", () => ({
   getCurrentYear,
   AcademicYearError: class extends Error {},
 }));
-// 기준은 이 파일이 검증하는 대상이 아니다 — 목으로 고정해 두어야 학교가 기준을
-// 바꿔도 여기 테스트가 흔들리지 않는다 (merit.watch-list.test.ts가 그쪽을 본다).
 vi.mock("@/modules/merit/threshold.service", () => ({
   getDemeritThresholds: vi.fn().mockResolvedValue({ warn: 20, danger: 30 }),
 }));
@@ -41,7 +33,6 @@ const service = await import("@/modules/merit/stats.service");
 const admin = user("ADMIN", "admin-1", { name: "이정민" });
 const student = user("STUDENT", "u-1", { name: "이정민" });
 
-/** listClassRoster가 내는 학생별 합계 한 줄. */
 function total(
   id: string,
   name: string,
@@ -67,7 +58,6 @@ function total(
   };
 }
 
-/** 한 반 명단 줄을 번호만 간단히 달리 만든다. */
 function rosterRow(id: string, number: number, net: number, demerit?: number) {
   return total(id, `학생${number}`, net, {
     grade: 2,
@@ -99,7 +89,6 @@ describe("getRankingStats — 권한", () => {
 
 describe("getRankingStats — 전교 학생 순위", () => {
   it("동점은 같은 등수고, 다음 등수는 인원만큼 건너뛴다", async () => {
-    // 순점수 10점이 셋이면 1·1·1등이고 그 다음은 2등이 아니라 4등이다.
     mockRoster([
       total("sp-d", "라학생", 5),
       total("sp-a", "가학생", 10),
@@ -109,8 +98,6 @@ describe("getRankingStats — 전교 학생 순위", () => {
 
     const stats = await service.getRankingStats(admin, "SCHOOL");
 
-    // 동점 안에서는 이름순이다 — 순서가 호출마다 바뀌면 같은 표를 다시 열 때
-    // 줄이 뒤바뀐다.
     expect(stats.students.map((s) => [s.name, s.rank])).toEqual([
       ["가학생", 1],
       ["나학생", 1],
@@ -166,7 +153,6 @@ describe("getRankingStats — 반을 고른 경우", () => {
   const scope = { grade: 2, classNo: 3 };
 
   it("전교 명단에서 고른 반만 남기고 번호순·등수 없음으로 낸다", async () => {
-    // repo가 학년·반·번호순으로 준다. 점수 순으로 다시 세우면 담임이 찾는 줄이 옮겨 간다.
     mockRoster([
       total("other", "다른반", 20, { grade: 1, classNo: 1 }),
       rosterRow("sp-1", 1, -5),
@@ -208,7 +194,6 @@ describe("getRankingStats — 반을 고른 경우", () => {
 
 describe("getRankingStats — 반 순위", () => {
   it("합계가 아니라 1인 평균 순점수 내림차순이다", async () => {
-    // 1-1은 합계 10점이지만 2명이어서 평균 5점, 2-3은 1명이어서 평균 6점이다.
     mockRoster([
       total("sp-11a", "가학생", 10, { grade: 1, classNo: 1, number: 1 }),
       total("sp-11b", "나학생", 0, { grade: 1, classNo: 1, number: 2 }),
@@ -273,7 +258,6 @@ describe("getRankingStats — 집계 범위", () => {
     expect(listClassRoster.mock.calls[1][0]).toEqual({
       year: 2026,
       track: "DORM",
-      // 기숙사 점수는 입학부터 누적이다. 반 편성만 학년도를 본다.
       totalsYear: null,
     });
   });

@@ -1,25 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isUniqueViolation, NumberTakenError } from "@/core/db/unique-violation";
 
-/**
- * 유일 제약 위반 판정은 저장소에서 단 하나뿐인 경로다 — 관리자 사용자 수정·가입·
- * 명단 반영·학년도 생성이 모두 이 함수 하나로 "무엇이 중복인가"를 가른다.
- *
- * 여기가 조용히 false를 돌려주면 EmailTakenError·NumberTakenError·YearTakenError로
- * 옮겨지지 않고 원본 P2002가 그대로 화면까지 올라간다. 사용자에게는 "이미 쓰는
- * 번호입니다" 대신 알 수 없는 오류가 뜨고, 서버 로그에만 흔적이 남는다.
- *
- * 오류 모양은 Prisma 7 + @prisma/adapter-pg가 만드는 것이라 우리가 통제하지 못한다.
- * 어댑터 버전이 바뀌어 모양이 달라져도 **던지지는 않고 false로 떨어져야** 한다 —
- * 호출부(registration.repo·admin-user.repo·roster.repo)는 catch 블록 안에서 이 함수를
- * 부르므로, 여기서 예외가 나면 원래 오류 대신 TypeError가 위로 올라간다.
- */
-
-/**
- * Prisma 7.9 + @prisma/adapter-pg에서 관측한 실물 모양.
- * tests/modules/{admin-users,enrollment}의 realWorldNumberP2002()와 같고,
- * tests/integration/enrollment.unique-constraint.integration.test.ts가 실 Postgres로 대조한다.
- */
 function adapterP2002(fields: string[]) {
   return Object.assign(new Error("Unique constraint failed"), {
     name: "PrismaClientKnownRequestError",
@@ -39,7 +20,6 @@ function adapterP2002(fields: string[]) {
   });
 }
 
-/** 어댑터가 컬럼 목록 대신 인덱스 이름만 주는 변종. */
 function adapterIndexP2002(index: string) {
   return Object.assign(new Error("Unique constraint failed"), {
     name: "PrismaClientKnownRequestError",
@@ -53,7 +33,6 @@ function adapterIndexP2002(index: string) {
   });
 }
 
-/** 어댑터 없이 돌던 시절(네이티브 엔진)의 모양. */
 function legacyP2002(target: unknown) {
   return Object.assign(new Error("Unique constraint failed"), {
     name: "PrismaClientKnownRequestError",
@@ -162,11 +141,6 @@ describe("isUniqueViolation() — 유일 제약 위반이 아닌 것", () => {
 });
 
 describe("isUniqueViolation() — 모양이 깨진 입력에서 던지지 않는다", () => {
-  /**
-   * 호출부는 전부 catch 블록 안이다 (registration.repo.ts:168 등).
-   * 여기서 예외가 나면 원래 P2002 대신 TypeError가 올라가 원인이 사라진다.
-   * 그래서 "잡아내는가"보다 "던지지 않는가"가 이 함수의 핵심 계약이다.
-   */
   const malformed: [string, unknown][] = [
     ["meta 자체가 없다", { code: "P2002" }],
     ["meta가 null이다", { code: "P2002", meta: null }],
@@ -231,7 +205,6 @@ describe("NumberTakenError", () => {
     expect(registrationRepo.NumberTakenError).toBe(NumberTakenError);
     expect(adminUserRepo.NumberTakenError).toBe(NumberTakenError);
     expect(rosterRepo.NumberTakenError).toBe(NumberTakenError);
-    // 서비스가 하는 판정을 그대로 재현한다 (enrollment.service.ts:180 등).
     expect(new NumberTakenError()).toBeInstanceOf(enrollmentRepo.NumberTakenError);
   });
 });

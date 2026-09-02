@@ -30,14 +30,9 @@ export type CommunityFormBoard = {
   anonymous: boolean;
   allowAttachments: boolean;
   sortOrder: number;
-  /** ISO 문자열. 낙관적 잠금에 실어 보낸다. */
   updatedAt: string;
 };
 
-/**
- * 게시판 추가·수정 폼. 한 컴포넌트가 둘을 겸한다 — 받는 값이 같고, 나뉘면
- * 권한 칸 두 벌이 조용히 갈라진다.
- */
 export function CommunityForm({ board }: { board?: CommunityFormBoard }) {
   const editing = board !== undefined;
   const [state, formAction, pending] = useActionState(
@@ -45,15 +40,9 @@ export function CommunityForm({ board }: { board?: CommunityFormBoard }) {
     EMPTY_COMMUNITY_FORM_STATE,
   );
 
-  /*
-   * React 19는 액션이 끝나면 성공·실패를 가리지 않고 폼을 reset()한다.
-   * 실패가 실어 온 제출값을 defaultValue로 내려 두면 리셋이 그 값으로 되돌아가고,
-   * 성공하면 values가 없어 원래 값(수정) 또는 빈 칸(추가)으로 돌아간다.
-   */
   const v = state.values;
   const readRoles = v?.readRoles ?? board?.readRoles ?? [];
   const writeRoles = v?.writeRoles ?? board?.writeRoles ?? [];
-  /** 이미 켜진 게시판인가. 켜진 뒤에는 끌 수 없다. */
   const lockedAnonymous = board?.anonymous ?? false;
   const initialAnonymous = lockedAnonymous || (v ? v.anonymous : false);
   const allowAttachments = v ? v.allowAttachments : (board?.allowAttachments ?? true);
@@ -78,8 +67,6 @@ export function CommunityForm({ board }: { board?: CommunityFormBoard }) {
   const descriptionIssue = issueFor("description");
   const sortIssue = issueFor("sortOrder");
 
-  // 액션이 끝나면 실패 시 제출값, 성공 시 서버가 다시 내린 값으로 제어 필드를
-  // 맞춘다. 사용자가 체크하는 동안에는 state가 그대로라 이 분기가 돌지 않는다.
   if (state !== handledState || board?.updatedAt !== handledBoardRevision) {
     setHandledState(state);
     setHandledBoardRevision(board?.updatedAt);
@@ -262,9 +249,6 @@ export function CommunityForm({ board }: { board?: CommunityFormBoard }) {
           label={editing ? "저장" : "게시판 만들기"}
           title={editing ? "게시판을 저장합니다" : "게시판을 만듭니다"}
           description={
-            // 저장 뒤의 상태가 아니라 **이번 저장이 무엇을 바꾸는지**를 말한다.
-            // 예전에는 값만 보고 문구를 골라, 익명을 끄며 저장할 때 「작성자가
-            // 보이지 않습니다」라고 정반대로 안내했다.
             anonymous && !lockedAnonymous
               ? "익명 게시판으로 만듭니다. 글과 댓글의 작성자가 화면에서 아무에게도 보이지 않고, 되돌릴 수 없습니다."
               : "권한 설정이 바로 반영됩니다."
@@ -280,7 +264,6 @@ export function CommunityForm({ board }: { board?: CommunityFormBoard }) {
   );
 }
 
-/** 역할 체크칸 한 묶음. 읽기와 쓰기가 같은 모양이라 한 번만 그린다. */
 function RoleGroup({
   title,
   name,

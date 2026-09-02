@@ -19,13 +19,6 @@ export type NativeValidationIssue = {
 
 type ValidatableControl = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
 
-/**
- * 브라우저 constraint validation 결과를 화면에 남길 수 있는 작은 값으로 옮긴다.
- *
- * `reportValidity()`의 말풍선은 첫 칸만 보여 주고 닫히면 사라진다. 폼의 모든
- * invalid control을 DOM 순서대로 읽어 두면 긴 폼의 상단 요약과 필드 옆 문구가
- * 같은 사실을 공유할 수 있다. 저장 가능 여부는 여전히 브라우저가 결정한다.
- */
 export function readNativeValidationIssues(form: HTMLFormElement): NativeValidationIssue[] {
   const seen = new Set<string>();
   const issues: NativeValidationIssue[] = [];
@@ -37,7 +30,6 @@ export function readNativeValidationIssues(form: HTMLFormElement): NativeValidat
     const fieldId = control.id;
     const fieldName = control.name;
     const key = fieldId || fieldName || `field-${index}`;
-    // 라디오처럼 같은 이름을 쓰는 칸은 상단에서 한 번만 알린다.
     if (seen.has(key)) return;
     seen.add(key);
 
@@ -78,7 +70,6 @@ function issueMatchesControl(
   );
 }
 
-/** 오류 요약 링크와 첫 오류 이동이 함께 쓰는 포커스 경로. */
 export function focusNativeValidationIssue(
   form: HTMLFormElement,
   issue: NativeValidationIssue,
@@ -113,15 +104,11 @@ export function useNativeFormErrors(): {
     if (scheduledRead.current) return;
     scheduledRead.current = true;
 
-    // reportValidity()는 invalid 이벤트를 칸마다 연달아 보낸다. 한 차례가 모두
-    // 끝난 뒤 한 번만 읽어야 요약이 일부 항목만 담았다가 흔들리지 않는다.
     queueMicrotask(() => {
       scheduledRead.current = false;
       const nextIssues = readNativeValidationIssues(form);
       setIssues(nextIssues);
 
-      // 브라우저도 첫 invalid 칸으로 이동하지만, 커스텀 버튼에서 reportValidity를
-      // 부르는 경로에서도 확실히 같은 칸에 머물도록 보강한다.
       const first = nextIssues[0];
       if (first) focusNativeValidationIssue(form, first);
     });
@@ -132,8 +119,6 @@ export function useNativeFormErrors(): {
     if (!control) return;
     const form = event.currentTarget;
 
-    // 오류 요약이 열린 뒤에는 타이핑할 때마다 현재 validity로 다시 계산한다.
-    // 아직 제출하지 않은 폼에는 아무 상태도 만들지 않는다.
     setIssues((current) =>
       current.length === 0 ? current : readNativeValidationIssues(form),
     );
@@ -156,7 +141,6 @@ export function useNativeFormErrors(): {
   };
 }
 
-/** 긴 폼의 첫머리에 두는 오류 목록. 항목을 누르면 해당 입력칸으로 돌아간다. */
 export function NativeFormErrorSummary({
   issues,
   onSelect,
@@ -190,7 +174,6 @@ export function NativeFormErrorSummary({
   );
 }
 
-/** 입력칸의 aria-describedby가 가리키는, 계속 남는 브라우저 오류 문구. */
 export function NativeFieldError({
   id,
   issue,

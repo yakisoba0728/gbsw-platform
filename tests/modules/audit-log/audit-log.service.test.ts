@@ -12,8 +12,6 @@ vi.mock("@/modules/audit-log/audit-log.repo", () => ({
   countMatching,
   distinctActions,
 }));
-// assertCan()이 거부를 기록할 때 recordAudit을 부른다 (I5) — 실제 DB를 치지
-// 않게 목으로 막는다.
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
 
 const { readAuditLog } = await import("@/modules/audit-log/audit-log.service");
@@ -94,10 +92,9 @@ describe("readAuditLog()", () => {
 });
 
 describe("periodStart()", () => {
-  const now = new Date("2026-08-13T02:30:00Z"); // KST 8/13 11:30
+  const now = new Date("2026-08-13T02:30:00Z");
 
   it("오늘은 KST 자정부터다 — 서버 타임존과 무관하게", () => {
-    // KST 8/13 00:00 == UTC 8/12 15:00
     expect(periodStart("today", now)?.toISOString()).toBe(
       "2026-08-12T15:00:00.000Z",
     );

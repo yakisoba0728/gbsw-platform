@@ -9,41 +9,18 @@ import {
 } from "./verification.schema";
 import { sendVerification } from "./verification.sender";
 
-/**
- * 이메일·전화번호 확인. **`recordAudit`을 하나도 남기지 않는 유일한 모듈이다.**
- * 그 대가로 발송 남용이 감사로그에 안 보인다 — 아래 횟수 제한이 막을 뿐이다.
- */
-
-/** 실물은 verification.error.ts에 하나뿐이다. 기존 import 경로를 지키려고 다시 낸다. */
 export { VerificationError };
 
-/** 코드 유효시간 */
 const TTL_MINUTES = 5;
-/** 코드 대조 실패 허용 횟수 */
 const MAX_ATTEMPTS = 5;
-/** 같은 대상에 한 시간 동안 보낼 수 있는 횟수 */
 const MAX_SENDS_PER_HOUR = 5;
-/**
- * 같은 IP에서 한 시간 동안 보낼 수 있는 횟수 (I4) — 대상을 바꿔 가며 우회하는
- * 것을 막는다.
- *
- * **학교 와이파이는 전교가 한 IP다.** 게다가 가입 한 건이 이메일·전화 두 채널을
- * 각각 소모하므로, 이 값을 그대로 사람 수로 읽으면 안 된다 — 절반이 실질 한도다.
- * 20이던 시절에는 시간당 열 명이었고, 학년 초에 반 하나가 함께 가입하면 그 자리에서
- * 막혔다. 대상별 5회/시간이 남용 쪽을 따로 막고 있어 이쪽은 사람 수에 맞춘다.
- */
+// 학교 공용 IP에서는 가입 한 명이 이메일·전화 두 번을 소모한다.
 export const MAX_SENDS_PER_HOUR_PER_IP = 60;
-/** 확인 후 이 시간 안에 가입을 마쳐야 한다 */
 const VERIFIED_TTL_MINUTES = 30;
-/** 임시 가입 우회 proof에는 실제 코드가 없음을 표시하는 해시 자리값. */
 const TEMPORARY_BYPASS_HASH = "temporary-verification-bypass";
 const RATE_LIMIT_MESSAGE =
   "인증번호를 너무 많이 요청했습니다. 한 시간 뒤에 다시 요청하세요.";
 
-/**
- * 목업 모드 — 발송한 코드를 화면에 채워 준다. 코드를 클라이언트로 돌려주면
- * 인증이 무의미해지므로, 개발 빌드에서 플래그를 명시했을 때만 켜진다.
- */
 export function isMockVerification(): boolean {
   return (
     process.env.NODE_ENV !== "production" &&
@@ -65,6 +42,7 @@ function minutesFromNow(minutes: number, now: Date): Date {
   return new Date(now.getTime() + minutes * 60_000);
 }
 
+// 가입 전 인증에는 감사로그가 없으므로 대상·IP별 제한으로 남용을 막는다.
 async function insertRateLimitedCode(input: {
   channel: VerificationChannel;
   target: string;
@@ -83,8 +61,7 @@ async function insertRateLimitedCode(input: {
       throw new VerificationError(RATE_LIMIT_MESSAGE);
     }
 
-    // ip를 못 읽으면 이 검사를 건너뛴다 — null을 한 버킷으로 묶으면 서로 다른
-    // 요청들이 남의 한도를 갉아먹는다.
+    // 식별하지 못한 IP들을 하나의 공용 한도로 묶지 않는다.
     if (ip) {
       const recentByIp = await repo.countRecentSendsByIp(ip, since, tx);
       if (recentByIp >= MAX_SENDS_PER_HOUR_PER_IP) {
@@ -97,10 +74,6 @@ async function insertRateLimitedCode(input: {
   });
 }
 
-/**
- * 인증코드 발송. 같은 대상의 이전 코드는 무효가 된다.
- * 초대코드 검사는 registration.service.ts가 먼저 태운다 (I4) — 여기는 횟수만 본다.
- */
 export async function requestCode(
   channel: VerificationChannel,
   rawTarget: string,
@@ -108,7 +81,6 @@ export async function requestCode(
   const target = normalizeTarget(channel, rawTarget);
   const now = new Date();
 
-  // 0으로 시작하는 코드도 나오므로 6자리로 채운다.
   const code = randomInt(1_000_000).toString().padStart(6, "0");
 
   const row = await insertRateLimitedCode({
@@ -119,7 +91,6 @@ export async function requestCode(
   }, now);
 
   if (isMockVerification()) {
-    // 목업에서는 발송을 건너뛴다.
     console.log(`[인증코드·목업] ${channel} ${target} : ${code}`);
     return { mockCode: code };
   }
@@ -127,10 +98,9 @@ export async function requestCode(
   try {
     await sendVerification({ channel, target, code });
   } catch (error) {
-    // 발송이 실패했으면 이 코드는 무의미하다. 지워서 한도를 갉아먹지 않게 한다.
+    // 실패한 발송이 한도를 차지하지 않게 한다.
     await repo.deleteById(row.id);
 
-    // 공급자 오류 원문에는 키·계정 정보가 섞여 있다. 서버에만 남긴다.
     console.error("[인증코드] 발송 실패", error);
     throw new VerificationError(
       "인증번호를 보내지 못했습니다. 잠시 후 다시 시도해 주세요.",
@@ -140,13 +110,7 @@ export async function requestCode(
   return {};
 }
 
-/**
- * 임시 인증 우회. 유효한 초대코드를 통과한 가입 흐름에서만 부른다.
- *
- * 실제 SMTP/SMS/OTP 의존성을 제거하되, 가입은 기존과 똑같이 DB의 verified row를
- * 한 번 소진해야 끝난다. 그래서 클라이언트가 "확인됨"이라고 주장하는 것만으로는
- * 가입할 수 없고, 동시 가입은 consumeVerifications()의 조건부 update가 한쪽만 이긴다.
- */
+/** 실제 발송을 재개하기 전에도 DB proof를 한 번 소진해야 가입할 수 있다. */
 export async function createTemporaryVerifiedProof(
   channel: VerificationChannel,
   rawTarget: string,
@@ -165,7 +129,6 @@ export async function createTemporaryVerifiedProof(
   return { id: row.id };
 }
 
-/** 사용자가 입력한 코드를 대조한다. */
 export async function confirmCode(
   channel: VerificationChannel,
   rawTarget: string,
@@ -193,7 +156,6 @@ export async function confirmCode(
   await repo.markVerified(row.id, now);
 }
 
-/** 가입 시점에 부른다. 클라이언트의 "인증했다" 주장을 믿지 않고 DB로 확인한다. */
 export async function requireVerified(
   channel: VerificationChannel,
   rawTarget: string,
@@ -212,7 +174,6 @@ export async function requireVerified(
   return { id: row.id };
 }
 
-/** 가입이 끝나면 쓴 코드를 소진 처리한다. */
 export async function consumeVerifications(
   ids: string[],
   db?: DbClient,

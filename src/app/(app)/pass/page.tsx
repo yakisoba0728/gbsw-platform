@@ -14,7 +14,6 @@ import { StudentView } from "./student-view";
 
 export const metadata: Metadata = { title: "출입증" };
 
-/** 역할로 갈린다 — merit과 같은 모양이다. 접근 통제는 각 뷰의 서비스가 한다. */
 export default async function PassPage({
   searchParams,
 }: {

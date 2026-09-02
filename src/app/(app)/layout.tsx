@@ -6,13 +6,9 @@ import { requireAuth } from "@/core/auth/session";
 export default async function AppLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  // mustChangePassword 가로채기는 requireAuth 안에 있다 (M12). 여기서 다시 보지 않는다.
   const user = await requireAuth();
 
-  /**
-   * print:* — 확인서가 이 레이아웃 안에 있다. `h-dvh overflow-hidden`이 남으면
-   * 브라우저가 화면 한 장 높이에서 인쇄를 잘라 긴 내역이 첫 장에서 끊긴다.
-   */
+  // 인쇄에서 내용이 잘리지 않도록 화면 높이 제한과 스크롤 넘침을 푼다.
   return (
     <div className="flex h-dvh overflow-hidden print:block print:h-auto print:overflow-visible">
       <Sidebar name={user.name} role={user.role} />

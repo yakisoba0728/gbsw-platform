@@ -1,4 +1,3 @@
-/** 학적은 학생의 영구 속성이 아니라 그 학년도 Enrollment에 붙는 상태다. */
 export const ENROLLMENT_STATUSES = [
   "ENROLLED",
   "GRADUATED",
@@ -26,7 +25,6 @@ export function isEnrollmentStatus(value: unknown): value is EnrollmentStatus {
   );
 }
 
-/** 재학이 아니면 로그인을 막는다 (졸업 포함). 계정을 지우지는 않는다. */
 export function keepsAccountActive(status: EnrollmentStatus): boolean {
   return status === "ENROLLED";
 }

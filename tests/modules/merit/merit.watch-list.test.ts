@@ -1,12 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { user } from "../../helpers/session";
 
-/**
- * 기준 초과 학생 명단. 명단이 한 명 짧아도 화면은 멀쩡해 보이므로 경계값과
- * 집계 범위를 못 박아 둔다. 기준은 목으로 고정한다 — 코드 기본값을 쓰면
- * "설정을 읽는가"가 아니라 "상수가 무엇인가"를 검증하게 된다.
- */
-
 const WARN = 12;
 const DANGER = 18;
 
@@ -39,12 +33,10 @@ const service = await import("@/modules/merit/stats.service");
 const admin = user("ADMIN", "u-1", { name: "이정민" });
 const NOW = new Date("2026-08-16T12:00:00+09:00");
 
-/** repo.demeritTotalsByStudent가 내는 모양. */
 function sum(id: string, points: number) {
   return { studentProfileId: id, _sum: { points } };
 }
 
-/** repo.findStudentsWithClass가 내는 모양. */
 function student(id: string, name: string, enrolled = true) {
   return {
     id,
@@ -112,11 +104,9 @@ describe("기준 초과 명단 — 경계", () => {
     demeritTotalsByStudent.mockResolvedValue([sum("sp-1", 10)]);
     findStudentsWithClass.mockResolvedValue([student("sp-1", "김민준")]);
 
-    // 기준 12점 — 10점은 아직 명단에 안 오른다.
     const before = await service.getMeritStats(admin, "SCHOOL", undefined, NOW);
     expect(before.watchList).toEqual([]);
 
-    // 학교가 기준을 8점으로 낮추면 같은 학생이 명단에 오른다.
     getDemeritThresholds.mockResolvedValue({ warn: 8, danger: 15 });
     const after = await service.getMeritStats(admin, "SCHOOL", undefined, NOW);
     expect(after.watchList.map((r) => r.name)).toEqual(["김민준"]);
@@ -199,11 +189,6 @@ describe("기준 초과 명단 — 집계 범위", () => {
     );
   });
 
-  /**
-   * 모집단은 합계 범위가 아니라 **명단 학년도**가 자른다. 기숙사는 누적이라
-   * 합계 쪽에 학년도가 아예 없고, 이 값이 빠지면 졸업생의 3년치 벌점이 사감의
-   * 명단에 영원히 남는다.
-   */
   it("기숙사 누적이어도 명단 학년도를 함께 넘긴다", async () => {
     await service.getMeritStats(admin, "DORM", undefined, NOW);
 

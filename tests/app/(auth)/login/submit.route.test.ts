@@ -5,7 +5,7 @@ const authenticateWithEmail = vi.fn();
 
 vi.mock("@/modules/auth/auth.service", () => ({ authenticateWithEmail }));
 
-const { POST, isSameOriginLoginRequest } = await import(
+const { POST } = await import(
   "@/app/(auth)/login/submit/route"
 );
 
@@ -68,17 +68,21 @@ describe("login submit route", () => {
   it("교차 오리진 제출은 인증 전에 거부한다", async () => {
     const request = loginRequest({ origin: "https://attacker.example" });
 
-    expect(isSameOriginLoginRequest(request)).toBe(false);
     const response = await POST(request);
 
     expect(response.status).toBe(403);
     expect(authenticateWithEmail).not.toHaveBeenCalled();
   });
 
-  it("Origin null이어도 브라우저가 같은 오리진임을 증명하면 허용한다", () => {
+  it("Origin null이어도 브라우저가 같은 오리진임을 증명하면 허용한다", async () => {
     const request = loginRequest({ origin: "null", secFetchSite: "same-origin" });
 
-    expect(isSameOriginLoginRequest(request)).toBe(true);
+    const response = await POST(request);
+
+    expect(response.status).toBe(200);
+    expect(authenticateWithEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ origin: "http://teacher.localhost:3000" }),
+    );
   });
 
   it("Next 내부 URL과 공개 Host가 달라도 공개 오리진으로 되돌린다", async () => {

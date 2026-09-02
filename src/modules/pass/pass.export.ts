@@ -9,15 +9,6 @@ import { formatStudentNumber } from "@/lib/student-number";
 import { passStatusLabel } from "./pass.labels";
 import type { PassHistoryExportInput } from "./pass.schema";
 
-/**
- * 엑셀 행렬을 만드는 순수 함수들 — `merit.export.ts`와 같은 모양이다.
- * null을 내보내지 않는다: write-excel-file이 null 셀을 만나면 열의 타입 추론이
- * 흔들려 숫자 열이 문자열로 나간다. 빈 값은 "".
- *
- * 열 너비표를 함께 낸다. 엑셀 기본 너비(8.43자)로는 한글이 서너 자만 보이고
- * 나머지가 옆 칸을 덮어써서, 사유·행선지가 있는 이 시트는 표로 읽히지 않는다.
- */
-
 export type PassHistoryExportRow = {
   type: string;
   status: string;
@@ -42,7 +33,6 @@ export type PassHistoryExportRow = {
   cancelReason: string | null;
 };
 
-/** 「누가 확인했나」 한 칸. 대행이면 그 사실이 이름보다 먼저 읽혀야 한다. */
 function consentCell(row: PassHistoryExportRow): string {
   if (row.consentedAt === null && !row.consentByProxy) return "";
 
@@ -51,11 +41,6 @@ function consentCell(row: PassHistoryExportRow): string {
   return row.consentNote ? `${base} · ${row.consentNote}` : base;
 }
 
-/**
- * 비고 — 반려 사유와 취소 사유. 둘 다 한 칸에 담는다: 반려된 뒤 취소되는 일은
- * 없어 실제로는 한 쪽만 찬다. 학생 철회는 사유가 없어(`withdrawPass`)
- * 「취소」만 남는다 — 빈 칸으로 두면 취소된 사실 자체가 시트에서 사라진다.
- */
 function remarkCell(row: PassHistoryExportRow): string {
   const parts: string[] = [];
   if (row.decisionNote) {
@@ -69,28 +54,26 @@ function remarkCell(row: PassHistoryExportRow): string {
   return parts.join(" / ");
 }
 
-/** 열 너비(문자 단위). toPassHistorySheet의 머리글 순서와 하나씩 맞춘다. */
 export const PASS_HISTORY_SHEET_WIDTHS: number[] = [
-  8, // 유형
-  12, // 상태
-  6, // 학년
-  6, // 반
-  6, // 번호
-  8, // 학번
-  12, // 이름
-  20, // 시작
-  20, // 종료
-  20, // 행선지
-  32, // 사유 — 200자까지 들어온다. 이 시트에서 가장 넓은 열이다
-  12, // 신청자
-  20, // 보호자확인
-  12, // 결재자
-  20, // 결재시각
-  32, // 비고
+  8,
+  12,
+  6,
+  6,
+  6,
+  8,
+  12,
+  20,
+  20,
+  20,
+  32,
+  12,
+  20,
+  12,
+  20,
+  32,
 ];
 
-/** 접을 열. 넓혀도 한 줄에 안 들어가는 것들이다. */
-export const PASS_HISTORY_SHEET_WRAP = [9, 10, 15]; // 행선지 · 사유 · 비고
+export const PASS_HISTORY_SHEET_WRAP = [9, 10, 15];
 
 const HEADERS = [
   "유형",
@@ -111,17 +94,11 @@ const HEADERS = [
   "비고",
 ] as const;
 
-/**
- * 시트 첫 줄에 적는 조회 범위. 파일 이름은 바뀌어도 이 줄은 남으므로,
- * 파일만 받은 사람도 어떤 조건으로 뽑은 것인지 알 수 있다.
- */
 function historyScope(
   filter: PassHistoryExportInput,
   range: { since: Date; until: Date | null },
 ): string {
   const period = `${formatDateInput(range.since)} ~ ${
-    // 상한이 열려 있으면 끝을 적지 않는다 — 오늘 날짜를 적으면 그날까지만
-    // 뽑은 것으로 읽히는데 실제로는 앞으로 잡힌 신청까지 들어 있다.
     range.until ? formatDateInput(new Date(range.until.getTime() - 1)) : "이후"
   }`;
 
@@ -150,12 +127,8 @@ export function toPassHistorySheet(
       row.grade ?? "",
       row.classNo ?? "",
       row.number ?? "",
-      // 학번은 「2305」처럼 앞자리가 뜻을 갖는 글자다. 반이 두 자리면 줄일 수
-      // 없어 빈 칸이 되고, 그때는 왼쪽의 학년·반·번호 세 열이 답한다.
       formatStudentNumber(row) ?? "",
       row.studentName,
-      // 두 유형 모두 시각을 받으므로 눈금이 하나다. 이 형태는 글자순이 곧 시각순이라
-      // 시트를 정렬해도 순서가 그대로다 (`formatDateTimeSheet`).
       formatDateTimeSheet(row.startAt),
       formatDateTimeSheet(row.endAt),
       row.destination,

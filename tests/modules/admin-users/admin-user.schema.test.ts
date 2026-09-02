@@ -15,16 +15,6 @@ import {
   MIN_NUMBER,
 } from "@/modules/enrollment/enrollment.schema";
 
-/**
- * M6 회귀 테스트.
- *
- * updateUserSchema는 한때 학년·반·번호 범위를 1~3/1~20/1~50으로 직접 박아
- * 두고 있었다 — enrollment.schema.ts(표 편집·명단 업로드가 쓰는 진짜 기준)와
- * 따로 놀다가 반이 20개를 넘는 날 이 파일만 조용히 안 늘어나는 게 문제였다.
- * 하드코딩된 숫자가 아니라 **enrollment.schema.ts의 상수 경계**로 검증해서,
- * 상수가 바뀌면 이 테스트도 자동으로 같이 따라가게 한다.
- */
-
 const base = {
   updatedAt: "2026-08-19T00:00:00.000Z",
   name: "김학생",
@@ -71,14 +61,6 @@ describe("updateUserSchema — 학년·반·번호는 enrollment.schema.ts의 �
   });
 });
 
-/**
- * 계정 관리 액션의 **경계 스키마**.
- *
- * 이 넷은 한때 존재하지 않았다 — `admin/users/actions.ts`가 userId·active·
- * confirmName을 `String(formData.get(...))`로 읽어 zod를 통째로 건너뛰었다.
- * 저장소의 다른 아홉 액션 모듈은 전부 스키마를 통과시키므로, 여기가
- * "zod 검증은 경계에서 한 번만"에서 한 번이 0번이던 유일한 자리였다.
- */
 describe("userIdOnlySchema", () => {
   it("id가 있으면 통과한다", () => {
     expect(userIdOnlySchema.safeParse({ userId: "u-1" }).success).toBe(true);
@@ -108,10 +90,6 @@ describe("setUserActiveSchema", () => {
     expect(off.success && off.data.active).toBe(false);
   });
 
-  /*
-   * 예전 코드(`formData.get("active") === "true"`)는 모르는 값을 전부 false로
-   * 읽었다 — 계정을 잠그는 쪽으로 조용히 기울어 있었다.
-   */
   it("셋째 값은 비활성으로 읽지 않고 거부한다", () => {
     for (const active of ["ture", "TRUE", "1", "", undefined]) {
       expect(
@@ -146,10 +124,6 @@ describe("deleteUserSchema", () => {
     }
   });
 
-  /*
-   * **정답 대조는 여기서 하지 않는다.** 진짜 이름은 DB에 있고 그 판단은
-   * 서비스(NAME_MISMATCH)의 일이다 — 경계는 칸이 채워져 왔는지만 본다.
-   */
   it("이름이 틀렸는지는 보지 않는다 — 통과시키고 서비스가 가른다", () => {
     expect(
       deleteUserSchema.safeParse({ userId: "u-1", confirmName: "전혀다른이름" }).success,
@@ -175,7 +149,6 @@ describe("updateUserFormSchema", () => {
     expect(updateUserFormSchema.safeParse(base).success).toBe(false);
   });
 
-  /* .extend로 이었으므로 원본은 여전히 서비스가 받는 모양 그대로여야 한다. */
   it("updateUserSchema는 userId를 요구하지 않는다 — 서비스 입력 모양은 그대로다", () => {
     expect(updateUserSchema.safeParse(base).success).toBe(true);
   });

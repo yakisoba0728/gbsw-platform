@@ -9,8 +9,6 @@ import { activeChild, bottomTabItems } from "./nav";
 export function BottomTab({ role }: { role: Role | null }) {
   const pathname = usePathname();
   const items = bottomTabItems(role);
-  // `/merit/recent`는 `/merit`에도 걸린다. 한 nav 안의 현재 페이지는 하나여야
-  // 하므로, 사이드바와 같은 최장 경로 규칙으로 가장 구체적인 탭만 고른다.
   const current = activeChild(pathname, items);
 
   return (

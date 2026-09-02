@@ -1,8 +1,6 @@
 import { prisma, type DbClient, withTransaction } from "@/core/db/client";
 import { lockCredentialAccountForMutation } from "@/core/auth/credential-session-boundary";
 
-/** Prisma 호출만 둔다. 권한 검사도, 업무 규칙도 여기 두지 않는다. */
-
 export type CredentialAccountRevision = {
   id: string;
   updatedAt: Date;
@@ -50,6 +48,7 @@ async function updateOwnPasswordWithDb(
     data: { mustChangePassword: false },
   });
 
+  // 검증한 세션이 이미 사라졌다면 비밀번호 변경도 롤백한다.
   const currentSessionDelete = await db.session.deleteMany({
     where: { id: input.currentSessionId, userId: input.userId },
   });

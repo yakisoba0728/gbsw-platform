@@ -1,7 +1,5 @@
 import type { SVGProps } from "react";
 
-/** 라인 아이콘. 색은 currentColor를 따른다. */
-
 type IconProps = SVGProps<SVGSVGElement> & { size?: number };
 
 function Icon({ size = 19, children, ...props }: IconProps) {
@@ -79,10 +77,6 @@ export function LogIcon(props: IconProps) {
   );
 }
 
-/**
- * 설정과 사용자 관리는 관리자 섹션에 나란히 선다.
- * 서로 다른 그림을 써야 목록을 훑을 때 두 줄을 구분할 수 있다.
- */
 export function SlidersIcon(props: IconProps) {
   return (
     <Icon strokeWidth={1.7} {...props}>
@@ -119,7 +113,6 @@ export function LogoutIcon(props: IconProps) {
   );
 }
 
-/** 모바일 상단바의 메뉴 버튼. */
 export function MenuIcon(props: IconProps) {
   return (
     <Icon strokeWidth={1.9} {...props}>

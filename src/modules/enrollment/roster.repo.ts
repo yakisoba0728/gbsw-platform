@@ -2,36 +2,11 @@ import { prisma, type DbClient, withTransaction } from "@/core/db/client";
 import { isUniqueViolation, NumberTakenError } from "@/core/db/unique-violation";
 import type { PlannedRow } from "./roster.plan";
 
-/** Prisma 호출만 둔다. 권한 검사도, 업무 규칙도 여기 두지 않는다. */
+export { findCurrentYearForUpdate, findCurrentYear } from "@/modules/academic-year/academic-year.repo";
 
-/** 다른 repo와 같은 실물을 re-export한다 — 모듈마다 다른 클래스면 instanceof가 안 통한다. */
 export { NumberTakenError };
 
-/** 초대코드가 겹쳤을 때. 동시에 올라온 다른 반영과 경합하면 여기까지 뚫린다. */
 export class InviteCodeCollisionError extends Error {}
-
-export async function findCurrentYearForUpdate(db: DbClient): Promise<number | null> {
-  await db.$queryRaw<Array<{ year: number }>>`
-    SELECT "year"
-    FROM "AcademicYear"
-    ORDER BY "year"
-    FOR UPDATE
-  `;
-
-  const current = await db.academicYear.findFirst({
-    where: { isCurrent: true },
-    select: { year: true },
-  });
-  return current?.year ?? null;
-}
-
-export async function findCurrentYear(db: DbClient = prisma): Promise<number | null> {
-  const current = await db.academicYear.findFirst({
-    where: { isCurrent: true },
-    select: { year: true },
-  });
-  return current?.year ?? null;
-}
 
 export async function listExisting(year: number, db: DbClient = prisma) {
   const profiles = await db.studentProfile.findMany({
@@ -60,10 +35,7 @@ export async function listExisting(year: number, db: DbClient = prisma) {
       studentProfileId: p.id,
       userId: p.user.id,
       studentCode: p.studentCode,
-      // 파일 쪽 이름(roster.parse.ts)과 같은 NFC로 맞춘다. 안 맞추면 눈엔 같은
-      // 이름인데 조합형/완성형이 달라 다른 사람으로 잡힌다.
       name: p.user.name.normalize("NFC"),
-      // 파일의 표기와 맞대려면 KST 기준 YYYY-MM-DD여야 한다.
       birthDate: new Intl.DateTimeFormat("en-CA", {
         timeZone: "Asia/Seoul",
       }).format(p.birthDate),
@@ -79,10 +51,8 @@ export async function listExisting(year: number, db: DbClient = prisma) {
   });
 }
 
-/** 내보내기에서만 필요한 입학반·입학번호를 기존 명단에 붙인다. */
+// 전 학년도 입학반 조회는 확정 트랜잭션의 학년도 잠금 밖에서만 수행한다.
 export async function listForExport(year: number) {
-  // entrySeats는 전 학년도를 훑는다. 미리보기·확정 경로에서 빼고, 특히 확정이
-  // 잡는 AcademicYear 잠금 안에 다시 넣지 못하도록 이 함수는 tx 인자를 받지 않는다.
   const [students, entryByProfile] = await Promise.all([
     listExisting(year),
     entrySeats(prisma),
@@ -98,7 +68,6 @@ export async function listForExport(year: number) {
   });
 }
 
-/** 참고 열용. 학생마다 가장 이른 1학년 배정을 한 번의 조회로 모은다. */
 async function entrySeats(
   db: DbClient,
 ): Promise<Map<string, { classNo: number; number: number }>> {
@@ -114,7 +83,6 @@ async function entrySeats(
 
   const map = new Map<string, { classNo: number; number: number }>();
   for (const r of rows) {
-    // year 오름차순이라 먼저 만난 것이 가장 이른 1학년이다.
     if (map.has(r.studentProfileId)) continue;
     if (r.classNo !== null && r.number !== null) {
       map.set(r.studentProfileId, { classNo: r.classNo, number: r.number });
@@ -123,52 +91,26 @@ async function entrySeats(
   return map;
 }
 
-/** applyRoster에 넘기는 한 줄. 계정 상태를 건드릴지는 statusChanged가 결정한다. */
 export type RosterAssignment = PlannedRow & {
-  /** 학적이 실제로 달라졌는가. false면 계정 상태를 건드리지 않는다. */
   statusChanged: boolean;
 };
 
 export type ApplyInput = {
-  /** 기존 학생의 그 학년도 배정 (신규 제외) */
   assignments: RosterAssignment[];
-  /** 초대코드를 만들 신규 학생. 비재학 신규는 여기 오지 않는다. */
   newStudents: { row: PlannedRow; code: string }[];
-  /** newStudents 전원이 공유하는 만료 시각. null이면 무기한. */
   inviteExpiresAt: Date | null;
-  /**
-   * 이번 반영이 관리하는 범위(role: STUDENT 전체). 아래 deleteMany를 이 범위로
-   * 좁혀야 교사로 승격돼 명단 밖으로 빠진 계정의 배정이 함께 지워지지 않는다.
-   */
   managedStudentProfileIds: string[];
-  /** 명단에서 빠진 학생 — 계정과 학생 기록을 DB에서 완전히 지운다. */
   deleteStudentProfileIds: string[];
   createdById: string;
   createdByName: string;
 };
 
-/**
- * 명단을 반영한다.
- *
- * 그 학년도 배정을 managedStudentProfileIds 범위만큼 지우고 새로 넣는다 — 번호
- * 맞바꾸기(3↔4)를 update로는 못 한다. Postgres 유일 제약은 DEFERRABLE이 아니면
- * 문장 단위로 검사해서 한 트랜잭션 안이라도 중간 상태에서 걸린다.
- *
- * 그래서 Enrollment.id는 반영할 때마다 새로 생긴다 — 오래 남아야 하는 기록은
- * Enrollment가 아니라 StudentProfile.id를 참조해야 한다.
- */
 export async function applyRoster(year: number, input: ApplyInput, db?: DbClient) {
   const run = async (tx: DbClient) => {
-    /**
-     * 이번 반영이 지운 초대코드. 서비스가 같은 트랜잭션에서 감사로그로 옮긴다.
-     * 대기분만이 아니다 — 소진된 코드도 함께 지워지므로 status를 함께 낸다.
-     */
     let revokedInvites: { id: string; role: string; status: string }[] = [];
     const revisionStamp = new Date();
 
-    // 재배정을 다시 넣기 전에 실제 삭제부터 끝낸다.
     if (input.deleteStudentProfileIds.length > 0) {
-      // 조회와 이 트랜잭션 사이에 교사로 승격됐을 수 있다. role을 다시 좁힌다.
       const targets = await tx.studentProfile.findMany({
         where: {
           id: { in: input.deleteStudentProfileIds },
@@ -180,8 +122,6 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
       const deleteUserIds = targets.map((t) => t.userId);
       const deleteProfileIds = targets.map((t) => t.id);
 
-      // 상태를 가리지 않고 모은다. usedBy나 studentId에 삭제 대상 개인정보가
-      // 매달린 초대는 이미 소진됐어도 함께 지우므로, status를 감사로그로 옮긴다.
       revokedInvites = await tx.invite.findMany({
         where: {
           OR: [
@@ -193,8 +133,6 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
       });
 
       if (deleteUserIds.length > 0) {
-        // usedBy와 studentId 쪽을 지워 초대 metadata에 삭제 대상 정보가 남지 않게 한다.
-        // 발급자 참조는 SetNull + 이름 스냅샷이라 이 삭제 대상이 아니다.
         await tx.invite.deleteMany({
           where: {
             OR: [
@@ -208,13 +146,12 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
       }
     }
 
+    // 번호 교환의 중간 유일 제약 충돌을 피한다. 장기 참조는 Enrollment.id가 아닌 StudentProfile.id를 쓴다.
     await tx.enrollment.deleteMany({
       where: { year, studentProfileId: { in: input.managedStudentProfileIds } },
     });
 
-    // 한 줄씩 넣지 않는다. 이 트랜잭션은 AcademicYear에 FOR UPDATE를 걸고 끝까지
-    // 쥐는데 상벌점 부여도 같은 잠금을 잡으므로, 왕복 수가 곧 전교의 부여가 멈춰
-    // 있는 시간이다. 300명이면 왕복 300번 → 1번. 돌려받는 id는 아무도 안 쓴다.
+    // 잠금 시간은 전교 다른 쓰기에 영향을 주므로 행별 왕복을 피한다.
     await tx.enrollment.createMany({
       data: input.assignments.map((row) => ({
         studentProfileId: row.studentProfileId!,
@@ -226,9 +163,6 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
       })),
     });
 
-    // 계정 상태를 학적에 맞춘다. statusChanged가 true인 학생만 건드린다.
-    // 두 분기 모두 legacy deletedAt 표시를 지운다 — 명단에 줄이 있다는 것 자체가
-    // 삭제 대상이 아니라는 뜻이다. 비재학이면 비활성은 유지한다.
     const changed = input.assignments.filter((r) => r.statusChanged);
     const inactive = changed
       .filter((r) => r.status !== "ENROLLED")
@@ -247,7 +181,6 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
         where: { id: { in: ids } },
         data: { status: "INACTIVE", deletedAt: null, updatedAt: revisionStamp },
       });
-      // 비활성으로 넘어가는 계정은 세션도 끊는다.
       await tx.session.deleteMany({ where: { userId: { in: ids } } });
     }
     if (active.length > 0) {
@@ -276,7 +209,6 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
     }
 
     const invites: {
-      /** 감사로그의 targetId. 코드 값은 로그에 싣지 않으므로 이 id가 유일한 손잡이다. */
       id: string;
       name: string;
       code: string;
@@ -294,7 +226,6 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
           createdById: input.createdById,
           createdByName: input.createdByName,
           expiresAt: input.inviteExpiresAt,
-          // 가입 때 2차 요소로 대조하는 값. 발급 화면과 같은 모양이어야 한다.
           metadata: {
             name: row.name,
             birthDate: row.birthDate,
@@ -322,15 +253,10 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
 
     return await withTransaction(
       run,
-      // 전교생 규모 × 학생당 두어 문장. 기본 5초로는 부족하다.
       { timeout: 120_000, maxWait: 10_000 },
     );
   } catch (error) {
     if (isUniqueViolation(error, "code")) throw new InviteCodeCollisionError();
-    // Enrollment_year_grade_classNo_number_key. 명단 밖으로 빠진 계정(교사로 승격된
-    // 학생)의 그 학년도 배정은 managedStudentProfileIds 범위 밖이라 위에서 안 지워지고
-    // (학년도, 반, 번호) 자리를 그대로 붙든다 — 그 자리에 다른 학생을 넣으면 여기로 온다.
-    // 날것의 P2002로 올려보내면 화면에 "반영하지 못했습니다."만 뜨고 원인이 사라진다.
     if (isUniqueViolation(error, "number")) throw new NumberTakenError();
     throw error;
   }

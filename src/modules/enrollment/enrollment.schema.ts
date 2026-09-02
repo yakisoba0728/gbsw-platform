@@ -2,10 +2,6 @@ import { z } from "zod";
 import { ENROLLMENT_STATUSES } from "@/core/authz/enrollment-status";
 import { MAX_YEAR, MIN_YEAR } from "@/modules/academic-year/academic-year.schema";
 
-/**
- * 학년·반·번호의 범위. 표 편집과 명단 반영이 같은 테이블에 쓰므로 여기 한 번만
- * 정의한다 — 각자 박아두면 반이 20개를 넘는 날 한 곳만 고쳐진다.
- */
 export const MIN_GRADE = 1;
 export const MAX_GRADE = 3;
 export const MIN_CLASS_NO = 1;
@@ -17,14 +13,8 @@ export const GRADE_RANGE_MESSAGE = `학년은 ${MIN_GRADE}~${MAX_GRADE}이어야
 export const CLASS_NO_RANGE_MESSAGE = `반은 ${MIN_CLASS_NO}~${MAX_CLASS_NO}이어야 합니다.`;
 export const NUMBER_RANGE_MESSAGE = `번호는 ${MIN_NUMBER}~${MAX_NUMBER}이어야 합니다.`;
 
-/**
- * 표에서 고친 줄들. 안 바뀐 줄이 섞여 와도 서비스가 걸러낸다.
- * 반·번호가 null이면 "재학이 아니라 비운다"는 뜻이다.
- */
 export const enrollmentChangeSchema = z.object({
   studentProfileId: z.string().min(1),
-  // 표를 그릴 때 읽은 재적 행의 버전. null은 그 학년도 재적 행이 아직 없었다는
-  // 뜻이다. 저장 시 현재 값과 다르면 오래된 화면이므로 덮어쓰지 않는다.
   expectedUpdatedAt: z
     .union([z.iso.datetime(), z.null()])
     .transform((value) => (value === null ? null : new Date(value))),
@@ -51,7 +41,6 @@ export const enrollmentChangeSchema = z.object({
 
 export const saveEnrollmentsSchema = z.object({
   changes: z.array(enrollmentChangeSchema).min(1, "바뀐 내용이 없습니다.").max(500),
-  // 화면이 그린 시점의 학년도. 저장 시점에 바뀌었으면 서비스가 거부한다.
   year: z.coerce.number().int().min(MIN_YEAR).max(MAX_YEAR),
 });
 

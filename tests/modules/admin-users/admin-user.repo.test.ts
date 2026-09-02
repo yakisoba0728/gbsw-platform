@@ -61,12 +61,6 @@ const {
   deletePermanently,
 } = await import("@/modules/admin-users/admin-user.repo");
 
-/**
- * P2002의 생김새는 Prisma 버전과 접속 방식에 묶여 있다.
- * 아래는 Prisma 7.9 + @prisma/adapter-pg에서 **실제로 관측한** 오류다.
- * (드라이버 어댑터를 쓰면 위반 컬럼이 meta.target에 오지 않는다 — 처음에 여기서 틀렸다.)
- * 업그레이드로 모양이 바뀌면 이 테스트가 먼저 깨져야 한다.
- */
 function realWorldP2002() {
   return Object.assign(new Error("Unique constraint failed"), {
     name: "PrismaClientKnownRequestError",
@@ -87,7 +81,6 @@ function realWorldP2002() {
   });
 }
 
-/** enrollment 쪽 실물 P2002 — 위반 컬럼만 좌석 복합 유일키로 바뀐다. */
 function realWorldNumberP2002() {
   return Object.assign(new Error("Unique constraint failed"), {
     name: "PrismaClientKnownRequestError",
@@ -315,7 +308,6 @@ describe("updateUserAndEnrollment() — enrollment(학년·반·번호)", () => 
 
     const call = enrollmentUpsert.mock.calls[0]![0];
     expect(call.update).not.toHaveProperty("status");
-    // create는 배정이 아예 없던 학생을 위한 것이라 ENROLLED로 시작한다.
     expect(call.create.status).toBe("ENROLLED");
   });
 

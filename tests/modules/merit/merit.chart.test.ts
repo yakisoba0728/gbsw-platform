@@ -8,7 +8,6 @@ import {
   type ChartAward,
 } from "@/modules/merit/merit.chart";
 
-/** KST 기준 시각을 만든다 (KST = UTC+9). */
 function kst(iso: string): Date {
   return new Date(`${iso}+09:00`);
 }
@@ -90,7 +89,6 @@ describe("monthlyTotals", () => {
   });
 
   it("월 구분이 KST 기준이다", () => {
-    // KST 4월 1일 00:30 = UTC 3월 31일 15:30. UTC로 자르면 3월로 새어 나간다.
     const points = monthlyTotals(
       [award({ occurredOn: kst("2026-04-01T00:30:00"), points: 7 })],
       axis,
@@ -101,7 +99,6 @@ describe("monthlyTotals", () => {
   });
 
   it("월말 밤 시각도 그 달에 남는다", () => {
-    // KST 3월 31일 23:30 = UTC 3월 31일 14:30 — 둘 다 3월이라 안전한 대조군.
     const points = monthlyTotals(
       [award({ occurredOn: kst("2026-03-31T23:30:00"), points: 3 })],
       axis,
@@ -180,14 +177,11 @@ describe("scaleToPercent", () => {
   });
 
   it("전부 0이면 0으로 나누지 않고 전부 0%다", () => {
-    // 부여가 하나도 없는 화면에서 실제로 닿는 경로다.
     expect(scaleToPercent([0, 0, 0])).toEqual([0, 0, 0]);
     expect(scaleToPercent([])).toEqual([]);
   });
 
   it("두 계열을 한 번에 재면 같은 값이 같은 길이가 된다", () => {
-    // 월별 추이(MonthlyChart)와 부여자별 막대(TeacherChart)가 쓰는 방식이다.
-    // 계열마다 따로 재면 상점 10과 벌점 10이 다른 길이로 서서 위아래를 못 견준다.
     const merits = [10, 4];
     const demerits = [10, 20];
 
@@ -195,15 +189,12 @@ describe("scaleToPercent", () => {
     const meritScale = scale.slice(0, merits.length);
     const demeritScale = scale.slice(merits.length);
 
-    // 같은 값(10)은 어느 계열에 있든 같은 길이다.
     expect(meritScale[0]).toBe(demeritScale[0]);
-    // 척도의 100%는 두 계열을 통틀어 가장 큰 값 하나가 갖는다.
     expect(meritScale).toEqual([50, 20]);
     expect(demeritScale).toEqual([50, 100]);
   });
 
   it("계열마다 따로 재면 같은 값이 다른 길이가 된다 — 그래서 한 번에 잰다", () => {
-    // 고치기 전 MonthlyChart가 하던 계산. 상점 10이 100%, 벌점 10이 50%로 섰다.
     expect(scaleToPercent([10, 4])[0]).not.toBe(scaleToPercent([10, 20])[0]);
   });
 });

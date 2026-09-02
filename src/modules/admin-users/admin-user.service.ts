@@ -17,7 +17,6 @@ export async function listUsers(actor: SessionUser) {
   return repo.listUsers(await getCurrentYear());
 }
 
-/** 최근 감사로그 몇 건까지 상세에 붙일지. */
 const RELATED_AUDIT_LIMIT = 20;
 
 export async function getUserDetail(actor: SessionUser, userId: string) {
@@ -31,10 +30,6 @@ export async function getUserDetail(actor: SessionUser, userId: string) {
   return { user, audit };
 }
 
-/**
- * 정보 수정. 달라진 항목의 이름만 감사로그에 남긴다 — 값을 남기면 감사로그가
- * 개인정보 사본이 된다. 학년·반·번호는 재학 중일 때만 바뀐 항목으로 잡는다.
- */
 export async function updateUser(
   actor: SessionUser,
   userId: string,
@@ -46,7 +41,6 @@ export async function updateUser(
   const year = await getCurrentYear();
   const current = await repo.findDetail(userId, year);
   if (!current) throw new AdminUserError("NOT_FOUND");
-  // 화면 가드는 실수 방지일 뿐이라 서버에서도 막는다.
   if (current.deletedAt) throw new AdminUserError("ACCOUNT_DELETED");
 
   const changed: string[] = [];
@@ -58,7 +52,6 @@ export async function updateUser(
   const profile = current.studentProfile;
   const isStudent = profile !== null && profile !== undefined;
   const enrollment = profile?.enrollments[0];
-  // 재학 중일 때만 학년·반·번호를 이 화면에서 편집 가능한 것으로 본다.
   const canEditAssignment = enrollment?.status === "ENROLLED";
 
   if (isStudent) {
@@ -96,7 +89,6 @@ export async function updateUser(
   );
 
   if (isStudent && assignmentChanged) {
-    // 값을 지어내지 않는다 — 하나라도 없으면 거절한다.
     if (
       !input.birthDate ||
       input.grade == null ||
@@ -107,7 +99,6 @@ export async function updateUser(
     }
   }
 
-  // 셋을 한 트랜잭션으로 저장한다 — 절반만 저장되는 상태를 막는다.
   try {
     await withTransaction(async (tx) => {
       if (assignmentChanged) {
@@ -124,7 +115,6 @@ export async function updateUser(
           isStudent && birthDateChanged
             ? {
                 studentProfileId: profile.id,
-                // 생년월일은 날짜만 의미가 있다. KST 자정으로 고정해 하루 밀림을 막는다.
                 birthDate: parseDateInputKst(input.birthDate!),
               }
             : null,
@@ -145,7 +135,6 @@ export async function updateUser(
         action: "user:update",
         targetType: "User",
         targetId: userId,
-        // 바뀐 값이 아니라 바뀐 항목 이름만 남긴다.
         metadata: { changed, reason },
       }, tx);
     });
@@ -165,7 +154,6 @@ export async function updateUser(
   return { changed };
 }
 
-/** 계정 활성/비활성 토글. 비활성화는 repo가 세션 삭제까지 한 트랜잭션으로 묶는다. */
 export async function setUserActive(
   actor: SessionUser,
   userId: string,
@@ -174,14 +162,12 @@ export async function setUserActive(
 ): Promise<void> {
   await assertCan(actor, "user:manage");
 
-  // 스스로를 잠가 가두는 상황을 막는다.
   if (userId === actor.id && !active) {
     throw new AdminUserError("CANNOT_DEACTIVATE_SELF");
   }
 
   const target = await repo.findById(userId);
   if (!target) throw new AdminUserError("NOT_FOUND");
-  // 화면이 이 폼을 감추는 건 실수 방지일 뿐이라 서버에서도 막는다.
   if (target.deletedAt) throw new AdminUserError("ACCOUNT_DELETED");
 
   await withTransaction(async (tx) => {
@@ -197,10 +183,6 @@ export async function setUserActive(
   });
 }
 
-/**
- * 비밀번호 초기화. SMTP가 없어 임시 비밀번호를 화면에 한 번 띄우고, 평문은
- * 반환값으로만 존재한다 — 저장하지도 기록하지도 않는다.
- */
 export async function resetPassword(
   actor: SessionUser,
   userId: string,
@@ -208,9 +190,6 @@ export async function resetPassword(
 ): Promise<{ tempPassword: string }> {
   await assertCan(actor, "user:manage");
 
-  // 자기 자신은 막는다. resetCredential이 같은 tx에서 대상의 세션을 전부 지우므로,
-  // 대상이 자기라면 지금 쓰는 세션이 끊겨 임시 비밀번호를 화면에서 못 받는다 —
-  // 교사가 한 명뿐이면 복구할 사람도 없다. 본인 비밀번호는 /change-password가 맡는다.
   if (userId === actor.id) throw new AdminUserError("CANNOT_RESET_SELF");
 
   const target = await repo.findById(userId);
@@ -224,7 +203,6 @@ export async function resetPassword(
     const updated = await repo.resetCredential(userId, passwordHash, tx);
 
     if (updated === 0) {
-      // 비밀번호 로그인 수단이 없는 계정 — 초기화할 대상이 없다.
       throw new AdminUserError("NO_CREDENTIAL_ACCOUNT");
     }
 
@@ -233,7 +211,6 @@ export async function resetPassword(
       action: "user:reset-password",
       targetType: "User",
       targetId: userId,
-      // 임시 비밀번호는 감사로그에도 남기지 않는다. 사유는 남긴다.
       metadata: { reason },
     }, tx);
   });
@@ -241,10 +218,6 @@ export async function resetPassword(
   return { tempPassword };
 }
 
-/**
- * 완전 삭제 (오등록 정리 전용). 되돌릴 수 없다. 이름 대조도 화면이 아니라
- * 여기가 강제하고, 삭제 직전 조건에도 다시 들어간다.
- */
 export async function deleteUserPermanently(
   actor: SessionUser,
   userId: string,
@@ -269,13 +242,9 @@ export async function deleteUserPermanently(
         action: "user:delete",
         targetType: "User",
         targetId: userId,
-        // 이름은 남기지 않는다 — 삭제된 사람의 개인정보가 감사로그에 남으면 안 된다.
       }, tx);
     }, { isolationLevel: "Serializable" });
   } catch (error) {
-    // Serializable로 돌면서 충돌 판정이 없으면, 되돌릴 수 없는 삭제가 정체불명
-    // 실패로 끝난다 — 교사는 지워졌는지 아닌지 모른 채 다시 누르게 된다.
-    // updateUser와 같은 판정을 쓴다.
     if (isSerializationConflict(error)) throw new AdminUserError("USER_CHANGED");
     throw error;
   }

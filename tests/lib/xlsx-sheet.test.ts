@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { CellObject } from "write-excel-file/browser";
 import { toStyledSheetData } from "@/lib/xlsx-sheet";
 
-/** 헤더 셀은 항상 CellObject다 — 테스트에서만 좁혀서 backgroundColor에 접근한다. */
 const asCellObject = (cell: unknown) => cell as CellObject;
 
 describe("toStyledSheetData()", () => {
@@ -49,7 +48,6 @@ describe("toStyledSheetData()", () => {
       [["2026학년도 · 교내"], ["이름", "점수"], ["김민준", 5]],
       { titleRowCount: 1 },
     );
-    // 제목은 굵게만 — 배경까지 주면 머리글 띠가 둘로 보인다.
     expect(title).toEqual([
       { value: "2026학년도 · 교내", type: String, fontWeight: "bold" },
     ]);

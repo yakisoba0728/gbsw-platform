@@ -15,14 +15,12 @@ export default async function RegisterPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  // status까지 본다 — login/page.tsx와 같은 이유.
   const sessionUser = await getSessionUser();
   if (sessionUser?.status === "ACTIVE") redirect("/");
 
   const { token } = await searchParams;
   const candidate = typeof token === "string" ? token : undefined;
 
-  // ?token= 이 붙으면 최초 교사 부트스트랩, 아니면 초대코드 2단계 가입.
   if (!candidate) {
     return (
       <AuthPanel>
@@ -40,7 +38,6 @@ export default async function RegisterPage({
   );
 }
 
-/** 토큰이 틀렸는지 이미 설정이 끝났는지 구분해 알리지 않는다. */
 function Unavailable() {
   return (
     <div className="animate-auth-in">

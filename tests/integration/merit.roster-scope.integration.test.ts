@@ -1,15 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/core/db/client";
 
-/**
- * 명단 범위 — 전교·학년·반.
- *
- * **목으로는 확인할 수 없는 부분이다.** repo 테스트는 prisma에 넘긴 인자만 보므로
- * "반이 없는 학생(`grade/classNo = null`)이 전교 명단에 남는가"와
- * "학년→반→번호 정렬이 반 없는 줄을 어디에 세우는가"를 실제 SQL로 확인한다.
- *
- * 감사로그는 목으로 막는다 (recordAudit이 요청 컨텍스트를 읽는다).
- */
 vi.mock("@/core/audit/audit", () => ({ recordAudit: vi.fn() }));
 
 const repo = await import("@/modules/merit/merit.repo");
@@ -22,7 +13,6 @@ const made = {
   profiles: [] as string[],
 };
 
-/** 학년·반·번호. classNo가 null이면 반 없는 학생이다. */
 type Spec = { suffix: string; grade: number | null; classNo: number | null; number: number };
 
 const SPECS: Spec[] = [
@@ -65,8 +55,6 @@ beforeAll(async () => {
         year: YEAR,
         grade: spec.grade,
         classNo: spec.classNo,
-        // 반 없는 줄에 번호를 남겨 둔다 — 번호만으로 정렬하면 맨 앞에 서서
-        // 학년·반 정렬이 실제로 걸렸는지가 드러난다.
         number: spec.number,
         status: "ENROLLED",
       },
@@ -85,7 +73,6 @@ afterAll(async () => {
   await prisma.user.deleteMany({ where: { id: { in: made.users } } });
 });
 
-/** 이 테스트가 만든 학생만 남긴다 — DB에 다른 학년도 데이터가 있을 수 있다. */
 function mine<T extends { name: string }>(rows: T[]): T[] {
   return rows.filter((row) => row.name.startsWith("범위검증"));
 }
@@ -115,8 +102,6 @@ describe("listClassRoster 범위", () => {
       await repo.listClassRoster({ year: YEAR, track: "SCHOOL", totalsYear: YEAR }),
     );
 
-    // 반 없는 줄은 맨 뒤다 (Postgres asc = NULLS LAST). 번호만으로 세웠다면
-    // 1번인 이 학생이 맨 앞에 섰을 것이다.
     expect(rows.map((row) => row.name)).toEqual([
       "범위검증1-1-2",
       "범위검증1-1-9",

@@ -2,11 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ForbiddenError } from "@/core/authz/errors";
 import { MeritError } from "@/modules/merit/merit.error";
 
-/**
- * 규정 관리 서버 액션의 경계 — FormData가 zod 스키마에 닿는 지점.
- * FormData는 화면이 실제로 보내는 name 그대로 만든다.
- */
-
 const requireAuth = vi.fn(async () => ({ id: "admin-1", role: "ADMIN" }));
 const revalidatePath = vi.fn();
 
@@ -32,7 +27,6 @@ function form(fields: Record<string, string>): FormData {
   return fd;
 }
 
-/** rule-form.tsx가 보내는 필드 그대로. track은 hidden, kind는 Select. */
 function createForm(over: Record<string, string> = {}): FormData {
   return form({
     track: "DORM",
@@ -45,7 +39,6 @@ function createForm(over: Record<string, string> = {}): FormData {
   });
 }
 
-/** rule-table.tsx의 인라인 편집이 보내는 필드 그대로. track·kind는 없다. */
 function updateForm(over: Record<string, string> = {}): FormData {
   return form({
     ruleId: "rule-1",
@@ -102,8 +95,6 @@ describe("createRuleAction — 경계 검증", () => {
   });
 
   it("점수가 0·음수·소수·빈 값이면 막는다", async () => {
-    // "0"만 정규식(\d+)을 통과하고 범위 refine에서 걸린다 — 문구가 갈리는 것이
-    // 정상이지만, 어느 쪽이든 한국어여야 하고 서비스에는 닿지 말아야 한다.
     const cases: [string, string][] = [
       ["0", "점수는 1~1000 사이여야 합니다."],
       ["-3", "점수는 1 이상의 정수여야 합니다."],
@@ -134,11 +125,6 @@ describe("createRuleAction — 경계 검증", () => {
     expect(revalidatePath).not.toHaveBeenCalled();
   });
 
-  /*
-   * React 19는 액션이 끝난 폼을 성공·실패 가리지 않고 reset()한다. 실패 상태가
-   * 제출값을 들고 오지 않으면 화면은 오류만 남기고 입력을 지운다 — 그 값이
-   * 여기서 끊기면 폼도 되살릴 방법이 없다.
-   */
   it("실패하면 제출값을 그대로 돌려준다", async () => {
     const state = await createRuleAction(
       INITIAL,
@@ -219,11 +205,6 @@ describe("updateRuleAction — 경계 검증", () => {
     expect(state.error).toBe("처리하지 못했습니다.");
   });
 
-  /*
-   * 인라인 편집은 실패해도 편집 모드가 열린 채 남는다 — 제출값이 함께 오지
-   * 않으면 값만 규정 원본으로 되돌아가 "고친 것이 사라졌다"가 된다.
-   * ruleId는 표가 어느 행에 되돌릴지 가르는 열쇠다.
-   */
   it("실패하면 ruleId와 함께 제출값을 돌려준다", async () => {
     updateRule.mockRejectedValueOnce(new MeritError("RULE_CONFLICT"));
 
@@ -301,7 +282,6 @@ describe("모든 액션이 requireAuth로 시작한다", () => {
   });
 });
 
-/** 위와 같은 이유. 「처리하지 못했습니다」로 떨어지면 안 된다. */
 describe("권한 거부 문구", () => {
   it("일반 폴백과 다른 문구를 낸다", async () => {
     createRule.mockRejectedValue(new ForbiddenError("merit:rule:manage"));

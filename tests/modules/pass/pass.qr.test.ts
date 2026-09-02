@@ -1,15 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-// pass.qr은 "server-only"를 부른다. 그 마커는 웹팩의 react-server 조건에서만
-// 무해한 empty.js로 풀리고 vitest에서는 그냥 던진다 — 무해하게 만든다.
-// (tests/lib/generate-invite-code.test.ts와 같은 처리다.)
 vi.mock("server-only", () => ({}));
 import { matrixToPath, toQrPath } from "@/modules/pass/pass.qr";
 
 describe("matrixToPath", () => {
   it("가로로 이어진 칸을 한 조각으로 묶는다", () => {
-    //  ██·
-    //  ·██
     const path = matrixToPath([
       [true, true, false],
       [false, true, true],

@@ -41,7 +41,6 @@ function values(formData: FormData): CommunityFormValues {
   };
 }
 
-/** zod에 넘길 날것. 다듬지 않은 값을 그대로 준다 — 검증은 스키마의 일이다. */
 function raw(formData: FormData) {
   return {
     slug: formData.get("slug"),
@@ -55,7 +54,6 @@ function raw(formData: FormData) {
   };
 }
 
-/** 게시판이 바뀌면 관리 목록과 사용자 목록이 함께 달라진다. */
 function revalidateBoards(): void {
   revalidatePath("/admin/community");
   revalidatePath("/community");
@@ -90,8 +88,6 @@ export async function updateCommunityAction(
   const actor = await requireAuth();
   const submitted = values(formData);
 
-  // raw()가 slug를 함께 넘기지만 updateCommunitySchema에는 그 키가 없다 —
-  // zod가 조용히 버린다. 주소는 만든 뒤에 바꿀 수 없다.
   const parsed = updateCommunitySchema.safeParse({
     communityId: formData.get("communityId"),
     updatedAt: formData.get("updatedAt"),

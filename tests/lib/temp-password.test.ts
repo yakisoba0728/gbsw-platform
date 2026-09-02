@@ -11,7 +11,6 @@ describe("generateTempPassword()", () => {
   });
 
   it("혼동하기 쉬운 글자를 알파벳에서 뺐다", () => {
-    // 불러줄 때 틀리기 쉬운 짝: 0/O, 1/I/l
     for (const bad of ["0", "O", "1", "I", "l"]) {
       expect(TEMP_PASSWORD_ALPHABET).not.toContain(bad);
     }
@@ -41,7 +40,6 @@ describe("generateTempPassword()", () => {
   });
 
   it("앞 세 자리가 항상 대·소·숫자 순으로 고정되지 않는다", () => {
-    // 섞지 않으면 자리별 종류가 늘 같아 추측하기 쉬워진다.
     const firsts = new Set(
       Array.from({ length: 200 }, () => {
         const c = generateTempPassword()[0]!;

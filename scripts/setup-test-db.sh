@@ -1,11 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# 통합 테스트(I7) 전용 DB를 준비한다.
-#
-# 개발 DB(gbsw)와 완전히 분리된 별도 데이터베이스를 같은 컨테이너(gbsw-db) 안에
-# 만든다 — 통합 테스트가 실 계정·감사로그를 절대 건드리지 않게 하기 위해서다.
-# 이미 있으면 건너뛰고, 마이그레이션만 최신으로 맞춘다(멱등).
+# 개발 DB와 분리된 테스트 DB를 만들고 최신 마이그레이션을 적용한다(멱등).
 
 cd "$(dirname "$0")/.."
 
@@ -18,9 +14,7 @@ fi
 
 : "${TEST_DATABASE_URL:?TEST_DATABASE_URL을 .env에 설정하세요 (.env.example 참고, DATABASE_URL과 DB 이름이 달라야 합니다)}"
 
-# 문자열 완전일치로는 `localhost`↔`127.0.0.1`, 포트 생략, `?schema=` 유무가
-# 전부 「다른 값」이 되어 같은 DB를 그대로 통과시킨다. Playwright·vitest와
-# 같은 정규화 판정을 쓴다 (scripts/database-target.mjs).
+# 호스트 별칭·포트 생략·schema 차이로 같은 DB가 통과하지 않도록 정규화한다.
 node scripts/assert-test-database.mjs
 
 # DATABASE_URL 형태: postgresql://user:pass@host:port/dbname[?...]

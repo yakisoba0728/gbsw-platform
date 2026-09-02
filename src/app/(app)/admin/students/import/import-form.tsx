@@ -32,22 +32,13 @@ import {
 import { applyRosterAction, exportRosterAction, previewRosterAction } from "./actions";
 import { previewFingerprintFor } from "./preview-fingerprint";
 
-/**
- * **이 화면의 이름은 전부 맨이름이다.** 다른 화면은 사람을 부를 때 `honorificName`으로
- * 호칭을 붙이지만(`core/authz/roles.ts`), 여기 뜨는 이름은 부르는 말이 아니라
- * 올린 파일과 명단을 줄 단위로 맞춰 보는 **대조 값**이다 — 한쪽에만 「님」이 붙으면
- * 「등록명: 김민준」과 「김민준님」을 눈으로 맞추는 일이 오히려 어려워진다.
- * 명단에 실제로 반영된 뒤의 화면(학생 명단·상벌점·출입증)은 호칭을 붙인다.
- */
-
-/** 빈 서식 예시 두 줄. 학생코드를 비워 둬 그 자체로 "신규"를 보여준다. */
+// 이 화면의 이름은 파일 대조 값이므로 호칭을 붙이지 않는다.
 const TEMPLATE_ROWS: (string | number | null)[][] = [
   [...ROSTER_COLUMNS],
   ["", "김example", "2010-03-05", 1, 3, 1, "재학"],
   ["", "이example", "2008-11-20", null, null, null, "졸업"],
 ];
 
-/** xlsx writer는 단추를 눌렀을 때만 불러온다. 브라우저 전용이라 서버 번들에 못 넣는다. */
 async function loadXlsxWriter() {
   const { default: writeXlsxFile } = await import("write-excel-file/browser");
   return writeXlsxFile;
@@ -94,7 +85,6 @@ function statusLabel(status: string | null): string {
   return ENROLLMENT_STATUS_LABELS[status as EnrollmentStatus] ?? status;
 }
 
-/** 학적 라벨만으로는 몇 학년 몇 반 몇 번인지 알 수 없다. */
 function statusWithSeatLabel(row: {
   status: string | null;
   grade: number | null;
@@ -104,15 +94,13 @@ function statusWithSeatLabel(row: {
   return `${statusLabel(row.status)} · ${seatLabel(row)}`;
 }
 
-/* 두 폼(미리보기·확정)은 형제로 둔다 — <form> 중첩은 HTML이 허용하지 않는다. */
 export function ImportForm() {
   const [previewState, previewAction, previewing] = useActionState(
     previewRosterAction,
     PREVIEW_INITIAL,
   );
 
-  // 미리보기 전체에 지문을 만들어 내용이 바뀌면 PreviewCard를 새로 마운트한다.
-  // 줄 수·첫/끝 이름만 보면 중간 줄이 바뀌어도 확정 폼 상태가 남을 수 있다.
+  // 중간 행만 바뀐 미리보기라도 삭제 확인 상태를 새로 받는다.
   const previewFingerprint =
     previewState.plan && previewState.year !== null
       ? previewFingerprintFor({
@@ -154,8 +142,6 @@ function UploadCard({
 }) {
   const [exporting, startExport] = useTransition();
   const [exportError, setExportError] = useState<string | null>(null);
-  // 상한을 넘는 파일은 서버 액션에 닿기 전에 next.config.ts의 bodySizeLimit에 잘려
-  // 안내 대신 오류 경계가 뜬다. 고른 순간 여기서 막아 제출 자체를 못 하게 한다.
   const [fileError, setFileError] = useState<string | null>(null);
 
   function downloadRoster() {
@@ -233,12 +219,8 @@ function UploadCard({
               file && file.size > ROSTER_FILE_MAX_BYTES ? "파일이 너무 큽니다." : null,
             );
           }}
-          // 브라우저가 그리는 버튼이라 `Button`을 못 쓴다 — `file:` 접두 클래스로만
-          // 꾸밀 수 있어서 secondary sm 규격(h-9 lg:h-8 · px-3 · text-caption ·
-          // border-line-strong)을 손으로 맞춘다. 옆의 미리보기 버튼과 같은 높이다.
           className="flex-1 text-sm text-ink file:mr-3 file:h-9 file:rounded-btn file:border file:border-line-strong file:bg-surface file:px-3 file:text-caption file:font-medium file:text-ink lg:file:h-8"
         />
-        {/* 이 화면을 연 목적은 확정이다 — 여기까지는 전부 그 앞의 단계다. */}
         <Button
           type="submit"
           variant="secondary"
@@ -249,8 +231,6 @@ function UploadCard({
         </Button>
       </form>
 
-      {/* 고른 파일이 너무 크면 그 안내가 먼저다 — 제출을 막았으므로 state.error는
-          직전 시도의 남은 문구다. */}
       {(fileError ?? state.error) && (
         <Note tone="error" className="mt-4">
           {fileError ?? state.error}
@@ -279,7 +259,6 @@ function PreviewCard({
     applyRosterAction,
     APPLY_INITIAL,
   );
-  // 교사가 직접 적는 인원 수. 입력 중간값도 그대로 보여야 해서 문자열로 든다.
   const [typedDeleteCount, setTypedDeleteCount] = useState("");
 
   const successMessage = applySuccessMessage(applyState);
@@ -293,8 +272,6 @@ function PreviewCard({
       title="미리보기"
       hint={`${year}학년도 기준입니다.`}
       controls={
-        // 파일 전체에 걸리는 주의라 놓치면 잘못된 확정으로 이어진다. Note는
-        // error에만 role을 자동으로 붙이므로 여기서 명시한다.
         notices.map((notice) => (
           <Note key={notice} tone="warn" role="alert" className="mt-2">
             {notice}
@@ -303,8 +280,6 @@ function PreviewCard({
       }
       flush
     >
-      {/* 미리보기 맨 위에 펼친 채로 둔다. 다음 명단에 다시 넣으면 돌아오므로
-          위험색이 아니라 경고색을 쓴다. */}
       {deleteCount > 0 && (
         <div className="border-b border-amber-line bg-amber-soft px-5 py-4">
           <div className="flex items-center justify-between gap-3">
@@ -315,7 +290,6 @@ function PreviewCard({
               {deleteCount}명
             </Badge>
           </div>
-          {/* 이 경로는 되돌릴 수 없는 물리 삭제다. 임시 제외처럼 읽히면 안 된다. */}
           <p className="mt-1.5 text-caption font-medium text-amber-ink">
             확정하면 이 학생들의 계정과 기록이 영구히 사라집니다. 자퇴·전출은 줄을
             지우지 말고 학적 칸을 바꾸세요.
@@ -342,16 +316,15 @@ function PreviewCard({
       )}
 
       <div className="divide-y divide-line2">
-        <IssueGroup
+        <PreviewGroup
           title="오류 · 확인 필요"
           count={issueCount}
           defaultOpen={issueCount > 0}
+          hasIssues
         >
           {plan.errorRows.map((r) => (
             <IssueRow key={`err-${r.line}`} line={r.line} name={r.name} reason={r.errors.join(" · ")} />
           ))}
-          {/* 명단에서 빠진 학생은 파일 줄이 없어 line이 전부 0이다 — 키에 학생을
-              함께 넣지 않으면 둘 이상일 때 겹친다. */}
           {plan.needsAttention.map((r) => (
             <IssueRow
               key={`att-${r.line}-${r.studentProfileId ?? ""}`}
@@ -360,9 +333,9 @@ function PreviewCard({
               reason={r.reason}
             />
           ))}
-        </IssueGroup>
+        </PreviewGroup>
 
-        <PlannedGroup title="신규" count={plan.newStudents.length} defaultOpen={false}>
+        <PreviewGroup title="신규" count={plan.newStudents.length} defaultOpen={false}>
           {plan.newStudents.map((r) => (
             <PlannedRowItem
               key={`new-${r.line}`}
@@ -370,9 +343,9 @@ function PreviewCard({
               detail={r.status === "ENROLLED" ? seatLabel(r) : "초대코드 없음"}
             />
           ))}
-        </PlannedGroup>
+        </PreviewGroup>
 
-        <PlannedGroup title="재배정" count={plan.reassign.length} defaultOpen={false}>
+        <PreviewGroup title="재배정" count={plan.reassign.length} defaultOpen={false}>
           {plan.reassign.map((r) => (
             <PlannedRowItem
               key={`reassign-${r.line}`}
@@ -381,9 +354,9 @@ function PreviewCard({
               detail={seatLabel(r)}
             />
           ))}
-        </PlannedGroup>
+        </PreviewGroup>
 
-        <PlannedGroup
+        <PreviewGroup
           title="새 학년도 배정"
           count={plan.newAssignment.length}
           defaultOpen={false}
@@ -395,9 +368,9 @@ function PreviewCard({
               detail={statusWithSeatLabel(r)}
             />
           ))}
-        </PlannedGroup>
+        </PreviewGroup>
 
-        <PlannedGroup title="학적변동" count={plan.statusChange.length} defaultOpen={false}>
+        <PreviewGroup title="학적변동" count={plan.statusChange.length} defaultOpen={false}>
           {plan.statusChange.map((r) => (
             <PlannedRowItem
               key={`status-${r.line}`}
@@ -406,7 +379,7 @@ function PreviewCard({
               detail={statusWithSeatLabel(r)}
             />
           ))}
-        </PlannedGroup>
+        </PreviewGroup>
       </div>
 
       <div className="border-t border-line px-5 py-4">
@@ -424,8 +397,6 @@ function PreviewCard({
 
         {applied ? (
           <>
-            {/* 확정하면 폼이 사라져 포커스가 <body>로 떨어진다. 두 배너를 한
-                영역으로 묶어 한 번에 읽히게 한다. */}
             <div role="status">
               <Note tone="success">
                 {successMessage}
@@ -462,14 +433,11 @@ function PreviewCard({
             <input type="hidden" name="year" value={year} />
             <input type="hidden" name="rosterFingerprint" value={rosterFingerprint ?? ""} />
             <input type="hidden" name="previewToken" value={previewToken ?? ""} />
-            {/* 화면이 본 삭제 대상을 늘 실어 보낸다. 동의 표시가 아니라 서버가
-                다시 세운 집합과 대조할 근거다. */}
             <input
               type="hidden"
               name="confirmedDeletionIds"
               value={JSON.stringify(plan.missingFromFile.map((s) => s.studentProfileId))}
             />
-            {/* 한 명이라도 빠지면 서버가 이 값을 요구한다. */}
             <input type="hidden" name="deletionCount" value={typedDeleteCount} />
             {deleteCount > 0 && (
               <label className="flex flex-col gap-1.5 text-caption font-medium text-amber-ink">
@@ -478,7 +446,6 @@ function PreviewCard({
                   물리 삭제됩니다. 연결된 초대코드·학부모 연결·상벌점 이력은 cascade로
                   함께 사라지고 복원 기능은 없습니다. 확인을 위해 인원 수를 직접 입력해 주세요.
                 </span>
-                {/* 폭은 바깥에서 준다 — cn()이 w-full을 못 덮는다. */}
                 <div className="w-40">
                   <Input
                     size="sm"
@@ -492,9 +459,6 @@ function PreviewCard({
               </label>
             )}
             <div className="flex justify-end">
-              {/* 초록(실행)이 아니라 붉은 채움이다 — 누르면 계정과 학생 기록이
-                  DB에서 영구히 사라지고 복원 기능이 없다. 화면의 주된 동작이라
-                  무게는 primary와 같게 두되 색으로 말린다. */}
               <Button
                 type="submit"
                 variant="danger-solid"
@@ -542,8 +506,6 @@ function InvitesResult({
   year: number;
 }) {
   return (
-    // 표는 카드 안쪽 여백 밖에 둔다 — 표의 첫·끝 열 px-5가 곧 카드 여백이라
-    // 밖에서 한 번 더 주면 세로줄이 어긋난다.
     <div className="border-t border-line py-4">
       <div className="px-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -571,8 +533,6 @@ function InvitesResult({
         </p>
       </div>
 
-      {/* 같은 내용을 내는 다른 초대 표 둘(초대 관리·학부모 초대)은 폰에서 카드로
-          접힌다. 여기만 옆으로 스크롤되고 있었다. */}
       <DataTable
         minWidth={520}
         narrow="cards"
@@ -618,37 +578,9 @@ const INVITE_COLUMNS: readonly Column<IssuedInvite>[] = [
   },
 ];
 
-function IssueGroup({
-  title,
-  count,
-  defaultOpen,
-  children,
-}: {
-  title: string;
-  count: number;
-  defaultOpen: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <details open={defaultOpen} className="group">
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-3 select-none [&::-webkit-details-marker]:hidden">
-        <ChevronDownIcon
-          size={16}
-          className="shrink-0 text-mut transition-transform group-open:rotate-180"
-        />
-        <span className="min-w-0 flex-1 text-sm font-medium text-ink">{title}</span>
-        <Badge tone={count > 0 ? "demerit" : "neutral"}>{count}건</Badge>
-      </summary>
-      {count > 0 && <ul className="divide-y divide-line2 px-5 pb-4">{children}</ul>}
-    </details>
-  );
-}
-
 function IssueRow({ line, name, reason }: { line: number; name: string; reason: string }) {
   return (
     <li className="py-2 text-caption">
-      {/* line 0은 파일에 대응하는 줄이 없다는 표시다 (roster.plan.ts) — 0행이라고
-          적으면 없는 줄을 찾게 된다. */}
       {line > 0 ? (
         <span className="tabular-nums text-rose">{line}행</span>
       ) : (
@@ -660,15 +592,17 @@ function IssueRow({ line, name, reason }: { line: number; name: string; reason: 
   );
 }
 
-function PlannedGroup({
+function PreviewGroup({
   title,
   count,
   defaultOpen,
+  hasIssues = false,
   children,
 }: {
   title: string;
   count: number;
   defaultOpen: boolean;
+  hasIssues?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -679,14 +613,13 @@ function PlannedGroup({
           className="shrink-0 text-mut transition-transform group-open:rotate-180"
         />
         <span className="min-w-0 flex-1 text-sm font-medium text-ink">{title}</span>
-        <Badge tone="neutral">{count}건</Badge>
+        <Badge tone={hasIssues && count > 0 ? "demerit" : "neutral"}>{count}건</Badge>
       </summary>
       {count > 0 && <ul className="divide-y divide-line2 px-5 pb-4">{children}</ul>}
     </details>
   );
 }
 
-/** beforeName은 학생코드로 이어진 등록명이다. 파일의 이름과 나란히 보여준다. */
 function PlannedRowItem({
   name,
   beforeName,

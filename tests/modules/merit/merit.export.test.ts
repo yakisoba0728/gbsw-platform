@@ -13,7 +13,6 @@ import {
 describe("toRosterSheet", () => {
   const rows = [
     { studentProfileId: "sp-1", studentCode: "K7M2XQ4A", name: "김민준", number: 3, merit: 15, demerit: 6, offset: 0, net: 9 },
-    // 상쇄 60점을 받은 학생 — 벌점 72를 덜어내 순점수가 −12로 올라갔다.
     { studentProfileId: "sp-2", studentCode: "B3N8ZR5C", name: "정하윤", number: 4, merit: 0, demerit: 72, offset: 60, net: -12 },
   ];
 
@@ -70,7 +69,6 @@ describe("toHistorySheet", () => {
       cancelledByName: null,
       cancelledAt: null,
       cancelReason: null,
-      // 6월 12일에 일어난 일을 6월 15일에 입력했다 — 두 열이 다른 값이어야 한다.
       occurredOn: new Date("2026-06-11T15:00:00.000Z"),
       createdAt: new Date("2026-06-15T04:30:00.000Z"),
     },
@@ -107,8 +105,8 @@ describe("toHistorySheet", () => {
 
   it("벌점은 음수로 낸다 — 열을 그대로 더할 수 있어야 한다", () => {
     const sheet = toHistorySheet(awards, { track: "SCHOOL", studentName: "김민준" });
-    expect(sheet[2][5]).toBe(5); // 상점
-    expect(sheet[3][5]).toBe(-3); // 벌점
+    expect(sheet[2][5]).toBe(5);
+    expect(sheet[3][5]).toBe(-3);
   });
 
   it("모르는 종류는 점수를 그대로 둔다 — 0으로 접으면 그 줄이 사라진다", () => {
@@ -176,10 +174,10 @@ describe("toRecentAwardsSheet", () => {
   it("벌점은 음수, 시각은 글자순이 곧 시각순인 형태다", () => {
     const sheet = toRecentAwardsSheet(awards, { track: "DORM" });
 
-    expect(sheet[2][1]).toBe("2026-08-19 10:00:00"); // 입력 시각 (KST)
-    expect(sheet[2][2]).toBe("2026-08-19"); // 발생일 (KST 자정)
+    expect(sheet[2][1]).toBe("2026-08-19 10:00:00");
+    expect(sheet[2][2]).toBe("2026-08-19");
     expect(sheet[2][6]).toBe(-3);
-    expect(sheet[2][11]).toBe("2026-08-19 12:00:00"); // 취소 시각
+    expect(sheet[2][11]).toBe("2026-08-19 12:00:00");
   });
 
   it("학생·메모·취소 정보를 빠뜨리지 않는다", () => {
@@ -193,10 +191,6 @@ describe("toRecentAwardsSheet", () => {
 });
 
 describe("열 너비표", () => {
-  /**
-   * 너비를 빠뜨린 열은 엑셀 기본 너비(8.43자)로 열려 한글이 옆 칸을 덮어쓴다.
-   * 머리글이 늘었는데 표를 안 고치면 여기서 먼저 깨진다.
-   */
   it.each([
     ["반별 목록", ROSTER_SHEET_WIDTHS, toRosterSheet([], { track: "SCHOOL", year: 2026, grade: 1, classNo: 1 })],
     ["학생 내역", HISTORY_SHEET_WIDTHS, toHistorySheet([], { track: "SCHOOL", studentName: "김민준" })],
@@ -206,7 +200,6 @@ describe("열 너비표", () => {
     expect(widths.every((w) => w > 0)).toBe(true);
   });
 
-  /** 접을 열을 잘못 짚으면 엉뚱한 열이 두 줄이 된다 — 「항목」을 가리키는지 본다. */
   it("접는 열은 두 시트 모두 「항목」이다", () => {
     const history = toHistorySheet([], { track: "SCHOOL", studentName: "김민준" });
     const recent = toRecentAwardsSheet([], { track: "SCHOOL" });

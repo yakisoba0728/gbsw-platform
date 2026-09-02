@@ -8,8 +8,6 @@ import { user } from "../helpers/session";
 
 vi.mock("server-only", () => ({}));
 
-// community.storage가 모듈을 읽는 순간 루트를 고정하므로 서비스보다 먼저 정한다.
-// 파일시스템은 이 서비스의 외부 경계라, 테스트 DB와 섞이지 않는 임시 디렉터리를 쓴다.
 const previousUploadDir = process.env.UPLOAD_DIR;
 const uploadDir = await mkdtemp(path.join(tmpdir(), "gbsw-attachment-cap-"));
 process.env.UPLOAD_DIR = uploadDir;
@@ -50,7 +48,6 @@ describe("미결 첨부 계정당 상한 경쟁", () => {
       },
     });
 
-    // 상한 바로 아래에서 시작하면 병렬 요청 중 오직 하나만 성공해야 한다.
     await prisma.communityAttachment.createMany({
       data: Array.from({ length: 9 }, (_, index) => ({
         uploaderUserId: userId,
@@ -79,7 +76,6 @@ describe("미결 첨부 계정당 상한 경쟁", () => {
         uploadAttachment(actor, {
           slug: communitySlug,
           filename: `병렬-${index}.txt`,
-          mimeType: "text/plain",
           bytes: Buffer.from("x"),
         }),
       ),

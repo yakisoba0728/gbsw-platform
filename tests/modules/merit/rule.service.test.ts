@@ -296,8 +296,6 @@ describe("조회", () => {
   });
 
   it("읽기를 열어도 관리 경로는 그대로 막힌다", async () => {
-    // 두 함수를 나눠 둔 이유가 이것이다 — 게이트가 하나였다면 규정 화면을 여는
-    // 순간 학생이 규정을 고칠 수 있게 된다.
     await expect(service.listRules(student, "SCHOOL")).rejects.toThrow("FORBIDDEN");
     await expect(service.listRules(parent, "SCHOOL")).rejects.toThrow("FORBIDDEN");
   });

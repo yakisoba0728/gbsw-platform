@@ -25,17 +25,11 @@ export default async function BoardPage({
   const { slug } = await params;
   const query = await searchParams;
 
-  // 권한 거부는 403, 없는 게시판은 404로 간다 — 둘을 한 화면에 섞지 않는다.
   const view = await orDenied(listPostPage(actor, slug, parsePage(query.page)));
 
   return (
     <div className="mx-auto max-w-5xl">
 
-      {/*
-       * 게시판 이름은 페이지 제목이지 카드 제목이 아니다. 카드에 담으면 그
-       * 테두리가 목록을 감싸면서 「게시판이라는 상자」가 하나 더 생기고, 상단바의
-       * 「커뮤니티」와 두 겹으로 겹친다. 제목은 바탕 위에 서고 상자는 목록만 갖는다.
-       */}
       <PageHeader
         title={view.community.name}
         description={view.community.description ?? undefined}
@@ -79,8 +73,6 @@ export default async function BoardPage({
           />
         )}
 
-        {/* 쪽 넘기기는 표를 담은 카드의 바닥 띠다(Pagination의 규격). 예전에는
-            카드 밖에 서 있어서 어느 목록의 쪽인지 테두리가 말해 주지 않았다. */}
         <Pagination
           page={view.page}
           pageCount={view.pageCount}

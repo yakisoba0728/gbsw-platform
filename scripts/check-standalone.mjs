@@ -90,7 +90,7 @@ async function findUnsafeSymlinks(root, canonicalRoot, relative = "") {
       const target = await realpath(path.join(root, child));
       if (!isWithinRoot(canonicalRoot, target)) unsafe.push(child);
     } catch {
-      // 깨진 링크도 런타임에서 해석할 수 없는 산출물이므로 거부한다.
+      // 깨진 링크도 런타임에서 해석할 수 없으므로 거부한다.
       unsafe.push(child);
     }
   }

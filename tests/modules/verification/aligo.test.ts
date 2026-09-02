@@ -93,7 +93,6 @@ describe("assertAligoSuccess()", () => {
   });
 
   it("실패는 삼키지 않고 던진다", () => {
-    // 기존 마일리지 구현이 오류를 로그만 찍고 넘어가던 지점이다.
     expect(() =>
       assertAligoSuccess({ result_code: "-101", message: "인증오류" }),
     ).toThrow("알리고 발송 실패");

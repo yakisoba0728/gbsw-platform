@@ -3,15 +3,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PlainText } from "@/components/ui/plain-text";
 import { formatDateTime } from "@/lib/datetime";
 import type { CommentView } from "@/modules/community/community.view";
-import { DeleteComment } from "./delete-comment";
+import { DeleteContent } from "./delete-content";
 
-/**
- * 댓글 목록. 표가 아니라 `<ul>`이다 — 댓글은 열이 없다.
- *
- * **익명 게시판에서 작성자 자리는 「익명」이다.** 글 목록에서는 그 열을 통째로
- * 뺐지만(같은 말이 스무 줄 늘어서므로) 여기서는 자리가 비면 누가 말했는지가
- * 아니라 말이 몇 개인지도 안 읽힌다.
- */
 export function CommentList({ comments }: { comments: readonly CommentView[] }) {
   if (comments.length === 0) {
     return <EmptyState variant="inside">아직 댓글이 없습니다.</EmptyState>;
@@ -36,8 +29,9 @@ export function CommentList({ comments }: { comments: readonly CommentView[] }) 
             </span>
 
             {comment.canDelete && (
-              <DeleteComment
-                commentId={comment.id}
+              <DeleteContent
+                kind="comment"
+                id={comment.id}
                 byModerator={!comment.isMine}
                 accessibleName={`${index + 1}번째 댓글 삭제`}
               />

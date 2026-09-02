@@ -40,14 +40,6 @@ const ROLE_FILTERS = [
 type StatusKey = (typeof STATUS_FILTERS)[number]["key"];
 type RoleKey = (typeof ROLE_FILTERS)[number]["key"];
 
-/**
- * 열이 여섯이라 좁은 폭에서 압축이 성립하지 않는다 — 가로 스크롤로 둔다.
- *
- * 그래서 **상세로 가는 길은 첫 열(이름)이 갖는다.** 예전에는 마지막 열의 아이콘
- * 하나뿐이었는데, 1024px에서 그 버튼은 32px 중 8px만 보이고 가운데를 누르면
- * 표 바깥이 잡혔다 — 가로로 밀지 않으면 계정 상세에 들어갈 방법이 없었다.
- * 첫 열은 어느 폭에서도 밀려나지 않는다.
- */
 const COLUMNS: readonly Column<UserRow>[] = [
   {
     key: "name",
@@ -58,8 +50,6 @@ const COLUMNS: readonly Column<UserRow>[] = [
         href={`/admin/users/${row.id}`}
         className="inline-flex min-h-9 flex-col justify-center lg:min-h-0"
       >
-        {/* hover는 밑줄을 가진 span이 받는다 — 조상 <a>에 걸면 text-decoration-color가
-            상속되지 않아 아무 일도 일어나지 않는다. */}
         <span className="font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink">
           {honorificName(row.name, isRole(row.role) ? row.role : null)}
         </span>

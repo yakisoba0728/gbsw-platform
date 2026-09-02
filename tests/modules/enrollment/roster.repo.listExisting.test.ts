@@ -3,9 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const studentProfileFindMany = vi.fn();
 const enrollmentFindMany = vi.fn();
 
-// applyRoster()는 별도 파일(roster.repo.test.ts)에서 $transaction을 흉내 내
-// 테스트한다 — listExisting()은 트랜잭션 밖에서 도는 단순 조회라 그 목과
-// 섞이지 않게 파일을 분리했다.
 vi.mock("@/core/db/client", () => ({
   prisma: {
     studentProfile: { findMany: studentProfileFindMany },

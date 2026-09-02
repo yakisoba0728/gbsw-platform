@@ -44,7 +44,6 @@ const admin = user("ADMIN", "admin-1");
 const student = user("STUDENT", "s-1");
 const parent = user("PARENT", "p-1");
 
-/** 현재 상태: 1학년 3반 3번, 재학, 계정 활성 */
 function current(overrides: Record<string, unknown> = {}) {
   return {
     studentProfileId: "sp-1",
@@ -68,7 +67,6 @@ const unchanged = {
   status: "ENROLLED" as const,
 };
 
-/** saveEnrollments 호출을 줄이는 헬퍼 — 현재 학년도(2026)를 기본으로 넘긴다. */
 function save(actor: SessionUser, changes: Parameters<typeof saveEnrollments>[1]) {
   return saveEnrollments(actor, changes, YEAR);
 }
@@ -126,10 +124,6 @@ describe("saveEnrollments()", () => {
     );
   });
 
-  /**
-   * 드라이버 어댑터를 거친 40001은 P2010 안에 싸여 온다. P2034만 보던 시절에는
-   * 이 모양이 그대로 위로 던져져 화면에 「저장하지 못했습니다」만 떴다.
-   */
   it("어댑터가 P2010으로 싸서 준 40001도 같은 업무 충돌로 옮긴다", async () => {
     withTransaction.mockRejectedValue(
       Object.assign(new Error("adapter"), {
@@ -143,10 +137,6 @@ describe("saveEnrollments()", () => {
     );
   });
 
-  /**
-   * 무엇과 부딪쳤는지로 문구가 갈린다. 학년도 전환과 부딪친 것을 「다른 교사가
-   * 학생 정보를 바꿨습니다」라고 하면 틀린 말이고, 새로고침해도 같은 자리에서 막힌다.
-   */
   it("학년도 전환과 부딪친 충돌은 YEAR_MISMATCH로 옮긴다", async () => {
     withTransaction.mockRejectedValue(Object.assign(new Error("write conflict"), {
       code: "P2034",
@@ -217,7 +207,6 @@ describe("saveEnrollments()", () => {
     expect(audit.action).toBe("enrollment:update");
     expect(audit.targetId).toBe("sp-1");
     expect(audit.metadata.changed).toEqual(["classNo"]);
-    // 새 반 번호(5)가 값으로 남으면 안 된다.
     expect(audit.metadata.classNo).toBeUndefined();
   });
 
@@ -347,7 +336,6 @@ describe("(grade, classNo, number) 충돌 사전 검사 (C1)", () => {
   });
 
   it("같은 학생이 자기 자리를 유지하는 건 충돌이 아니다", async () => {
-    // status만 바뀌고 반·번호는 그대로 — 자기 자신과 겹치는 걸로 오판하면 안 된다.
     listByYear.mockResolvedValue([current({ status: "DEFERRED" })]);
 
     await expect(save(admin, [unchanged])).resolves.toEqual({ saved: 1 });
@@ -356,14 +344,12 @@ describe("(grade, classNo, number) 충돌 사전 검사 (C1)", () => {
 
 describe("계정 상태 (I1 · I2)", () => {
   it("학적(status)이 안 바뀌면 번호만 고쳐도 계정을 건드리지 않는다 (I1)", async () => {
-    // 관리자가 /admin/users에서 잠가 둔 재학생 — 번호만 고친다.
     listByYear.mockResolvedValue([current({ accountActive: false })]);
 
     await save(admin, [{ ...unchanged, number: 9 }]);
 
     const item = applyAll.mock.calls[0]![1][0];
     expect(item.statusChanged).toBe(false);
-    // 잠긴 계정이 조용히 풀리면 안 되므로 활성화 감사로그도 없어야 한다.
     expect(recordAudit).toHaveBeenCalledTimes(1);
     expect(recordAudit.mock.calls[0]![0].action).toBe("enrollment:update");
   });
@@ -407,7 +393,6 @@ describe("계정 상태 (I1 · I2)", () => {
   });
 
   it("활성 상태가 실제로 안 뒤집히면 계정 감사로그를 더 남기지 않는다", async () => {
-    // WITHDRAWN → GRADUATED. 학적은 바뀌지만 둘 다 비활성이라 실제로 뒤집히지 않는다.
     listByYear.mockResolvedValue([current({ status: "WITHDRAWN", accountActive: false })]);
 
     await save(admin, [{ ...unchanged, status: "GRADUATED" }]);
@@ -419,7 +404,6 @@ describe("계정 상태 (I1 · I2)", () => {
 
 describe("자기 계정 (I3)", () => {
   it("자기 자신을 비재학으로 바꾸는 저장은 거부한다", async () => {
-    // set-role로 승격된 관리자 — StudentProfile이 남아 표에 보일 수 있다.
     listByYear.mockResolvedValue([current({ userId: admin.id })]);
 
     await expect(
@@ -452,13 +436,7 @@ describe("중복 제거 (M5)", () => {
   });
 });
 
-/**
- * 학생 상세(`/students/<id>`)의 문 둘. 머리글은 **셋 중 하나**로 열리고
- * (`can()` 하나로는 못 가르는 규칙이라 서비스가 손으로 세웠다), 「학생 정보」
- * 탭은 `student:manage` 하나로만 열린다.
- */
 describe("학생 상세", () => {
-  /** repo가 주는 행 — 머리글이 쓰지 않는 생년월일·이메일까지 들어 있다. */
   const detail = {
     studentProfileId: "sp-1",
     studentCode: "20260101",
@@ -491,7 +469,6 @@ describe("학생 상세", () => {
     expect(findStudentDetail).toHaveBeenCalledWith("sp-1", YEAR);
   });
 
-  // 머리글은 이름·소속까지다. 그 둘은 「학생 정보」 탭의 내용이고 권한이 다르다.
   it("머리글에는 생년월일·이메일이 실리지 않는다", async () => {
     const identity = await getStudentIdentity(admin, "sp-1");
 
@@ -510,7 +487,6 @@ describe("학생 상세", () => {
     async (_label, actor) => {
       await expect(getStudentIdentity(actor, "sp-1")).rejects.toThrow("FORBIDDEN");
 
-      // 거부가 repo보다 먼저다 — 뒤로 가면 이름·학급이 이미 읽힌 뒤가 된다.
       expect(findStudentDetail).not.toHaveBeenCalled();
       expect(recordAudit).toHaveBeenCalledWith(
         expect.objectContaining({

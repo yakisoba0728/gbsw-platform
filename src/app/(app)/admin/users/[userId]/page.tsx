@@ -45,8 +45,6 @@ export default async function UserDetailPage({
     detail = await getUserDetail(actor, userId);
   } catch (error) {
     if (error instanceof AdminUserError) notFound();
-    // getUserDetail도 getCurrentYear()를 부른다. 현재 학년도가 없으면 목록 화면과
-    // 같은 안내로 떨어뜨린다 — 여기만 오류 화면이 뜰 이유가 없다.
     if (error instanceof AcademicYearError) return <NoAcademicYearNotice />;
     throw error;
   }
@@ -64,7 +62,6 @@ export default async function UserDetailPage({
     phone: user.phone,
     updatedAt: user.updatedAt.toISOString(),
     isStudent: profile != null,
-    // 재학 중일 때만 학년·반·번호를 이 화면에서 고칠 수 있다.
     canEditAssignment: enrollment?.status === "ENROLLED",
     birthDate: profile ? formatDateInput(profile.birthDate) : "",
     grade: enrollment?.grade == null ? "" : String(enrollment.grade),
@@ -80,13 +77,10 @@ export default async function UserDetailPage({
         계정 목록
       </BackLink>
 
-      {/* 카드가 두 규격이다. SectionCard는 머리글 띠를 가진 내용 섹션(활동 기록),
-          variant="panel"은 테두리 한 겹짜리 폼·안내 패널이다. */}
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 @2xl:grid-cols-[1fr_340px]">
         <div className="flex flex-col gap-4">
           <section className={cardClass("panel", "@container")}>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-              {/* h1은 상단바가 모든 화면에 이미 그린다. */}
               <h2 className="text-title font-semibold text-ink">
                 {honorificName(user.name, isRole(user.role) ? user.role : null)}
               </h2>
@@ -124,8 +118,6 @@ export default async function UserDetailPage({
                   <Field label="생년월일">
                     {formatDateInput(profile.birthDate)}
                   </Field>
-                  {/* 상벌점 검색은 재학생만 보여주므로 명단에서 빠진 학생은
-                      이 링크로만 갈 수 있다. */}
                   <Field label="상벌점">
                     <Link
                       href={`/students/${profile.id}`}
@@ -180,8 +172,6 @@ export default async function UserDetailPage({
                       )}
                     </div>
                     <p className="mt-0.5 text-xs text-mut">
-                      {/* 무엇을 했는지는 위의 배지가 말한다. 이 줄은 누구인지만 —
-                          「실행」을 붙이면 사람이 아니라 기계가 쓴 줄로 읽힌다. */}
                       {entry.actorUserId === user.id
                         ? "본인"
                         : honorificName(

@@ -103,7 +103,6 @@ describe("checkInvite()", () => {
 
     const result = await checkInvite("gbsw-a3k9 2m7p");
 
-    // 표기가 흔들려도 정규화해서 찾는다.
     expect(findInviteByCode).toHaveBeenCalledWith("GBSWA3K92M7P");
     expect(result).toEqual({ role: "STUDENT" });
     expect(JSON.stringify(result)).not.toContain("김학생");
@@ -168,12 +167,8 @@ describe("completeRegistration() — 학생", () => {
     const [inviteId, account, student] = completeStudentRegistration.mock.calls[0]!;
     expect(inviteId).toBe("inv1");
     expect(account.email).toBe("new@gbsw.hs.kr");
-    // 평문 비밀번호가 저장 경로로 새어나가면 안 된다.
     expect(account.passwordHash).not.toBe(base.password);
-    // 학반번호는 가입자가 입력하지 않는다 — 코드에 박힌 값이 그대로 쓰인다.
     expect(student).toMatchObject({ grade: 1, classNo: 2, number: 15 });
-    // KST 자정으로 저장한다 — admin-users의 관리자 수정과 같은 기준이어야
-    // 3단계 명단 매칭에서 이름+생년월일 대조가 갈리지 않는다.
     expect((student as { birthDate: Date }).birthDate.toISOString()).toBe(
       "2010-03-03T15:00:00.000Z",
     );
@@ -194,7 +189,6 @@ describe("completeRegistration() — 학생", () => {
 
     expect(withTransaction).toHaveBeenCalledWith(
       expect.any(Function),
-      // 명단 반영이 같은 잠금을 오래 쥐므로 가입은 기다렸다 들어간다.
       expect.objectContaining({ isolationLevel: "Serializable" }),
     );
     expect(findCurrentYearForUpdate).toHaveBeenCalledWith(txClient);
@@ -297,11 +291,6 @@ describe("completeRegistration() — 학생", () => {
 });
 
 describe("completeRegistration() — 초대코드 유효성", () => {
-  /**
-   * 2단계는 1단계 checkInvite를 다시 부르지 않고 같은 검사를 제 손으로 한다.
-   * 이 검사가 빠지면 만료·소진·폐기된 코드로 계정이 만들어진다 — 화면이 1단계를
-   * 통과한 뒤 코드가 죽어도 2단계 요청은 그대로 도착하기 때문이다.
-   */
   const unusable: [string, ReturnType<typeof invite> | null][] = [
     ["만료된 코드", invite({ expiresAt: new Date(Date.now() - 1000) })],
     ["이미 쓰인 코드", invite({ status: "USED" })],
@@ -316,7 +305,6 @@ describe("completeRegistration() — 초대코드 유효성", () => {
       completeRegistration({ ...base, name: "김학생", birthDate: "2010-03-04" }),
     ).rejects.toThrow("가입코드 또는 입력한 정보가 맞지 않습니다.");
 
-    // 2차 요소 대조보다 먼저 막는다 — 트랜잭션도 인증 확인도 시작하지 않는다.
     expect(withTransaction).not.toHaveBeenCalled();
     expect(completeStudentRegistration).not.toHaveBeenCalled();
     expect(completeAdminRegistration).not.toHaveBeenCalled();
@@ -327,8 +315,6 @@ describe("completeRegistration() — 초대코드 유효성", () => {
   });
 
   it("이름·생년월일이 맞아도 만료된 코드는 거절한다", async () => {
-    // 이름이 틀려서 막힌 것이 아님을 못 박는다 — 같은 입력이 유효한 코드에서는
-    // 위쪽 「이름과 생년월일이 맞으면 계정을 만든다」로 통과한다.
     findInviteByCode.mockResolvedValue(
       invite({ expiresAt: new Date(Date.now() - 1000) }),
     );
@@ -437,22 +423,17 @@ describe("completeRegistration() — 공통 방어", () => {
     findInviteByCode.mockResolvedValue(invite());
     completeStudentRegistration.mockRejectedValue(
       Object.assign(new NumberTakenError(), {
-        // 저장소가 실제로 던지는 값은 메시지가 없는 NumberTakenError뿐이지만,
-        // 혹시라도 Prisma 원문이 메시지에 섞여 들어와도 새 나가지 않는지 같이 본다.
         message:
           "Unique constraint failed on the fields: (`year`,`grade`,`classNo`,`number`)",
       }),
     );
 
-    // 우리가 정한 문구로 완전히 바뀐다 — Prisma 원문("Unique constraint...")이
-    // 메시지 어디에도 섞여 들어오지 않는다. exact match라 섞였으면 여기서 이미 실패한다.
     await expect(
       completeRegistration({ ...base, name: "김학생", birthDate: "2010-03-04" }),
     ).rejects.toThrow(
       "이 반·번호에 다른 학생이 있습니다. 선생님께 문의해 주세요.",
     );
 
-    // 실패했으니 코드도 소진되지 않고 감사로그도 남지 않는다.
     expect(recordAudit).not.toHaveBeenCalled();
   });
 

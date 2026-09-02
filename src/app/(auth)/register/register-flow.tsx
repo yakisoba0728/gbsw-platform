@@ -29,8 +29,6 @@ export function RegisterFlow() {
     CHECK_INITIAL,
   );
 
-  // 폼 action에는 서버 액션을 그대로 물린다 — 클라이언트 함수를 끼우면 JS 없이
-  // 동작하지 않는다. 그래서 "뒤로"도 상태가 아니라 /register 재진입으로 푼다.
   return check.code && check.role ? (
     <ProfileStep code={check.code} role={check.role} />
   ) : (
@@ -43,7 +41,6 @@ export function RegisterFlow() {
   );
 }
 
-/** 라벨 옆에 옅게 붙는 보조 문구. */
 function Hint({ children }: { children: React.ReactNode }) {
   return <span className="font-normal text-mut">{children}</span>;
 }
@@ -109,18 +106,12 @@ function ProfileStep({ code, role }: { code: string; role: Role }) {
     <form action={formAction} className="animate-auth-in">
       <input type="hidden" name="code" value={code} />
 
-      {/* 같은 주소로 되돌아가 1단계부터 다시 시작한다 (JS 없이도 동작). */}
       <BackLink href="/register" reload className="mb-3">
         가입코드 다시 입력
       </BackLink>
 
       <h1 className="mb-6 text-title font-semibold text-ink">정보 입력</h1>
 
-      {/*
-        비제어 칸이라 실패 뒤 폼 자동 리셋(React 19)에 지워진다. 액션이 되돌려준
-        제출값을 defaultValue로 다시 심어 살린다 — 리셋은 이 커밋의 DOM 갱신이
-        끝난 뒤에 돌아서 새 defaultValue를 본다. 비밀번호 두 칸은 일부러 뺐다.
-      */}
       {role === "STUDENT" ? (
         <div className="mb-3 grid grid-cols-2 gap-2">
           <div>

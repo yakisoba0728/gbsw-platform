@@ -28,10 +28,6 @@ import { honorificName } from "@/core/authz/roles";
 
 export const metadata: Metadata = { title: "상벌점 확인서" };
 
-/**
- * 상담·가정통신용 인쇄 화면. 앱 셸이 종이에 같이 찍히면 못 쓰므로 `print:`로 뺀다.
- * 별도 레이아웃을 두지 않는 것은 (app) 레이아웃의 세션 가드를 잃지 않기 위해서다.
- */
 export default async function MeritPrintPage({
   params,
   searchParams,
@@ -57,12 +53,10 @@ export default async function MeritPrintPage({
     ]);
   } catch (error) {
     if (!(error instanceof AcademicYearError)) throw error;
-    // 현재 학년도가 없으면 두 조회가 모두 던진다 — 학생이 있는지조차 모른다.
     noCurrentYear = true;
   }
 
   if (!view || !header) {
-    // 404는 없는 학생에게만 준다 — 학년도가 없는 것은 다른 상태이고 안내를 띄운다.
     if (!noCurrentYear) notFound();
 
     return (
@@ -86,7 +80,6 @@ export default async function MeritPrintPage({
         <PrintButton />
       </div>
 
-      {/* 종이에서는 카드 테두리·여백을 푼다 — 인쇄기가 자기 여백을 이미 준다. */}
       <article className={cardClass("page", "print:rounded-none print:border-0 print:p-0")}>
         <header className="border-b border-line pb-4">
           <p className="text-xs font-medium text-mut">
@@ -98,8 +91,6 @@ export default async function MeritPrintPage({
         </header>
 
         <dl className="grid grid-cols-2 gap-x-6 gap-y-2 border-b border-line py-4 text-sm">
-          {/* 서식의 「이름」 항목이라 맨이름이다 — 이 줄은 사람을 부르는 자리가
-              아니라 기재란이다. 발급자(아래 footer)는 부르는 자리라 호칭을 붙인다. */}
           <Row label="이름" value={header.name} />
           <Row label="학생코드" value={header.studentCode} mono />
           <Row
@@ -111,8 +102,6 @@ export default async function MeritPrintPage({
             }
           />
           <Row label="집계 범위" value={scope} />
-          {/* 화면의 꼬리표는 종이에 안 찍힌다 — 명단에서 빠진 사실은 본문에 적는다.
-              날짜가 아니라 학적을 적는 이유: 학적에 「언제 바뀌었나」가 없다. */}
           {header.removed && (
             <Row
               label="학적"
@@ -125,8 +114,6 @@ export default async function MeritPrintPage({
           )}
         </dl>
 
-        {/* 합계 4칸. 뷰포트가 아니라 놓인 자리의 폭을 본다 — MeritTotalsCards와 같은 기준이다.
-            종이(A4 ≈ 794px)는 언제나 448px를 넘으므로 4칸 그대로 찍힌다. */}
         <div className="@container py-4">
           <MeritTotalsCards totals={view.totals} />
         </div>
@@ -177,7 +164,6 @@ export default async function MeritPrintPage({
           </TableFrame>
         )}
 
-        {/* 종이에는 툴팁이 없다 — 두 날짜가 갈린 줄은 각주로 적는다. */}
         {backdated.length > 0 && (
           <p className="mt-4 text-xs text-mut">
             * 표시한 항목은 일이 일어난 뒤에 입력된 기록입니다 (표의 날짜는 발생일).
@@ -199,7 +185,6 @@ export default async function MeritPrintPage({
   );
 }
 
-/** 학년도가 없어 확인서를 못 그리는 경우에도 돌아갈 길은 남는다. */
 function StudentBackLink({ studentId, track }: { studentId: string; track: MeritTrack }) {
   return (
     <BackLink href={`/students/${studentId}?tab=merit&track=${track}`}>
@@ -215,7 +200,6 @@ function Row({
 }: {
   label: string;
   value: string;
-  /** 대조해서 읽는 값(학생코드·날짜)에 준다. */
   mono?: boolean;
 }) {
   return (
@@ -226,7 +210,6 @@ function Row({
   );
 }
 
-/** 발생일이다. 입력일이 다른 줄에는 * 표시가 붙고 아래 각주가 설명한다. */
 const PRINT_HEADERS = [
   "발생일",
   "구분",
@@ -241,10 +224,6 @@ const PRINT_HEADERS = [
 
 const PRINT_COLS = ["w-[96px]", "w-[64px]", undefined, "w-[64px]", "w-[104px]"];
 
-/**
- * 확인서의 셀 여백. 카드가 이미 `p-8`을 갖고 있어 표의 바깥 여백은 끈다 —
- * 그대로 두면 표의 첫 글자만 20px 더 들어가 위 문단과 왼쪽 끝이 어긋난다.
- */
 function printCell(index: number): string {
   return `${tableCellPadding(index, PRINT_HEADERS.length, false)} py-2.5`;
 }

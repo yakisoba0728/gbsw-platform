@@ -48,19 +48,6 @@ import {
   getMyLivePasses,
 } from "@/modules/pass/request.service";
 
-/**
- * 대시보드.
- *
- * **여기는 지금 해야 할 일이 있는 자리다.** 예전에는 합계 카드 둘만 두고
- * "목록도 바로가기도 여기서 다시 만들지 않는다"고 못박았는데, 그 결과 화면을
- * 열면 숫자 넷과 빈 바닥이 남았다 — 교사가 아침에 처음 여는 화면이 「결재할
- * 것이 있는지」를 답하지 못하고, 답을 얻으려면 사이드바에서 출입증을 눌러
- * 들어가야 했다. 합계는 그날의 상태고, 목록은 그날의 일이다. 둘 다 필요하다.
- *
- * 대신 규칙을 둔다: **이 화면은 아무것도 바꾸지 않는다.** 승인·반려·부여
- * 버튼은 여기 두지 않고 제 화면으로 보낸다. 한 건을 처리하러 온 사람이
- * 나머지 목록을 못 보고 돌아가는 일이 없게, 판단은 늘 전체가 보이는 곳에서 한다.
- */
 export default async function DashboardPage() {
   const user = await requireAuth();
 
@@ -69,18 +56,13 @@ export default async function DashboardPage() {
   return <StudentDashboard user={user} />;
 }
 
-/** 대시보드의 세로 간격. 카드마다 적으면 화면끼리 어긋난다. */
 function Stack({ children }: { children: ReactNode }) {
   return <div className="mx-auto max-w-5xl space-y-4">{children}</div>;
 }
 
-/** 카드 두 장을 나란히. 뷰포트가 아니라 놓인 자리의 폭을 본다. */
 function TwoUp({ children }: { children: ReactNode }) {
   return (
     <div className="@container">
-      {/* items-start — 격자 기본값(stretch)이면 짧은 카드가 옆의 긴 카드 높이까지
-          늘어난다. 「신청이 없습니다」 한 줄이 320px 상자 한가운데 뜨는 그림이
-          그것이었다. 카드는 제 내용만큼만 선다. */}
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 @3xl:grid-cols-2">
         {children}
       </div>
@@ -88,7 +70,6 @@ function TwoUp({ children }: { children: ReactNode }) {
   );
 }
 
-/** 카드 머리글 오른쪽의 링크. 화살표는 링크 이름이 아니라 장식이다. */
 function CardLink({ href, children }: { href: string; children: ReactNode }) {
   return (
     <Link
@@ -100,7 +81,6 @@ function CardLink({ href, children }: { href: string; children: ReactNode }) {
   );
 }
 
-/** 「1-3 7번」. 재적이 없는 학생은 학급이 없다 — 그 자리를 지어내지 않는다. */
 function classLabel(
   grade: number | null | undefined,
   classNo: number | null | undefined,
@@ -110,16 +90,10 @@ function classLabel(
   return number == null ? `${grade}-${classNo}` : `${grade}-${classNo} ${number}번`;
 }
 
-/**
- * 유형·상태는 DB에서 문자열로 온다(Prisma 스키마가 enum이 아니다). 표를 바로
- * 색인하면 타입이 막고, 억지로 캐스팅하면 언젠가 모르는 값이 화면에 라벨 대신
- * 빈칸으로 뜬다 — 모르는 값은 그 값 그대로 보여준다.
- */
 function passTypeLabel(value: string): string {
   return isPassType(value) ? PASS_TYPE_LABELS[value] : value;
 }
 
-/** 상태 배지. 모르는 상태는 중립으로 그린다. */
 function PassStatusBadge({ pass }: { pass: { type: string; status: string } }) {
   if (!isPassStatus(pass.status)) {
     return <Badge tone="neutral">{pass.status}</Badge>;
@@ -129,12 +103,10 @@ function PassStatusBadge({ pass }: { pass: { type: string; status: string } }) {
   );
 }
 
-/** 보조 줄을 「·」로 잇는다. 없는 조각은 빠지고 구분점도 함께 빠진다. */
 function joinMeta(...parts: (string | null | undefined | false)[]): string {
   return parts.filter(Boolean).join(" · ");
 }
 
-/** 「8. 30. 14:00 ~ 18:00」. 날이 넘어가면 뒤쪽도 날짜를 적는다. */
 function windowLabel(startAt: Date, endAt: Date): string {
   const sameDay = formatMonthDay(startAt) === formatMonthDay(endAt);
   return sameDay
@@ -142,11 +114,7 @@ function windowLabel(startAt: Date, endAt: Date): string {
     : `${formatMonthDayTime(startAt)} ~ ${formatMonthDayTime(endAt)}`;
 }
 
-// ── 교사 ────────────────────────────────────────────────────────
-
 async function TeacherDashboard({ user }: { user: SessionUser }) {
-  // 한 화면이 한 순간을 본다. 칸마다 new Date()를 만들면 자정을 끼고 「대기 3건」
-  // 옆에 두 건짜리 목록이 선다.
   const now = new Date();
 
   const [pendingResult, activeResult, recent, posts] = await Promise.all([
@@ -284,13 +252,6 @@ async function TeacherDashboard({ user }: { user: SessionUser }) {
   );
 }
 
-/**
- * 교사가 처음 보는 네 숫자.
- *
- * 앞의 둘은 **지금 처리할 일**이고 뒤의 둘은 **최근 이레의 흐름**이다. 둘이
- * 한 띠에 서므로 성질이 다르다는 것을 라벨이 말해야 한다 — 「최근 7일」을
- * 뒤쪽 두 칸의 밑줄에 적는다.
- */
 async function TeacherStats({
   user,
   now,
@@ -310,8 +271,6 @@ async function TeacherStats({
     awardCount = summary.totals.awardCount;
     net = summary.totals.net;
   } catch (error) {
-    // 학년도가 없으면 상벌점 두 칸이 성립하지 않는다. 출입증 두 칸은 학년도와
-    // 무관하게 선다 — 띠 전체를 지우면 결재 대기가 몇 건인지도 사라진다.
     if (!(error instanceof AcademicYearError)) throw error;
   }
 
@@ -346,8 +305,6 @@ async function TeacherStats({
   );
 }
 
-// ── 학생 ────────────────────────────────────────────────────────
-
 async function StudentDashboard({ user }: { user: SessionUser }) {
   const now = new Date();
   const [merit, live, posts] = await Promise.all([
@@ -358,9 +315,6 @@ async function StudentDashboard({ user }: { user: SessionUser }) {
 
   return (
     <Stack>
-      {/* 학년도가 없으면 상벌점 두 칸이 성립하지 않는다. 출입증과 새 글은 학년도와
-          무관하게 선다 — 화면 전체를 안내로 덮으면 승인된 외박이 있는지도 사라진다.
-          교사 쪽 TeacherStats와 같은 판단이다. */}
       {merit === "no-year" ? (
         <NoAcademicYearNotice title="상벌점" />
       ) : (
@@ -409,7 +363,6 @@ async function StudentDashboard({ user }: { user: SessionUser }) {
   );
 }
 
-/** 학년도가 없으면 상벌점이 성립하지 않는다 — 두 트랙을 한 번에 가른다. */
 async function loadOwnMerit(
   user: SessionUser,
 ): Promise<{ school: StudentMeritView; dorm: StudentMeritView } | "no-year"> {
@@ -424,8 +377,6 @@ async function loadOwnMerit(
     return "no-year";
   }
 }
-
-// ── 학부모 ──────────────────────────────────────────────────────
 
 async function ParentDashboard({ user }: { user: SessionUser }) {
   const children = await listMyChildren(user);
@@ -446,8 +397,6 @@ async function ParentDashboard({ user }: { user: SessionUser }) {
 
   return (
     <Stack>
-      {/* 학생 대시보드와 같다 — 학년도가 없어도 동의 대기는 그대로 선다.
-          자녀 이름 줄은 상벌점 카드의 머리이므로 함께 사라진다. */}
       {merit === "no-year" ? (
         <NoAcademicYearNotice title="상벌점" />
       ) : (
@@ -522,8 +471,6 @@ async function loadChildMerit(
   }
 }
 
-// ── 함께 쓰는 카드 ───────────────────────────────────────────────
-
 function TrackCard({ track, view }: { track: MeritTrack; view: StudentMeritView }) {
   return (
     <SectionCard
@@ -541,7 +488,6 @@ function TrackCard({ track, view }: { track: MeritTrack; view: StudentMeritView 
   );
 }
 
-/** 읽을 수 있는 게시판을 가로지르는 최근 글. 익명 게시판이면 작성자가 없다. */
 function RecentPostsCard({ posts }: { posts: RecentPostView[] }) {
   return (
     <SectionCard

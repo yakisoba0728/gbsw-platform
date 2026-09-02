@@ -23,7 +23,7 @@ describe("requestPassSchema", () => {
     });
     expect(parsed.success).toBe(true);
     if (parsed.success && parsed.data.type === "OUTING") {
-      expect(parsed.data.destination).toBe("치과"); // 앞뒤 공백은 다듬는다
+      expect(parsed.data.destination).toBe("치과");
     }
   });
 
@@ -40,7 +40,6 @@ describe("requestPassSchema", () => {
     expect(parsed.success).toBe(true);
   });
 
-  /** 날짜만 오던 시절의 폼이 남아 있으면 조용히 자정으로 굳는다 — 막는다. */
   it("외박에 시각이 빠지면 거부한다", () => {
     expect(
       requestPassSchema.safeParse({
@@ -93,7 +92,6 @@ describe("issuePassSchema", () => {
     ).toBe(true);
   });
 
-  /** 부여도 시작은 「지금」이지만 **종료는 시각까지 받는다.** */
   it("외박의 종료 시각이 빠지면 거부한다", () => {
     expect(
       issuePassSchema.safeParse({
@@ -246,11 +244,6 @@ describe("passHistoryQuerySchema", () => {
     ).toBe(true);
   });
 
-  /**
-   * 학생 상세의 출입증 탭이 이 값으로 조회를 한 사람으로 좁힌다. zod가 벗겨
-   * 버리면 30일 하한을 걷는 갈래(`decision.service`의 historyFilter)가 통째로
-   * 죽고, 탭은 최근 30일치만 조용히 보여준다.
-   */
   it("학생 좁히기는 파싱을 통과해 살아남는다", () => {
     expect(
       passHistoryQuerySchema.parse({ studentProfileId: "sp-1" }).studentProfileId,
@@ -263,8 +256,6 @@ describe("passHistoryQuerySchema", () => {
     expect(parsed.type).toBe("OUTING");
   });
 
-  // 시트 첫 줄에 적는 조회 창은 늘 30일인데 질의만 열리면 파일에 적힌 기간과
-  // 파일에 든 기록이 어긋난다 — 그래서 내보내기는 학생 좁히기를 받지 않는다.
   it("내보내기 조건에는 학생 좁히기도 없다", () => {
     const parsed = passHistoryExportSchema.parse({ studentProfileId: "sp-1" });
     expect("studentProfileId" in parsed).toBe(false);
@@ -272,20 +263,17 @@ describe("passHistoryQuerySchema", () => {
 });
 
 describe("passHistoryRange", () => {
-  /** 2026-08-26 09:00 KST. 서버가 UTC로 돌아도 눈금은 KST 자정이어야 한다. */
   const NOW = new Date("2026-08-26T00:00:00.000Z");
 
   it("기간을 비우면 오늘을 포함한 최근 30일이다", () => {
     const { since, until } = passHistoryRange({}, NOW);
 
-    expect(formatDateInput(since)).toBe("2026-07-28"); // 7/28 ~ 8/26 = 30일
-    expect(since.toISOString()).toBe("2026-07-27T15:00:00.000Z"); // KST 자정
-    // 상한이 없다 — 다음 주 외박 신청도 「전체 내역」에 들어 있어야 한다.
+    expect(formatDateInput(since)).toBe("2026-07-28");
+    expect(since.toISOString()).toBe("2026-07-27T15:00:00.000Z");
     expect(until).toBeNull();
   });
 
   it("KST로 날이 바뀐 뒤에는 새 날을 기준으로 센다", () => {
-    // 2026-08-26 20:00 UTC = 8/27 05:00 KST. UTC로 자르면 하루 밀린다.
     const { since } = passHistoryRange({}, new Date("2026-08-26T20:00:00.000Z"));
     expect(formatDateInput(since)).toBe("2026-07-29");
   });
@@ -297,6 +285,6 @@ describe("passHistoryRange", () => {
 
   it("끝을 고르면 그날을 통째로 포함한다 — 다음 날 자정 미만", () => {
     const { until } = passHistoryRange({ to: "2026-08-20" }, NOW);
-    expect(until?.toISOString()).toBe("2026-08-20T15:00:00.000Z"); // 8/21 00:00 KST
+    expect(until?.toISOString()).toBe("2026-08-20T15:00:00.000Z");
   });
 });

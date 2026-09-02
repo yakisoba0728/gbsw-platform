@@ -25,15 +25,13 @@ function isInvalidPasswordError(error: unknown): boolean {
   );
 }
 
-/**
- * 본인 비밀번호 변경. 별도 권한 액션이 없다 — 대상이 항상 세션에서 정해져
- * 남의 계정을 건드릴 경로가 없다.
- */
+/** 별도 권한 액션 없이 세션 사용자의 계정만 변경한다. */
 export async function changeOwnPassword(
   actor: SessionUser,
   input: ChangePasswordInput,
   requestHeaders: Headers,
 ): Promise<void> {
+  // 검증 도중 비밀번호가 바뀌면 저장 시 revision 비교로 거부한다.
   const credential = await repo.findOwnCredentialAccountRevision(actor.id);
   if (!credential) throw new Error("CREDENTIAL_ACCOUNT_NOT_FOUND");
 
@@ -54,7 +52,6 @@ export async function changeOwnPassword(
     throw new Error("SESSION_NOT_FOUND");
   }
 
-  // Better Auth가 로그인 때 쓰는 것과 같은 해시 함수. 트랜잭션 밖에서 끝낸다.
   const passwordHash = await hashPassword(input.newPassword);
 
   await withTransaction(async (tx) => {

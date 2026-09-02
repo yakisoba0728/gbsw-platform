@@ -26,7 +26,6 @@ test("비로그인 사용자는 보호 화면 대신 로그인 흐름을 완료�
 test("자바스크립트가 없어도 로그인 자격 증명을 POST로만 보낸다", async ({
   browser,
 }, testInfo) => {
-  // browser에서 직접 만든 context에는 config의 `use.baseURL`이 자동 상속되지 않는다.
   const context = await browser.newContext({
     javaScriptEnabled: false,
     baseURL: testInfo.project.use.baseURL,
@@ -43,8 +42,6 @@ test("자바스크립트가 없어도 로그인 자격 증명을 POST로만 보�
 
     await page.getByLabel("이메일").fill("no-js@example.invalid");
     await page.getByLabel("비밀번호").fill("fake-password-for-no-js");
-    // JS를 끈 Next dev 문서는 웹폰트 로딩 중 버튼 위치가 계속 흔들릴 수 있다.
-    // 실제 native form 제출 자체를 검증하려고 비밀번호 칸의 Enter로 보낸다.
     await page.getByLabel("비밀번호").press("Enter");
 
     await expect(page.getByText("이메일 또는 비밀번호가 맞지 않습니다.")).toBeVisible();

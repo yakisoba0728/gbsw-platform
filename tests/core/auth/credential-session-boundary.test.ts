@@ -14,7 +14,6 @@ vi.mock("@/core/db/client", () => ({
 
 const {
   assertCredentialSignInSessionStillCurrent,
-  isCredentialSignInHookContext,
   lockCredentialAccountForMutation,
 } = await import("@/core/auth/credential-session-boundary");
 
@@ -27,17 +26,6 @@ describe("credential session boundary", () => {
       ]),
       session: { deleteMany: vi.fn().mockResolvedValue({ count: 1 }) },
     }));
-  });
-
-  it("credential sign-in hook context만 골라낸다", () => {
-    expect(isCredentialSignInHookContext({
-      path: "/sign-in/email",
-      body: { email: "student@gbsw.hs.kr", password: "old-password" },
-    })).toBe(true);
-    expect(isCredentialSignInHookContext({
-      path: "/get-session",
-      body: { email: "student@gbsw.hs.kr", password: "old-password" },
-    })).toBe(false);
   });
 
   it("credential sign-in 세션은 현재 account row lock 아래에서 현재 해시로 재검증한다", async () => {
@@ -102,10 +90,13 @@ describe("credential session boundary", () => {
     expect(db.$queryRaw).toHaveBeenCalledOnce();
   });
 
-  it("credential sign-in이 아닌 세션 생성은 재검증하지 않는다", async () => {
+  it.each([
+    { path: "/verify-email", body: {} },
+    { path: "/get-session", body: { email: "student@gbsw.hs.kr", password: "old-password" } },
+  ])("$path 세션 생성은 credential 재검증을 하지 않는다", async (context) => {
     await assertCredentialSignInSessionStillCurrent(
       { id: "session-new", userId: "u1" },
-      { path: "/verify-email", body: {} },
+      context,
     );
 
     expect(withTransaction).not.toHaveBeenCalled();

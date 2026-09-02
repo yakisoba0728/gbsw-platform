@@ -20,8 +20,6 @@ import {
   updateUserAction,
 } from "../actions";
 
-/** 각 폼이 자기 결과를 직접 렌더한다. 부모로 끌어올리면 렌더 중 setState로 터진다. */
-
 export type EditableUser = {
   id: string;
   name: string;
@@ -29,7 +27,6 @@ export type EditableUser = {
   phone: string;
   updatedAt: string;
   isStudent: boolean;
-  /** 재학 중일 때만 true — 이때만 학년·반·번호를 이 화면에서 고칠 수 있다. */
   canEditAssignment: boolean;
   birthDate: string;
   grade: string;
@@ -55,9 +52,6 @@ export function EditUserForm({ user }: { user: EditableUser }) {
     UPDATE_USER_INITIAL,
   );
 
-  // React 19는 액션이 끝나면 폼을 자동 reset()한다 — 리셋이 되돌리는 값이
-  // 곧 defaultValue다. 저장이 거부됐으면 방금 제출한 값을 내려 교사가 고친
-  // 칸을 지키고, 성공했으면 revalidate가 가져온 서버 값을 그대로 쓴다.
   const kept = state.values;
 
   return (
@@ -115,10 +109,6 @@ export function EditUserForm({ user }: { user: EditableUser }) {
           />
 
           {user.canEditAssignment ? (
-            // 세 칸 모두 type="number"가 아니다. react-dom은 포커스된 number
-            // 칸의 defaultValue 갱신을 건너뛰므로(커서 튐 방지), 그 칸에 커서를
-            // 둔 채 Enter로 제출해 거부되면 위의 리셋이 옛 값을 되돌린다.
-            // 잃는 min·max는 updateUserSchema가 한글 문구로 그대로 막는다.
             <div className="mb-4 grid grid-cols-3 gap-2">
               <div>
                 <Label htmlFor="grade">학년</Label>
@@ -155,8 +145,6 @@ export function EditUserForm({ user }: { user: EditableUser }) {
               </div>
             </div>
           ) : (
-            // 재학 중이 아니면 칸을 감춘다 — 생년월일 오타 하나를 고치려고
-            // 학년·반·번호를 지어낼 필요가 없어야 한다.
             <p className="mb-4 text-caption text-mut">
               재학 중이 아니라 학년·반·번호는 여기서 고칠 수 없습니다. 학적은 학생
               관리에서 바꿉니다.
@@ -203,8 +191,6 @@ export function ResetPasswordForm({ user }: { user: EditableUser }) {
     USER_ACTION_INITIAL,
   );
 
-  // 초기화는 대상의 세션을 전부 끊는다 — 자기 자신이면 임시 비밀번호를 받기 전에
-  // 로그아웃된다. 서버도 같은 이유로 막지만 버튼부터 잠근다.
   const blocked = user.isSelf;
 
   return (
@@ -306,9 +292,6 @@ export function ToggleActiveForm({ user }: { user: EditableUser }) {
   );
 }
 
-/**
- * 완전 삭제 (오등록 정리 전용). 이름 직접 입력을 요구하는 것도 서버가 다시 대조한다.
- */
 export function HardDeleteForm({ user }: { user: EditableUser }) {
   const [state, formAction, pending] = useActionState(
     deleteUserPermanentlyAction,
@@ -325,9 +308,6 @@ export function HardDeleteForm({ user }: { user: EditableUser }) {
         되돌릴 수 없습니다. 소속 이력·상벌점·초대코드가 함께 사라집니다.
       </p>
 
-      {/* **여기만 맨이름이다.** 이 괄호 안은 부르는 말이 아니라 아래 칸에 글자
-          그대로 옮겨 적어야 하는 값이다 — 호칭을 붙이면 그대로 따라 적은 사람이
-          검사에 걸린다. */}
       <Label htmlFor="confirmName">
         확인을 위해 이름(<span className="font-medium text-ink">{user.name}</span>)을
         그대로 입력해 주세요

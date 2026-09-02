@@ -1,10 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-/**
- * 비밀번호 변경 액션의 경계. FormData는 change-password-form.tsx가 보내는
- * 세 필드 그대로 만든다. 이 액션만 allowMustChangePassword로 시작한다.
- */
-
 const requireAuth = vi.fn(async () => ({ id: "u-1", role: "STUDENT" }));
 const changeOwnPassword = vi.fn();
 class InvalidCurrentPasswordError extends Error {}
@@ -114,7 +109,6 @@ describe("changePasswordAction — 경계 검증", () => {
     expect(state.error).toBe("현재 비밀번호를 입력해 주세요.");
   });
 
-  // 액션이 필드를 안 읽으면 zod가 영문을 뱉는다. 그 지문을 못 박는다.
   it("필드를 안 읽으면 영문 지문이 화면에 나간다", async () => {
     const state = await changePasswordAction(INITIAL, new FormData());
 

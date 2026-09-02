@@ -8,7 +8,6 @@ vi.mock("@/core/db/client", () => ({
   prisma: { auditLog: { create }, user: { findUnique } },
 }));
 
-// next/headers는 요청 컨텍스트 밖에서 못 쓴다. 읽기 함수만 갈아끼운다.
 const readRequestContext = vi.fn();
 vi.mock("@/core/audit/request-context", () => ({ readRequestContext }));
 
@@ -264,8 +263,6 @@ describe("recordAudit()", () => {
   });
 
   it("직렬화 충돌(40001)은 삼키지 않고 전파한다", async () => {
-    // 삼키면 트랜잭션은 어차피 죽고 40001만 사라져, 호출부의
-    // isSerializationConflict가 ROSTER_CHANGED로 옮길 근거를 잃는다.
     const conflict = Object.assign(new Error("transaction conflict"), {
       code: "P2010",
       meta: { driverAdapterError: { cause: { originalCode: "40001" } } },
@@ -325,7 +322,6 @@ describe("recordAudit()", () => {
   });
 
   it("트랜잭션을 죽이지 않는 조회 실패는 여전히 (알 수 없음)으로 떨어진다", async () => {
-    // 연결 끊김 같은 오류는 감사 기록을 막을 이유가 아니다.
     findUnique.mockRejectedValue(
       Object.assign(new Error("connection reset"), {
         code: "P2010",

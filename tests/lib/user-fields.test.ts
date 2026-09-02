@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { emailField, phoneField } from "@/lib/user-fields";
 
-/*
- * 가입 · 최초 관리자 생성 · 관리자 수정이 공유하는 규칙이다.
- * 여기가 흔들리면 세 경로의 저장 표기가 서로 어긋나고,
- * 인증 기록 대조와 수정 화면의 변경 감지가 같이 틀어진다.
- */
-
 describe("phoneField", () => {
   it("어떻게 넣든 010-0000-0000 표기로 저장한다", () => {
     for (const input of [

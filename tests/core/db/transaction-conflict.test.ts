@@ -4,12 +4,6 @@ import {
   isTransactionFatal,
 } from "@/core/db/transaction-conflict";
 
-/**
- * 판정이 두 개인 것이 이 파일의 요점이다. 하나로 합치려는 다음 사람이
- * 여기서 막혀야 한다 — 묻는 것이 다르므로 답도 다르다.
- */
-
-/** 드라이버 어댑터가 원래 SQLSTATE를 감춰 오는 모양 (P2010). */
 function wrapped(originalCode: string) {
   return Object.assign(new Error("db"), {
     code: "P2010",
@@ -37,8 +31,6 @@ describe("isSerializationConflict — 다시 열면 되는가", () => {
   });
 
   it("이미 중단된 트랜잭션(25P02)은 재시도 근거가 아니다", () => {
-    // 원인이 아니라 여진이다 — 진짜 실패는 앞 문장에서 났다. 이걸 보고 다시 열면
-    // 원인을 가린 채 같은 실패를 반복한다.
     expect(isSerializationConflict(wrapped("25P02"))).toBe(false);
   });
 
@@ -64,7 +56,6 @@ describe("isTransactionFatal — 삼키면 안 되는가", () => {
   it("트랜잭션을 죽이는 상태 셋을 모두 올려 보낸다", () => {
     for (const state of ["40001", "40P01", "25P02"]) {
       expect(isTransactionFatal(wrapped(state))).toBe(true);
-      // 어댑터를 거치지 않고 날 코드로 올라오는 경로도 받는다.
       expect(isTransactionFatal(Object.assign(new Error("x"), { code: state }))).toBe(true);
     }
   });
@@ -90,8 +81,6 @@ describe("isTransactionFatal — 삼키면 안 되는가", () => {
 
 describe("두 판정의 경계", () => {
   it("교착·중단은 삼키지 않되 재시도하지도 않는다", () => {
-    // 40P01 교착은 Prisma가 P2034로 싸 주므로 재시도 갈래는 그쪽에서 잡는다.
-    // 25P02는 애초에 원인이 아니다. 둘 다 삼키면 원래 코드만 사라진다.
     for (const state of ["40P01", "25P02"]) {
       expect(isTransactionFatal(wrapped(state))).toBe(true);
       expect(isSerializationConflict(wrapped(state))).toBe(false);

@@ -38,7 +38,6 @@ export async function ParentView({
 
       <SectionCard
         title="확인이 필요한 신청"
-        // 판독은 메뉴에서 빠졌다 — 세 역할 모두 출입증 화면에서 들어간다.
         aside={
           <Link
             href="/scan"

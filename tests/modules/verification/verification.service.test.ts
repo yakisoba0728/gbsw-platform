@@ -38,8 +38,6 @@ vi.mock("@/modules/verification/verification.sender", () => ({
   sendVerification,
 }));
 vi.mock("@/core/db/client", () => ({ withTransaction }));
-// requestCode()가 IP별 한도(I4)를 보려고 접속 정보를 읽는다. next/headers는
-// 요청 컨텍스트 밖(테스트)에서 못 쓰므로 읽기 함수만 갈아끼운다.
 vi.mock("@/core/audit/request-context", () => ({ readRequestContext }));
 
 const {
@@ -125,7 +123,6 @@ describe("requestCode()", () => {
       new Error("알리고 발송 실패 (result_code=-101, message=인증오류입니다.-IP)"),
     );
 
-    // 키·IP 같은 인프라 정보가 화면으로 새면 안 된다.
     await expect(requestCode("EMAIL", "a@b.kr")).rejects.not.toThrow("-101");
   });
 
@@ -306,7 +303,6 @@ describe("requireVerified()", () => {
     findVerified.mockResolvedValue(null);
 
     await expect(requireVerified("EMAIL", "other@b.kr")).rejects.toThrow();
-    // 조회 대상이 입력값 그대로여야 한다.
     expect(findVerified.mock.calls[0]![1]).toBe("other@b.kr");
   });
 

@@ -35,8 +35,6 @@ vi.mock("@/modules/community/community.storage", async () => {
   const actual = await vi.importActual<
     typeof import("@/modules/community/community.storage")
   >("@/modules/community/community.storage");
-  // classifyUpload·newStorageKey는 진짜를 쓴다 — 허용 목록이 이 서비스의
-  // 문 가운데 하나라 목으로 가리면 검증이 사라진다.
   return { ...actual, writeAttachment, readAttachment, deleteAttachment };
 });
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
@@ -60,16 +58,9 @@ const board = {
   writeRoles: ["STUDENT"],
 };
 
-/**
- * 문(門)들을 시험하는 기본 업로드. **사진이 아니라 문서다** — 이제 모든 이미지가
- * 메타데이터 제거를 지나므로, 여기에 가짜 PNG 바이트를 두면 권한·상한·정리를
- * 보려는 테스트가 전부 ATTACHMENT_METADATA로 죽는다. 사진 경로는 아래
- * 「사진의 메타데이터」 묶음이 진짜 바이트로 따로 본다.
- */
 const upload = {
   slug: "free",
   filename: "가정통신문.pdf",
-  mimeType: "application/pdf",
   bytes: Buffer.from("%PDF-1.7\n(본문)"),
 };
 
@@ -80,7 +71,6 @@ beforeEach(() => {
   countPending.mockResolvedValue(0);
   lockAttachmentUploader.mockResolvedValue(undefined);
   listStalePending.mockResolvedValue([]);
-  // 약속을 돌려주게 둔다 — 서비스가 `.catch()`를 붙이는 자리가 있다.
   deleteAttachments.mockResolvedValue(undefined);
   writeAttachment.mockResolvedValue(undefined);
   deleteAttachment.mockResolvedValue(undefined);
@@ -90,7 +80,7 @@ beforeEach(() => {
   });
 });
 
-describe("uploadAttachment — 문 ①: 권한", () => {
+describe("uploadAttachment — 권한", () => {
   it("쓸 수 있는 게시판이면 받는다", async () => {
     const result = await service.uploadAttachment(student, upload);
 
@@ -103,7 +93,7 @@ describe("uploadAttachment — 문 ①: 권한", () => {
     });
   });
 
-  it("**쓸 수 없으면 바이트 하나 쓰기 전에 막는다**", async () => {
+  it("쓸 수 없으면 바이트 하나 쓰기 전에 막는다", async () => {
     getWritableBySlug.mockRejectedValue(new ForbiddenError("community:write"));
 
     await expect(service.uploadAttachment(parent, upload)).rejects.toThrow(
@@ -123,7 +113,7 @@ describe("uploadAttachment — 문 ①: 권한", () => {
   });
 });
 
-describe("uploadAttachment — 문 ②: 형식과 용량", () => {
+describe("uploadAttachment — 형식과 용량", () => {
   it("svg는 거부하고 디스크를 안 건드린다", async () => {
     await expect(
       service.uploadAttachment(student, { ...upload, filename: "icon.svg" }),
@@ -143,38 +133,30 @@ describe("uploadAttachment — 문 ②: 형식과 용량", () => {
     expect(writeAttachment).not.toHaveBeenCalled();
   });
 
-  it("브라우저가 보낸 타입이 아니라 확장자가 저장 타입을 정한다", async () => {
+  it("확장자가 저장 타입을 정한다", async () => {
     const result = await service.uploadAttachment(student, {
       ...upload,
       filename: "보고서.pdf",
-      mimeType: "text/html",
     });
     expect(result.mimeType).toBe("application/pdf");
   });
 });
 
 describe("uploadAttachment — 익명 게시판의 메타데이터 벗기기", () => {
-  /**
-   * 바이트 규격 자체는 `exif.test.ts`가 본다. 여기서 볼 것은 하나다 —
-   * **게시판이 익명인가로 갈리는가, 그리고 갈린 결과가 size·감사로그·응답까지
-   * 따라가는가.** 벗긴 뒤에도 원본 길이를 적으면 DB가 말하는 크기와 디스크의
-   * 파일이 어긋난다.
-   */
   const EXIF = Buffer.from("Exif\0\0II*\0GPSLatitude=36.11", "utf8");
 
-  /** EXIF 하나가 든 최소 JPEG. 벗기면 SOI·SOS·화소·EOI만 남는다. */
   function jpegWithExif(): Buffer {
     const app1 = Buffer.alloc(4);
     app1.writeUInt8(0xff, 0);
     app1.writeUInt8(0xe1, 1);
     app1.writeUInt16BE(EXIF.length + 2, 2);
     return Buffer.concat([
-      Buffer.from([0xff, 0xd8]), // SOI
+      Buffer.from([0xff, 0xd8]),
       app1,
       EXIF,
-      Buffer.from([0xff, 0xda, 0x00, 0x03, 0x01]), // SOS 머리
-      Buffer.from([0xaa, 0xbb]), // 화소
-      Buffer.from([0xff, 0xd9]), // EOI
+      Buffer.from([0xff, 0xda, 0x00, 0x03, 0x01]),
+      Buffer.from([0xaa, 0xbb]),
+      Buffer.from([0xff, 0xd9]),
     ]);
   }
 
@@ -183,21 +165,20 @@ describe("uploadAttachment — 익명 게시판의 메타데이터 벗기기", (
   ]);
 
   const anonymous = { ...board, slug: "secret", anonymous: true };
-  const photo = { ...upload, filename: "사진.jpg", mimeType: "image/jpeg" };
+  const photo = { ...upload, filename: "사진.jpg" };
 
-  it("**벗긴 바이트를 저장한다**", async () => {
+  it("벗긴 바이트를 저장한다", async () => {
     getWritableBySlug.mockResolvedValue(anonymous);
 
     await service.uploadAttachment(student, { ...photo, bytes: jpegWithExif() });
 
     const written = writeAttachment.mock.calls[0][2] as Buffer;
     expect(written.equals(STRIPPED)).toBe(true);
-    // 화소는 그대로고 촬영 위치만 사라졌다.
     expect(written.includes(Buffer.from("GPS"))).toBe(false);
     expect(written.includes(Buffer.from([0xaa, 0xbb]))).toBe(true);
   });
 
-  it("**줄어든 길이가 size·감사로그·응답에 함께 간다**", async () => {
+  it("줄어든 길이가 size·감사로그·응답에 함께 간다", async () => {
 
     const result = await service.uploadAttachment(student, {
       ...photo,
@@ -217,9 +198,7 @@ describe("uploadAttachment — 익명 게시판의 메타데이터 벗기기", (
     );
   });
 
-  it("**실명 게시판도 벗긴다** — 익명만 벗기면 실명에 올려 그 id를 익명 글에 실으면 그만이다", async () => {
-    // 첨부는 글보다 먼저 올라가고 새 글의 attachToPost는 올린 사람과 postId: null만 본다.
-    // 게시판으로 가르면 그 사이가 우회로가 된다.
+  it("실명 게시판도 벗긴다 — 익명만 벗기면 실명에 올려 그 id를 익명 글에 실으면 그만이다", async () => {
     await service.uploadAttachment(student, { ...photo, bytes: jpegWithExif() });
 
     const written = writeAttachment.mock.calls[0][2] as Buffer;
@@ -231,11 +210,10 @@ describe("uploadAttachment — 익명 게시판의 메타데이터 벗기기", (
 
     await service.uploadAttachment(student, { ...photo, bytes });
 
-    // 같은 내용이 아니라 **같은 버퍼**여야 한다.
     expect(writeAttachment.mock.calls[0][2]).toBe(bytes);
   });
 
-  it("**못 알아본 사진은 거부한다** — 조용히 원본을 저장하지 않는다", async () => {
+  it("못 알아본 사진은 거부한다 — 조용히 원본을 저장하지 않는다", async () => {
     await expect(
       service.uploadAttachment(student, {
         ...photo,
@@ -244,7 +222,6 @@ describe("uploadAttachment — 익명 게시판의 메타데이터 벗기기", (
       }),
     ).rejects.toThrow(new CommunityError("ATTACHMENT_METADATA"));
 
-    // 행도 파일도 남기지 않는다 — 벗기기는 DB보다 앞이다.
     expect(createAttachment).not.toHaveBeenCalled();
     expect(writeAttachment).not.toHaveBeenCalled();
   });
@@ -255,7 +232,6 @@ describe("uploadAttachment — 익명 게시판의 메타데이터 벗기기", (
     await service.uploadAttachment(student, {
       ...upload,
       filename: "가정통신문.pdf",
-      mimeType: "application/pdf",
       bytes,
     });
 
@@ -263,7 +239,7 @@ describe("uploadAttachment — 익명 게시판의 메타데이터 벗기기", (
   });
 });
 
-describe("uploadAttachment — 문 ③: 미결 첨부 수", () => {
+describe("uploadAttachment — 미결 첨부 수", () => {
   it("10개를 넘으면 거부한다", async () => {
     countPending.mockResolvedValue(10);
     await expect(service.uploadAttachment(student, upload)).rejects.toThrow(
@@ -354,7 +330,7 @@ describe("uploadAttachment — 감사로그", () => {
 });
 
 describe("uploadAttachment — DB와 디스크의 순서", () => {
-  it("**파일은 커밋 뒤에 쓴다** — 트랜잭션 안에서 쓰면 롤백 때 파일이 영구히 샌다", async () => {
+  it("파일은 커밋 뒤에 쓴다 — 트랜잭션 안에서 쓰면 롤백 때 파일이 영구히 샌다", async () => {
     const order: string[] = [];
     createAttachment.mockImplementation(async () => {
       order.push("row");
@@ -439,7 +415,7 @@ describe("getDownload", () => {
     expect(readAttachment).not.toHaveBeenCalled();
   });
 
-  it("**아직 글에 안 붙은 첨부는 올린 본인만 본다**", async () => {
+  it("아직 글에 안 붙은 첨부는 올린 본인만 본다", async () => {
     findAttachmentForDownload.mockResolvedValue({
       ...attachment,
       postId: null,

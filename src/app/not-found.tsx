@@ -2,7 +2,6 @@ import Link from "next/link";
 import { buttonClass } from "@/components/ui/button";
 import { cardClass } from "@/components/ui/card";
 
-/** 라우트 트리에 아예 없는 주소도 영문 기본 화면 대신 이 경계를 쓴다. */
 export default function RootNotFound() {
   return (
     <main className="flex min-h-dvh items-center justify-center px-4 py-10">

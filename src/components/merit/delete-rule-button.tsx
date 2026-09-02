@@ -4,22 +4,11 @@ import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
-/**
- * 이 버튼이 기대하는 서버 액션의 상태 계약. RuleFormState와 같은 모양이지만
- * 거기서 가져오지 않는다 — components/가 app/을 알면 안 된다.
- */
 type DeleteActionState = {
   ok: boolean;
   error: string | null;
 };
 
-/**
- * 규정 삭제. 되돌릴 수 없는 동작이라 앱의 다른 파괴적 동작과 같은 모달을 쓴다 —
- * 여기만 네이티브 confirm()이면 문구·생김새·접근성이 앱 밖에 있게 된다.
- *
- * 사유는 감사로그에만 남는다. 부여 화면에서 항목이 사라진 뒤 "왜 없어졌나"를
- * 되짚을 자료가 그것뿐이다.
- */
 export function DeleteRuleButton({
   ruleId,
   updatedAt,
@@ -28,16 +17,12 @@ export function DeleteRuleButton({
   initialState,
 }: {
   ruleId: string;
-  /** 목록을 그릴 때 읽은 규정 revision. 삭제 감사의 스냅샷도 여기에 묶는다. */
   updatedAt: string;
-  /** 무엇을 지우는지 모달에 적는다 — 표에서 줄을 잘못 짚는 사고를 막는다. */
   label: string;
-  /** `app/(app)/admin/merit/rules/actions.ts`의 deleteRuleAction. */
   deleteAction: (
     prev: DeleteActionState,
     formData: FormData,
   ) => Promise<DeleteActionState>;
-  /** 그 액션의 초기 상태 — `EMPTY_RULE_FORM_STATE`. */
   initialState: DeleteActionState;
 }) {
   const [state, formAction, pending] = useActionState(deleteAction, initialState);

@@ -1,19 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ForbiddenError } from "@/core/authz/errors";
 
-/**
- * 명단 표 저장·학년도 액션의 **경계**.
- * (auth)/register/actions.test.ts와 같은 목적이다.
- *
- * FormData는 화면이 실제로 보내는 name 그대로 만든다.
- * 출처: admin/students/student-table.tsx(`changes` JSON 문자열 + `year`) ·
- * year-switcher.tsx(현재로 지정 / 추가, 둘 다 `year` 하나).
- *
- * `changes`는 **JSON 문자열**이라 폼과 액션 사이에 모양 계약이 하나 더 있다 —
- * student-table.tsx가 실제로 만드는 객체 모양 그대로 세운다.
- */
-
-// 목은 구현 없이 선언하고 기본값은 beforeEach에서 준다.
 const requireAuth = vi.fn();
 const revalidatePath = vi.fn();
 
@@ -54,7 +41,6 @@ function form(fields: Record<string, string>): FormData {
   return fd;
 }
 
-/** student-table.tsx가 만드는 한 줄 그대로 — 빈 칸은 null로 접힌다. */
 const CHANGE = {
   studentProfileId: "sp-1",
   expectedUpdatedAt: null,
@@ -251,10 +237,6 @@ describe("createYearAction — 경계 검증", () => {
     expect(state.error).toBe("이미 있는 학년도입니다.");
   });
 
-  /*
-   * 권한 거부·DB 장애가 "이미 있는 학년도입니다"로 보이면 안 된다 —
-   * 관리자가 있지도 않은 학년도를 지우려 들게 된다.
-   */
   it("권한 거부·장애를 중복인 것처럼 안내하지 않는다", async () => {
     createYear.mockRejectedValueOnce(new Error("FORBIDDEN"));
 
@@ -279,10 +261,6 @@ describe("모든 액션이 requireAuth로 시작한다", () => {
   });
 });
 
-/**
- * 권한 거부가 일반 폴백에 섞이면 안 된다 — 화면이 「저장하지 못했습니다」라고 하면
- * 권한이 없어서 막힌 사람이 일시적 장애로 알고 계속 다시 누른다.
- */
 describe("권한 거부 문구", () => {
   it("표 저장은 일반 폴백과 다른 문구를 낸다", async () => {
     saveEnrollments.mockRejectedValue(new ForbiddenError("student:manage"));
@@ -304,10 +282,6 @@ describe("권한 거부 문구", () => {
   });
 });
 
-/**
- * 현재 학년도는 전교 집계 범위를 정하는 스위치 하나다. 화면에는 일반 문구만
- * 나가므로 서버 로그에도 안 남기면 왜 실패했는지가 어디에도 없다.
- */
 describe("현재 학년도 변경 실패의 흔적", () => {
   it("정체불명 실패는 서버 로그에 남긴다", async () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});

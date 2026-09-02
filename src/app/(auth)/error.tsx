@@ -3,10 +3,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
-/**
- * 로그인·가입 화면의 오류 경계. 이 그룹에는 layout.tsx가 없어 화면 전체를 직접 그린다.
- * `reset`이 아니라 `retry`다 — `reset()`은 서버 오류를 다시 가져오지 않는다.
- */
 export default function AuthError({
   error,
   retry,

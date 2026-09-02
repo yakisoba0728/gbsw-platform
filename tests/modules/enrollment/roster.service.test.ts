@@ -16,11 +16,6 @@ const {
 } = coreMocks("enrollment-roster-service-test");
 const recordAuditMany = vi.fn();
 
-/**
- * 남은 감사로그 줄 전부. 명단 반영은 요약 한 줄은 `recordAudit`으로, 학생 수만큼
- * 늘어나는 줄(삭제·코드 폐기·계정 활성)은 `recordAuditMany`로 한 번에 남긴다 —
- * 잠금을 쥔 채 왕복하지 않으려는 것이라, 어느 쪽으로 남았는지는 검사할 것이 아니다.
- */
 function auditEntries(): { action: string; [key: string]: unknown }[] {
   return [
     ...recordAudit.mock.calls.map((c) => c[0]),
@@ -28,14 +23,12 @@ function auditEntries(): { action: string; [key: string]: unknown }[] {
   ];
 }
 
-/** 감사로그가 하나도 안 남았는가. 두 경로를 함께 본다. */
 function noAudit(): boolean {
   return auditEntries().length === 0;
 }
 const generateUniqueCode = vi.fn();
 const toExpiresAt = vi.fn();
 
-/** roster.repo.ts의 실물과 이름·상속만 같은 자리표시자. instanceof로 구분한다. */
 class InviteCodeCollisionError extends Error {}
 class NumberTakenError extends Error {}
 
@@ -61,7 +54,6 @@ vi.mock("@/modules/academic-year/academic-year.service", () => ({
 }));
 vi.mock("@/modules/invites/invite.service", () => ({ generateUniqueCode, toExpiresAt }));
 
-// RosterError는 이 테스트에서 쓰지 않는다 — 던지는 메시지는 toThrow()로 문자열째 확인한다.
 const {
   applyRosterPlan: applyWithToken,
   createRosterFingerprint,
@@ -72,11 +64,6 @@ const { issuePreviewToken } = await import(
   "@/modules/enrollment/roster.preview-token"
 );
 
-/**
- * 봉인은 `previewRoster`가 찍고 확정이 검증한다. 아래 테스트들은 확정 쪽 규칙을
- * 보는 것이라, 그 미리보기에서 왔을 봉인을 기본값으로 만들어 붙인다. 봉인 자체가
- * 무엇을 막는지는 「미리보기 봉인」 describe가 따로 본다.
- */
 function applyRosterPlan(
   actor: SessionUser,
   expectedYear: number,
@@ -125,8 +112,6 @@ function fingerprint(
   return createRosterFingerprint(existing);
 }
 
-// 기본값은 재학생과 같은 학생코드다 — listExisting이 기본으로 돌려주는 [재학생]과
-// 이어붙는다. existing을 []로 두는 테스트는 studentCode를 ""로 덮어써 신규로 만든다.
 const row = {
   line: 2,
   studentCode: "AAAA2345",
@@ -139,10 +124,6 @@ const row = {
   errors: [],
 };
 
-/** M-1 방어(rows.length===0) 때문에 삭제만 테스트하려고 rows를 통째로 비울 수 없다 —
- * 삭제 대상과 무관한 신규 학생 한 줄을 채워 rows를 비지 않게 하면서도 missingFromFile
- * 계산에는 영향을 주지 않는다. 이름·생년월일을 재학생과 다르게 둬야 "코드가 지워진
- * 것 같다" 상관관계(roster.plan.ts)에 걸려 needsAttention으로 새지 않는다. */
 const 무관한신규줄 = {
   line: 2,
   studentCode: "",
@@ -221,7 +202,6 @@ describe("applyRosterPlan()", () => {
   it("클라이언트가 보낸 행을 다시 분류한다 — 미리보기 결과를 믿지 않는다", async () => {
     await applyRosterPlan(admin, 2026, [row], fingerprint(), [], null);
 
-    // 미리보기 때와 같은 현재 상태를 서버가 다시 읽어야 한다.
     expect(listExisting).toHaveBeenCalledWith(2026);
   });
 
@@ -241,7 +221,6 @@ describe("applyRosterPlan()", () => {
     const audit = recordAudit.mock.calls[0]![0];
     expect(audit.action).toBe("enrollment:import");
     expect(audit.metadata).toMatchObject({ year: 2026, reassign: 1 });
-    // 학생 이름이 로그에 남으면 감사로그가 개인정보 사본이 된다.
     expect(JSON.stringify(audit)).not.toContain("김동혁");
   });
 
@@ -339,7 +318,6 @@ describe("applyRosterPlan()", () => {
   });
 
   describe("비재학 신규 줄은 흔적 없이 버려지지 않는다", () => {
-    /** 미리보기는 "신규 2"로 세는데 확정하면 계정도 코드도 안 생기는 줄. */
     function 신규줄들() {
       listExisting.mockResolvedValue([]);
       const 재학신규 = { ...row, studentCode: "", name: "재학이", birthDate: "2011-01-01" };
@@ -380,13 +358,11 @@ describe("applyRosterPlan()", () => {
       const summary = auditEntries()
         .find((a) => a.action === "enrollment:import");
       expect(summary!.metadata).toMatchObject({ newStudents: 2, excludedNew: 1 });
-      // 이름은 여전히 안 남긴다 — 감사로그가 명단 사본이 되면 안 된다.
       expect(JSON.stringify(summary)).not.toContain("유예생");
     });
   });
 
   it("학적이 안 바뀐 학생은 statusChanged=false로 넘어간다 (C1 회귀 방지)", async () => {
-    // row가 재학생과 같은 학생코드·자리면 untouched로 분류된다.
     const 그대로 = { ...row, grade: 1, classNo: 3, number: 3 };
 
     await applyRosterPlan(admin, 2026, [그대로], fingerprint(), [], null);
@@ -415,7 +391,6 @@ describe("applyRosterPlan()", () => {
       birthDate: `2010-0${i + 1}-01`,
     }));
 
-    // 학생코드로 잇는 특성상 각 row는 대응하는 existing과 studentCode가 같아야 한다.
     const existing = [
       {
         ...재학생,
@@ -504,7 +479,6 @@ describe("applyRosterPlan()", () => {
     const calls = auditEntries();
     const flip = calls.find((c) => c.action === "user:activate");
     expect(flip).toMatchObject({ targetType: "User", targetId: "u-1" });
-    // actorName을 미리 넘긴다 (M8) — 이 루프도 이름을 다시 조회하지 않는다.
     expect(flip?.actorName).toBe(admin.name);
   });
 
@@ -530,8 +504,6 @@ describe("applyRosterPlan()", () => {
   });
 
   it("명단 밖 계정이 붙든 (반, 번호)에 걸리면 NUMBER_TAKEN으로 옮긴다", async () => {
-    // 파일 안의 자리 겹침은 planRoster가 이미 막는다 — 여기까지 오는 건 명단 밖
-    // 계정이 그 자리를 붙들고 있는 경우뿐이라 화면 문구가 그 사실을 말해야 한다.
     applyRoster.mockRejectedValue(new NumberTakenError());
 
     await expect(applyRosterPlan(admin, 2026, [row], fingerprint(), [], null)).rejects.toThrow(
@@ -562,8 +534,6 @@ describe("applyRosterPlan()", () => {
   });
 });
 
-/** 여러 명이 한꺼번에 빠지는 경우(I-3) 테스트용 — 학생 n명이 전부 명단에 없는
- * 상태를 만든다. */
 function 대량학생(n: number) {
   return Array.from({ length: n }, (_, i) => ({
     studentProfileId: `sp-bulk-${i}`,
@@ -582,8 +552,6 @@ function 대량학생(n: number) {
 
 describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () => {
   it("삭제 대상이 있는데 confirmedDeletionIds가 비면 거부한다", async () => {
-    // 기본 listExisting은 [재학생]인데 rows에 대응하는 줄이 없으므로 재학생이
-    // missingFromFile에 들어간다.
     await expect(applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(), [], null)).rejects.toThrow(
       "DELETION_SET_CHANGED",
     );
@@ -646,8 +614,6 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
   });
 
   it("졸업 기록이 있는데 이번 학년도 배정이 남은 학생이 명단에서 빠지면 조용히 다시 쓰지 않는다", async () => {
-    // 2026 졸업 + 2026 재학(재입학·오등록). 예전엔 삭제 면제만 받아 미리보기에서
-    // 사라진 채 untouched로 실려 배정이 그대로 재삽입됐다 — 지금은 확정이 막힌다.
     const 재입학생 = {
       ...재학생,
       studentProfileId: "sp-regrad",
@@ -668,7 +634,6 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
   });
 
   it("삭제 대상이 없으면 빈 배열로도 막지 않는다", async () => {
-    // row가 재학생과 같은 학생코드라 이어붙어 missingFromFile이 비게 된다.
     await applyRosterPlan(admin, 2026, [row], fingerprint(), [], null);
 
     expect(applyRoster).toHaveBeenCalledTimes(1);
@@ -798,7 +763,6 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
     });
 
     it("삭제 대상이 없으면 건수를 안 넣어도 통과한다", async () => {
-      // row가 재학생과 같은 학생코드라 이어붙어 missingFromFile이 빈다.
       await applyRosterPlan(admin, 2026, [row], fingerprint(), [], null);
 
       expect(applyRoster.mock.calls[0]![1].deleteStudentProfileIds).toEqual([]);
@@ -874,12 +838,6 @@ describe("exportRoster()", () => {
   });
 });
 
-/**
- * 「미리보기에서 본 그 내용만 반영한다」 — 학년도·명단 지문·삭제 대상 검사는
- * DB 쪽 명단이 그대로인지를 볼 뿐이라, 클라이언트가 되돌려 보낸 행 자체는 이
- * 봉인만 붙든다. 검증이 액션에 있던 동안에는 서비스만 읽어서는 이 규칙이
- * 있는지조차 알 수 없었다.
- */
 describe("미리보기 봉인", () => {
   it("봉인이 없으면 반영하지 않는다", async () => {
     await expect(
@@ -924,14 +882,6 @@ describe("미리보기 봉인", () => {
   });
 });
 
-/**
- * 미리보기는 **아무것도 저장하지 않지만 전교생을 통째로 읽어 돌려준다** —
- * 이름·생년월일·학년·반·번호·학생코드와 「누가 명단에서 빠지는가」까지.
- * 그 화면의 서버 액션은 `requireAuth()`만 하므로, 페이지 게이트를 건너뛰고
- * 액션을 직접 치면 `assertMayImport` 한 줄이 유일한 문이다.
- *
- * 그 한 줄을 붙드는 테스트가 없어서, 리팩터링으로 사라져도 전부 통과했다.
- */
 describe("previewRoster()", () => {
   const file = { filename: "명단.csv", buffer: Buffer.from("") };
 

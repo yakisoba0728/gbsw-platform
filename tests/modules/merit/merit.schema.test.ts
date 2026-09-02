@@ -92,7 +92,6 @@ describe("deleteRuleSchema", () => {
   });
 });
 
-/** 선택 입력의 길이 초과는 오류여야 한다 — 조용히 버리면 메모만 사라진다. */
 describe("선택 입력(메모·분류·설명)의 길이", () => {
   it("분류가 50자를 넘으면 거부한다", () => {
     const result = createRuleSchema.safeParse({ ...valid, category: "가".repeat(51) });
@@ -137,7 +136,6 @@ describe("선택 입력(메모·분류·설명)의 길이", () => {
   });
 });
 
-/** 조회 학년도의 범위. 상수를 손으로 다시 적으면 학년도 모듈과 갈린다. */
 describe("조회 학년도", () => {
   const roster = { grade: "2", classNo: "3", track: "SCHOOL" };
 
@@ -167,10 +165,6 @@ describe("조회 학년도", () => {
   });
 });
 
-/**
- * 명단 범위. 좁히는 조건이라 안 주면 전교이고, 학교에 없는 단위(학년 없는 반)는
- * 거부가 아니라 「안 고른 것」으로 되돌린다.
- */
 describe("명단 범위", () => {
   it("학년·반을 안 주면 전교다", () => {
     const parsed = classRosterSchema.parse({ track: "SCHOOL" });
@@ -185,7 +179,6 @@ describe("명단 범위", () => {
   });
 
   it("학년 없는 반은 반을 안 고른 것으로 읽는다", () => {
-    // 통과시키면 세 학년이 뒤섞인 명단이 「전교」라는 이름을 달고 선다.
     const parsed = classRosterSchema.parse({ classNo: "3", track: "SCHOOL" });
     expect(parsed.grade).toBeUndefined();
     expect(parsed.classNo).toBeUndefined();
@@ -247,10 +240,6 @@ describe("recentAwardsQuerySchema", () => {
   });
 });
 
-/**
- * 벌점 기준 설정. 위험이 경고보다 작으면 warn 구간이 사라지고, 0을 넣으면
- * 벌점 0점인 전교생이 명단에 오른다. 순서와 범위를 여기서 못 박는다.
- */
 describe("thresholdSchema", () => {
   const valid = {
     track: "SCHOOL",
@@ -327,7 +316,6 @@ describe("thresholdSchema", () => {
       const result = thresholdSchema.safeParse(input);
       expect(result.success, JSON.stringify(input)).toBe(false);
       for (const issue of result.error!.issues) {
-        // 한글 음절이 하나라도 있어야 우리가 붙인 문구다.
         expect(issue.message, issue.message).toMatch(/[가-힣]/);
         expect(issue.message, issue.message).toMatch(/\.$/);
       }
@@ -335,7 +323,6 @@ describe("thresholdSchema", () => {
   });
 });
 
-/** 화면에 그대로 나가는 문구다 — 어투가 섞이지 않게 마침표를 맞춘다. */
 describe("검증 실패 문구", () => {
   function firstMessage(result: { success: boolean; error?: { issues: { message: string }[] } }) {
     expect(result.success).toBe(false);
@@ -357,7 +344,6 @@ describe("검증 실패 문구", () => {
     }
   });
 
-  /** 상한을 손으로 다시 적으면 스키마를 고쳐도 문구가 옛 숫자로 남는다. */
   it("인원 상한 문구는 BULK_AWARD_LIMIT에서 만들어진다", () => {
     const result = bulkAwardSchema.safeParse({
       studentProfileIds: Array.from({ length: BULK_AWARD_LIMIT + 1 }, (_, i) => `sp-${i}`),

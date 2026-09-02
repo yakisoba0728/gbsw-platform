@@ -12,27 +12,10 @@ import type {
   RecentAwardStatus,
 } from "./merit.schema";
 
-/**
- * 엑셀 행렬을 만드는 순수 함수들. null을 내보내지 않는다 — write-excel-file이
- * null 셀을 만나면 열의 타입 추론이 흔들려 숫자 열이 문자열로 나간다. 빈 값은 "".
- *
- * 시트마다 열 너비표를 함께 낸다. 엑셀 기본 너비(8.43자)로는 한글이 서너 자만
- * 보이고 나머지가 옆 칸을 덮어써서, 파일을 열면 글자가 겹친 덩어리로 보인다 —
- * 규정 이름처럼 스무 자 넘는 열이 있는 시트에서는 표가 아예 읽히지 않는다.
- * 표는 명단 내보내기(`roster.export.ts`)와 같은 방식으로 손으로 적는다.
- */
-
-/**
- * 시트에 적을 점수. 벌점은 음수다 — 화면이 `−30`으로 그리는 것과 같은 뜻이고,
- * 무엇보다 열을 그대로 더할 수 있어야 한다. 부호 판정은 `meritKindDelta` 하나가
- * 가지고 있으므로 여기서 다시 정하지 않는다. 모르는 종류(delta 0)는 값을 그대로
- * 둔다 — 0으로 접으면 그 줄의 점수가 조용히 사라진다.
- */
 function sheetPoints(kind: string, points: number): number {
   return meritKindDelta(kind) === -1 ? -points : points;
 }
 
-/** "2026학년도 2학년 3반 · 교내" / "2학년 3반 · 기숙사(누적)" */
 function rosterScope(meta: {
   track: MeritTrack;
   year: number;
@@ -56,15 +39,14 @@ export type RosterRow = {
   net: number;
 };
 
-/** 열 너비(문자 단위). toRosterSheet의 머리글 순서와 하나씩 맞춘다. */
 export const ROSTER_SHEET_WIDTHS: number[] = [
-  6, // 번호
-  12, // 이름
-  12, // 학생코드
-  8, // 상점
-  8, // 벌점
-  8, // 상쇄
-  10, // 순점수
+  6,
+  12,
+  12,
+  8,
+  8,
+  8,
+  10,
 ];
 
 export function toRosterSheet(
@@ -72,10 +54,7 @@ export function toRosterSheet(
   meta: { track: MeritTrack; year: number; grade: number; classNo: number },
 ): (string | number)[][] {
   return [
-    // 교내(그 학년도)와 기숙사(누적)는 같은 숫자가 다른 뜻이다. 파일명은 바뀌어도
-    // 시트 첫 줄은 남으므로 여기에 범위를 적는다.
     [rosterScope(meta)],
-    // 상쇄 열은 0이어도 항상 낸다. 순점수 = 상점 + 상쇄 − 벌점.
     ["번호", "이름", "학생코드", "상점", "벌점", "상쇄", "순점수"],
     ...rows.map((r) => [
       r.number ?? "",
@@ -102,10 +81,6 @@ export type HistoryRow = {
   createdAt: Date;
 };
 
-/**
- * 한 학생의 내역 시트. 발생일과 입력일을 둘 다 낸다 — 시트는 화면을 떠나
- * 돌아다니고, 두 날짜가 갈린 기록을 되짚을 흔적은 이 두 열뿐이다.
- */
 export function toHistorySheet(
   awards: HistoryRow[],
   meta: { track: MeritTrack; studentName: string },
@@ -139,24 +114,22 @@ export function toHistorySheet(
   ];
 }
 
-/** 열 너비(문자 단위). toHistorySheet의 머리글 순서와 하나씩 맞춘다. */
 export const HISTORY_SHEET_WIDTHS: number[] = [
-  8, // 학년도
-  12, // 발생일
-  12, // 입력일
-  8, // 구분
-  46, // 항목 — 규정 이름이 길다. 이 시트에서 가장 넓은 열이다
-  8, // 점수
-  28, // 메모
-  12, // 부여자
-  8, // 상태
-  28, // 취소사유
+  8,
+  12,
+  12,
+  8,
+  46,
+  8,
+  28,
+  12,
+  8,
+  28,
 ];
 
-/** 접을 열. 규정 이름은 46자로도 한 줄에 안 들어간다. */
-export const HISTORY_SHEET_WRAP = [4]; // 항목
+export const HISTORY_SHEET_WRAP = [4];
 
-export type RecentAwardExportRow = {
+type RecentAwardExportRow = {
   year: number;
   studentName: string;
   kind: string;
@@ -177,27 +150,24 @@ const RECENT_STATUS_LABELS: Record<RecentAwardStatus, string> = {
   CANCELLED: "취소",
 };
 
-/** 열 너비(문자 단위). toRecentAwardsSheet의 머리글 순서와 하나씩 맞춘다. */
 export const RECENT_SHEET_WIDTHS: number[] = [
-  8, // 학년도
-  20, // 입력 시각
-  12, // 발생일
-  12, // 학생
-  8, // 구분
-  46, // 항목 — 규정 이름이 길다. 이 시트에서 가장 넓은 열이다
-  8, // 점수
-  28, // 메모
-  12, // 부여자
-  8, // 상태
-  12, // 취소자
-  20, // 취소 시각
-  28, // 취소 사유
+  8,
+  20,
+  12,
+  12,
+  8,
+  46,
+  8,
+  28,
+  12,
+  8,
+  12,
+  20,
+  28,
 ];
 
-/** 접을 열. 규정 이름은 46자로도 한 줄에 안 들어간다. */
-export const RECENT_SHEET_WRAP = [5]; // 항목
+export const RECENT_SHEET_WRAP = [5];
 
-/** 현재 화면의 필터 전체를 내려받는다. 첫 줄에도 범위를 남겨 파일만 봐도 조건을 안다. */
 export function toRecentAwardsSheet(
   awards: RecentAwardExportRow[],
   filter: RecentAwardFilter,

@@ -25,12 +25,6 @@ const {
   unusedRules,
 } = await import("@/modules/merit/merit.repo");
 
-/**
- * repo의 집계들. 계산은 merit-track에 모여 있고, 여기서는 그 헬퍼가 실제로
- * 물려 있는지를 본다 — 하나만 어긋나도 화면마다 순점수가 달라진다.
- * 명단에서 출발하는 질의는 재적 where 절도 함께 못 박는다: 목이 값만 돌려주면
- * 재학·소프트삭제 조건을 지워도 결과가 그대로라 아무 테스트도 깨지지 않는다.
- */
 beforeEach(() => {
   enrollmentFindMany.mockReset().mockResolvedValue([]);
   meritAwardGroupBy.mockReset().mockResolvedValue([]);
@@ -99,7 +93,6 @@ describe("listClassRoster — 반 명단 합계", () => {
     ]);
   });
 
-  /** 상쇄점을 순점수에서 빠뜨리면 선도위원회 의결이 화면에 반영되지 않는다. */
   it("상쇄점이 순점수를 올린다", async () => {
     enrollmentFindMany.mockResolvedValue([enrolled("sp-1", 1)]);
     meritAwardGroupBy.mockResolvedValue([
@@ -154,11 +147,6 @@ describe("listClassRoster — 반 명단 합계", () => {
     expect(meritAwardGroupBy.mock.calls[0][0].where).not.toHaveProperty("year");
   });
 
-  /**
-   * 재학 조건이 빠지면 전학·자퇴·졸업한 학생이 반 명단에 되살아난다. 값만 보는
-   * 목으로는 드러나지 않는다 — where 절을 직접 본다. **명단 술어는 이 한 줄이
-   * 전부다**: 계정 쪽 조건(deletedAt)은 퇴학·전학을 못 걸러서 뺐다.
-   */
   it("그 학년도 그 반의 재학생만 본다", async () => {
     await listClassRoster({ ...roster, totalsYear: 2026 });
 
@@ -186,8 +174,6 @@ describe("listClassRoster — 반 명단 합계", () => {
     });
   });
 
-  // 한 반만 볼 때는 번호순이 곧 명단 순서다. 전교를 훑을 때 번호만으로 세우면
-  // 1학년 1번 다음에 3학년 1번이 오므로 학년·반이 앞에 선다.
   it("학년 · 반 · 번호 순으로 가져온다", async () => {
     await listClassRoster({ ...roster, totalsYear: 2026 });
 
@@ -198,10 +184,6 @@ describe("listClassRoster — 반 명단 합계", () => {
     ]);
   });
 
-  /**
-   * 범위는 좁히는 것이지 여는 조건이 아니다 — 안 주면 전교가 나온다.
-   * 부여 화면이 반을 고르기 전에도 명단을 보여주는 근거이자, 순위 화면이 쓰는 경로다.
-   */
   it("학년·반을 안 주면 반 조건 자체를 걸지 않는다", async () => {
     await listClassRoster({ year: 2026, track: "SCHOOL", totalsYear: 2026 });
 
@@ -218,10 +200,6 @@ describe("listClassRoster — 반 명단 합계", () => {
   });
 });
 
-/**
- * 전교 명단 합계. listClassRoster와 같은 규칙이되 반 조건이 없다 —
- * 반 미배정 학생이 순위에서 사라지면 안 된다.
- */
 describe("listClassRoster — 범위 없이 부르면 전교다", () => {
   it("그 학년도 재학생만 본다", async () => {
     await listClassRoster({ year: 2026, track: "SCHOOL", totalsYear: 2026 });
@@ -283,11 +261,6 @@ describe("demeritTotalsByStudent — 기준 초과 명단의 원자료", () => {
     );
   });
 
-  /**
-   * **기숙사는 누적이라 이 조건이 유일한 방어선이다.** 합계 학년도가 없으니
-   * 졸업생의 3년치 벌점이 그대로 남고, 재적 조건이 빠지면 그 학생이 사감의
-   * 기준 초과 명단에 영원히 선다.
-   */
   it("totalsYear가 null이어도 재적 조건은 남는다", async () => {
     await demeritTotalsByStudent({ track: "DORM", totalsYear: null, rosterYear: 2026 });
 
@@ -298,7 +271,6 @@ describe("demeritTotalsByStudent — 기준 초과 명단의 원자료", () => {
     });
   });
 
-  /** 합계 범위와 명단 범위는 다른 값이다 — 지난 학년도를 봐도 명단은 그 해 기준이다. */
   it("rosterYear는 totalsYear와 따로 걸린다", async () => {
     await demeritTotalsByStudent({ track: "SCHOOL", totalsYear: 2025, rosterYear: 2025 });
 
@@ -368,8 +340,6 @@ describe("awardsByRule — 규정별 집계 원자료", () => {
       where: { id: { in: ["rule-1"] } },
       select: { id: true, label: true, category: true, active: true },
     });
-    // repo는 현재 이름으로 바꾸거나 접지 않는다. 두 화면이 같은 원자료를 받아
-    // 각자의 표시 규칙대로 접는 것이 새 계약이다.
     expect(result).toEqual({ rows, rules });
   });
 
@@ -381,11 +351,6 @@ describe("awardsByRule — 규정별 집계 원자료", () => {
   });
 });
 
-/**
- * 창 집계의 조건. 서비스 쪽 테스트는 인자가 넘어가는 것까지만 보므로,
- * 그 인자가 실제로 어느 칸에 걸리는지는 여기서 못 박는다 — occurredOn을
- * createdAt으로 바꿔도 서비스 테스트는 그대로 통과한다.
- */
 describe("trackTotalsBetween", () => {
   it("입력 시각이 아니라 발생일에 창을 건다", async () => {
     const since = new Date("2026-08-10T00:00:00+09:00");
@@ -427,8 +392,6 @@ describe("trackTotalsBetween", () => {
 
     const { where } = meritAwardGroupBy.mock.calls[0][0];
     expect(where.year).toBeUndefined();
-    // 최근 활동은 현재 명단 통계가 아니다. 재적 술어까지 공통 helper에 섞이면
-    // 그 주에 전학한 학생의 활동이 사라진다.
     expect(where).not.toHaveProperty("studentProfile");
     expect(where).not.toHaveProperty("studentProfileId");
   });
@@ -448,14 +411,7 @@ describe("trackTotalsBetween", () => {
   });
 });
 
-/**
- * 취소분 제외. `status: "ACTIVE"`는 repo의 where 절에만 있고 서비스 테스트는
- * 넘어온 값만 보므로, 이 조건을 지워도 다른 테스트는 전부 통과한다 —
- * 취소한 벌점이 합계·순위·통계에 되살아나는 것을 아무도 못 잡는다.
- * 질의마다 한 줄씩 못 박아 그 구멍을 덮는다.
- */
 describe("취소된 기록은 어느 집계에도 안 든다", () => {
-  /** 명단에서 출발하는 질의는 재적이 있어야 합계 질의까지 간다. */
   beforeEach(() => {
     enrollmentFindMany.mockResolvedValue([enrolled("sp-1", 1)]);
   });
@@ -524,10 +480,6 @@ describe("취소된 기록은 어느 집계에도 안 든다", () => {
     });
   });
 
-  /**
-   * 부여자별 집계만 두 갈래로 나뉜다 — 계정이 지워진 쪽(awardedByUserId: null)은
-   * 별개의 질의라 첫 호출만 보면 조건이 빠져도 안 잡힌다.
-   */
   it("teacherTotals는 계정이 사라진 갈래에도 같은 조건을 건다", async () => {
     await teacherTotals({ track: "SCHOOL", totalsYear: 2026, rosterYear: 2026 });
 

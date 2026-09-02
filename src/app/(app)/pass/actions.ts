@@ -29,7 +29,6 @@ import { MAX_OVERNIGHT_DAYS } from "@/modules/pass/pass.window";
 import * as request from "@/modules/pass/request.service";
 import type { PassActionState } from "./action-state";
 
-/** 코드 → 화면 문구. 서비스는 코드만 던지고 옮기는 일은 전부 여기서 한다. */
 const MESSAGES: Record<string, string> = {
   PASS_NOT_FOUND: "출입증을 찾을 수 없습니다.",
   NO_STUDENT_PROFILE: "학생 계정이 아닙니다.",
@@ -61,7 +60,6 @@ function toState(error: unknown): PassActionState {
   throw error;
 }
 
-/** 신청·결재가 바뀌면 세 화면이 함께 흔들린다. */
 function revalidatePass(passId?: string): void {
   revalidatePath("/pass");
   if (passId) revalidatePath(`/pass/${passId}`);
@@ -90,7 +88,6 @@ export async function requestAction(
 ): Promise<PassActionState> {
   const actor = await requireAuth();
 
-  // 유형에 따라 오는 칸이 다르다. 스키마의 discriminatedUnion이 갈라 준다.
   const parsed = requestPassSchema.safeParse({
     type: formData.get("type"),
     date: formData.get("date"),
@@ -265,11 +262,6 @@ export async function cancelAction(
   return { error: null, ok: true };
 }
 
-/**
- * 내보내기 결과. 서버는 행렬만 돌려주고 클라이언트(history/export-button.tsx)가
- * write-excel-file/browser로 xlsx를 만든다 — 서버 액션은 값만 넘길 수 있어
- * 셀 서식(생성자)을 실어 보내지 못한다.
- */
 type ExportState = {
   error: string | null;
   rows: (string | number)[][];
@@ -278,7 +270,6 @@ type ExportState = {
 
 const EXPORT_FAILED = "내보내지 못했습니다.";
 
-/** 전체 내역의 현재 조건 전체를 내보낸다. 페이지 번호는 일부러 받지 않는다. */
 export async function exportPassHistoryAction(
   input: PassHistoryExportInput,
 ): Promise<ExportState> {
@@ -292,8 +283,6 @@ export async function exportPassHistoryAction(
   try {
     return { error: null, ...(await decision.exportPassHistory(actor, parsed.data)) };
   } catch (error) {
-    // 권한 거부를 폴백에 섞지 않는다 — 「내보내지 못했습니다」로 떨어지면
-    // 권한이 없어서 막힌 사람이 일시적 장애로 알고 계속 다시 누른다.
     if (error instanceof ForbiddenError) {
       return { error: FORBIDDEN_MESSAGE, rows: [], filename: "" };
     }

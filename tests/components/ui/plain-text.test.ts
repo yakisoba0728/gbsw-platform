@@ -1,14 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { splitLinks } from "@/components/ui/plain-text";
 
-/** 링크 조각만 뽑는다. 테스트가 읽기 쉬워진다. */
 function links(text: string): string[] {
   return splitLinks(text)
     .filter((s) => s.href !== null)
     .map((s) => s.href as string);
 }
 
-/** 조각을 다시 이으면 원문이어야 한다 — 글자를 잃지 않는다는 뜻이다. */
 function rejoin(text: string): string {
   return splitLinks(text)
     .map((s) => s.text)
@@ -50,7 +48,7 @@ describe("splitLinks — 안 찾는다", () => {
     expect(links(text)).toEqual([]);
   });
 
-  it("**대문자 스킴도 안 만든다** — 정규식이 소문자만 본다", () => {
+  it("대문자 스킴도 안 만든다 — 정규식이 소문자만 본다", () => {
     expect(links("JAVASCRIPT:alert(1)")).toEqual([]);
   });
 });
@@ -70,7 +68,7 @@ describe("splitLinks — 끝을 다듬는다", () => {
     expect(links("(https://a.kr/b)")).toEqual(["https://a.kr/b"]);
   });
 
-  it("**주소 안의 괄호는 남긴다** — 위키 주소가 그렇다", () => {
+  it("주소 안의 괄호는 남긴다 — 위키 주소가 그렇다", () => {
     expect(links("https://ko.wikipedia.org/wiki/한글_(문서)")).toEqual([
       "https://ko.wikipedia.org/wiki/한글_(문서)",
     ]);

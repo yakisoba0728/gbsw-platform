@@ -19,7 +19,6 @@ vi.mock("@/core/db/client", () => ({
   prisma: {
     studentProfile: { findMany: studentProfileFindMany },
   },
-  // applyAll은 단일 트랜잭션 안에서 돈다 — 콜백에 tx를 그대로 넘겨 흉내 낸다.
   withTransaction,
 }));
 
@@ -27,10 +26,6 @@ const { NumberTakenError, applyAll, listByYear } = await import(
   "@/modules/enrollment/enrollment.repo"
 );
 
-/**
- * (year, grade, classNo, number)의 실물 P2002 — admin-user.repo.test.ts와 같은 모양.
- * Prisma 7.9 + @prisma/adapter-pg는 위반 컬럼을 meta.driverAdapterError에 담는다.
- */
 function realWorldNumberP2002() {
   return Object.assign(new Error("Unique constraint failed"), {
     name: "PrismaClientKnownRequestError",

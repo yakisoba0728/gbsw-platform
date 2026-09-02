@@ -32,8 +32,6 @@ describe("issueStudentCode", () => {
     );
   });
 
-  // **찍어 둔 사진을 못 쓰게 하는 성질이다.** 이게 깨지면 학생증이 다시
-  // 고정 코드가 된다.
   it("20초가 지나면 다른 코드가 나온다", () => {
     expect(issueStudentCode(PROFILE_ID, AT).code).not.toBe(
       issueStudentCode(PROFILE_ID, plus(STEP_SECONDS)).code,

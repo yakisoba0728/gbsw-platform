@@ -1,7 +1,6 @@
 import { cardClass } from "@/components/ui/card";
 import { Skeleton, SkeletonScreen } from "@/components/ui/skeleton";
 
-/** `/community/[slug]`의 뼈대 — 게시판 머리글 + 글 목록. */
 export default function Loading() {
   return (
     <SkeletonScreen className="mx-auto max-w-5xl space-y-4">

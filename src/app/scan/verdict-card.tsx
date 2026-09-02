@@ -10,7 +10,6 @@ import {
 import type { VerifyResult } from "@/modules/pass/verify.service";
 import { honorificName } from "@/core/authz/roles";
 
-/** 정문에서 팔 뻗은 거리로 읽는 화면이라 배지가 크다. */
 export function VerdictCard({ result }: { result: VerifyResult }) {
   const { verdict, student, pass, detailed } = result;
 
@@ -23,9 +22,6 @@ export function VerdictCard({ result }: { result: VerifyResult }) {
         <p className="mt-3 text-caption text-mut">{VERDICT_HINTS[verdict]}</p>
       </div>
 
-      {/* **학생 칸이 출입증 칸과 갈렸다.** 학생증은 먼저 누구인지를 말한다 —
-          나갈 것이 없어도(NO_PASS) 이름과 학번은 뜬다. 정문에서 사람과 화면을
-          맞춰 보는 일이 이 코드가 하는 일의 절반이다. */}
       {student && (
         <dl className="mt-6 space-y-3 border-t border-line pt-5">
           <Line label="학생">
@@ -41,13 +37,10 @@ export function VerdictCard({ result }: { result: VerifyResult }) {
           {pass && (
             <>
               <Line label="유형">{PASS_TYPE_LABELS[pass.type]}</Line>
-              {/* 유형마다 눈금이 다르다 — 외출은 날짜를 한 번만, 외박은 양끝 모두.
-                  화면 셋이 같게 그리도록 규칙은 pass.labels가 소유한다. */}
               <Line label="유효">
                 <span className="tabular-nums">{passPeriod(pass)}</span>
               </Line>
 
-              {/* 사유·행선지는 교사에게만. 같은 학년 학생이 「병원 진료」를 읽을 이유가 없다. */}
               {detailed && pass.destination && (
                 <Line label="행선지">{pass.destination}</Line>
               )}

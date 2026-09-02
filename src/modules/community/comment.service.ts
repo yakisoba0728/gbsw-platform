@@ -1,7 +1,7 @@
 import { recordAudit } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
 import { can } from "@/core/authz/can";
-import { ForbiddenError } from "@/core/authz/errors";
+import { denyAccess } from "@/core/authz/errors";
 import { withTransaction } from "@/core/db/client";
 import * as board from "./board.service";
 import { CommunityError } from "./community.error";
@@ -9,33 +9,6 @@ import * as repo from "./community.repo";
 import type { CreateCommentInput, DeleteCommentInput } from "./community.schema";
 import { toCommentView, type CommentView } from "./community.view";
 
-/**
- * 댓글 서비스. **수정은 없다** — 쓰기와 삭제뿐이다 (설계 §범위).
- *
- * 글 서비스와 마찬가지로 게시판 권한은 board.service의 문 둘로만 얻는다.
- */
-
-async function denyOwnership(
-  actor: SessionUser,
-  action: string,
-  commentId: string,
-): Promise<never> {
-  try {
-    await recordAudit({
-      actorUserId: actor.id,
-      actorName: actor.name,
-      action: "authz:denied",
-      targetType: "CommunityComment",
-      targetId: commentId,
-      metadata: { action },
-    });
-  } catch {
-    // 감사 기록 실패가 거부 자체를 막지 않는다.
-  }
-  throw new ForbiddenError(action);
-}
-
-/** 글을 집어 오며 "살아 있는가"까지 본다. 지워진 글에는 댓글이 안 달린다. */
 async function loadLivePost(postId: string) {
   const post = await repo.findPost(postId);
   if (!post || post.deletedAt) throw new CommunityError("POST_NOT_FOUND");
@@ -47,8 +20,6 @@ export async function listComments(
   postId: string,
 ): Promise<CommentView[]> {
   const post = await loadLivePost(postId);
-  // 글을 이미 읽었어도 게시판 권한을 다시 묻는다 — 주소만 알면 남의 게시판
-  // 댓글이 열리는 길을 만들지 않는다.
   const community = await board.getReadableBySlug(actor, post.community.slug);
 
   const rows = await repo.listComments(postId);
@@ -100,13 +71,15 @@ export async function deleteComment(
   const community = await board.getReadableBySlug(actor, comment.post.community.slug);
 
   const isMine = comment.authorUserId !== null && comment.authorUserId === actor.id;
-  // 글 삭제와 같은 규칙 — 조정 판정은 `can()`이 한다.
   const isModerator = can(actor, "community:moderate");
   if (!isMine && !isModerator) {
-    await denyOwnership(actor, "community:comment:delete", input.commentId);
+    await denyAccess(actor, "community:comment:delete", {
+      targetType: "CommunityComment",
+      targetId: input.commentId,
+      actorName: actor.name,
+    });
   }
 
-  // 남의 댓글을 지울 때는 사유가 필수다 (글 삭제와 같은 이유).
   if (!isMine && !input.reason) throw new CommunityError("REASON_REQUIRED");
 
   await withTransaction(async (tx) => {

@@ -11,14 +11,8 @@ import { honorificName } from "@/core/authz/roles";
 
 type AwardRow = StudentMeritView["awards"][number];
 
-/** 취소 버튼에 그대로 넘길 두 값. 계약은 CancelButton이 정한다. */
 type CancelProps = ComponentProps<typeof CancelButton>;
 
-/**
- * 부여 내역. 교사 화면(취소 가능)과 학생·학부모 화면(조회만)이 공유하며,
- * 취소 가능 여부는 액션의 유무로 판단한다. 날짜 칸은 발생일이고, 입력일이 다른
- * 날이면 함께 적는다 — 나중에 날짜를 다툴 때 화면이 줄 수 있는 유일한 근거다.
- */
 export function AwardHistory({
   awards,
   studentProfileId,
@@ -27,9 +21,7 @@ export function AwardHistory({
 }: {
   awards: AwardRow[];
   studentProfileId: string;
-  /** 주면 "작업" 열이 생긴다. 학생·학부모 화면은 넘기지 않는다. */
   cancelAction?: CancelProps["cancelAction"];
-  /** cancelAction의 초기 상태. 액션과 함께 온다 (CancelButton 주석 참고). */
   initialState?: CancelProps["initialState"];
 }) {
   const canCancel = cancelAction !== undefined && initialState !== undefined;
@@ -39,7 +31,6 @@ export function AwardHistory({
       key: "occurredOn",
       header: "발생일",
       width: "w-[112px]",
-      // 카드에서는 라벨이 없다 — 날짜 모양 자체가 무슨 값인지 말한다.
       card: "meta",
       cardLabel: false,
       cell: (award) => (
@@ -54,7 +45,6 @@ export function AwardHistory({
       ),
     },
     {
-      // 카드에서는 빠진다 — 점수의 부호와 색이 이미 상점·벌점을 말한다.
       key: "kind",
       header: "구분",
       width: "w-[68px]",
@@ -74,7 +64,6 @@ export function AwardHistory({
               {award.label}
             </span>
             {award.note && <span className="block text-xs text-mut">{award.note}</span>}
-            {/* "교사면 누구나 취소할 수 있다"의 근거가 이 흔적이다 — 화면에 낸다. */}
             {cancelled && (
               <span className="block text-xs text-rose">
                 취소
@@ -109,13 +98,11 @@ export function AwardHistory({
       header: "부여",
       width: "w-[120px]",
       card: "meta",
-      // 부여·취소는 교사 전용이라(can.ts) 이름 스냅샷에 역할이 없어도 호칭이 정해진다.
       cell: (award) => (
         <span className="text-mut">{honorificName(award.awardedByName, "ADMIN")}</span>
       ),
     },
     {
-      // 카드에서는 빠진다 — 취소선과 항목 아래 취소 줄이 같은 사실을 이미 적는다.
       key: "status",
       header: "상태",
       width: canCancel ? "w-[76px]" : "w-[92px]",
@@ -148,7 +135,6 @@ export function AwardHistory({
 
   return (
     <SectionCard title="부여 내역" headingLevel={3} flush>
-      {/* 비어도 카드 제목을 남긴다 — 제목까지 사라지면 무엇이 없는 것인지 모른다. */}
       {awards.length === 0 ? (
         <EmptyState variant="inside">내역이 없습니다.</EmptyState>
       ) : (

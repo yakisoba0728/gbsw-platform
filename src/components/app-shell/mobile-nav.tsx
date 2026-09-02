@@ -8,18 +8,12 @@ import { CloseIcon, MenuIcon } from "@/components/icons";
 import type { Role } from "@/core/authz/roles";
 import { NavTree } from "./nav-tree";
 
-/**
- * 좁은 화면 전용 메뉴 서랍. 하단 탭은 다섯 칸이 한계라 교사 메뉴 대부분이
- * 여기로만 갈 수 있다. `<dialog>`의 showModal()이 포커스 가두기·Esc 닫기·
- * 뒤쪽 비활성화를 해 준다.
- */
 export function MobileNav({ role }: { role: Role | null }) {
   const pathname = usePathname();
   const search = useSearchParams();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [open, setOpen] = useState(false);
 
-  // `<dialog open>` 속성으로 열면 모달이 아니라 포커스도 안 갇히고 backdrop도 없다.
   useEffect(() => {
     const el = dialogRef.current;
     if (!el) return;
@@ -27,8 +21,6 @@ export function MobileNav({ role }: { role: Role | null }) {
     if (!open && el.open) el.close();
   }, [open]);
 
-  // 이동하면 닫는다. 상벌점 하위 메뉴는 경로가 같고 `?track=`만 달라서 링크마다
-  // onClick을 다는 대신 주소 변화를 본다. 렌더 도중 맞추면 깜빡임이 없다.
   const location = `${pathname}?${search}`;
   const [lastLocation, setLastLocation] = useState(location);
   if (lastLocation !== location) {
@@ -56,7 +48,6 @@ export function MobileNav({ role }: { role: Role | null }) {
         ref={dialogRef}
         aria-label="메뉴"
         onClose={() => setOpen(false)}
-        // 클릭이 dialog 자기 자신에 떨어지면 그게 backdrop이다.
         onClick={(event) => {
           if (event.target === dialogRef.current) setOpen(false);
         }}

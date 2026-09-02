@@ -7,16 +7,9 @@ import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";
 import { formatSeat } from "@/lib/student-number";
 import { UserTable, type UserRow } from "./user-table";
 
-/**
- * 계정 탭 — 전체 계정 목록.
- *
- * 예전 `/admin/users` 화면의 본문 그대로다. 껍데기(폭·제목)는 page.tsx가 갖는다 —
- * 세 탭이 같은 자리에 서므로 폭이 탭마다 다르면 탭을 누를 때마다 화면이 흔들린다.
- */
 export async function AccountsPanel() {
   const actor = await requirePermission("user:manage");
 
-  // listUsers도 getCurrentYear()를 부른다. 현재 학년도가 없으면 안내로 떨어뜨린다.
   let users: Awaited<ReturnType<typeof listUsers>>;
   try {
     users = await listUsers(actor);

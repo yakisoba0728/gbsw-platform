@@ -69,7 +69,6 @@ const COLUMNS: readonly Column<MyInvite>[] = [
   },
   {
     key: "revoke",
-    // 폐기 버튼 열 — 머리글에 이름이 없다.
     header: "",
     card: "actions",
     cell: (row) =>
@@ -84,11 +83,9 @@ const COLUMNS: readonly Column<MyInvite>[] = [
 export default async function ParentInvitePage() {
   const actor = await requirePermission("invite:create:parent");
 
-  // 교사도 권한 검사는 통과하지만 학생 프로필이 없다.
   if (actor.role !== "STUDENT") {
     return (
       <div className="mx-auto max-w-xl">
-        {/* 제목은 h2부터 — h1은 상단바가 이미 그린다. */}
         <SectionCard variant="panel" title="학부모 초대">
           <p className="text-caption text-mut">
             학부모 가입코드는 학생 본인만 만들 수 있습니다.
@@ -98,7 +95,6 @@ export default async function ParentInvitePage() {
     );
   }
 
-  // 폐기한 코드는 보여주지 않는다.
   const invites = (await listMyParentInvites(actor))
     .filter((invite) => invite.status !== "REVOKED")
     .map((invite) => ({
@@ -110,7 +106,6 @@ export default async function ParentInvitePage() {
     }));
 
   return (
-    // 두 단이 서는 기준은 뷰포트가 아니라 이 자리의 폭이다.
     <div className="@container mx-auto max-w-4xl">
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 @2xl:grid-cols-[340px_1fr]">
         <SectionCard

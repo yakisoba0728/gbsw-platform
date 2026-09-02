@@ -5,20 +5,12 @@ import {
   passStatusLabel,
 } from "@/modules/pass/pass.labels";
 
-/**
- * 외박이 시작·종료에 시각을 받게 되면서 **화면이 저장값을 그대로 그린다** —
- * 「종료일 다음 날 자정」을 하루 되돌리던 보정이 사라졌다. 이 파일이 지키는 것은
- * 이제 「하루가 안 밀린다」가 아니라 **「학생이 적은 시각이 그대로 나온다」**다.
- */
-
-/** 2026-08-26 14:00 KST ~ 18:00 KST */
 const outing = {
   type: "OUTING",
   startAt: new Date("2026-08-26T05:00:00.000Z"),
   endAt: new Date("2026-08-26T09:00:00.000Z"),
 };
 
-/** 8/26 18:00 KST ~ 8/28 09:00 KST — 이틀 밤 */
 const overnight = {
   type: "OVERNIGHT",
   startAt: new Date("2026-08-26T09:00:00.000Z"),
@@ -38,8 +30,8 @@ describe("passPeriod", () => {
     expect(
       passPeriod({
         type: "OVERNIGHT",
-        startAt: new Date("2026-08-26T09:00:00.000Z"), // 8/26 18:00 KST
-        endAt: new Date("2026-08-27T15:00:00.000Z"), // 8/28 00:00 KST
+        startAt: new Date("2026-08-26T09:00:00.000Z"),
+        endAt: new Date("2026-08-27T15:00:00.000Z"),
       }),
     ).toBe("26. 8. 26. 오후 6:00 ~ 26. 8. 28. 오전 12:00");
   });
@@ -48,8 +40,8 @@ describe("passPeriod", () => {
     expect(
       passPeriod({
         type: "OVERNIGHT",
-        startAt: new Date("2026-08-26T09:00:00.000Z"), // 18:00 KST
-        endAt: new Date("2026-08-26T13:00:00.000Z"), // 22:00 KST
+        startAt: new Date("2026-08-26T09:00:00.000Z"),
+        endAt: new Date("2026-08-26T13:00:00.000Z"),
       }),
     ).toBe("26. 8. 26. 오후 6:00 ~ 26. 8. 26. 오후 10:00");
   });
@@ -68,7 +60,7 @@ describe("passEndLabel", () => {
     expect(
       passEndLabel({
         type: "OVERNIGHT",
-        endAt: new Date("2026-08-31T12:00:00.000Z"), // 8/31 21:00 KST
+        endAt: new Date("2026-08-31T12:00:00.000Z"),
       }),
     ).toBe("8. 31. 오후 9:00");
   });

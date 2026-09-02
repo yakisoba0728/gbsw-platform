@@ -31,8 +31,6 @@ function award() {
     studentProfile: {
       id: "sp-1",
       user: { name: "김민준" },
-      // 재적은 학년도로 걸러 오지 않는다 — 중첩 where가 바깥 행의 year를 못 본다.
-      // 그래서 지난 학년도 줄이 함께 오고, 매핑이 그 기록의 학년도를 고른다.
       enrollments: [
         { year: 2025, grade: 1, classNo: 9, number: 30 },
         { year: 2026, grade: 2, classNo: 3, number: 7 },
@@ -46,18 +44,8 @@ beforeEach(() => {
   count.mockReset().mockResolvedValue(1);
 });
 
-/** MeritAward에서 유일한 열. 보조 정렬키로 쓸 수 있는 것은 이것뿐이다. */
 const UNIQUE_COLUMNS = ["id"];
 
-/**
- * 마지막 findMany 호출의 정렬을 본다. 값을 그대로 베껴 단언하면 다음 사람이 키를
- * 하나로 되돌리면서 단언도 같이 고치면 그만이라, 「보조 정렬키가 있다」는 의도를
- * 본다 — **배열이고, 첫 키가 createdAt desc이고, 마지막 키가 유일한 열**이다.
- *
- * createdAt은 유일하지 않다: 기본값 CURRENT_TIMESTAMP가 Postgres에서는 트랜잭션
- * 시작 시각이라 일괄 부여 한 번이 넣은 행이 전부 같은 값을 갖는다. 그 키 하나로
- * 세운 채 OFFSET으로 쪽을 나누면 동점 구간 순서가 쪽마다 뒤집혀 줄이 사라진다.
- */
 function expectStableOrder() {
   const orderBy = findMany.mock.calls.at(-1)![0].orderBy;
 
@@ -66,7 +54,6 @@ function expectStableOrder() {
 
   const last = orderBy.at(-1);
   expect(UNIQUE_COLUMNS).toContain(Object.keys(last)[0]);
-  // 방향까지 앞 키와 같아야 한다 — 동점 구간만 거꾸로 서면 읽는 사람이 못 믿는다.
   expect(Object.values(last)[0]).toBe("desc");
 }
 
@@ -98,7 +85,6 @@ describe("최근 부여 repo", () => {
       ],
     });
     expect(call).toMatchObject({ skip: 20, take: 20 });
-    // 쪽을 나누는 질의다 — 여기서 정렬키가 하나뿐이면 쪽 경계에서 줄이 사라진다.
     expectStableOrder();
     expect(rows[0]).toMatchObject({
       id: "a-1",
@@ -107,11 +93,6 @@ describe("최근 부여 repo", () => {
     });
   });
 
-  /**
-   * 같은 이름이 두 반에 있으면 목록에서 학급·번호가 유일한 구분이다.
-   * 재적을 통째로 받아 매핑에서 고르므로, 고르는 쪽이 틀리면 지난 학년도의
-   * 반이 조용히 붙는다 — 화면은 멀쩡해 보이고 사람만 다르다.
-   */
   it("학급·번호는 그 기록이 난 학년도의 재적에서 온다", async () => {
     const rows = await findRecentAwardPage(filter, 0, 20);
 

@@ -1,9 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  /* ── 표면 ───────────────────────────────────────
-   * 페이지와 카드가 둘 다 흰색이다. 카드는 border-line으로만 구분된다.
-   */
+
   --color-bg: #ffffff;
   --color-surface: #ffffff;
   --color-soft: #fafafa;
@@ -11,21 +9,16 @@
   --color-line2: #ededed;
   --color-line-strong: #c7c7c7;
   --color-scrollbar: #d4d4d4;
-  /* 세그먼티드 컨트롤·코드블록처럼 흰 것을 얹을 바탕. soft(#fafafa)는 흰 것을
-     올리면 차이가 안 보인다 — 눌린 자리로 읽히려면 한 단계 더 어두워야 한다. */
+
   --color-track: #f1f1f2;
 
-  /* ── 글자 ─────────────────────────────────────── */
   --color-ink: #171717;
   --color-mut: #707070;
   --color-mut2: #9a9a9a;
   --color-mut-soft: #f2f2f2;
   --color-placeholder: #b2b2b2;
 
-  /* ── 브랜드 ─────────────────────────────────────
-   * pri는 배경 전용이다. 흰 배경에서 대비 2:1이라 글자로 쓰면 안 읽힌다.
-   * 초록 글자가 필요하면 pri-ink(5.3:1)를 쓴다.
-   */
+  /* pri는 배경용이고 초록 글자는 대비가 높은 pri-ink를 쓴다. */
   --color-pri: #3ecf8e;
   --color-pri-press: #24b47e;
   --color-pri-soft: #e8f7f0;
@@ -33,39 +26,26 @@
   --color-pri-ink: #0d7a56;
   --color-on-pri: #171717;
 
-  /* ── 상점 ─────────────────────────────────────── */
   --color-blue: #054cff;
   --color-blue-soft: #eef3ff;
   --color-blue-line: #d6e2ff;
 
-  /* ── 벌점 · 오류 · 위험 ─────────────────────────── */
   --color-rose: #e2005a;
   --color-rose-soft: #fdeef4;
   --color-rose-line: #f7cddd;
   --color-rose-press: #c00b4f;
 
-  /* ── 승인 · 성공 ────────────────────────────────── */
   --color-green: #0d7a56;
   --color-green-soft: #e8f7f0;
   --color-green-line: #c7e8da;
 
-  /* ── 대기 · 주의 ────────────────────────────────── */
   --color-amber-ink: #8a6116;
   --color-amber-soft: #fdf6e8;
   --color-amber-line: #ecd9ae;
 
-  /* ── 타이포 ─────────────────────────────────────
-   * 한글이 본문이라 Pretendard를 유지한다 (시안의 Inter에 대응하는 한글 글꼴).
-   * mono는 학생코드·초대코드·감사로그 ID처럼 대조해서 읽는 값에만 쓴다.
-   *
-   * **한글이 한 글자라도 섞이는 문자열에는 절대 쓰지 않는다.** 아래 mono 목록에
-   * 한글 글자가 없어서, 「26. 8. 25. 오후 5:13:16」이나 「12행」을 mono로 그리면
-   * 숫자만 mono로 나오고 「오후」·「행」은 Pretendard로 떨어진다 — 한 낱말 안에서
-   * 글꼴이 갈려 어색해진다. 날짜·번호를 표에서 세로로 맞추고 싶은 것이라면
-   * mono가 아니라 `tabular-nums`다 (Pretendard가 지원한다).
-   */
   --font-sans: "Pretendard Variable", Pretendard, -apple-system,
     BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, sans-serif;
+  /* 한글이 섞인 날짜·숫자 정렬에는 mono 대신 tabular-nums를 쓴다. */
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     "Liberation Mono", monospace;
 
@@ -75,17 +55,14 @@
   --text-caption: 13px;
   --text-caption--line-height: 1.45;
 
-  /* ── 모양 ─────────────────────────────────────── */
   --radius-btn: 6px;
   --radius-field: 6px;
   --radius-card: 12px;
   --radius-modal: 16px;
 
-  /* ── 깊이 — 카드는 그림자를 쓰지 않는다 ─────────────── */
   --shadow-float: 0 8px 24px rgb(0 0 0 / 0.08);
   --shadow-modal: 0 16px 48px rgb(0 0 0 / 0.12);
 
-  /* ── 모션 ─────────────────────────────────────── */
   --animate-auth-in: auth-in 0.4s ease;
 
   @keyframes auth-in {
@@ -102,7 +79,7 @@
 
 @layer base {
   html {
-    /* Tailwind preflight가 font-sans를 자동 적용하지 않으므로 명시한다. */
+
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -129,11 +106,6 @@
     color: var(--color-placeholder);
   }
 
-  /*
-   * 시각·날짜 칸의 브라우저 기본 아이콘. 크롬은 이것을 새까맣게 그려서, 옅은
-   * 회색 테두리 안에서 그 아이콘만 화면에서 가장 진한 것이 된다. 잉크색 글자와
-   * 같은 무게로 낮춘다 — 아이콘을 지우면 달력·시계를 여는 길이 없어진다.
-   */
   input::-webkit-calendar-picker-indicator {
     opacity: 0.4;
     cursor: pointer;
@@ -152,14 +124,13 @@
     box-shadow: 0 0 0 3px --alpha(var(--color-ink) / 10%);
   }
 
-  /* 체크박스·파일 칸에는 바꿀 테두리가 없다. 키보드 위치를 잃지 않도록
-   * 글자 입력칸용 outline 리셋 뒤에 네이티브 포커스 고리를 되살린다. */
+  /* 텍스트 입력의 outline 리셋 뒤 체크박스·파일의 키보드 초점을 복원한다. */
   input:where([type="checkbox"], [type="file"]):focus-visible {
     outline: 2px solid var(--color-ink);
     outline-offset: 2px;
   }
 
-  /* Tailwind 리셋이 UA의 margin:auto를 죽여 모달이 왼쪽 위에 붙는다. 되살린다. */
+  /* Tailwind가 지운 브라우저 기본 모달 중앙 정렬을 복원한다. */
   dialog:modal {
     margin: auto;
     max-height: 90dvh;
@@ -167,10 +138,6 @@
   }
 }
 
-/*
- * 부여 성공 모달의 등장. `prefers-reduced-motion`에서는 움직이지 않고 그대로 뜬다 —
- * 알림 자체를 없애면 결과를 알 길이 사라지므로 동작만 끈다.
- */
 @keyframes award-pop {
   from {
     opacity: 0;
@@ -209,11 +176,6 @@
   }
 }
 
-/*
- * 화면이 바뀔 때의 진입. 라우팅마다 다시 마운트되는 (app)/template.tsx가 건다.
- * 짧고 투명도 위주다 — 하루 종일 쓰는 도구라 화면을 옮길 때마다 기다리는 느낌이
- * 나면 안 된다. 6px만 올려 "새 내용이 왔다"는 신호만 준다.
- */
 @keyframes page-in {
   from {
     opacity: 0;
@@ -233,10 +195,6 @@
   }
 }
 
-/*
- * 확인 모달의 등장. 성공 알림(award-pop)보다 짧고 작게 움직인다 — 축하가 아니라
- * "무엇을 하려는지 다시 본다"는 자리라, 튀어오르면 읽기 전에 손이 먼저 나간다.
- */
 @keyframes modal-in {
   from {
     opacity: 0;
@@ -256,11 +214,6 @@
   }
 }
 
-/*
- * 출입증 QR이 다음 코드로 바뀔 때까지. 지속시간은 화면이 `--pass-qr-tick`으로
- * 넘긴다 — 서버가 준 validUntil에서 나오므로 첫 주기가 20초보다 짧아도 맞는다
- * (토큰은 스텝 중간에 발급돼도 그 스텝의 끝을 만료로 준다).
- */
 @keyframes pass-qr-tick {
   from {
     transform: scaleX(1);
@@ -270,36 +223,22 @@
   }
 }
 
+/* 실제 만료 시각에서 계산한 지속시간을 받으며, 모션 축소 시 막대는 채워 둔다. */
 @utility animate-pass-qr-tick {
   animation: pass-qr-tick var(--pass-qr-tick, 20s) linear forwards;
 
-  /* 움직임을 줄이라는 설정이면 막대를 채운 채로 둔다 — 비우면 「이미 끝났다」로
-     읽힌다. 남은 시간은 어차피 장식이고(aria-hidden) 코드 자체는 계속 바뀐다. */
   @media (prefers-reduced-motion: reduce) {
     animation: none;
   }
 }
 
-/*
- * 고르는 칸의 화살표.
- *
- * 브라우저 기본 화살표는 OS마다 다르게 생겼고 폰트 크기도 따라오지 않아, 우리
- * 입력칸 옆에 서면 그 칸만 다른 앱에서 가져온 것처럼 보인다. `appearance: none`
- * 으로 지우고 같은 모양을 배경으로 그린다.
- *
- * **감싸는 <div>를 두지 않는다.** 화살표를 절대 위치 아이콘으로 얹으려면 껍데기가
- * 한 겹 필요한데, 그러면 `w-40` 같은 폭 클래스를 받은 호출부에서 껍데기와 알맹이의
- * 폭이 갈린다(flex 줄에 선 칸이 특히 그렇다). 배경 이미지는 DOM을 그대로 둔다.
- */
 @utility field-chevron {
   appearance: none;
   background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239a9a9a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.6rem center;
   background-size: 14px 14px;
-  /* 화살표가 앉을 자리. 브라우저 기본 화살표(약 20px)보다 넓으면 폭을 좁게 잡아
-     둔 칸에서 고른 글자가 화살표 밑으로 밀려 잘린다 — 「2026학년도 (현재)」가
-     w-36 안에서 그랬다. */
+
   padding-right: 1.75rem;
 
   &:disabled {

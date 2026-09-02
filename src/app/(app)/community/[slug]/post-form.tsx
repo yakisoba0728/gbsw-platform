@@ -17,21 +17,28 @@ import {
   postDraftIsNewerThanSubmission,
   postDraftNonceAfterSubmission,
   serializePostDraft,
+  type PostDraft,
 } from "./post-draft";
 
-export type EditingPost = {
+type DraftValues = Pick<PostDraft, "title" | "body" | "nonce">;
+
+function storeDraft(key: string, values: DraftValues) {
+  try {
+    if (!values.title && !values.body) window.sessionStorage.removeItem(key);
+    else window.sessionStorage.setItem(key, serializePostDraft(values));
+  } catch {
+    // 저장소가 막혀도 글쓰기는 계속한다.
+  }
+}
+
+type EditingPost = {
   id: string;
   title: string;
   body: string;
-  /** ISO 문자열. 낙관적 잠금에 실어 보낸다. */
   updatedAt: string;
   attachments: PickedAttachment[];
 };
 
-/**
- * 글쓰기·수정 폼. **확인 모달을 달지 않는다** — 되돌릴 수 있고(수정·삭제)
- * 게시판에서 가장 자주 하는 동작이라, 한 번 더 누르게 하면 그 자리가 안 쓰인다.
- */
 export function PostForm({
   slug,
   boardName,
@@ -44,7 +51,6 @@ export function PostForm({
   boardName: string;
   anonymous: boolean;
   allowAttachments: boolean;
-  /** 새 글에만 준다. 사용자·게시판별 sessionStorage 키. */
   draftKey?: string;
   post?: EditingPost;
 }) {
@@ -58,15 +64,9 @@ export function PostForm({
   const draftNonceRef = useRef<string | null>(null);
   const submittedDraftNonceRef = useRef<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingDraft = useRef<{
-    title: string;
-    body: string;
-    nonce: string;
-  } | null>(null);
+  const pendingDraft = useRef<DraftValues | null>(null);
   const [restored, setRestored] = useState(false);
 
-  // React 19가 액션이 끝난 폼을 리셋하므로, 실패가 실어 온 제출값을
-  // defaultValue로 내려 두면 리셋이 그 값으로 되돌아간다.
   const v = state.values;
 
   const setDraftNonce = useCallback((nonce: string): string => {
@@ -79,28 +79,17 @@ export function PostForm({
     return draftNonceRef.current ?? setDraftNonce(createPostDraftNonce());
   }, [setDraftNonce]);
 
-  // 마지막 키 입력 뒤 250ms 안에 화면을 떠나도 그 한 벌은 동기적으로 남긴다.
   useEffect(
     () => () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
       const values = pendingDraft.current;
       if (editing || !draftKey || !values) return;
-      try {
-        if (!values.title && !values.body) {
-          window.sessionStorage.removeItem(draftKey);
-        } else {
-          window.sessionStorage.setItem(draftKey, serializePostDraft(values));
-        }
-      } catch {
-        // 저장소를 막은 브라우저에서는 초안 없이 화면만 정상 종료한다.
-      }
+      storeDraft(draftKey, values);
     },
     [draftKey, editing],
   );
 
   useEffect(() => {
-    // 수정 화면에는 이미 서버의 최신 본문과 낙관적 잠금 시각이 있다. 새 글 초안을
-    // 섞으면 충돌 원인을 감추므로 이 기능은 새 글에서만 켠다.
     if (editing || !draftKey || !formRef.current) return;
 
     let raw: string | null = null;
@@ -118,8 +107,6 @@ export function PostForm({
       }
     }
 
-    // 입력 직후 250ms 저장 대기 중에 액션이 실패할 수 있다. 그때는 저장소의
-    // 이전 값보다 메모리에 남아 있는 최신 입력을 우선해야 난수와 본문이 어긋나지 않는다.
     const draft = postDraftForRestore(storedDraft, pendingDraft.current);
     if (!draft) {
       ensureDraftNonce();
@@ -134,8 +121,6 @@ export function PostForm({
       return;
     }
 
-    // 보통은 서버 액션 실패가 돌려준 제출값이 최신이다. 다만 제출 뒤 사용자가
-    // 더 입력해 난수가 갈린 초안은 그보다 새 것이므로 화면에도 복원한다.
     if (
       state.values &&
       !postDraftIsNewerThanSubmission(
@@ -148,8 +133,6 @@ export function PostForm({
     title.value = draft.title;
     body.value = draft.body;
 
-    // 외부 저장소를 읽은 결과를 다음 마이크로태스크에서 알린다. effect 본문에서
-    // 동기 setState를 호출해 연쇄 렌더를 만드는 패턴은 피한다.
     let cancelled = false;
     const hasContent = draft.title.length > 0 || draft.body.length > 0;
     if (hasContent) {
@@ -186,17 +169,7 @@ export function PostForm({
     };
     pendingDraft.current = values;
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      try {
-        if (!values.title && !values.body) {
-          window.sessionStorage.removeItem(draftKey);
-        } else {
-          window.sessionStorage.setItem(draftKey, serializePostDraft(values));
-        }
-      } catch {
-        // 사생활 보호 모드 등에서 저장소가 막혀도 글쓰기는 그대로 동작해야 한다.
-      }
-    }, 250);
+    saveTimer.current = setTimeout(() => storeDraft(draftKey, values), 250);
   }
 
   return (

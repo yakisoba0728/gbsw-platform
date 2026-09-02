@@ -19,7 +19,6 @@ describe("parseStudentNumber", () => {
   });
 
   it("숫자가 아니면 학번이 아니다", () => {
-    // 학생코드는 문자로 시작한다 (student-code.ts) — 여기서 걸러져야 한다.
     for (const value of ["A305", "23O5", "2305A", "가나다라"]) {
       expect(parseStudentNumber(value)).toBeNull();
     }

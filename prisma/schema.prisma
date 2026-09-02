@@ -1,7 +1,3 @@
-// GBSW 통합관리시스템 — 데이터 모델
-//
-// 뼈대 단계 범위: 인증 코어 + 신원(프로필/학급) + 감사로그 + 상벌점(교내/기숙사) + 커뮤니티.
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -9,14 +5,9 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  // Prisma 7부터 url은 prisma.config.ts에서 주입한다.
 }
 
-// ─────────────────────────────────────────────────────────────
-// 1. 인증 코어 — Better Auth가 소유하는 테이블
-//    스키마를 손으로 고치기 전에 `npm run auth:generate`로 대조할 것.
-// ─────────────────────────────────────────────────────────────
-
+/// 인증 코어 필드는 Better Auth 생성 스키마와 함께 관리한다.
 model User {
   id            String   @id
   name          String
@@ -26,48 +17,21 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  // ── 플랫폼 확장 필드
-  /// ADMIN | STUDENT | PARENT — src/core/authz/roles.ts와 일치해야 한다.
+  /// ADMIN | STUDENT | PARENT
   role String?
 
-  /// 필수. 가입·최초 관리자 생성 모두에서 받고, 관리자가 고칠 수 있다.
   phone String
 
   /// ACTIVE | INACTIVE
   status String? @default("ACTIVE")
 
-  /// 관리자가 비밀번호를 초기화하면 true. (app) 레이아웃에서 가로채 /change-password로 보낸다.
+  /// 비밀번호 초기화 후 다음 요청에서 변경을 강제한다.
   mustChangePassword Boolean? @default(false)
 
-  /// **소프트 삭제 표시가 아니다. 지금 이 값을 채우는 코드는 하나도 없다.**
-  /// 소프트 삭제를 계획했다가(docs/superpowers/plans/2026-08-14-soft-delete.md)
-  /// 물리 삭제로 되돌린 잔재다. 실제 동작은 이렇다 —
-  /// 명단 반영에서 줄이 빠진 학생은 `roster.repo.applyRoster`가 `user.deleteMany`로
-  /// 행 자체를 지운다. StudentProfile은 User에 Cascade, MeritAward는 StudentProfile에
-  /// Cascade라 **상벌점까지 함께 사라진다.** 사용자 상세의 단건 삭제
-  /// (`admin-user.repo.deletePermanently`)도 같다.
-  /// 반대로 명단에 줄이 있으면 `applyRoster`가 이 값을 null로 되돌린다 —
-  /// 남아 있던 옛 표시를 지우는 것이지 새로 찍는 게 아니다.
-  ///
-  /// 열과 인덱스는 남긴다. 지우려면 마이그레이션이 필요한데, **읽기 경로가 아직
-  /// 살아 있어** 지우면 그쪽이 함께 깨진다. 남은 독자는 넷이다 —
-  ///   1. 로그인 차단: `core/auth/login-eligibility.ts`(판정 한 곳)와 그것을 부르는
-  ///      `core/auth/auth.ts`·`core/auth/session.ts`, 그리고 앱 셸 밖이라 같은 검사를
-  ///      손으로 하는 `app/scan/page.tsx`·`app/api/pass/qr/route.ts`·
-  ///      `app/api/community/attachments/**`.
-  ///   2. 계정 관리: `admin-users/admin-user.repo.ts`(목록 필터·상세 select)와
-  ///      `admin-user.service.ts`의 `ACCOUNT_DELETED`, 사용자 상세의 「삭제 표시일」.
-  ///   3. 명단·초대: `enrollment/roster.repo.ts`(기존 명단 조회),
-  ///      `enrollment/enrollment.repo.ts`의 `listByYear`, `invites/invite.repo.ts`.
-  ///   4. 전자출입증: `pass/pass.repo.ts`(부여 선택지·QR 조회).
-  /// 즉 값을 채우는 날 소프트 삭제는 그대로 동작한다.
-  ///
-  /// **상벌점은 더 이상 이 열을 보지 않는다.** 보던 시절에도 아무도 못 걸렀다 —
-  /// 퇴학·전학은 이 값을 채우지 않기 때문이다. 부여 게이트·명단·통계·기준 초과
-  /// 명단은 전부 `Enrollment.status == "ENROLLED"`(그 학년도 재적)로 판정한다.
+  /// 신규 삭제는 물리 삭제한다. 레거시 표시를 읽는 인증·계정·명단·초대·출입증 경로 때문에 열과 인덱스를 보존한다.
+  /// 상벌점 대상은 이 값 대신 해당 학년도 Enrollment.status = ENROLLED로 판정한다.
   deletedAt DateTime?
 
-  // ── Better Auth admin 플러그인
   banned     Boolean?  @default(false)
   banReason  String?
   banExpires DateTime?
@@ -78,33 +42,25 @@ model User {
   studentProfile StudentProfile?
   auditLogs      AuditLog[]
 
-  /// 학부모로서 연결된 학생들
   parentLinks ParentStudent[]
 
   invitesCreated Invite[] @relation("InviteCreatedBy")
   inviteUsed     Invite?  @relation("InviteUsedBy")
 
-  /// 이 사람이 부여한 상벌점 / 취소한 상벌점. 계정이 지워지면 SetNull로 끊긴다.
   meritAwardsGiven     MeritAward[] @relation("MeritAwardedBy")
   meritAwardsCancelled MeritAward[] @relation("MeritCancelledBy")
 
-  /// 이 사람이 마지막으로 고친 벌점 기준. 계정이 지워지면 SetNull로 끊긴다.
   meritThresholdsSet MeritThreshold[] @relation("MeritThresholdUpdatedBy")
 
-  /// 전자출입증에서 맡은 자리들. 계정이 지워지면 전부 SetNull로 끊긴다.
   passesRequested Pass[] @relation("PassRequestedBy")
   passesConsented Pass[] @relation("PassConsentedBy")
   passesDecided   Pass[] @relation("PassDecidedBy")
   passesCancelled Pass[] @relation("PassCancelledBy")
 
-  /// 커뮤니티. 계정이 완전 삭제돼도 글·댓글은 남는다 (SetNull + 이름 스냅샷).
   communityPosts       CommunityPost[]       @relation("CommunityPostAuthor")
   communityComments    CommunityComment[]    @relation("CommunityCommentAuthor")
   communityAttachments CommunityAttachment[] @relation("CommunityAttachmentUploader")
 
-  // 계정·명단·초대·출입증 쪽 목록 조회가 이 조건(deletedAt: null)으로 거른다.
-  // 상벌점은 이제 재적으로 판정하므로 여기 들지 않는다. 지금은 전 행이 null이라
-  // 인덱스가 좁혀 주는 게 없지만, 위 주석대로 읽기 경로가 살아 있어 열과 함께 남긴다.
   @@index([deletedAt])
   @@map("user")
 }
@@ -121,7 +77,7 @@ model Session {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  /// admin 플러그인 — 관리자가 대리 로그인한 경우 원 관리자 User.id
+  /// 대리 로그인한 원 관리자 User.id.
   impersonatedBy String?
 
   @@index([userId])
@@ -138,7 +94,7 @@ model Account {
   accessTokenExpiresAt  DateTime?
   refreshTokenExpiresAt DateTime?
   scope                 String?
-  /// 해시된 비밀번호 (providerId = "credential"인 경우)
+  /// credential 공급자의 비밀번호 해시.
   password              String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
@@ -162,47 +118,33 @@ model Verification {
   @@map("verification")
 }
 
-// ─────────────────────────────────────────────────────────────
-// 2. 신원 / 조직
-// ─────────────────────────────────────────────────────────────
-
-/// 학생 신원.
-///
-/// **이 모델의 id가 학생을 추적하는 불변 식별자다.** 상벌점·외출 등 모든 기록이 이걸 참조한다.
-/// 학년·반·번호는 매년 갱신되는 "현재 소속"이므로 식별자로 쓰지 않는다.
+/// id는 업무 기록의 불변 참조다. 매년 바뀌는 학급·번호나 교체되는 Enrollment를 식별자로 쓰지 않는다.
 model StudentProfile {
   id     String @id @default(cuid())
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  /// 학생 식별자. 명단 파일의 첫 열이며 절대 바뀌지 않는다.
-  /// src/lib/student-code.ts가 만든다.
+  /// 명단 파일에서 사용하는 불변 학생 코드.
   studentCode String @unique
 
-  /// 가입 시 초대코드의 사전등록 값과 대조하는 2차 요소.
+  /// 초대의 사전등록 값과 대조하며 KST 자정으로 저장한다.
   birthDate DateTime
 
-  /// 학년도별 소속·학적
   enrollments Enrollment[]
 
-  /// 상벌점. 학생이 완전 삭제되면 함께 사라진다 (오등록 정리).
   meritAwards MeritAward[]
 
-  /// 전자출입증. 학생이 완전 삭제되면 함께 사라진다 (상벌점과 같은 규약).
   passes Pass[]
 
-  /// 이 학생에게 연결된 학부모들
   parents ParentStudent[]
 
-  /// 이 학생이 발급한 학부모 초대코드들
   parentInvites Invite[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
-/// 학부모 ↔ 학생 연결. 학부모가 초대코드로 가입할 때 만들어진다.
-/// 코드 자체에 학생이 귀속되어 있으므로 학부모가 대상을 고를 여지가 없다.
+/// 가입 초대코드에 귀속된 학생과 연결한다. 가입자가 학생을 선택하지 않는다.
 model ParentStudent {
   id String @id @default(cuid())
 
@@ -218,19 +160,8 @@ model ParentStudent {
   @@index([studentId])
 }
 
-/// 학년도. **현재 학년도는 항상 하나뿐**이며, 그것을 DB가 직접 막는다.
-///
-/// 그 제약은 부분 유니크 인덱스 `AcademicYear_single_current`
-/// (`ON "AcademicYear" ("isCurrent") WHERE "isCurrent"`)이고,
-/// `prisma/migrations/20260813005023_academic_year_and_enrollment/migration.sql`에
-/// 손으로 적혀 있다. **Prisma는 부분 인덱스를 표현하지 못해 여기에 대응 선언이
-/// 없다. Prisma 7.9.1의 `migrate diff`가 이 인덱스를 드리프트로 보지 않는 것을 빈
-/// 마이그레이션으로 확인했으며, **Prisma 메이저 업그레이드 때 다시 확인한다.**
-///
-/// 이 인덱스의 유일 제약 때문에 `academic-year.repo.setCurrent`는 "먼저 전부 내리고
-/// 나서 올린다"는 순서를 지켜야 하고,
-/// `tests/integration/academic-year.single-current.integration.test.ts`가 이
-/// 불변식을 통째로 검증한다.
+/// 현재 학년도는 SQL 마이그레이션의 부분 유니크 인덱스 AcademicYear_single_current로 하나만 허용한다.
+/// Prisma 선언에는 없으며 전환은 기존 isCurrent를 먼저 내린 뒤 새 행을 올린다.
 model AcademicYear {
   year      Int      @id
   isCurrent Boolean  @default(false)
@@ -240,8 +171,7 @@ model AcademicYear {
   meritAwards MeritAward[]
 }
 
-/// 학생의 그 학년도 소속과 학적.
-/// grade·classNo·number는 ENROLLED일 때만 채운다 — 졸업·자퇴에는 의미가 없다.
+/// grade·classNo·number는 ENROLLED일 때만 채운다.
 model Enrollment {
   id String @id @default(cuid())
 
@@ -255,57 +185,45 @@ model Enrollment {
   classNo Int?
   number  Int?
 
-  /// src/core/authz/enrollment-status.ts의 EnrollmentStatus와 일치해야 한다.
+  /// src/core/authz/enrollment-status.ts의 EnrollmentStatus.
   status String @default("ENROLLED")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  /// 한 학생은 한 학년도에 한 줄. 동시 요청은 애플리케이션 검사로 못 막는다.
   @@unique([studentProfileId, year])
-  /// 한 학년도·학년·반에 같은 번호 둘을 막는다. Postgres는 NULL을 서로 다르게
-  /// 보므로 비재학 행끼리는 걸리지 않는다 — 의도한 동작이다.
+  /// Postgres의 NULL은 서로 달라 비재학·미배정 학생끼리는 충돌하지 않는다.
   @@unique([year, grade, classNo, number])
   @@index([year])
 }
-
-// ─────────────────────────────────────────────────────────────
-// 3. 초대코드 — 계정 생성의 유일한 경로 (부트스트랩 제외)
-// ─────────────────────────────────────────────────────────────
 
 model Invite {
   id   String @id @default(cuid())
   code String @unique
 
-  /// ADMIN | STUDENT | PARENT
-  /// 가입 시 역할은 항상 이 값에서 읽는다. 클라이언트가 주장할 수 없다.
+  /// ADMIN | STUDENT | PARENT. 가입 역할은 클라이언트 입력 대신 여기서 읽는다.
   role String
 
   /// PENDING | USED | REVOKED
   status String @default("PENDING")
 
-  /// null이면 무기한
   expiresAt DateTime?
 
-  /// 사전등록 신원. 가입 시 2차 요소로 대조한다.
-  ///   STUDENT       { name, birthDate, grade, classNo, number }
-  ///   ADMIN·PARENT  { name }
+  /// 사전등록 신원: STUDENT는 name·birthDate·grade·classNo·number, 나머지는 name.
   metadata Json?
 
-  /// PARENT 코드 전용 — 이 코드로 가입한 학부모가 연결될 학생.
-  /// 학생 본인이 코드를 만들 때 서버가 세션에서 채운다.
+  /// PARENT 코드의 연결 대상. 학생이 발급하면 서버가 세션에서 유도한다.
   studentId String?
   student   StudentProfile? @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
-  /// 2차 요소 대조 실패 횟수. 5회 도달 시 코드를 폐기한다.
+  /// 신원 대조가 5회 실패하면 코드를 폐기한다.
   failedAttempts Int @default(0)
 
-  /// 발급자가 탈퇴하면 참조만 끊고 발급 당시 이름은 스냅샷으로 보존한다.
   createdById   String?
   createdBy     User?  @relation("InviteCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  /// 발급 당시 이름 스냅샷. 발급자 계정 삭제 후에도 보존한다.
   createdByName String
 
-  /// 코드 하나는 계정 하나만 만든다.
   usedById String?   @unique
   usedBy   User?     @relation("InviteUsedBy", fields: [usedById], references: [id], onDelete: SetNull)
 
@@ -315,37 +233,28 @@ model Invite {
   @@index([studentId])
 }
 
-/// 가입 시 이메일·전화번호 확인용 일회성 코드.
-///
-/// 가입은 여러 요청에 걸쳐 일어나므로 메모리가 아니라 DB에 둔다.
-/// 계정이 만들어지면 consumedAt이 찍혀 재사용되지 않는다.
+/// 요청 사이의 확인 proof를 저장하고 가입 트랜잭션에서 한 번만 소진한다.
+/// 현재 가입은 verifiedAt이 채워진 임시 proof를 만들며 실발송은 호출하지 않는다.
 model VerificationCode {
   id String @id @default(cuid())
 
   /// EMAIL | PHONE
   channel String
 
-  /// 정규화된 이메일 주소 또는 휴대폰 번호
   target String
 
-  /// 코드 원본은 저장하지 않는다 (SHA-256).
+  /// 코드 원본 대신 SHA-256 해시를 저장한다.
   codeHash String
 
   expiresAt DateTime
 
-  /// 코드 대조 실패 횟수. 한계에 닿으면 만료시킨다.
   attempts Int @default(0)
 
-  /// 대조에 성공한 시각. 가입 시 이 값이 있어야 통과한다.
   verifiedAt DateTime?
 
-  /// 가입에 실제로 쓰인 시각. 찍히면 더는 못 쓴다.
   consumedAt DateTime?
 
-  /// 발송을 요청한 접속 IP (I4). 대상(target)은 공격자가 마음대로 바꿀 수
-  /// 있어 대상별 제한만으로는 한 IP가 임의의 번호마다 계속 발송을 촉발하는
-  /// 것을 막지 못한다 — IP별 제한의 근거로 쓴다. 요청 컨텍스트 밖(테스트 등)
-  /// 에서는 비어 있을 수 있다.
+  /// 대상을 바꿔 반복 요청하는 남용을 IP별로 제한한다. 요청 컨텍스트 밖에서는 null.
   requestIp String?
 
   createdAt DateTime @default(now())
@@ -354,67 +263,47 @@ model VerificationCode {
   @@index([requestIp, createdAt])
 }
 
-// ─────────────────────────────────────────────────────────────
-// 4. 감사로그 — 모든 변경 작업이 여기로 남는다 (append-only)
-// ─────────────────────────────────────────────────────────────
-
+/// 변경 기록은 추가만 하며 계정 삭제 후에도 행위자 이름 스냅샷을 보존한다.
 model AuditLog {
   id String @id @default(cuid())
 
-  /// 계정이 지워지면 null이 된다. 기록 자체는 남아야 하므로 Restrict를 쓰지 않는다.
   actorUserId String?
   actor       User?  @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
 
-  /// 기록 시점의 행위자 이름. 계정이 사라져도 "누가 했는지"가 남아야 한다.
-  /// 과거의 사실이 살아 있는 외래키에 기대면 안 된다.
   actorName String
 
-  /// core/authz/can.ts의 Action 문자열과 같은 형식. 예) "merit:award"
   action     String
   targetType String
   targetId   String?
   metadata   Json?
 
-  /// 요청 접속 정보. 요청 밖(부팅 훅·스크립트)에서 남긴 기록은 비어 있다.
   ip        String?
   userAgent String?
 
   createdAt DateTime @default(now())
 
   @@index([actorUserId])
-  // 계정 상세가 actorUserId OR targetId로 최근 20건을 찾는다
-  // (admin-user.repo.findRelatedAudit). 이 인덱스가 없으면 OR의 둘째 갈래가
-  // 안 좁혀져, 관련 줄이 20건에 못 미치는 계정에서 감사로그 전 구간을 훑는다 —
-  // 감사로그는 삭제 경로가 없어 단조 증가한다.
+  /// 계정 관련 감사 조회의 actorUserId OR targetId 조건을 지원한다.
   @@index([targetId])
   @@index([action])
   @@index([createdAt])
 }
 
-// ─────────────────────────────────────────────────────────────
-// 5. 상벌점 — 교내(그린마일리지, 학년도별) · 기숙사(누적)
-// ─────────────────────────────────────────────────────────────
-
-/// 규정 카탈로그. 관리자가 만들고, 부여 화면의 선택지가 된다.
+/// SCHOOL은 학년도별, DORM은 누적으로 집계한다. 삭제는 비활성화하고 부여 기록은 보존한다.
 model MeritRule {
   id String @id @default(cuid())
 
-  /// SCHOOL | DORM — src/core/authz/merit-track.ts의 MeritTrack과 일치해야 한다.
   track String
-  /// MERIT | DEMERIT | OFFSET — 같은 파일의 MeritKind와 일치해야 한다.
-  /// OFFSET(상쇄점)은 상점이 아니다 — 선도관리위원회가 벌점을 덜어내는 조치이며
-  /// 순점수에서만 만난다 (순점수 = 상점 + 상쇄점 − 벌점).
+  /// MERIT | DEMERIT | OFFSET. 순점수 = 상점 + 상쇄점 - 벌점.
   kind  String
 
   label String
-  /// 항상 양수. 부호는 kind가 정한다 — 음수를 허용하면 "벌점 −3점"처럼
-  /// 같은 뜻을 두 갈래로 표현할 수 있게 되고, 합계 계산이 어느 쪽을 믿을지 모호해진다.
+  /// 항상 양수이며 부호는 kind가 정한다.
   points Int
 
   category    String?
   description String?
 
-  /// false면 부여 목록에서 감춘다. 이미 나간 기록이 참조하므로 행은 남긴다.
   active Boolean @default(true)
 
   awards MeritAward[]
@@ -425,76 +314,49 @@ model MeritRule {
   @@index([track, active])
 }
 
-/// 벌점 누적 기준. 관리자가 설정 화면에서 정한다.
-///
-/// **트랙 하나에 행 하나**라 track이 곧 기본키다 (별도 id·유니크 인덱스가 필요 없다).
-/// **행이 없는 상태가 정상이다** — 한 번도 설정하지 않은 학교는 코드 기본값
-/// (DEFAULT_DEMERIT_THRESHOLDS)으로 떨어진다. 마이그레이션으로 행을 심지 않는
-/// 근거는 src/modules/merit/threshold.service.ts에 있다.
+/// 트랙별 행이 없으면 DEFAULT_DEMERIT_THRESHOLDS를 사용한다. danger는 warn보다 커야 한다.
 model MeritThreshold {
-  /// SCHOOL | DORM — src/core/authz/merit-track.ts의 MeritTrack과 일치해야 한다.
   track String @id
 
-  /// 이 점수부터 진하게 표시하고 "기준 초과 학생" 명단에 올린다.
   warn Int
-  /// 이 점수부터 붉은 배경. 항상 warn보다 크다 (merit.schema.ts·threshold.service.ts).
   danger Int
 
   updatedAt DateTime @updatedAt
 
-  /// 계정이 지워지면 null이 된다 — 다른 책임 추적 필드와 같은 규약이다.
   updatedByUserId String?
   updatedBy       User?   @relation("MeritThresholdUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
-  /// 마지막으로 고친 사람의 이름 스냅샷. AuditLog.actorName과 같은 이유 —
-  /// 과거의 사실이 살아 있는 외래키에 기대면 안 된다.
+  /// 변경 당시 이름 스냅샷.
   updatedByName String
 }
 
-/// 부여 기록. 규정 값을 부여 시점에 복사해 둔다.
+/// 규정·교사 이름은 부여 당시 스냅샷이다. 교내 합계는 year로 제한하고 기숙사는 누적한다.
 model MeritAward {
   id String @id @default(cuid())
 
-  /// **학생의 영구 식별자에 매단다. Enrollment가 아니다.**
-  /// 명단 일괄 반영(applyRoster)은 그 학년도 재적 행을 지우고 다시 넣으므로,
-  /// 재적을 참조하면 명단을 한 번 올릴 때마다 전교생 상벌점이 끊어진다.
   studentProfileId String
   studentProfile   StudentProfile @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
 
-  /// 부여된 학년도. 교내 합계의 범위이자 기숙사 기록의 시점 표시.
   year         Int
   academicYear AcademicYear @relation(fields: [year], references: [year], onDelete: Restrict)
 
-  /// 규정 행은 지우는 경로가 없다(비활성만 있다). "이 규정으로 몇 건 나갔나"에 쓴다.
   ruleId String
   rule   MeritRule @relation(fields: [ruleId], references: [id], onDelete: Restrict)
 
-  // ── 부여 시점 스냅샷. 규정이 나중에 바뀌어도 과거 기록은 안 흔들린다.
   track  String
   kind   String
   label  String
   points Int
 
-  /// **실제로 그 일이 일어난 날.** KST 자정으로 저장한다 (StudentProfile.birthDate와
-  /// 같은 규약 — src/lib/datetime.ts의 parseDateInputKst 하나만 거친다).
-  ///
-  /// createdAt(입력한 시각)과 나누는 이유: 교사는 금요일 일을 월요일에 넣고,
-  /// 사감은 어젯밤 점호를 다음 날 아침에 넣는다. 하나로 두면 그 차이가 메모의
-  /// 자연어("6월 12일 점호")로 새고, 월별 추이는 엉뚱한 달을 세며, 선도위에
-  /// 내는 근거 자료에 틀린 날짜가 박힌다.
-  ///
-  /// createdAt은 그대로 남는다 — 그쪽은 "언제 입력됐나"라는 감사 사실이다.
+  /// KST 자정의 발생일. 입력 시각인 createdAt과 구분한다.
   occurredOn DateTime
 
   note String?
 
-  /// 계정이 지워지면 null이 된다 — 오등록 완전 삭제를 막지 않기 위해서다.
   awardedByUserId String?
   awardedBy       User?   @relation("MeritAwardedBy", fields: [awardedByUserId], references: [id], onDelete: SetNull)
-  /// 부여 시점의 이름 스냅샷. AuditLog.actorName과 같은 이유 —
-  /// 과거의 사실이 살아 있는 외래키에 기대면 안 된다.
   awardedByName String
 
-  /// ACTIVE | CANCELLED. 취소해도 행은 남는다 (목록에 취소 표시로 보인다).
+  /// ACTIVE | CANCELLED. 취소 기록은 남기고 합계에서 제외한다.
   status String @default("ACTIVE")
 
   cancelledByUserId String?
@@ -503,69 +365,51 @@ model MeritAward {
   cancelledAt       DateTime?
   cancelReason      String?
 
-
   createdAt DateTime @default(now())
 
-  /// 학생 한 명의 트랙별 조회·집계 — 가장 잦은 질의다.
   @@index([studentProfileId, track])
-  /// 반별 목록(그 학년도 전체를 훑는다).
   @@index([year, track])
-  /// 최근 부여 목록 — 트랙별 입력 최신순 페이지네이션.
   @@index([track, createdAt(sort: Desc)])
 }
 
-// ─────────────────────────────────────────────────────────────
-// 6. 전자출입증 — 외출(당일 복귀) · 외박(밤을 밖에서)
-// ─────────────────────────────────────────────────────────────
-
-/// 전자출입증. 설계는 docs/superpowers/specs/2026-08-26-pass-design.md.
+/// 학생 프로필에 연결하며 요청·동의·결재·취소 시점의 이름을 스냅샷으로 보존한다.
 model Pass {
   id String @id @default(cuid())
 
-  /// **학생의 영구 식별자에 매단다. Enrollment가 아니다** — MeritAward와 같은 이유.
-  /// 명단 일괄 반영은 그 학년도 재적 행을 지우고 다시 넣는다.
   studentProfileId String
   studentProfile   StudentProfile @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
 
-  /// OUTING | OVERNIGHT — src/core/authz/pass-type.ts의 PassType과 일치해야 한다.
+  /// OUTING | OVERNIGHT
   type String
 
-  /// REQUESTED | CONSENTED | APPROVED | REJECTED | CANCELLED — 같은 파일의 PassStatus.
-  /// **EXPIRED는 없다.** 만료는 endAt으로 읽을 때 계산한다 — 이 앱에 크론이 없다.
+  /// REQUESTED | CONSENTED | APPROVED | REJECTED | CANCELLED. 만료는 endAt으로 계산한다.
   status String @default("REQUESTED")
 
-  /// 유효 창. 외출은 시각까지, 외박은 KST 자정 눈금(끝은 종료일 다음 날 자정)이다.
+  /// KST 입력 시각. 유효 범위는 startAt 이상, endAt 미만이다.
   startAt DateTime
   endAt   DateTime
 
   destination String
   reason      String
 
-  /// 이 줄을 만든 사람. 학생 신청이면 학생, 교사 직접 부여면 교사.
   requestedByUserId String?
   requestedBy       User?   @relation("PassRequestedBy", fields: [requestedByUserId], references: [id], onDelete: SetNull)
-  /// 시점의 이름 스냅샷. AuditLog.actorName과 같은 이유 — 과거의 사실이
-  /// 살아 있는 외래키에 기대면 안 된다. 아래 세 쌍도 같다.
   requestedByName   String
 
-  // ── 학부모 동의 (외박만)
   consentedByUserId String?
   consentedBy       User?     @relation("PassConsentedBy", fields: [consentedByUserId], references: [id], onDelete: SetNull)
   consentedByName   String?
   consentedAt       DateTime?
-  /// true면 교사가 보호자 확인을 대신 기록한 것이다 (전화 확인 등).
+  /// 교사가 외박의 보호자 확인을 대신 기록한 경우.
   consentByProxy    Boolean   @default(false)
   consentNote       String?
 
-  // ── 교사 결재
   decidedByUserId String?
   decidedBy       User?     @relation("PassDecidedBy", fields: [decidedByUserId], references: [id], onDelete: SetNull)
   decidedByName   String?
   decidedAt       DateTime?
-  /// 반려 사유.
   decisionNote    String?
 
-  // ── 취소 (승인 후 무르기 / 학생 철회)
   cancelledByUserId String?
   cancelledBy       User?     @relation("PassCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: SetNull)
   cancelledByName   String?
@@ -575,42 +419,28 @@ model Pass {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  /// 학생 한 명의 내역 — 최신순.
   @@index([studentProfileId, startAt(sort: Desc)])
-  /// 교사의 결재 대기 목록 / 지금 유효한 것 훑기.
   @@index([status, endAt])
 }
 
-// ─────────────────────────────────────────────────────────────
-// 7. 커뮤니티 — 게시판·글·댓글·첨부
-//    설계: docs/superpowers/specs/2026-08-28-community-design.md
-// ─────────────────────────────────────────────────────────────
-
-/// 게시판 하나. **교사가 화면에서 만든다** — 새 게시판마다 마이그레이션을
-/// 돌리는 구조면 그 자리는 결국 안 쓰인다.
 model Community {
   id String @id @default(cuid())
 
-  /// 주소에 쓰는 이름(`/community/notice`). 소문자 영숫자와 하이픈, 2~32자.
-  /// **만든 뒤에는 바꿀 수 없다** — 바꾸면 그동안 붙은 링크가 전부 죽는다.
+  /// 링크를 유지하기 위해 생성 후 바꾸지 않는다.
   slug        String  @unique
   name        String
   description String?
 
-  /// 읽기·쓰기 허용 역할. **ADMIN은 늘 통과하므로 여기 넣지 않는다** —
-  /// can()이 ADMIN을 무조건 통과시키는 것과 같은 규칙이다.
-  /// writeRoles ⊆ readRoles를 community.schema.ts가 강제한다.
+  /// ADMIN은 항상 허용하며 writeRoles는 readRoles의 부분집합이다.
   readRoles  String[]
   writeRoles String[]
 
-  /// 켜면 이 게시판의 모든 글·댓글에서 작성자를 감춘다. 글마다 고르지 않는다 —
-  /// 실명과 익명이 한 목록에 섞이면 "왜 이 글만 감췄나"가 그 자체로 정보가 된다.
+  /// 게시판 전체의 글·댓글 작성자를 감춘다.
   anonymous        Boolean @default(false)
   allowAttachments Boolean @default(true)
 
-  /// 목록 순서. 같으면 name 순.
   sortOrder Int @default(0)
-  /// false면 없앤 게시판. 글이 매달려 있어 행은 지우지 않는다 (MeritRule 규약).
+  /// 연결된 글을 보존하므로 삭제는 비활성화한다.
   active Boolean @default(true)
 
   posts CommunityPost[]
@@ -621,8 +451,7 @@ model Community {
   @@index([active, sortOrder])
 }
 
-/// 글. 작성자는 SetNull + 이름·역할 스냅샷이다 (MeritThreshold.updatedByName과
-/// 같은 규약) — 과거의 사실이 살아 있는 외래키에 기대면 안 된다.
+/// 계정 삭제 후에도 이름·역할 스냅샷으로 작성자 표시를 유지한다.
 model CommunityPost {
   id          String    @id @default(cuid())
   communityId String
@@ -631,14 +460,12 @@ model CommunityPost {
   title String
   body  String @db.Text
 
-  /// 계정이 완전 삭제되면 null이 된다. isMine 판정의 유일한 근거라 남겨 둔다.
   authorUserId String?
   authorUser   User?   @relation("CommunityPostAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
   authorName   String
-  /// ADMIN | STUDENT | PARENT — 계정이 지워진 뒤에도 honorificName을 그려야 한다.
   authorRole String
 
-  /// 삭제는 행을 지우지 않는다. 댓글이 매달려 있다.
+  /// 댓글·첨부가 연결되어 있어 글 삭제는 표시만 남긴다.
   deletedAt DateTime?
 
   comments    CommunityComment[]
@@ -650,8 +477,6 @@ model CommunityPost {
   @@index([communityId, deletedAt, createdAt])
 }
 
-/// 댓글. 대댓글은 두지 않는다 — 트리 구조가 화면과 조회를 한 단계 복잡하게
-/// 만드는데 학교 게시판에서 얻는 것이 적다. 수정도 없다(쓰기·삭제뿐).
 model CommunityComment {
   id     String        @id @default(cuid())
   postId String
@@ -671,29 +496,19 @@ model CommunityComment {
   @@index([postId, deletedAt, createdAt])
 }
 
-/// 첨부. 글보다 먼저 만들어진다 — 라우트 핸들러가 파일을 받아 postId 없이
-/// 행을 만들고, 폼 제출 때 서버 액션이 글에 붙인다.
+/// 글 제출 전에 생성한다. postId가 1시간 넘게 null이면 고아 첨부다.
 model CommunityAttachment {
   id String @id @default(cuid())
 
-  /// 글에 붙기 전에는 null. 1시간 넘게 null이면 고아다.
   postId String?
   post   CommunityPost? @relation(fields: [postId], references: [id], onDelete: Cascade)
 
-  /// 올린 사람. 글에 붙일 때 글쓴이와 같은지 확인하는 데 쓴다.
-  ///
-  /// **Cascade가 아니라 SetNull이다.** 글이 SetNull로 살아남는데 첨부만 계정을
-  /// 따라 사라지면, 남은 글에서 첨부가 조용히 없어지고 디스크 파일은 그것을
-  /// 가리키는 행이 사라져 영영 못 지운다. 붙은 뒤의 첨부는 올린 사람이 아니라
-  /// 글의 것이다.
+  /// 게시된 글의 첨부는 계정 삭제 후에도 보존하며, 연결 전에는 업로더만 사용할 수 있다.
   uploaderUserId String?
   uploaderUser   User?   @relation("CommunityAttachmentUploader", fields: [uploaderUserId], references: [id], onDelete: SetNull)
 
-  /// 디스크의 파일 이름. 랜덤 32자.
-  /// **원래 이름은 절대 디스크에 쓰지 않는다** — 경로 탈출과 확장자 위조를
-  /// 검사로 막는 대신 그 값이 파일 이름에 닿지 않게 한다.
+  /// 경로 탈출을 막기 위해 원래 파일명 대신 랜덤 32자를 디스크 이름으로 쓴다.
   storageKey String @unique
-  /// 올린 사람이 붙인 원래 이름. 화면에만 쓴다.
   filename String
   mimeType String
   size     Int

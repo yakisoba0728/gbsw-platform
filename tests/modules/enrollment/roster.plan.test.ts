@@ -50,9 +50,6 @@ describe("planRoster()", () => {
   });
 
   it("학생코드가 비면 신규다 — 초대코드가 나갈 대상", () => {
-    // 이름·생년월일을 기존 학생과 다르게 둔다 — 같으면 "코드가 지워진 것 같다"는
-    // needsAttention 상관관계(아래 describe 참고)에 걸려 이 테스트의 의도(순수 신규)와
-    // 섞인다.
     const plan = planRoster(
       [row({ studentCode: "", name: "새학생", birthDate: "2012-01-01" })],
       [재학생],
@@ -230,8 +227,6 @@ describe("planRoster()", () => {
     const plan = planRoster([], [재학생]);
 
     expect(plan.missingFromFile).toHaveLength(1);
-    // missingFromFile 자체는 확정을 막지 않는다 — 삭제 대상 집합·건수 대조는
-    // 서비스 계층(applyRosterPlan, I-2·I-3)이 별도로 강제한다.
     expect(plan.hasBlockingError).toBe(false);
   });
 
@@ -276,13 +271,11 @@ describe("planRoster()", () => {
     const plan = planRoster([], [과거졸업생]);
 
     expect(plan.missingFromFile).toHaveLength(0);
-    // 올해 배정이 없으면 확정해도 아무 일이 없다 — 조용히 넘기는 게 맞다.
     expect(plan.needsAttention).toHaveLength(0);
     expect(plan.hasBlockingError).toBe(false);
   });
 
   describe("졸업 면제가 이번 학년도 배정을 덮어 가리지 않는다", () => {
-    /** 2026 졸업 + 2027 재학(재입학·오등록). 졸업 면제만 하면 어디에도 안 잡힌다. */
     const 재입학생 = {
       ...재학생,
       studentProfileId: "sp-2",
@@ -297,7 +290,6 @@ describe("planRoster()", () => {
     it("명단에 줄이 없으면 확인 필요로 올려 확정을 막는다", () => {
       const plan = planRoster([row()], [재학생, 재입학생]);
 
-      // 물리 삭제하지는 않는다 — repo의 삭제 가드도 이 학생을 건너뛴다.
       expect(plan.missingFromFile).toHaveLength(0);
       expect(plan.needsAttention).toHaveLength(1);
       expect(plan.needsAttention[0]!.studentProfileId).toBe("sp-2");
@@ -339,14 +331,6 @@ describe("planRoster()", () => {
   });
 
 });
-
-/*
- * bulkDeleteThreshold()의 테스트 셋(절대 하한 10명·재학생의 10%·경계값 `>`)도 함께
- * 없앴다. 그 셋이 지키던 것은 "임계 계산이 화면과 서비스에서 어긋나지 않는다"인데,
- * 임계를 없애 어긋날 두 곳 자체가 사라졌다 — 지금은 양쪽 다 `deleteCount > 0`이다.
- * 임계가 정말 위험했던 지점(재학 300명 → 임계 30 → 한 반 25명이 그냥 통과)은
- * roster.service.test.ts가 "1명만 빠져도 건수를 넣지 않으면 거부한다"로 못 박는다.
- */
 
 describe("planRoster() + normalizeRows() — 회귀: 명단 업로드의 학년·반·번호 범위", () => {
   const HEADER = ["이름", "생년월일", "학년", "반", "번호", "학적"];

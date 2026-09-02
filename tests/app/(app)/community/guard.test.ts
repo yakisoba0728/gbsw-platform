@@ -1,9 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-/**
- * 실제 redirect()·notFound()는 던져서 그 자리의 실행을 끊는다(Next 내부 특수 오류).
- * 여기서도 던지게 흉내 내어, 가드가 그 뒤로 값을 흘려보내지 않는지까지 함께 본다.
- */
 const redirect = vi.fn((url: string) => {
   throw new Error(`REDIRECT:${url}`);
 });
@@ -72,7 +68,7 @@ describe("orDenied — 화면이 답할 일이 아닌 것은 그대로 던진다
     expect(notFound).not.toHaveBeenCalled();
   });
 
-  it("**redirect()가 담긴 오류를 삼키지 않는다** — 정규 주소로 보내는 길이 막히면 안 된다", async () => {
+  it("redirect()가 담긴 오류를 삼키지 않는다 — 정규 주소로 보내는 길이 막히면 안 된다", async () => {
     await expect(
       orDenied(Promise.reject(new Error("REDIRECT:/community/free/p1"))),
     ).rejects.toThrow("REDIRECT:/community/free/p1");

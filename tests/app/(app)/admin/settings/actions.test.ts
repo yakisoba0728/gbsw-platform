@@ -70,11 +70,6 @@ describe("saveThresholdAction — 경계 검증", () => {
     expect(state.error).toBe("위험 기준은 경고 기준보다 커야 합니다.");
   });
 
-  /*
-   * React 19는 액션이 끝나면 성공·실패를 가리지 않고 폼을 reset()한다. 두 칸이
-   * defaultValue만 준 비제어 입력이라, 실패 상태가 제출값을 싣지 않으면 방금
-   * 입력한 숫자가 저장된 값으로 되감긴다.
-   */
   it("거부되면 방금 입력한 두 숫자를 돌려준다", async () => {
     const state = await saveThresholdAction(INITIAL, form({ warn: "30", danger: "20" }));
 
@@ -96,11 +91,6 @@ describe("saveThresholdAction — 경계 검증", () => {
   });
 });
 
-/**
- * 권한 거부가 일반 폴백에 섞이면 안 된다 — 화면이 「저장하지 못했습니다」라고 하면
- * 권한이 없어서 막힌 사람이 일시적 장애로 알고 계속 다시 누른다. 규칙이 주석에만
- * 있으면 새 액션마다 같은 자리에서 갈리므로 여기서 붙든다.
- */
 describe("권한 거부 문구", () => {
   it("일반 폴백과 다른 문구를 낸다", async () => {
     setDemeritThresholds.mockRejectedValue(new ForbiddenError("merit:threshold:manage"));

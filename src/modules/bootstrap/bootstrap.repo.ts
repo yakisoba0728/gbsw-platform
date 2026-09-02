@@ -1,12 +1,10 @@
 import { prisma, type DbClient, withTransaction } from "@/core/db/client";
 
-/** Prisma 호출만 둔다. `can()` 없이 쓰는 유일한 모듈이다 (service 주석 참고). */
-
 export async function countUsers(): Promise<number> {
   return prisma.user.count();
 }
 
-export type CreateAdminUserInput = {
+type CreateAdminUserInput = {
   userId: string;
   accountId: string;
   name: string;
@@ -28,7 +26,6 @@ async function createAdminUserWithDb(
       emailVerified: true,
       role: "ADMIN",
       status: "ACTIVE",
-      // 본인이 방금 정한 비밀번호라 강제 변경이 필요 없다.
       mustChangePassword: false,
     },
   });
@@ -36,7 +33,6 @@ async function createAdminUserWithDb(
   await db.account.create({
     data: {
       id: input.accountId,
-      // credential 로그인에서는 accountId가 곧 userId다.
       accountId: input.userId,
       providerId: "credential",
       userId: input.userId,

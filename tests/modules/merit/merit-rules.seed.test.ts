@@ -6,11 +6,6 @@ import {
 } from "@/../prisma/seed/merit-rules.data";
 import { MERIT_KINDS, MERIT_TRACKS } from "@/core/authz/merit-track";
 
-/**
- * 학교 규정표를 손으로 옮긴 데이터라, 가장 큰 위험은 **줄을 빠뜨리는 것**이다.
- * 개수 단언이 그걸 잡는다 — 원본 표를 세어 나온 값이며, 규정이 실제로 바뀌면
- * 이 숫자도 함께 고쳐야 한다(그때는 의도한 변경이다).
- */
 describe("규정 시드 — 개수", () => {
   it("교내는 73개다 (상점 18 + 벌점 54 + 상쇄점 1)", () => {
     expect(SCHOOL_RULES).toHaveLength(73);
@@ -131,11 +126,6 @@ describe("규정 시드 — 형식", () => {
 });
 
 describe("규정 시드 — 범위 점수 처리", () => {
-  /**
-   * 원본에 "2~5점"처럼 범위로 적힌 항목이 있다. 카탈로그는 점수가 정해져 있어야
-   * 하므로 1점으로 넣고 범위를 설명에 적는다 — 여러 번 부여해 조절하며,
-   * 그래야 각 건이 감사로그에 따로 남는다.
-   */
   const RANGE_LABELS = [
     "생활관 내 생활이 타의 모범이 되는 자(사감교사 및 사감 추천)",
     "건물 내의 환경 미화 및 공공 시설물에서의 노력 봉사자(시간당 1점, 최고 3점)",
@@ -156,7 +146,6 @@ describe("규정 시드 — 범위 점수 처리", () => {
 });
 
 describe("규정 시드 — 원본 대조 표본", () => {
-  /** 옮겨 적기 오류를 잡는 표본. 점수가 큰 항목과 경계값을 고른다. */
   const SAMPLES: [track: string, label: string, kind: string, points: number][] = [
     ["SCHOOL", "재학 기간 중 문신을 한 학생", "DEMERIT", 30],
     ["SCHOOL", "교내·외에서 흡연이나 음주를 한 학생", "DEMERIT", 20],
@@ -178,7 +167,6 @@ describe("규정 시드 — 원본 대조 표본", () => {
   });
 
   it("원본의 오탈자를 임의로 고치지 않는다 (리숙사)", () => {
-    // 공식 규정 문구라 시스템이 손대지 않는다. 학교가 표를 고치면 그때 함께 고친다.
     const rule = MERIT_RULE_SEED.find((r) => r.label.startsWith("리숙사"));
     expect(rule).toBeDefined();
   });

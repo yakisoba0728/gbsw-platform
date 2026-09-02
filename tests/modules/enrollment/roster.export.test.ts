@@ -59,16 +59,6 @@ describe("buildExportRows()", () => {
   });
 });
 
-/**
- * "내려받은 파일을 그대로 다시 올리면 변경사항이 0건이어야 한다"는 이 기능의
- * 가장 중요한 불변식이다. 배열끼리 비교하는 걸로는 안 된다 — 손실은 실제 xlsx
- * 직렬화(write-excel-file)와 역직렬화(read-excel-file, parseRoster가 문다) 경계에서
- * 생긴다. 그래서 실제 xlsx 바이트를 만들고 그걸 다시 파서에 태운다.
- *
- * 브라우저 진입점(write-excel-file/browser)과 노드 진입점(/node)은 같은 직렬화
- * 코어를 쓴다 — 테스트에서만 /node의 toBuffer()로 바이트를 얻는다. 실제 화면
- * 코드(import-form.tsx)는 /browser를 쓴다.
- */
 describe("왕복: 내보내기 → xlsx 바이트 → 파서 → 분류", () => {
   const 재학생: ExistingStudent = {
     studentProfileId: "sp-1",
@@ -116,15 +106,6 @@ describe("왕복: 내보내기 → xlsx 바이트 → 파서 → 분류", () => 
     expect(plan.hasBlockingError).toBe(false);
   });
 
-  /**
-   * 이 브랜치의 대표 불변식이자 Critical 결함의 재현/회귀 테스트다.
-   *
-   * 그 학년도 Enrollment가 없는 학생(졸업 등, status === null)을 내보내면
-   * 학년·반·번호·학적이 전부 빈 칸이 된다 (buildExportRows). 고치지 않고 그대로
-   * 다시 올렸을 때 오류로 잡히면, 그 학생이 한 명이라도 섞인 파일은 영원히
-   * 확정할 수 없다 — 관리자가 막힌 걸 뚫으려 그 줄을 지우면 이번엔 계정 삭제가
-   * 된다(missingFromFile). 실제 xlsx 바이트로 왕복시켜 변경 0건임을 확인한다.
-   */
   it("배정이 없는 학생(졸업 등)을 내려받아 그대로 올리면 변경 0건이다 — Critical 회귀", async () => {
     const 배정없는학생: ExistingStudent = {
       studentProfileId: "sp-2",
@@ -148,8 +129,6 @@ describe("왕복: 내보내기 → xlsx 바이트 → 파서 → 분류", () => 
     expect(plan.newAssignment).toHaveLength(0);
     expect(plan.needsAttention).toHaveLength(0);
     expect(plan.errorRows).toHaveLength(0);
-    // status===null인 학생은 애초에 "그 학년도 배정"이 없으니 missingFromFile도
-    // 아니다 — missingFromFile은 status가 ENROLLED였던 학생만 센다.
     expect(plan.missingFromFile).toHaveLength(0);
     expect(plan.hasBlockingError).toBe(false);
   });
@@ -231,17 +210,12 @@ describe("왕복: 내보내기 → xlsx 바이트 → 파서 → 분류", () => 
     expect(plan.newStudents).toHaveLength(0);
     expect(plan.needsAttention).toHaveLength(1);
     expect(plan.needsAttention[0]!.reason).toContain("이름·생년월일이 같은 기존 학생이 있습니다");
-    // 기존 학생은 더 이상 파일에서 이어지지 않으니 "명단에 없는 재학생"으로도 잡힌다 —
-    // 둘을 나란히 보여줘야 관리자가 "코드가 지워졌다"로 읽을 수 있다.
     expect(plan.missingFromFile).toHaveLength(1);
     expect(plan.hasBlockingError).toBe(true);
   });
 
   it("엑셀이 학생코드를 수로 바꾸지 않는다 — 문자열로 강제해서 지수 표기가 안 생긴다", async () => {
     const plan = await exportAndReparse([재학생]);
-    // 어느 분류에도 없다는 것 자체가 학생코드가 원래 값 그대로 왕복했다는 뜻이다
-    // (분류가 studentCode로 잇기 때문에, 값이 조금이라도 바뀌면 newStudents나
-    // needsAttention으로 튄다).
     expect(plan.newStudents).toHaveLength(0);
     expect(plan.needsAttention).toHaveLength(0);
   });

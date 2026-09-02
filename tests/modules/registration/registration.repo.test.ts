@@ -14,11 +14,6 @@ const { bareWithTransaction: withTransaction } = coreMocks(
   "registration-repo-test",
 );
 
-/**
- * `withTransaction(callback)`을 그대로 흉내 낸다 — 콜백에 tx를 넘겨 실행할 뿐,
- * 실제 트랜잭션·롤백은 흉내 내지 않는다. 여기서 확인하려는 건 P2002를 잡아
- * NumberTakenError로 옮기는 로직이지, 트랜잭션 자체의 원자성이 아니다.
- */
 const txClient = {
   user: { create: userCreate },
   account: { create: accountCreate },
@@ -41,10 +36,6 @@ const {
   registerFailedAttempt,
 } = await import("@/modules/registration/registration.repo");
 
-/**
- * `tests/modules/admin-users/admin-user.repo.test.ts`가 관측해 둔 실물 P2002 모양을
- * 그대로 가져온다. 다만 위반 컬럼은 email이 아니라 좌석 복합 유일키다.
- */
 function realWorldP2002() {
   return Object.assign(new Error("Unique constraint failed"), {
     name: "PrismaClientKnownRequestError",
@@ -65,7 +56,6 @@ function realWorldP2002() {
   });
 }
 
-/** 위와 같은 모양이지만 위반 컬럼이 StudentProfile.studentCode다. */
 function realWorldStudentCodeP2002() {
   return Object.assign(new Error("Unique constraint failed"), {
     name: "PrismaClientKnownRequestError",
@@ -179,7 +169,6 @@ describe("completeStudentRegistration()", () => {
       completeStudentRegistration("inv-1", account, student, 2026),
     ).rejects.toBeInstanceOf(NumberTakenError);
 
-    // 코드가 낭비되면 안 된다 — 소진 시도까지 가지 않는다.
     expect(inviteUpdateMany).not.toHaveBeenCalled();
   });
 
@@ -226,7 +215,6 @@ describe("completeStudentRegistration()", () => {
       data: { status: "USED", usedById: "u-1" },
     });
 
-    // 학생코드는 여기서 직접 부여한다 — student-code.ts의 형식(8자리, 문자로 시작)을 따른다.
     const call = studentProfileCreate.mock.calls[0]![0] as {
       data: { studentCode: string };
     };
@@ -240,11 +228,9 @@ describe("completeStudentRegistration()", () => {
 
     await completeStudentRegistration("inv-1", account, student, 2026);
 
-    // 롤백된 시도도 트랜잭션 전체를 다시 돈다 — 계정 생성부터 두 번째로 돈다.
     expect(withTransaction).toHaveBeenCalledTimes(2);
     expect(studentProfileCreate).toHaveBeenCalledTimes(2);
     expect(userCreate).toHaveBeenCalledTimes(2);
-    // 최종적으로는 성공한 시도에서만 코드가 한 번 소진된다.
     expect(inviteUpdateMany).toHaveBeenCalledTimes(1);
   });
 
@@ -258,7 +244,6 @@ describe("completeStudentRegistration()", () => {
 
     expect(studentProfileCreate).toHaveBeenCalledTimes(5);
     expect(withTransaction).toHaveBeenCalledTimes(5);
-    // 코드가 끝내 없었으니 어떤 시도도 초대코드를 소진하지 못한다.
     expect(inviteUpdateMany).not.toHaveBeenCalled();
   });
 });

@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { canRead, canWrite } from "@/modules/community/community.access";
 
-/** 학생만 읽고 쓰는 게시판. ADMIN은 배열에 넣지 않는다 — 늘 통과한다. */
 const studentBoard = { readRoles: ["STUDENT"], writeRoles: ["STUDENT"] };
-/** 전체가 읽고 교사만 쓰는 공지. */
 const notice = { readRoles: ["STUDENT", "PARENT"], writeRoles: [] };
 
 describe("canRead", () => {

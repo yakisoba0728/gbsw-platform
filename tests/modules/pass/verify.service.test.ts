@@ -25,9 +25,8 @@ const parent = user("PARENT", "u-parent", { email: "u-parent@gbsw.hs.kr" });
 const admin = user("ADMIN", "u-admin", { email: "u-admin@gbsw.hs.kr" });
 
 const PROFILE_ID = "clx0000000000000000000abc";
-const NOW = new Date("2026-08-27T06:00:00.000Z"); // 15:00 KST
+const NOW = new Date("2026-08-27T06:00:00.000Z");
 
-/** 학생증 QR에서 나오는 프로필. 이름·학번은 여기서만 온다. */
 function profile() {
   return {
     id: PROFILE_ID,
@@ -42,8 +41,8 @@ function pass(over: Record<string, unknown> = {}) {
     studentProfileId: PROFILE_ID,
     type: "OUTING",
     status: "APPROVED",
-    startAt: new Date("2026-08-27T05:00:00.000Z"), // 14:00
-    endAt: new Date("2026-08-27T09:00:00.000Z"), // 18:00
+    startAt: new Date("2026-08-27T05:00:00.000Z"),
+    endAt: new Date("2026-08-27T09:00:00.000Z"),
     destination: "치과",
     reason: "정기 검진",
     studentProfile: profile(),
@@ -74,8 +73,6 @@ describe("verifyStudentQr", () => {
     expect(result.pass?.type).toBe("OUTING");
   });
 
-  // **학생증은 먼저 누구인지를 말한다.** 나갈 것이 없어도 이름이 뜬다 —
-  // 정문에서 사람과 화면을 맞춰 보는 일이 이 코드가 하는 일의 절반이다.
   it("승인된 것도 대기 중인 것도 없으면 NO_PASS인데 학생은 나온다", async () => {
     listForVerify.mockResolvedValue([]);
     const result = await service.verifyStudentQr(admin, code(), NOW);
@@ -102,11 +99,6 @@ describe("verifyStudentQr", () => {
     expect(listForVerify).not.toHaveBeenCalled();
   });
 
-  /**
-   * 두 스텝 지난 코드. 학생 화면이 굳었다는 뜻이라 **누구의 화면인지는 말하고**
-   * 출입증은 싣지 않는다 — 이 갈래는 서명이 안 맞은 채로 들어오므로 프로필
-   * id만 알면 누구나 도달할 수 있다.
-   */
   it("지난 코드는 STALE이고 이름만 나온다", async () => {
     const later = new Date(NOW.getTime() + 60_000);
     const result = await service.verifyStudentQr(admin, code(), later);
@@ -118,8 +110,6 @@ describe("verifyStudentQr", () => {
     expect(listForVerify).not.toHaveBeenCalled();
   });
 
-  // pass:verify는 세 역할 모두에게 열려 있다 — 살아 있는 QR을 손에 쥔 사람은
-  // 학생 화면 앞에 서 있는 사람이다. 역할이 아예 없는 계정만 막힌다.
   it("역할이 없으면 던진다", async () => {
     await expect(
       service.verifyStudentQr({ ...admin, role: null }, code(), NOW),
@@ -133,10 +123,6 @@ describe("verifyStudentQr", () => {
   });
 });
 
-/**
- * 여러 건을 들고 있는 학생에게 무엇을 말할지. 정문에서 묻는 것은 「지금 나가도
- * 되는가」 하나이므로, 답이 「된다」인 것이 하나라도 있으면 그것을 말한다.
- */
 describe("여러 건을 고르는 순서", () => {
   it("지난 것과 앞으로의 것 사이에 유효한 것이 있으면 그것을 고른다", async () => {
     listForVerify.mockResolvedValue([
@@ -195,7 +181,6 @@ describe("여러 건을 고르는 순서", () => {
     expect(result.verdict).toBe("EXPIRED");
   });
 
-  // 승인 건이 하나라도 있으면 그쪽이 이긴다 — 결재 대기는 정문에서 답이 아니다.
   it("결재 대기만 있으면 NOT_APPROVED", async () => {
     listForVerify.mockResolvedValue([pass({ status: "REQUESTED" })]);
     const result = await service.verifyStudentQr(admin, code(), NOW);
@@ -212,10 +197,6 @@ describe("여러 건을 고르는 순서", () => {
   });
 });
 
-/**
- * 사유·행선지는 교사에게만. 학생증은 로그인한 누구나 찍을 수 있어서, 같은 학년
- * 학생이 「병원 진료」를 읽을 수 있으면 안 된다.
- */
 describe("사유·행선지 가리기", () => {
   it("교사에게는 보인다", async () => {
     listForVerify.mockResolvedValue([pass()]);
@@ -234,7 +215,6 @@ describe("사유·행선지 가리기", () => {
     expect(result.detailed).toBe(false);
     expect(result.pass?.destination).toBeNull();
     expect(result.pass?.reason).toBeNull();
-    // 이름·학번·유형·유효 시각까지는 연다 — 정문에서 확인에 필요하다.
     expect(result.student?.studentName).toBe("김민준");
     expect(result.pass?.type).toBe("OUTING");
   });

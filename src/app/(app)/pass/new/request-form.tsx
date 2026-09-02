@@ -10,13 +10,6 @@ import { EMPTY_PASS_STATE } from "../action-state";
 import { requestAction } from "../actions";
 import { requestPeriodError } from "./request-period";
 
-/**
- * 유형에 따라 날짜 칸이 갈린다 — 외출은 「날짜 하나 + 시각 둘」, 외박은
- * 「날짜와 시각 둘씩」이다. 안 쓰는 칸은 감추지 않고 **렌더하지 않는다**:
- * 감추기만 하면 그 값이 FormData에 실려 스키마가 갈라 준 뜻이 흐려진다.
- *
- * **시각 칸은 기본값을 두지 않는다.** 임의로 채우면 학생이 확인 없이 낸다.
- */
 export function RequestForm({ today }: { today: string }) {
   const [type, setType] = useState<PassType>("OUTING");
   const [date, setDate] = useState(today);
@@ -101,8 +94,6 @@ export function RequestForm({ today }: { today: string }) {
           </div>
         </div>
       ) : (
-        // 날짜와 시각이 짝이라 두 칸씩 묶는다 — 네 줄로 세우면 「나가는」과
-        // 「돌아오는」이 한눈에 갈리지 않는다. 폭이 좁으면 그대로 한 줄씩 선다.
         <div className="mb-4 grid gap-4 @sm:grid-cols-2">
           <div>
             <Label htmlFor="startDate">나가는 날짜</Label>

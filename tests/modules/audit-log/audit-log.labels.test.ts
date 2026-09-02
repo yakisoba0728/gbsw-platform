@@ -14,7 +14,7 @@ const SRC_ROOT = join(process.cwd(), "src");
 function listSourceFiles(dir: string): string[] {
   const files: string[] = [];
   for (const entry of readdirSync(dir)) {
-    if (entry === "generated") continue; // Prisma 생성물 — 감사로그와 무관
+    if (entry === "generated") continue;
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) {
       files.push(...listSourceFiles(full));
@@ -25,23 +25,9 @@ function listSourceFiles(dir: string): string[] {
   return files;
 }
 
-/**
- * 감사 입력 객체의 `action:` 자리 — `action:`부터 그 객체의 `targetType:`까지.
- * 콜론이 둘 이상인 3단 액션("community:post:update")도 리터럴 정규식이 잡는다.
- *
- * **호출부가 아니라 입력 객체를 찾는다.** `recordAuditMany`에 넘기는 배열
- * (명단 반영의 `entries.push`)은 호출부에서 수백 자 떨어진 곳에서 만들어져
- * 호출부 기준으로는 스캔 밖이었다.
- *
- * 사이 구간만 보므로 can()에 쓰는 권한 Action 문자열("pass:read:any")은 섞이지
- * 않고, metadata 안에 실려 가는 액션 이름(`metadata: { action: "student:view" }`)은
- * 제 객체가 targetType 전에 닫히므로 `[^}]`가 막는다. 삼항으로 두 리터럴이 오는
- * 자리(`active ? "user:activate" : "user:deactivate"`)는 둘 다 잡힌다.
- */
 const AUDIT_INPUT = /\baction:([^}]*?)\btargetType:/g;
 const ACTION_LITERAL = /"[a-zA-Z][\w-]*(?::[\w-]+)+"/g;
 
-/** 코드가 실제로 감사로그에 남기는 action 문자열을 전부 모은다. */
 function findRecordedActions(): Set<string> {
   const actions = new Set<string>();
 
@@ -61,9 +47,6 @@ function findRecordedActions(): Set<string> {
 describe("액션 라벨 커버리지", () => {
   it("recordAudit에 실제로 쓰이는 action 문자열이 전부 라벨 맵에 있다", () => {
     const recorded = findRecordedActions();
-    // 스캐너가 조용히 좁아진 채 통과하면 이 테스트는 의미가 없어진다 — 하한을
-    // 실제 개수 바로 아래에 둔다. 예전 13은 27을 놓친 스캐너도 통과시켰다.
-    // 감사로그 액션을 **의도해서** 없앴다면 이 숫자도 함께 내린다.
     expect(recorded.size).toBeGreaterThanOrEqual(43);
 
     const known = new Set<string>(AUDIT_ACTIONS);
@@ -120,10 +103,6 @@ describe("formatAuditMetadata()", () => {
     expect(formatAuditMetadata("merit:award:create", {})).toBeNull();
   });
 
-  /**
-   * 폐기하면 목록에서 대기 상태가 사라져 「왜 없앴나」를 되짚을 자료가 여기밖에
-   * 없다. 갈래가 없으면 기본값으로 떨어져 「reason 잘못 발급」처럼 날것으로 찍혔다.
-   */
   it("invite:revoke — 사유를 한글로 그린다", () => {
     expect(
       formatAuditMetadata("invite:revoke", { reason: "잘못된 학생에게 발급함" }),
@@ -203,7 +182,6 @@ describe("formatAuditMetadata()", () => {
   });
 
   it("enrollment:import — 전부 0이면 학년도만 남는다", () => {
-    // 실제 DB에 존재하는 모양: removed는 옛 필드명이라 무시되고, 나머지도 전부 0.
     expect(
       formatAuditMetadata("enrollment:import", {
         year: 2026,
@@ -310,10 +288,6 @@ describe("formatAuditMetadata()", () => {
     ).toBe("분류 바뀜");
   });
 
-  /**
-   * 기준은 덮어쓰기라 옛 값이 DB 어디에도 안 남는다 — 이 줄이 "언제부터
-   * 명단이 길어졌나"에 답하는 유일한 흔적이다.
-   */
   it("merit:threshold:update — 트랙과 전/후 값을 보여준다", () => {
     expect(
       formatAuditMetadata("merit:threshold:update", {

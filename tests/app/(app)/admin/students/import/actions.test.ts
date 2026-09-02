@@ -1,18 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RosterRow } from "@/modules/enrollment/roster.parse";
 
-/**
- * 명단 업로드(미리보기·확정·내려받기) 액션의 **경계**.
- * (auth)/register/actions.test.ts와 같은 목적이다.
- *
- * FormData는 admin/students/import/import-form.tsx가 실제로 보내는 name 그대로
- * 만든다 — 미리보기는 `file` 하나, 확정은 `rows`·`year`·`confirmedDeletionIds`·
- * `deletionCount` 넷이다. 넷 중 셋이 **JSON 문자열 또는 빈 문자열**이라
- * 폼과 액션 사이에 모양 계약이 여럿 있고, 그중 하나만 어긋나도 확정이
- * 통째로 막힌다 — 최초 관리자 생성이 그렇게 100% 실패했다.
- */
-
-// 목은 구현 없이 선언하고 기본값은 beforeEach에서 준다.
 const requireAuth = vi.fn();
 const revalidatePath = vi.fn();
 
@@ -52,7 +40,6 @@ function form(fields: Record<string, string | File>): FormData {
   return fd;
 }
 
-/** roster.parse.ts가 미리보기에서 만들어 화면으로 보내는 한 줄 그대로. */
 const ROW: RosterRow = {
   line: 2,
   studentCode: "ABCD2345",
@@ -107,15 +94,12 @@ function rowsForToken(json: string): unknown {
   }
 }
 
-/** import-form.tsx의 확정 폼이 보내는 필드 그대로. */
 function applyForm(over: Record<string, string> = {}): FormData {
   const fields = {
     rows: JSON.stringify([ROW]),
     year: "2026",
     rosterFingerprint: "roster-v1",
     confirmedDeletionIds: "[]",
-    // 삭제 대상이 없으면 화면에 입력칸이 없어 빈 문자열이 온다 — 정상 경로다.
-    // (삭제 대상이 있는데 비어 있으면 서비스가 거부한다 — 이 경계의 몫이 아니다.)
     deletionCount: "",
     ...over,
   };
@@ -161,7 +145,6 @@ beforeEach(() => {
     plan: PLAN,
     notices: [],
     rosterFingerprint: "roster-v1",
-    // 봉인은 서비스가 찍는다. 액션이 할 일은 그걸 화면까지 그대로 나르는 것뿐이다.
     previewToken: "sealed-by-service",
   });
   applyRosterPlan.mockResolvedValue({
@@ -186,7 +169,6 @@ describe("previewRosterAction — 경계 검증", () => {
     expect(state.error).toBeNull();
     expect(state.year).toBe(2026);
     expect(state.rosterFingerprint).toBe("roster-v1");
-    // 서비스가 찍은 봉인을 그대로 화면까지 나른다 — 액션이 다시 만들지 않는다.
     expect(state.previewToken).toBe("sealed-by-service");
   });
 
@@ -234,7 +216,6 @@ describe("previewRosterAction — 경계 검증", () => {
   });
 
   it("행 수 초과 안내는 실제 명단 상한을 따른다", async () => {
-    // 실제 파서는 RosterError가 아니라 RosterParseError(일반 Error)를 올린다.
     previewRoster.mockRejectedValueOnce(new Error("TOO_MANY_ROWS"));
     const file = new File(["a"], "명단.csv");
 
@@ -272,8 +253,8 @@ describe("applyRosterAction — 경계 검증", () => {
       [ROW],
       "roster-v1",
       [],
-      null, // 빈 deletionCount는 "입력 안 함"이라 null로 접힌다
-      expect.any(String), // 미리보기 봉인
+      null,
+      expect.any(String),
     );
     expect(state).toEqual({
       error: null,
@@ -353,10 +334,6 @@ describe("applyRosterAction — 경계 검증", () => {
     expect(applyRosterPlan.mock.calls[0]?.[5]).toBe(1);
   });
 
-  /**
-   * 봉인 대조는 서비스가 한다 (roster.service.test.ts의 「미리보기 봉인」).
-   * 액션의 몫은 폼이 보낸 값을 손대지 않고 그대로 넘기는 것뿐이다.
-   */
   it("폼이 보낸 봉인을 그대로 서비스에 넘긴다", async () => {
     const previewToken = tokenFor();
 
@@ -391,10 +368,6 @@ describe("applyRosterAction — 경계 검증", () => {
     expect(state.error).toBe("미리보기 정보가 없습니다. 파일을 다시 읽어 주세요.");
   });
 
-  /*
-   * 미리보기가 돌려준 값을 그대로 믿지 않는다 (I3) — errors를 지워 보내거나
-   * status/학년·반·번호 조합을 조작한 요청이 여기서 막혀야 한다.
-   */
   it("재학인데 자리가 비어 있으면 서비스를 부르지 않는다", async () => {
     const tampered = { ...ROW, grade: null, classNo: null, number: null, errors: [] };
 
@@ -458,10 +431,6 @@ describe("applyRosterAction — 경계 검증", () => {
     expect(state.error).toBe("학년도가 올바르지 않습니다.");
   });
 
-  /*
-   * 서비스가 애써 돌려준 excludedNewStudents를 액션이 구조분해에서 빠뜨리면
-   * 화면까지 닿지 않는다 — 관리자는 안 만들어진 계정을 만들어졌다고 믿는다.
-   */
   it("계정이 안 만들어진 신규 줄을 화면까지 전달한다", async () => {
     applyRosterPlan.mockResolvedValueOnce({
       saved: 3,
@@ -500,8 +469,6 @@ describe("applyRosterAction — 경계 검증", () => {
 
     const state = await applyRosterAction(APPLY_INITIAL, applyForm());
 
-    // 파일을 고쳐도 풀리지 않는 오류다 — "반영하지 못했습니다."로 뭉뚱그리면
-    // 관리자가 엉뚱한 곳을 계속 고친다.
     expect(state.error).toContain("같은 반·번호");
   });
 
@@ -546,17 +513,11 @@ describe("exportRosterAction — 경계 검증", () => {
     const result = await exportRosterAction();
 
     expect(result.error).toBe("명단을 내보내지 못했습니다.");
-    // 화면에는 일반 문구만 나가므로 서버 로그에는 남겨야 한다.
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
   });
 });
 
-/**
- * 파일 크기 상한은 두 곳이 맞물려야 안내가 나간다 — 액션의 검사와 next.config.ts의
- * `bodySizeLimit`. 상한이 본문 상한보다 커지면 그 사이 파일은 액션에 닿기도 전에
- * 잘려 안내 대신 오류 경계가 뜬다.
- */
 describe("명단 파일 크기 상한", () => {
   it("서버 액션 본문 상한보다 작다", async () => {
     const { readFile } = await import("node:fs/promises");
@@ -569,12 +530,6 @@ describe("명단 파일 크기 상한", () => {
     expect(ROSTER_FILE_MAX_BYTES).toBeLessThan(Number(matched![1]) * 1024 * 1024);
   });
 
-  /**
-   * 짝의 반대쪽. 액션이 `file.size`를 먼저 보므로 파서의 압축 크기 가드는 지금
-   * 유일한 호출 경로로는 **닿지 않는다** — 두 값이 같아서다. 한쪽만 올리면
-   * 그 사이 크기의 파일이 파서까지 가서 `XLSX_TOO_LARGE`로 떨어지는데, 그 문구는
-   * 「압축을 풀었을 때 너무 큰 엑셀 파일입니다」라 파일 크기 문제로 안 읽힌다.
-   */
   it("파서의 압축 크기 가드와 같은 값이다", async () => {
     const { ROSTER_FILE_MAX_BYTES } = await import("@/modules/enrollment/roster.schema");
     const { XLSX_PREFLIGHT_LIMITS } = await import(

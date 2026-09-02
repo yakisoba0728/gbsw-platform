@@ -3,17 +3,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/core/db/client";
 import { isUniqueViolation } from "@/core/db/unique-violation";
 
-/**
- * I7 — Enrollment(year, grade, classNo, number) 유일 제약이 실제로 걸리는지, 그리고
- * isUniqueViolation()이 실물 P2002를 "number" 위반으로 정확히 잡아내는지
- * 검증한다.
- *
- * admin-user.repo.test.ts·enrollment.repo.test.ts의 realWorldNumberP2002()
- * 픽스처는 "Prisma 7.9 + @prisma/adapter-pg에서 관측한 오류 모양을 손으로
- * 흉내 낸 것"이다 — 이 테스트는 그 픽스처가 실물과 정말 같은 모양인지를
- * 실 Postgres로 검증하는 역할도 겸한다.
- */
-
 const YEAR = 8103;
 const OTHER_YEAR = 8104;
 
@@ -134,7 +123,6 @@ describe("Enrollment(year, grade, classNo, number) 유일 제약 (I7)", () => {
     expect(caught).toBeDefined();
     expect((caught as { code?: string }).code).toBe("P2002");
     expect(isUniqueViolation(caught, "number")).toBe(true);
-    // 관계없는 필드로는 잡히지 않는다 — 실물 오류 모양을 제대로 파싱하는지의 대조군.
     expect(isUniqueViolation(caught, "email")).toBe(false);
   });
 

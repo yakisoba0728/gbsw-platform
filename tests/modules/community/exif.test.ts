@@ -1,21 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { stripImageMetadata } from "@/modules/community/community.exif";
 
-/**
- * 익명 게시판에 올라가는 사진에서 촬영 위치·기기·시각을 벗기는 순수 함수.
- *
- * **표본 파일을 커밋하지 않고 코드로 짓는다** — 진짜 사진을 넣으면 무엇이 왜
- * 사라지는지가 바이너리 안에 숨고, 기대값을 「같은 방식으로 지은 다른 파일」로
- * 적을 수 없어 검증이 「크기가 줄었다」 수준으로 내려앉는다.
- *
- * 그래서 여기 대부분의 단언은 **벗긴 결과가 「처음부터 그 조각이 없던 파일」과
- * 바이트까지 같다**는 형태다. 화소가 보존되는 것과 메타데이터가 사라지는 것을
- * 한 줄이 함께 본다.
- */
-
-/* ─────────────────────────── JPEG 짓기 ─────────────────────────── */
-
-/** `FF <마커> <길이 2바이트> <내용>`. 길이 칸은 자기 자신을 포함한다. */
 function segment(marker: number, payload: Buffer | string): Buffer {
   const data = typeof payload === "string" ? Buffer.from(payload, "utf8") : payload;
   const head = Buffer.alloc(4);
@@ -25,21 +10,19 @@ function segment(marker: number, payload: Buffer | string): Buffer {
   return Buffer.concat([head, data]);
 }
 
-/** 압축된 화소 흉내. `FF00`(채움)이 들어 있어 EOI 찾기가 여기서 헛디디면 드러난다. */
 const SCAN = Buffer.from([0xaa, 0xbb, 0xff, 0x00, 0xcc, 0xdd]);
 
 function jpeg(segments: Buffer[], trailer: Buffer = Buffer.alloc(0)): Buffer {
   return Buffer.concat([
-    Buffer.from([0xff, 0xd8]), // SOI
+    Buffer.from([0xff, 0xd8]),
     ...segments,
-    segment(0xda, Buffer.from([0x01, 0x01, 0x00])), // SOS 머리
+    segment(0xda, Buffer.from([0x01, 0x01, 0x00])),
     SCAN,
-    Buffer.from([0xff, 0xd9]), // EOI
+    Buffer.from([0xff, 0xd9]),
     trailer,
   ]);
 }
 
-/** 실제 EXIF의 앞머리 그대로. GPS 문자열은 「새면 보이는」 표식으로 넣는다. */
 const APP1_EXIF = segment(0xe1, "Exif\0\0II*\0GPSLatitude=36.11 Make=Pixel");
 const APP1_XMP = segment(0xe1, "http://ns.adobe.com/xap/1.0/\0<x:xmpmeta/>");
 const APP13_IPTC = segment(0xed, "Photoshop 3.0\0");
@@ -48,17 +31,10 @@ const APP0_JFIF = segment(0xe0, "JFIF\0\0\0\0\0\0");
 const APP0_JFXX = segment(0xe0, "JFXX\0(잘라내기 전 축소 이미지)");
 const APP2_ICC = segment(0xe2, "ICC_PROFILE\0\0(색 프로파일)");
 const APP2_OTHER = segment(0xe2, "FPXR\0(플래시픽스)");
-const DQT = segment(0xdb, Buffer.alloc(65, 7)); // 양자화표 — 그림을 그리는 데 필요하다
-
-/* ──────────────────────────── PNG 짓기 ──────────────────────────── */
+const DQT = segment(0xdb, Buffer.alloc(65, 7));
 
 const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
-/**
- * `길이(4) 종류(4) 내용 CRC(4)`. **CRC는 0으로 둔다** — 벗기기는 남길 청크를
- * 바이트 그대로 옮길 뿐 CRC를 검사하지도 다시 세지도 않는다. 여기서 진짜 CRC를
- * 계산하면 테스트가 있지도 않은 동작을 검증하는 것처럼 보인다.
- */
 function chunk(type: string, data: Buffer | string): Buffer {
   const body = typeof data === "string" ? Buffer.from(data, "utf8") : data;
   const head = Buffer.alloc(8);
@@ -76,9 +52,6 @@ const IDAT = chunk("IDAT", Buffer.alloc(32, 9));
 const ICCP = chunk("iCCP", "sRGB\0\0(색 프로파일)");
 const PHYS = chunk("pHYs", Buffer.alloc(9, 2));
 
-/* ─────────────────────────── WebP 짓기 ─────────────────────────── */
-
-/** RIFF 청크. 크기가 홀수면 채움 바이트가 하나 붙는다 — 자리 계산이 여기서 갈린다. */
 function riffChunk(fourcc: string, data: Buffer | string): Buffer {
   const body = typeof data === "string" ? Buffer.from(data, "utf8") : data;
   const head = Buffer.alloc(8);
@@ -88,7 +61,6 @@ function riffChunk(fourcc: string, data: Buffer | string): Buffer {
   return Buffer.concat([head, body, pad]);
 }
 
-/** VP8X 깃발 바이트: ICC 0x20 · 알파 0x10 · EXIF 0x08 · XMP 0x04 · 애니메이션 0x02. */
 function vp8x(flags: number): Buffer {
   const data = Buffer.alloc(10);
   data.writeUInt8(flags, 0);
@@ -103,10 +75,7 @@ function webp(chunks: Buffer[]): Buffer {
   return Buffer.concat([head, body]);
 }
 
-/** 홀수 길이다 — 채움 바이트를 잘못 세면 뒤따르는 모든 자리가 밀린다. */
 const VP8_PIXELS = riffChunk("VP8 ", Buffer.alloc(5, 3));
-
-/* ──────────────────────────── 도우미 ──────────────────────────── */
 
 function stripped(source: Buffer): Buffer {
   const result = stripImageMetadata(source);
@@ -115,11 +84,10 @@ function stripped(source: Buffer): Buffer {
 }
 
 describe("stripImageMetadata — JPEG", () => {
-  it("**EXIF(APP1)를 들어내고 화소는 한 바이트도 안 건드린다**", () => {
+  it("EXIF(APP1)를 들어내고 화소는 한 바이트도 안 건드린다", () => {
     const result = stripped(jpeg([APP1_EXIF, DQT]));
 
     expect(result.equals(jpeg([DQT]))).toBe(true);
-    // 표식이 결과 어디에도 없다 — 자리만 옮겨 붙는 실수를 잡는다.
     expect(result.includes(Buffer.from("GPS"))).toBe(false);
     expect(result.includes(SCAN)).toBe(true);
   });
@@ -131,7 +99,7 @@ describe("stripImageMetadata — JPEG", () => {
     expect(result.includes(Buffer.from("김민준", "utf8"))).toBe(false);
   });
 
-  it("**JFIF는 남기고 JFXX는 버린다** — JFXX 안에 자르기 전 축소 이미지가 있다", () => {
+  it("JFIF는 남기고 JFXX는 버린다 — JFXX 안에 자르기 전 축소 이미지가 있다", () => {
     const result = stripped(jpeg([APP0_JFIF, APP0_JFXX, DQT]));
 
     expect(result.equals(jpeg([APP0_JFIF, DQT]))).toBe(true);
@@ -143,7 +111,7 @@ describe("stripImageMetadata — JPEG", () => {
     expect(result.equals(jpeg([APP2_ICC, DQT]))).toBe(true);
   });
 
-  it("**EOI 뒤에 붙은 바이트를 버린다** — 모션 포토의 동영상이 거기 있다", () => {
+  it("EOI 뒤에 붙은 바이트를 버린다 — 모션 포토의 동영상이 거기 있다", () => {
     const video = Buffer.from("\0\0\0ftypmp42(동영상 전체)");
     const result = stripped(jpeg([DQT], video));
 
@@ -153,7 +121,7 @@ describe("stripImageMetadata — JPEG", () => {
   it("마커 앞 채움 FF가 여러 개여도 센다", () => {
     const padded = Buffer.concat([
       Buffer.from([0xff, 0xd8]),
-      Buffer.from([0xff, 0xff]), // 채움
+      Buffer.from([0xff, 0xff]),
       APP1_EXIF,
       segment(0xda, Buffer.from([0x01, 0x01, 0x00])),
       SCAN,
@@ -163,7 +131,7 @@ describe("stripImageMetadata — JPEG", () => {
     expect(stripped(padded).equals(jpeg([]))).toBe(true);
   });
 
-  it("벗길 것이 없으면 **원본 버퍼를 그대로 준다** — 복사가 한 벌도 안 일어난다", () => {
+  it("벗길 것이 없으면 원본 버퍼를 그대로 준다 — 복사가 한 벌도 안 일어난다", () => {
     const clean = jpeg([APP0_JFIF, DQT]);
     const result = stripImageMetadata(clean);
 
@@ -207,9 +175,9 @@ describe("stripImageMetadata — PNG", () => {
 });
 
 describe("stripImageMetadata — WebP", () => {
-  it("**EXIF·XMP 청크를 들어내고 VP8X 깃발과 RIFF 크기를 함께 고친다**", () => {
+  it("EXIF·XMP 청크를 들어내고 VP8X 깃발과 RIFF 크기를 함께 고친다", () => {
     const source = webp([
-      vp8x(0x10 | 0x08 | 0x04), // 알파 + EXIF 있음 + XMP 있음
+      vp8x(0x10 | 0x08 | 0x04),
       VP8_PIXELS,
       riffChunk("EXIF", "II*\0GPSLatitude=36.11"),
       riffChunk("XMP ", "<x:xmpmeta/>"),
@@ -217,8 +185,6 @@ describe("stripImageMetadata — WebP", () => {
 
     const result = stripped(source);
 
-    // 「처음부터 EXIF·XMP가 없던 파일」과 바이트까지 같다 — 깃발 두 비트가
-    // 내려가고 RIFF 크기가 다시 적히지 않으면 여기서 어긋난다.
     expect(result.equals(webp([vp8x(0x10), VP8_PIXELS]))).toBe(true);
     expect(result.includes(Buffer.from("GPS"))).toBe(false);
   });
@@ -247,10 +213,6 @@ describe("stripImageMetadata — 벗기지 않는 것", () => {
 });
 
 describe("stripImageMetadata — 못 알아보면 거부한다", () => {
-  /**
-   * **여기서 통과시키면 이 함수가 있으나 마나다.** 원본을 그대로 저장하는 길이
-   * 열려 있으면 익명 게시판의 첨부가 「벗겨졌거나 아닐 수도 있는 것」이 된다.
-   */
   it.each<[string, Buffer]>([
     ["빈 파일", Buffer.alloc(0)],
     ["형식을 모르는 바이트", Buffer.from("PNG")],
@@ -273,7 +235,7 @@ describe("stripImageMetadata — 못 알아보면 거부한다", () => {
       "선언한 크기보다 짧은 WebP",
       (() => {
         const short = Buffer.concat([webp([VP8_PIXELS])]);
-        short.writeUInt32LE(short.length, 4); // 실제보다 8바이트 크게 적는다
+        short.writeUInt32LE(short.length, 4);
         return short;
       })(),
     ],

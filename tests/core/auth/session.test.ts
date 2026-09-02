@@ -8,11 +8,6 @@ vi.mock("next/headers", () => ({
   headers: vi.fn().mockResolvedValue(new Headers()),
 }));
 
-/**
- * 실제 redirect()는 던져서 그 자리의 실행을 끊는다(Next 내부 특수 오류).
- * 여기서도 던지게 흉내 내어, requireAuth가 redirect 뒤에 이어지는 코드를
- * 실행하지 않는지까지 같이 검증한다.
- */
 const redirect = vi.fn((url: string) => {
   throw new Error(`REDIRECT:${url}`);
 });
