@@ -10,12 +10,13 @@ export class InviteCodeCollisionError extends Error {}
 
 export async function listExisting(year: number, db: DbClient = prisma) {
   const profiles = await db.studentProfile.findMany({
-    where: { user: { role: "STUDENT", deletedAt: null } },
+    // 제외된 학생도 학생코드 재매칭에는 필요하다. 내보내기에서만 거른다.
+    where: { user: { role: "STUDENT" } },
     select: {
       id: true,
       studentCode: true,
       birthDate: true,
-      user: { select: { id: true, name: true, status: true } },
+      user: { select: { id: true, name: true, status: true, deletedAt: true } },
       enrollments: {
         where: { OR: [{ year }, { status: "GRADUATED" }] },
         select: {
@@ -47,6 +48,7 @@ export async function listExisting(year: number, db: DbClient = prisma) {
         (enrollment) => enrollment.status === "GRADUATED",
       ),
       accountActive: p.user.status === "ACTIVE",
+      removed: p.user.deletedAt !== null,
     };
   });
 }
@@ -58,7 +60,7 @@ export async function listForExport(year: number) {
     entrySeats(prisma),
   ]);
 
-  return students.map((student) => {
+  return students.filter((student) => !student.removed).map((student) => {
     const entry = entryByProfile.get(student.studentProfileId);
     return {
       ...student,
@@ -100,6 +102,7 @@ export type ApplyInput = {
   newStudents: { row: PlannedRow; code: string }[];
   inviteExpiresAt: Date | null;
   managedStudentProfileIds: string[];
+  /** 명단에서 빠져 계정만 비활성·제외 표시할 학생. 업무 기록은 보존한다. */
   deleteStudentProfileIds: string[];
   createdById: string;
   createdByName: string;
@@ -124,6 +127,7 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
 
       revokedInvites = await tx.invite.findMany({
         where: {
+          status: "PENDING",
           OR: [
             { usedById: { in: deleteUserIds } },
             { studentId: { in: deleteProfileIds } },
@@ -133,16 +137,26 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
       });
 
       if (deleteUserIds.length > 0) {
-        await tx.invite.deleteMany({
-          where: {
-            OR: [
-              { usedById: { in: deleteUserIds } },
-              { studentId: { in: deleteProfileIds } },
-            ],
+        if (revokedInvites.length > 0) {
+          await tx.invite.updateMany({
+            where: {
+              id: { in: revokedInvites.map((invite) => invite.id) },
+              status: "PENDING",
+            },
+            data: { status: "REVOKED" },
+          });
+        }
+
+        // 스프레드시트 한 줄로 상벌점·출입증·학부모 연결이 사라지지 않게 한다.
+        await tx.user.updateMany({
+          where: { id: { in: deleteUserIds } },
+          data: {
+            status: "INACTIVE",
+            deletedAt: revisionStamp,
+            updatedAt: revisionStamp,
           },
         });
-
-        await tx.user.deleteMany({ where: { id: { in: deleteUserIds } } });
+        await tx.session.deleteMany({ where: { userId: { in: deleteUserIds } } });
       }
     }
 

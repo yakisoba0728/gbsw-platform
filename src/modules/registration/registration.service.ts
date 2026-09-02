@@ -19,8 +19,8 @@ import * as repo from "./registration.repo";
 import type { CompleteRegistrationInput } from "./registration.schema";
 import type { VerificationChannel } from "@/modules/verification/verification.schema";
 import {
-  createTemporaryVerifiedProof,
   consumeVerifications,
+  requestCode,
   requireVerified,
 } from "@/modules/verification/verification.service";
 import { birthDateMatches, nameMatches } from "./registration.verify";
@@ -49,15 +49,13 @@ export async function checkInvite(rawCode: string): Promise<{ role: Role }> {
   return { role: invite.role };
 }
 
-/** 현재는 발송 없이 proof를 만든다. 이메일·전화 소유는 증명하지 않으며 정책은 CLAUDE.md 참고. */
 export async function requestVerification(
   code: string,
   channel: VerificationChannel,
   target: string,
-): Promise<{ verified: true }> {
+): Promise<{ mockCode?: string }> {
   await checkInvite(code);
-  await createTemporaryVerifiedProof(channel, target);
-  return { verified: true };
+  return requestCode(channel, target);
 }
 
 /** 로그인 이전 경로로, 초대의 신원 대조가 권한 검사를 대신하고 역할은 초대에서만 읽는다. */

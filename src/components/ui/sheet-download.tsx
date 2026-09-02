@@ -22,21 +22,25 @@ export function useSheetDownload(
   function download() {
     start(async () => {
       setError(null);
-      const result = await fetchSheet();
-      if (result.error) {
-        setError(result.error);
-        return;
+      try {
+        const result = await fetchSheet();
+        if (result.error) {
+          setError(result.error);
+          return;
+        }
+        const { default: writeXlsxFile } = await import("write-excel-file/browser");
+        const sheetData = toStyledSheetData(result.rows, {
+          titleRowCount: 1,
+          keepNumbers: true,
+          wrapColumns,
+        });
+        await writeXlsxFile(sheetData, {
+          columns: widths.map((width) => ({ width })),
+          stickyRowsCount: 2,
+        }).toFile(result.filename);
+      } catch {
+        setError("내보내지 못했습니다. 잠시 후 다시 시도해 주세요.");
       }
-      const { default: writeXlsxFile } = await import("write-excel-file/browser");
-      const sheetData = toStyledSheetData(result.rows, {
-        titleRowCount: 1,
-        keepNumbers: true,
-        wrapColumns,
-      });
-      await writeXlsxFile(sheetData, {
-        columns: widths.map((width) => ({ width })),
-        stickyRowsCount: 2,
-      }).toFile(result.filename);
     });
   }
 

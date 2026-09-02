@@ -4,8 +4,11 @@ import { coreMocks } from "../../helpers/core-mocks";
 const countRecentSends = vi.fn();
 const countRecentSendsByIp = vi.fn();
 const lockSendRateLimitBuckets = vi.fn();
+const lockVerificationTarget = vi.fn();
 const expirePending = vi.fn();
 const insertCode = vi.fn();
+const activateCode = vi.fn();
+const hasNewerActivatedCode = vi.fn();
 const deleteById = vi.fn();
 const sendVerification = vi.fn();
 const readRequestContext = vi.fn();
@@ -18,8 +21,11 @@ vi.mock("@/modules/verification/verification.repo", () => ({
   countRecentSends,
   countRecentSendsByIp,
   lockSendRateLimitBuckets,
+  lockVerificationTarget,
   expirePending,
   insertCode,
+  activateCode,
+  hasNewerActivatedCode,
   deleteById,
   findLiveCode: vi.fn(),
   bumpAttempts: vi.fn(),
@@ -30,6 +36,7 @@ vi.mock("@/modules/verification/verification.repo", () => ({
 }));
 vi.mock("@/modules/verification/verification.sender", () => ({
   sendVerification,
+  maskVerificationTarget: vi.fn(() => "***"),
 }));
 vi.mock("@/core/audit/request-context", () => ({ readRequestContext }));
 vi.mock("@/core/db/client", () => ({ withTransaction }));
@@ -47,8 +54,11 @@ beforeEach(() => {
   countRecentSends.mockReset().mockResolvedValue(0);
   countRecentSendsByIp.mockReset().mockResolvedValue(0);
   lockSendRateLimitBuckets.mockReset();
+  lockVerificationTarget.mockReset();
   expirePending.mockReset();
   insertCode.mockReset().mockResolvedValue({ id: "v1" });
+  activateCode.mockReset();
+  hasNewerActivatedCode.mockReset().mockResolvedValue(false);
   deleteById.mockReset();
   sendVerification.mockReset().mockResolvedValue(undefined);
   readRequestContext.mockReset().mockResolvedValue({ ip: null, userAgent: null });
@@ -86,12 +96,14 @@ describe("목업 모드 잠금", () => {
 describe("requestCode() 목업 동작", () => {
   it("목업이면 발송을 건너뛰고 코드를 돌려준다", async () => {
     setEnv("development", "true");
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
     const result = await requestCode("PHONE", "010-1234-5678");
 
     expect(result.mockCode).toMatch(/^\d{6}$/);
     expect(sendVerification).not.toHaveBeenCalled();
     expect(insertCode).toHaveBeenCalled();
+    expect(logSpy).not.toHaveBeenCalled();
   });
 
   it("목업이 아니면 코드를 절대 돌려주지 않는다", async () => {

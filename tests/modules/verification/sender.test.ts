@@ -74,3 +74,21 @@ describe("sendVerification() — EMAIL 채널의 운영/개발 분기", () => {
     expect(logged).toContain("ab***@gbsw.hs.kr");
   });
 });
+
+describe("sendVerification() — PHONE 채널의 운영 안전장치", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("알리고 설정이 없는 운영에서는 콘솔 성공으로 가장하지 않는다", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+
+    await expect(
+      sendVerification({
+        channel: "PHONE",
+        target: "010-1234-5678",
+        code: "123456",
+      }),
+    ).rejects.toThrow("발송 수단이 설정되지 않았습니다");
+  });
+});

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/core/db/client";
 
 const { readRequestContext } = vi.hoisted(() => ({
@@ -9,7 +9,9 @@ const { readRequestContext } = vi.hoisted(() => ({
 vi.mock("@/core/audit/request-context", () => ({ readRequestContext }));
 
 import {
-  createTemporaryVerifiedProof,
+  confirmCode,
+  requestCode,
+  requireVerified,
   VerificationError,
   MAX_SENDS_PER_HOUR_PER_IP,
 } from "@/modules/verification/verification.service";
@@ -17,7 +19,11 @@ import {
 const targets: string[] = [];
 const requestIps: string[] = [];
 
-describe("createTemporaryVerifiedProof() — rate limits", () => {
+describe("requestCode() — rate limits", () => {
+  beforeEach(() => {
+    vi.stubEnv("VERIFICATION_MOCK", "true");
+  });
+
   afterEach(async () => {
     await prisma.verificationCode.deleteMany({
       where: {
@@ -30,30 +36,65 @@ describe("createTemporaryVerifiedProof() — rate limits", () => {
     targets.length = 0;
     requestIps.length = 0;
     readRequestContext.mockReset();
+    vi.unstubAllEnvs();
   });
 
-  it("keeps immediate verification working below the target limit", async () => {
+  it("creates an unverified code below the target limit", async () => {
     const target = `itest-ok-${randomUUID()}@example.invalid`;
     targets.push(target);
     readRequestContext.mockResolvedValue({ ip: null, userAgent: null });
 
-    await expect(createTemporaryVerifiedProof("EMAIL", target)).resolves.toEqual({
-      id: expect.any(String),
+    await expect(requestCode("EMAIL", target)).resolves.toEqual({
+      mockCode: expect.stringMatching(/^\d{6}$/),
     });
 
     const row = await prisma.verificationCode.findFirst({
-      where: { target, verifiedAt: { not: null }, consumedAt: null },
+      where: { target, verifiedAt: null, consumedAt: null },
     });
     expect(row).not.toBeNull();
   });
 
-  it("allows only five concurrent immediate proofs per target per hour", async () => {
+  it("배포 전에 생성된 즉시 확인 proof는 실제 확인으로 인정하지 않는다", async () => {
+    const target = `itest-legacy-${randomUUID()}@example.invalid`;
+    targets.push(target);
+    await prisma.verificationCode.create({
+      data: {
+        channel: "EMAIL",
+        target,
+        codeHash: "temporary-verification-bypass",
+        expiresAt: new Date(Date.now() + 30 * 60_000),
+        verifiedAt: new Date(),
+      },
+    });
+
+    await expect(requireVerified("EMAIL", target)).rejects.toThrow(
+      "이메일 인증",
+    );
+  });
+
+  it("병렬 오답도 다섯 번까지만 처리하고 코드를 만료시킨다", async () => {
+    const target = `itest-confirm-${randomUUID()}@example.invalid`;
+    targets.push(target);
+    readRequestContext.mockResolvedValue({ ip: null, userAgent: null });
+    const { mockCode } = await requestCode("EMAIL", target);
+    const wrongCode = mockCode === "000000" ? "000001" : "000000";
+
+    await Promise.allSettled(
+      Array.from({ length: 40 }, () => confirmCode("EMAIL", target, wrongCode)),
+    );
+
+    const row = await prisma.verificationCode.findFirst({ where: { target } });
+    expect(row?.attempts).toBe(5);
+    expect(row!.expiresAt.getTime()).toBeLessThanOrEqual(Date.now());
+  });
+
+  it("allows only five concurrent sends per target per hour", async () => {
     const target = `itest-limit-${randomUUID()}@example.invalid`;
     targets.push(target);
     readRequestContext.mockResolvedValue({ ip: null, userAgent: null });
 
     const results = await Promise.allSettled(
-      Array.from({ length: 6 }, () => createTemporaryVerifiedProof("EMAIL", target)),
+      Array.from({ length: 6 }, () => requestCode("EMAIL", target)),
     );
 
     expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(5);
@@ -70,7 +111,7 @@ describe("createTemporaryVerifiedProof() — rate limits", () => {
     ).resolves.toBe(5);
   });
 
-  it("allows only MAX_SENDS_PER_HOUR_PER_IP immediate proofs per request IP per hour", async () => {
+  it("allows only MAX_SENDS_PER_HOUR_PER_IP sends per request IP per hour", async () => {
     const requestIp = `2001:db8::${randomUUID().replaceAll("-", "").slice(0, 4)}`;
     const batchTargets = Array.from(
       { length: MAX_SENDS_PER_HOUR_PER_IP + 1 },
@@ -81,7 +122,7 @@ describe("createTemporaryVerifiedProof() — rate limits", () => {
     readRequestContext.mockResolvedValue({ ip: requestIp, userAgent: null });
 
     const results = await Promise.allSettled(
-      batchTargets.map((target) => createTemporaryVerifiedProof("EMAIL", target)),
+      batchTargets.map((target) => requestCode("EMAIL", target)),
     );
 
     const rejected = results.filter(
@@ -105,7 +146,7 @@ describe("createTemporaryVerifiedProof() — rate limits", () => {
     for (let i = made; i < MAX_SENDS_PER_HOUR_PER_IP; i += 1) {
       const target = `itest-ip-fill-${randomUUID()}@example.invalid`;
       targets.push(target);
-      await createTemporaryVerifiedProof("EMAIL", target);
+      await requestCode("EMAIL", target);
     }
     await expect(
       prisma.verificationCode.count({ where: { requestIp } }),
@@ -113,7 +154,7 @@ describe("createTemporaryVerifiedProof() — rate limits", () => {
 
     const overflow = `itest-ip-over-${randomUUID()}@example.invalid`;
     targets.push(overflow);
-    await expect(createTemporaryVerifiedProof("EMAIL", overflow)).rejects.toThrow(
+    await expect(requestCode("EMAIL", overflow)).rejects.toThrow(
       "너무 많이",
     );
     await expect(

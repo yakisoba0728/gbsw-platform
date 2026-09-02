@@ -7,7 +7,10 @@ import {
   normalizeTarget,
   type VerificationChannel,
 } from "./verification.schema";
-import { sendVerification } from "./verification.sender";
+import {
+  maskVerificationTarget,
+  sendVerification,
+} from "./verification.sender";
 
 export { VerificationError };
 
@@ -17,9 +20,31 @@ const MAX_SENDS_PER_HOUR = 5;
 // 학교 공용 IP에서는 가입 한 명이 이메일·전화 두 번을 소모한다.
 export const MAX_SENDS_PER_HOUR_PER_IP = 60;
 const VERIFIED_TTL_MINUTES = 30;
-const TEMPORARY_BYPASS_HASH = "temporary-verification-bypass";
 const RATE_LIMIT_MESSAGE =
   "인증번호를 너무 많이 요청했습니다. 한 시간 뒤에 다시 요청하세요.";
+const SAFE_DELIVERY_ERROR_CODES = new Set([
+  "EAUTH",
+  "ECONNECTION",
+  "ECONNRESET",
+  "EDNS",
+  "EENVELOPE",
+  "EMESSAGE",
+  "ESOCKET",
+  "ETIMEDOUT",
+]);
+
+function safeDeliveryErrorCode(error: unknown): string {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof error.code === "string" &&
+    SAFE_DELIVERY_ERROR_CODES.has(error.code)
+  ) {
+    return error.code;
+  }
+  return "UNKNOWN";
+}
 
 export function isMockVerification(): boolean {
   return (
@@ -47,8 +72,6 @@ async function insertRateLimitedCode(input: {
   channel: VerificationChannel;
   target: string;
   codeHash: string;
-  expiresAt: Date;
-  verifiedAt?: Date | null;
 }, now: Date) {
   const { ip } = await readRequestContext();
   const since = new Date(now.getTime() - 60 * 60_000);
@@ -69,9 +92,48 @@ async function insertRateLimitedCode(input: {
       }
     }
 
-    await repo.expirePending(input.channel, input.target, now, tx);
-    return repo.insertCode({ ...input, requestIp: ip }, tx);
+    // 실제 잠금 획득 순서가 createdAt에 반영되어 겹친 발송도 정확히 비교할 수 있게 한다.
+    const reservedAt = new Date();
+    // 외부 발송이 성공하기 전에는 새 코드가 확인 대상으로 보이지 않게 만료 상태로 예약한다.
+    return repo.insertCode({
+      ...input,
+      expiresAt: reservedAt,
+      requestIp: ip,
+      createdAt: reservedAt,
+    }, tx);
   });
+}
+
+async function activateSentCode(
+  channel: VerificationChannel,
+  target: string,
+  id: string,
+): Promise<boolean> {
+  let activated = false;
+  await withTransaction(async (tx) => {
+    await repo.lockVerificationTarget(channel, target, tx);
+    const activatedAt = new Date();
+    const newerActivated = await repo.hasNewerActivatedCode(
+      channel,
+      target,
+      id,
+      activatedAt,
+      tx,
+    );
+
+    // 더 최신 요청이 이미 발송까지 끝났다면 늦게 끝난 이전 발송으로 덮어쓰지 않는다.
+    // 아직 예약(만료) 상태인 더 최신 요청은 성공 여부가 정해지지 않았으므로 무시한다.
+    if (newerActivated) return;
+
+    await repo.expirePending(channel, target, activatedAt, tx);
+    await repo.activateCode(
+      id,
+      minutesFromNow(TTL_MINUTES, activatedAt),
+      tx,
+    );
+    activated = true;
+  });
+  return activated;
 }
 
 export async function requestCode(
@@ -87,46 +149,39 @@ export async function requestCode(
     channel,
     target,
     codeHash: hash(code),
-    expiresAt: minutesFromNow(TTL_MINUTES, now),
   }, now);
 
-  if (isMockVerification()) {
-    console.log(`[인증코드·목업] ${channel} ${target} : ${code}`);
-    return { mockCode: code };
-  }
+  const mock = isMockVerification();
 
+  let activated = false;
   try {
-    await sendVerification({ channel, target, code });
+    if (!mock) await sendVerification({ channel, target, code });
+    activated = await activateSentCode(channel, target, row.id);
   } catch (error) {
-    // 실패한 발송이 한도를 차지하지 않게 한다.
+    // 실패한 발송이 한도를 차지하지 않게 하고, 기존 유효 코드는 그대로 둔다.
     await repo.deleteById(row.id);
 
-    console.error("[인증코드] 발송 실패", error);
+    console.error("[인증코드] 발송 실패", {
+      channel,
+      target: maskVerificationTarget(channel, target),
+      errorCode: safeDeliveryErrorCode(error),
+    });
     throw new VerificationError(
       "인증번호를 보내지 못했습니다. 잠시 후 다시 시도해 주세요.",
     );
   }
 
+  if (!activated) {
+    throw new VerificationError(
+      "더 최근에 요청한 인증번호를 사용해 주세요.",
+    );
+  }
+
+  if (mock) {
+    return { mockCode: code };
+  }
+
   return {};
-}
-
-/** 실제 발송을 재개하기 전에도 DB proof를 한 번 소진해야 가입할 수 있다. */
-export async function createTemporaryVerifiedProof(
-  channel: VerificationChannel,
-  rawTarget: string,
-): Promise<{ id: string }> {
-  const target = normalizeTarget(channel, rawTarget);
-  const now = new Date();
-
-  const row = await insertRateLimitedCode({
-    channel,
-    target,
-    codeHash: TEMPORARY_BYPASS_HASH,
-    expiresAt: minutesFromNow(VERIFIED_TTL_MINUTES, now),
-    verifiedAt: now,
-  }, now);
-
-  return { id: row.id };
 }
 
 export async function confirmCode(
@@ -135,25 +190,39 @@ export async function confirmCode(
   code: string,
 ): Promise<void> {
   const target = normalizeTarget(channel, rawTarget);
-  const now = new Date();
 
-  const row = await repo.findLiveCode(channel, target, now);
-  if (!row) {
+  const result = await withTransaction(async (tx) => {
+    // 발송·재발송과 확인을 같은 대상 잠금으로 직렬화해 병렬 대입을 막는다.
+    await repo.lockVerificationTarget(channel, target, tx);
+    // 잠금 대기 전 시각을 쓰면 그 사이 만료된 코드가 다시 살아난 것처럼 보일 수 있다.
+    const now = new Date();
+    const row = await repo.findLiveCode(channel, target, now, tx);
+    if (!row) return "NO_LIVE_CODE" as const;
+
+    if (matches(row.codeHash, code)) {
+      await repo.markVerified(row.id, now, tx);
+      return "VERIFIED" as const;
+    }
+
+    const attempts = await repo.bumpAttempts(row.id, tx);
+    if (attempts >= MAX_ATTEMPTS) {
+      await repo.expireById(row.id, now, tx);
+      return "TOO_MANY_ATTEMPTS" as const;
+    }
+    return "MISMATCH" as const;
+  });
+
+  if (result === "NO_LIVE_CODE") {
     throw new VerificationError("인증번호가 만료되었습니다. 다시 요청해 주세요.");
   }
-
-  if (!matches(row.codeHash, code)) {
-    const attempts = await repo.bumpAttempts(row.id);
-    if (attempts >= MAX_ATTEMPTS) {
-      await repo.expireById(row.id, now);
-      throw new VerificationError(
-        "인증번호를 여러 번 틀렸습니다. 다시 요청해 주세요.",
-      );
-    }
+  if (result === "TOO_MANY_ATTEMPTS") {
+    throw new VerificationError(
+      "인증번호를 여러 번 틀렸습니다. 다시 요청해 주세요.",
+    );
+  }
+  if (result === "MISMATCH") {
     throw new VerificationError("인증번호가 맞지 않습니다.");
   }
-
-  await repo.markVerified(row.id, now);
 }
 
 export async function requireVerified(

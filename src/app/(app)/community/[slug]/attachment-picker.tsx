@@ -21,10 +21,12 @@ async function errorText(res: Response): Promise<string> {
 
 export function AttachmentPicker({
   slug,
+  id,
   initial = [],
   max,
 }: {
   slug: string;
+  id?: string;
   initial?: PickedAttachment[];
   max: number;
 }) {
@@ -92,6 +94,7 @@ export function AttachmentPicker({
 
       <input
         ref={inputRef}
+        id={id}
         type="file"
         multiple
         aria-label="첨부파일 고르기"

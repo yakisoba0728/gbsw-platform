@@ -14,9 +14,9 @@
 
   --color-ink: #171717;
   --color-mut: #707070;
-  --color-mut2: #9a9a9a;
+  --color-mut2: #737373;
   --color-mut-soft: #f2f2f2;
-  --color-placeholder: #b2b2b2;
+  --color-placeholder: #737373;
 
   /* pri는 배경용이고 초록 글자는 대비가 높은 pri-ink를 쓴다. */
   --color-pri: #3ecf8e;

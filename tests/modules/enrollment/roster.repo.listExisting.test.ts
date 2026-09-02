@@ -38,15 +38,15 @@ describe("listExisting() — 이름을 NFC로 정규화한다 (I8)", () => {
     expect(result[0]!.name).not.toBe(nfdName);
     expect(result[0]!.birthDate).toBe("2010-07-28");
     expect(result[0]!.hasGraduatedEnrollment).toBe(false);
-    expect(result[0]).not.toHaveProperty("deleted");
+    expect(result[0]!.removed).toBe(false);
     expect(result[0]).not.toHaveProperty("entryClassNo");
     expect(result[0]).not.toHaveProperty("entryNumber");
     expect(enrollmentFindMany).not.toHaveBeenCalled();
   });
 });
 
-describe("listExisting() — 삭제 표시된 학생은 명단 매칭에 쓰지 않는다", () => {
-  it("WHERE에 deletedAt: null을 넣어 legacy 삭제 표시 계정 재매칭 경로를 만들지 않는다", async () => {
+describe("listExisting() — 제외 표시된 학생의 안전한 복구", () => {
+  it("제외 학생도 학생코드 재매칭 대상으로 읽는다", async () => {
     studentProfileFindMany.mockResolvedValue([]);
 
     await listExisting(2026);
@@ -55,10 +55,32 @@ describe("listExisting() — 삭제 표시된 학생은 명단 매칭에 쓰지 
       where: { user: unknown };
       select: { enrollments: { where: unknown } };
     };
-    expect(call.where).toEqual({ user: { role: "STUDENT", deletedAt: null } });
+    expect(call.where).toEqual({ user: { role: "STUDENT" } });
     expect(call.select.enrollments.where).toEqual({
       OR: [{ year: 2026 }, { status: "GRADUATED" }],
     });
+  });
+
+  it("제외 학생은 매칭에는 돌려주되 명단 내보내기에서는 숨긴다", async () => {
+    studentProfileFindMany.mockResolvedValue([
+      {
+        id: "sp-removed",
+        studentCode: "BBBB2345",
+        birthDate: new Date("2010-07-28T00:00:00+09:00"),
+        user: {
+          id: "u-removed",
+          name: "제외학생",
+          status: "INACTIVE",
+          deletedAt: new Date("2026-09-02T00:00:00Z"),
+        },
+        enrollments: [],
+      },
+    ]);
+
+    await expect(listExisting(2026)).resolves.toEqual([
+      expect.objectContaining({ studentProfileId: "sp-removed", removed: true }),
+    ]);
+    await expect(listForExport(2026)).resolves.toEqual([]);
   });
 
   it("현재 학년도 배정과 별개로 어느 학년도든 졸업 기록이 있으면 표시한다", async () => {

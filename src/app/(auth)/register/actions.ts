@@ -25,7 +25,6 @@ import {
 } from "@/modules/verification/verification.schema";
 import {
   confirmCode,
-  requireVerified,
   VerificationError,
 } from "@/modules/verification/verification.service";
 
@@ -175,12 +174,12 @@ export async function requestVerificationAction(
   }
 
   try {
-    const { verified } = await requestVerification(
+    const result = await requestVerification(
       parsedCode.data,
       parsed.data.channel,
       parsed.data.target,
     );
-    return { ok: true, error: null, verified };
+    return { ok: true, error: null, verified: false, ...result };
   } catch (error) {
     if (error instanceof VerificationError || error instanceof RegistrationError) {
       return { ok: false, error: error.message };
@@ -195,24 +194,6 @@ export async function confirmVerificationAction(
   target: string,
   code: string,
 ): Promise<VerifyResult> {
-  if (code === "") {
-    const parsed = requestCodeSchema.safeParse({ channel, target });
-    if (!parsed.success) {
-      return { ok: false, error: "형식을 확인해 주세요." };
-    }
-
-    try {
-      await requireVerified(parsed.data.channel, parsed.data.target);
-      return { ok: true, error: null, verified: true };
-    } catch (error) {
-      if (error instanceof VerificationError) {
-        return { ok: false, error: error.message };
-      }
-      console.error("[verification] 인증 상태를 확인하지 못했습니다.", error);
-      return { ok: false, error: "인증하지 못했습니다." };
-    }
-  }
-
   const parsed = confirmCodeSchema.safeParse({ channel, target, code });
   if (!parsed.success) {
     return {

@@ -28,8 +28,8 @@ model User {
   /// 비밀번호 초기화 후 다음 요청에서 변경을 강제한다.
   mustChangePassword Boolean? @default(false)
 
-  /// 신규 삭제는 물리 삭제한다. 레거시 표시를 읽는 인증·계정·명단·초대·출입증 경로 때문에 열과 인덱스를 보존한다.
-  /// 상벌점 대상은 이 값 대신 해당 학년도 Enrollment.status = ENROLLED로 판정한다.
+  /// 명단 파일에서 빠진 학생은 이 시각을 기록해 로그인·일반 목록에서 제외한다.
+  /// 사용자 상세의 명시적 완전 삭제만 행을 지우며, 그 전까지 업무 기록은 보존한다.
   deletedAt DateTime?
 
   banned     Boolean?  @default(false)
@@ -234,7 +234,7 @@ model Invite {
 }
 
 /// 요청 사이의 확인 proof를 저장하고 가입 트랜잭션에서 한 번만 소진한다.
-/// 현재 가입은 verifiedAt이 채워진 임시 proof를 만들며 실발송은 호출하지 않는다.
+/// 발송한 코드가 확인되어야 verifiedAt이 채워진다.
 model VerificationCode {
   id String @id @default(cuid())
 

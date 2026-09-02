@@ -5,7 +5,7 @@ import { applyRoster } from "@/modules/enrollment/roster.repo";
 
 const YEAR = 8102;
 
-describe("applyRoster() — 명단에서 빠진 학생은 DB에서 영구 삭제된다", () => {
+describe("applyRoster() — 명단에서 빠진 학생은 기록을 보존한 채 제외된다", () => {
   const adminId = randomUUID();
   const studentUserId = randomUUID();
   const parentUserId = randomUUID();
@@ -127,11 +127,12 @@ describe("applyRoster() — 명단에서 빠진 학생은 DB에서 영구 삭제
     await prisma.academicYear.deleteMany({ where: { year: YEAR } });
   });
 
-  it("User/StudentProfile과 의존 행을 cascade로 지우고 학부모 계정은 보존한다", async () => {
-    const removedIds = (
+  it("계정과 업무 기록은 보존하고 로그인·현재 배정만 끊는다", async () => {
+    const pendingIds = (
       await prisma.invite.findMany({
         where: {
           code: { in: [pendingByStudentCode, pendingByAdminCode, usedCode] },
+          status: "PENDING",
         },
         select: { id: true },
       })
@@ -147,27 +148,31 @@ describe("applyRoster() — 명단에서 빠진 학생은 DB에서 영구 삭제
       createdByName: "통합테스트 관리자",
     });
 
-    expect(result.revokedInvites.map((i) => i.id).sort()).toEqual(removedIds);
+    expect(result.revokedInvites.map((i) => i.id).sort()).toEqual(pendingIds);
     expect(result.revokedInvites.every((i) => i.role === "PARENT")).toBe(true);
-    expect(result.revokedInvites.map((i) => i.status).sort()).toEqual([
-      "PENDING",
-      "PENDING",
-      "USED",
-    ]);
+    expect(result.revokedInvites.map((i) => i.status).sort()).toEqual(["PENDING", "PENDING"]);
 
     const remainingInvites = await prisma.invite.findMany({
       where: { code: { in: [pendingByStudentCode, pendingByAdminCode, usedCode] } },
-      select: { id: true },
+      select: { code: true, status: true },
+      orderBy: { code: "asc" },
     });
-    expect(remainingInvites).toEqual([]);
+    expect(remainingInvites).toEqual(
+      [
+        { code: pendingByStudentCode, status: "REVOKED" },
+        { code: pendingByAdminCode, status: "REVOKED" },
+        { code: usedCode, status: "USED" },
+      ].sort((a, b) => a.code.localeCompare(b.code)),
+    );
 
     const studentUser = await prisma.user.findUnique({ where: { id: studentUserId } });
-    expect(studentUser).toBeNull();
+    expect(studentUser).toMatchObject({ status: "INACTIVE" });
+    expect(studentUser?.deletedAt).toBeInstanceOf(Date);
 
     const profile = await prisma.studentProfile.findUnique({
       where: { id: studentProfileId },
     });
-    expect(profile).toBeNull();
+    expect(profile).not.toBeNull();
 
     const enrollment = await prisma.enrollment.findUnique({
       where: { studentProfileId_year: { studentProfileId, year: YEAR } },
@@ -178,7 +183,7 @@ describe("applyRoster() — 명단에서 빠진 학생은 DB에서 영구 삭제
     expect(session).toBeNull();
 
     const link = await prisma.parentStudent.findUnique({ where: { id: parentStudentId } });
-    expect(link).toBeNull();
+    expect(link).not.toBeNull();
 
     const parentUser = await prisma.user.findUnique({ where: { id: parentUserId } });
     expect(parentUser?.status).toBe("ACTIVE");

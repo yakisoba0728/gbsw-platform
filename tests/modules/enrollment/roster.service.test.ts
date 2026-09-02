@@ -104,6 +104,7 @@ const 재학생 = {
   status: "ENROLLED",
   hasGraduatedEnrollment: false,
   accountActive: true,
+  removed: false,
 };
 
 function fingerprint(
@@ -166,7 +167,7 @@ describe("createRosterFingerprint()", () => {
     };
 
     expect(createRosterFingerprint([legacyShape])).toBe(
-      "GgxlFVODrgh-hxzFlhX9W5uE2yIWGVQjvmvFsGMx5C4",
+      "wELUTT9HXVQOLxO5xl7KHoLR_BCAIFdfywx6sXWJvc0",
     );
     expect(createRosterFingerprint([재학생])).toBe(
       createRosterFingerprint([legacyShape]),
@@ -547,10 +548,11 @@ function 대량학생(n: number) {
     status: "ENROLLED",
     hasGraduatedEnrollment: false,
     accountActive: true,
+    removed: false,
   }));
 }
 
-describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () => {
+describe("applyRosterPlan() — 명단에서 빠진 학생 계정 제외", () => {
   it("삭제 대상이 있는데 confirmedDeletionIds가 비면 거부한다", async () => {
     await expect(applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(), [], null)).rejects.toThrow(
       "DELETION_SET_CHANGED",
@@ -640,30 +642,30 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
     expect(applyRoster.mock.calls[0]![1].deleteStudentProfileIds).toEqual([]);
   });
 
-  it("삭제 로그마다 actorName을 미리 넘겨 이름 재조회를 없앤다", async () => {
+  it("명단 제외 로그마다 actorName을 미리 넘겨 이름 재조회를 없앤다", async () => {
     await applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(), ["sp-1"], 1);
 
     const deleteLog = auditEntries()
-      .find((c) => c.action === "user:delete");
+      .find((c) => c.action === "user:soft-delete");
     expect(deleteLog?.actorName).toBe(admin.name);
   });
 
-  it("명단에서 빠진 학생마다 user:delete를 남기고 이름은 넣지 않는다", async () => {
+  it("명단에서 빠진 학생마다 user:soft-delete를 남기고 이름은 넣지 않는다", async () => {
     await applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(), ["sp-1"], 1);
 
     const deleteLogs = auditEntries()
-      .filter((c) => c.action === "user:delete");
+      .filter((c) => c.action === "user:soft-delete");
     expect(deleteLogs).toHaveLength(1);
     expect(deleteLogs[0]).toMatchObject({ targetType: "User", targetId: "u-1" });
     expect(JSON.stringify(deleteLogs[0])).not.toContain("김동혁");
   });
 
-  it("배치 요약의 metadata에 deleted 건수를 남긴다", async () => {
+  it("배치 요약의 metadata에 softDeleted 건수를 남긴다", async () => {
     await applyRosterPlan(admin, 2026, [무관한신규줄], fingerprint(), ["sp-1"], 1);
 
     const summary = auditEntries()
       .find((c) => c.action === "enrollment:import");
-    expect(summary!.metadata).toMatchObject({ deleted: 1 });
+    expect(summary!.metadata).toMatchObject({ softDeleted: 1 });
   });
 
   it("정상 반영 요약에 restored 건수를 남기지 않는다", async () => {
@@ -672,6 +674,25 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 삭제", () =>
     const summary = auditEntries()
       .find((c) => c.action === "enrollment:import");
     expect(summary!.metadata).not.toHaveProperty("restored");
+  });
+
+  it("명단에서 제외됐던 학생을 다시 배정하면 restored 건수를 남긴다", async () => {
+    const removed = {
+      ...재학생,
+      grade: null,
+      classNo: null,
+      number: null,
+      status: null,
+      accountActive: false,
+      removed: true,
+    };
+    listExisting.mockResolvedValue([removed]);
+
+    await applyRosterPlan(admin, 2026, [row], fingerprint([removed]), [], null);
+
+    const summary = auditEntries()
+      .find((entry) => entry.action === "enrollment:import");
+    expect(summary!.metadata).toMatchObject({ restored: 1 });
   });
 
   it("결과에 삭제 건수를 함께 돌려준다", async () => {

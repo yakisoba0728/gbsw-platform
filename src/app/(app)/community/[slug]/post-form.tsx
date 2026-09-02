@@ -236,6 +236,7 @@ export function PostForm({
           <div>
             <Label htmlFor="pf-files">첨부파일</Label>
             <AttachmentPicker
+              id="pf-files"
               slug={slug}
               initial={post?.attachments ?? []}
               max={MAX_ATTACHMENTS_PER_POST}

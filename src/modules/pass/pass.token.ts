@@ -7,6 +7,7 @@ const SIG_BYTES = 12;
 
 const PROFILE_ID = /^[a-z0-9]{10,64}$/;
 const SIGNATURE = /^[A-Za-z0-9_-]{16}$/;
+const TOKEN_STEP = /^(0|[1-9][0-9]{0,15})$/;
 
 /* HKDF info 버전을 바꾸면 기존 학생 QR이 모두 무효화된다. */
 function signingKey(): Buffer {
@@ -35,31 +36,60 @@ export function issueStudentCode(
 ): { code: string; validUntil: Date } {
   const step = stepAt(at);
   return {
-    code: `${studentProfileId}.${sign(studentProfileId, step)}`,
+    code: `${studentProfileId}.${step}.${sign(studentProfileId, step)}`,
     validUntil: new Date((step + 1) * STEP_SECONDS * 1000),
   };
 }
 
-type CodeResult = { studentProfileId: string } | "STALE" | "MALFORMED";
+type CodeResult =
+  | { studentProfileId: string; stale?: true }
+  | "STALE"
+  | "INVALID"
+  | "MALFORMED";
 
-/* 현재·직전 구간만 허용한다. STALE의 학생 존재 여부는 서비스에서 확인한다. */
+/* 현재·직전 구간만 허용하고, 서명된 스텝으로 진짜 지난 코드만 식별한다. */
 export function verifyStudentCode(code: string, at: Date): CodeResult {
-  const dot = code.indexOf(".");
-  if (dot <= 0) return "MALFORMED";
+  const [studentProfileId, stepOrSignature, signature, extra] = code.split(".");
+  if (!studentProfileId || !stepOrSignature || extra !== undefined) {
+    return "MALFORMED";
+  }
 
-  const studentProfileId = code.slice(0, dot);
-  const signature = code.slice(dot + 1);
-  if (!PROFILE_ID.test(studentProfileId) || !SIGNATURE.test(signature)) {
+  if (!PROFILE_ID.test(studentProfileId)) {
     return "MALFORMED";
   }
 
   const step = stepAt(at);
+
+  // 배포 직전 형식(id.signature)은 현재·직전 서명만 인증해 잠깐 호환한다.
+  // 그보다 오래된 legacy 코드는 스텝을 품지 않아 진위를 가릴 수 없다.
+  if (signature === undefined) {
+    if (!SIGNATURE.test(stepOrSignature)) return "MALFORMED";
+    for (const candidate of [step, step - 1]) {
+      if (
+        constantTimeEquals(stepOrSignature, sign(studentProfileId, candidate))
+      ) {
+        return { studentProfileId };
+      }
+    }
+    return "STALE";
+  }
+
+  if (!TOKEN_STEP.test(stepOrSignature) || !SIGNATURE.test(signature)) {
+    return "MALFORMED";
+  }
+
+  const signedStep = Number(stepOrSignature);
+  if (!Number.isSafeInteger(signedStep)) return "MALFORMED";
+  if (!constantTimeEquals(signature, sign(studentProfileId, signedStep))) {
+    return "INVALID";
+  }
+
   for (const candidate of [step, step - 1]) {
-    if (constantTimeEquals(signature, sign(studentProfileId, candidate))) {
+    if (signedStep === candidate) {
       return { studentProfileId };
     }
   }
-  return "STALE";
+  return { studentProfileId, stale: true };
 }
 
 function constantTimeEquals(a: string, b: string): boolean {

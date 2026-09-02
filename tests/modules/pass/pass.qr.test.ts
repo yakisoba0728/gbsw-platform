@@ -22,10 +22,11 @@ describe("matrixToPath", () => {
 });
 
 describe("toQrPath", () => {
-  const URL_LIKE = "https://gbsw.example.kr/scan?c=clx0000000000000000000abc.AAAAAAAAAAAAAAAA";
+  const URL_LIKE =
+    "https://gbsw.example.kr/scan?c=clx0000000000000000000abc.89345678.AAAAAAAAAAAAAAAA";
 
-  it("우리 주소 길이면 35×35(버전 4)로 나온다", () => {
-    expect(toQrPath(URL_LIKE).size).toBe(35);
+  it("우리 주소 길이면 39×39(버전 5)로 나온다", () => {
+    expect(toQrPath(URL_LIKE).size).toBe(39);
   });
 
   it("path는 M으로 시작하고 비어 있지 않다", () => {

@@ -72,6 +72,7 @@ describe("왕복: 내보내기 → xlsx 바이트 → 파서 → 분류", () => 
     status: "ENROLLED",
     hasGraduatedEnrollment: false,
     accountActive: true,
+    removed: false,
   };
 
   async function exportAndReparse(existing: ExistingStudent[]) {
@@ -119,6 +120,7 @@ describe("왕복: 내보내기 → xlsx 바이트 → 파서 → 분류", () => 
       status: null,
       hasGraduatedEnrollment: false,
       accountActive: false,
+      removed: false,
     };
 
     const plan = await exportAndReparse([재학생, 배정없는학생]);
@@ -146,6 +148,7 @@ describe("왕복: 내보내기 → xlsx 바이트 → 파서 → 분류", () => 
       status: null,
       hasGraduatedEnrollment: false,
       accountActive: false,
+      removed: false,
     };
     const 다른재학생: ExistingStudent = {
       studentProfileId: "sp-3",
@@ -159,6 +162,7 @@ describe("왕복: 내보내기 → xlsx 바이트 → 파서 → 분류", () => 
       status: "ENROLLED",
       hasGraduatedEnrollment: false,
       accountActive: true,
+      removed: false,
     };
 
     const plan = await exportAndReparse([재학생, 배정없는학생, 다른재학생]);

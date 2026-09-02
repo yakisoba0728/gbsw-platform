@@ -1,5 +1,17 @@
 import { prisma, type DbClient } from "@/core/db/client";
 
+export const LEGACY_TEMPORARY_BYPASS_HASH = "temporary-verification-bypass";
+
+export async function lockVerificationTarget(
+  channel: string,
+  target: string,
+  db: DbClient,
+): Promise<void> {
+  await db.$executeRaw`
+    SELECT pg_advisory_xact_lock(hashtextextended(${`verification:target:${channel}:${target}`}, 0))
+  `;
+}
+
 export async function countRecentSends(
   channel: string,
   target: string,
@@ -28,9 +40,7 @@ export async function lockSendRateLimitBuckets(
   db: DbClient,
 ): Promise<void> {
   // 모든 요청이 대상 → IP 순으로 잠가 count와 insert를 직렬화한다.
-  await db.$executeRaw`
-    SELECT pg_advisory_xact_lock(hashtextextended(${`verification:target:${channel}:${target}`}, 0))
-  `;
+  await lockVerificationTarget(channel, target, db);
 
   if (!ip) return;
 
@@ -58,23 +68,75 @@ export async function insertCode(input: {
   expiresAt: Date;
   requestIp: string | null;
   verifiedAt?: Date | null;
+  createdAt?: Date;
 }, db: DbClient = prisma) {
   return db.verificationCode.create({ data: input });
+}
+
+export async function activateCode(
+  id: string,
+  expiresAt: Date,
+  db: DbClient = prisma,
+): Promise<void> {
+  await db.verificationCode.update({
+    where: { id },
+    data: { expiresAt },
+  });
+}
+
+export async function hasNewerActivatedCode(
+  channel: string,
+  target: string,
+  id: string,
+  now: Date,
+  db: DbClient = prisma,
+): Promise<boolean> {
+  const current = await db.verificationCode.findUnique({
+    where: { id },
+    select: { createdAt: true },
+  });
+  if (!current) return true;
+
+  const newer = await db.verificationCode.findFirst({
+    where: {
+      channel,
+      target,
+      // 예약 행은 expiresAt이 예약 시각이라 여기 포함되지 않는다.
+      // 발송 뒤 활성화된 더 최신 행만 이전 발송의 늦은 활성화를 막는다.
+      expiresAt: { gt: now },
+      OR: [
+        { createdAt: { gt: current.createdAt } },
+        { createdAt: current.createdAt, id: { gt: id } },
+      ],
+    },
+    select: { id: true },
+  });
+  return newer !== null;
 }
 
 export async function findLiveCode(
   channel: string,
   target: string,
   now: Date,
+  db: DbClient = prisma,
 ) {
-  return prisma.verificationCode.findFirst({
-    where: { channel, target, consumedAt: null, expiresAt: { gt: now } },
+  return db.verificationCode.findFirst({
+    where: {
+      channel,
+      target,
+      consumedAt: null,
+      verifiedAt: null,
+      expiresAt: { gt: now },
+    },
     orderBy: { createdAt: "desc" },
   });
 }
 
-export async function bumpAttempts(id: string): Promise<number> {
-  const row = await prisma.verificationCode.update({
+export async function bumpAttempts(
+  id: string,
+  db: DbClient = prisma,
+): Promise<number> {
+  const row = await db.verificationCode.update({
     where: { id },
     data: { attempts: { increment: 1 } },
     select: { attempts: true },
@@ -82,15 +144,23 @@ export async function bumpAttempts(id: string): Promise<number> {
   return row.attempts;
 }
 
-export async function expireById(id: string, now: Date): Promise<void> {
-  await prisma.verificationCode.update({
+export async function expireById(
+  id: string,
+  now: Date,
+  db: DbClient = prisma,
+): Promise<void> {
+  await db.verificationCode.update({
     where: { id },
     data: { expiresAt: now },
   });
 }
 
-export async function markVerified(id: string, now: Date): Promise<void> {
-  await prisma.verificationCode.update({
+export async function markVerified(
+  id: string,
+  now: Date,
+  db: DbClient = prisma,
+): Promise<void> {
+  await db.verificationCode.update({
     where: { id },
     data: { verifiedAt: now },
   });
@@ -106,6 +176,7 @@ export async function findVerified(
       channel,
       target,
       consumedAt: null,
+      codeHash: { not: LEGACY_TEMPORARY_BYPASS_HASH },
       verifiedAt: { gte: verifiedAfter },
     },
     orderBy: { verifiedAt: "desc" },
@@ -120,7 +191,12 @@ export async function consume(
   if (ids.length === 0) return 0;
 
   const { count } = await db.verificationCode.updateMany({
-    where: { id: { in: ids }, consumedAt: null, verifiedAt: { not: null } },
+    where: {
+      id: { in: ids },
+      consumedAt: null,
+      codeHash: { not: LEGACY_TEMPORARY_BYPASS_HASH },
+      verifiedAt: { not: null },
+    },
     data: { consumedAt: now },
   });
   return count;

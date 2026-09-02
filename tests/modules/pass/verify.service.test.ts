@@ -90,6 +90,24 @@ describe("verifyStudentQr", () => {
     expect(findStudentForCard).not.toHaveBeenCalled();
   });
 
+  it("형식이 맞아도 변조된 서명이면 학생 정보를 조회하거나 노출하지 않는다", async () => {
+    const [profileId, step, signature] = code().split(".");
+    const changed = signature[0] === "A" ? "B" : "A";
+    const tampered = `${profileId}.${step}.${changed}${signature.slice(1)}`;
+
+    const result = await service.verifyStudentQr(student, tampered, NOW);
+
+    expect(result).toEqual({
+      verdict: "UNKNOWN",
+      student: null,
+      pass: null,
+      detailed: false,
+    });
+    expect(displayYear).not.toHaveBeenCalled();
+    expect(findStudentForCard).not.toHaveBeenCalled();
+    expect(listForVerify).not.toHaveBeenCalled();
+  });
+
   it("서명은 맞는데 학생이 없으면 UNKNOWN이다 — 명단에서 빠진 뒤의 옛 코드다", async () => {
     findStudentForCard.mockResolvedValue(null);
     const result = await service.verifyStudentQr(admin, code(), NOW);
@@ -107,6 +125,27 @@ describe("verifyStudentQr", () => {
     expect(result.student?.studentName).toBe("김민준");
     expect(result.pass).toBeNull();
     expect(result.detailed).toBe(false);
+    expect(listForVerify).not.toHaveBeenCalled();
+  });
+
+  it("스텝이 없는 배포 직전 코드는 만료 뒤 조회 없이 STALE만 알린다", async () => {
+    const [profileId, , signature] = code().split(".");
+    const later = new Date(NOW.getTime() + 60_000);
+
+    const result = await service.verifyStudentQr(
+      student,
+      `${profileId}.${signature}`,
+      later,
+    );
+
+    expect(result).toEqual({
+      verdict: "STALE",
+      student: null,
+      pass: null,
+      detailed: false,
+    });
+    expect(displayYear).not.toHaveBeenCalled();
+    expect(findStudentForCard).not.toHaveBeenCalled();
     expect(listForVerify).not.toHaveBeenCalled();
   });
 

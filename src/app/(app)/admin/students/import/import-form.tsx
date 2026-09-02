@@ -291,8 +291,8 @@ function PreviewCard({
             </Badge>
           </div>
           <p className="mt-1.5 text-caption font-medium text-amber-ink">
-            확정하면 이 학생들의 계정과 기록이 영구히 사라집니다. 자퇴·전출은 줄을
-            지우지 말고 학적 칸을 바꾸세요.
+            확정하면 계정이 비활성화되고 일반 명단에서 빠집니다. 상벌점·출입증·학부모
+            연결 기록은 보존되며, 같은 학생코드로 다시 넣으면 계정이 복구됩니다.
           </p>
           <ul className="mt-3 divide-y divide-line2">
             {plan.missingFromFile.map((s) => (
@@ -442,9 +442,8 @@ function PreviewCard({
             {deleteCount > 0 && (
               <label className="flex flex-col gap-1.5 text-caption font-medium text-amber-ink">
                 <span>
-                  확정하면 위 {deleteCount}명의 계정과 학생 기록이 DB에서 영구히
-                  물리 삭제됩니다. 연결된 초대코드·학부모 연결·상벌점 이력은 cascade로
-                  함께 사라지고 복원 기능은 없습니다. 확인을 위해 인원 수를 직접 입력해 주세요.
+                  확정하면 위 {deleteCount}명을 명단에서 제외하고 로그인 세션을 끊습니다.
+                  기록은 삭제하지 않습니다. 확인을 위해 인원 수를 직접 입력해 주세요.
                 </span>
                 <div className="w-40">
                   <Input
