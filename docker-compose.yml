@@ -40,7 +40,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      # URL을 직접 조립하므로 POSTGRES_PASSWORD에 URL 예약 문자를 쓰지 않는다.
+      # URL을 직접 조립하므로 POSTGRES_PASSWORD에 `/`를 쓰면 접속 문자열이 깨진다.
       DATABASE_URL: postgresql://${POSTGRES_USER:-gbsw}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD를 .env에 설정해야 합니다}@db:5432/${POSTGRES_DB:-gbsw}
 
   app:
@@ -63,7 +63,7 @@ services:
       migrate:
         condition: service_completed_successfully
     environment:
-      # URL을 직접 조립하므로 POSTGRES_PASSWORD에 URL 예약 문자를 쓰지 않는다.
+      # URL을 직접 조립하므로 POSTGRES_PASSWORD에 `/`를 쓰면 접속 문자열이 깨진다.
       DATABASE_URL: postgresql://${POSTGRES_USER:-gbsw}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD를 .env에 설정해야 합니다}@db:5432/${POSTGRES_DB:-gbsw}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET를 .env에 설정해야 합니다}
       # 운영 HTTPS 공개 주소를 지정해 Secure 세션 쿠키를 사용한다.
