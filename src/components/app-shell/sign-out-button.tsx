@@ -12,7 +12,16 @@ export function SignOutButton({ className }: { className?: string }) {
 
   async function handleSignOut() {
     setSigningOut(true);
-    await authClient.signOut();
+    try {
+      const result = await authClient.signOut();
+      if (result.error) {
+        setSigningOut(false);
+        return;
+      }
+    } catch {
+      setSigningOut(false);
+      return;
+    }
     router.replace("/login");
     router.refresh();
   }

@@ -29,6 +29,7 @@ const 재학생 = {
   status: "ENROLLED",
   hasGraduatedEnrollment: false,
   accountActive: true,
+  removed: false,
 };
 
 describe("planRoster()", () => {
@@ -47,6 +48,21 @@ describe("planRoster()", () => {
     expect(plan.statusChange).toHaveLength(0);
     expect(plan.newAssignment).toHaveLength(0);
     expect(plan.newStudents).toHaveLength(0);
+  });
+
+  it("제외됐던 학생이 같은 학생코드로 돌아오면 기존 프로필을 복구 대상으로 잡는다", () => {
+    const plan = planRoster([row()], [{ ...재학생, removed: true }]);
+
+    expect(plan.newStudents).toHaveLength(0);
+    expect(plan.newAssignment).toEqual([
+      expect.objectContaining({ studentProfileId: "sp-1" }),
+    ]);
+  });
+
+  it("이미 제외된 학생은 다음 전체 명단에서 반복 제외 대상으로 세지 않는다", () => {
+    const plan = planRoster([], [{ ...재학생, removed: true }]);
+
+    expect(plan.missingFromFile).toHaveLength(0);
   });
 
   it("학생코드가 비면 신규다 — 초대코드가 나갈 대상", () => {
@@ -230,7 +246,7 @@ describe("planRoster()", () => {
     expect(plan.hasBlockingError).toBe(false);
   });
 
-  it("명단에 없는 졸업생은 물리 삭제 대상에서 제외한다", () => {
+  it("명단에 없는 졸업생은 명단 제외 대상에서 제외한다", () => {
     const 졸업생 = {
       ...재학생,
       studentProfileId: "sp-2",
@@ -258,7 +274,7 @@ describe("planRoster()", () => {
     expect(plan.missingFromFile[0]!.studentProfileId).toBe("sp-1");
   });
 
-  it("이전 학년도 졸업 기록이 있으면 올해 배정이 없어도 물리 삭제 대상에서 제외한다", () => {
+  it("이전 학년도 졸업 기록이 있으면 올해 배정이 없어도 명단 제외 대상에서 제외한다", () => {
     const 과거졸업생 = {
       ...재학생,
       status: null,
@@ -388,6 +404,7 @@ describe("planRoster() + normalizeRows() — 회귀: 명단 업로드의 학년�
           status: null,
           hasGraduatedEnrollment: false,
           accountActive: true,
+          removed: false,
         };
         const rows = normalizeRows([
           HEADER,

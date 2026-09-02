@@ -23,7 +23,7 @@
 
 | | 필요한 것 |
 |---|---|
-| 서버 | 리눅스, Docker + Docker Compose v2. 메모리 2GB 이상 |
+| 서버 | 리눅스, Docker + Docker Compose v2. 온서버 빌드 시 메모리 8GB 이상 (이미지 실행만 하면 2GB 이상) |
 | 주소 | 교내에서 닿는 도메인 (예: `gbsw.example.hs.kr`) |
 | 인증서 | HTTPS용. Caddy를 쓰면 자동 발급된다 (§3) |
 | 포트 | 외부는 443만 연다. 3000·5433은 열지 않는다 |
@@ -73,16 +73,21 @@ DATABASE_URL=postgresql://gbsw:<POSTGRES_PASSWORD와 같은 값>@localhost:5433/
 > (컨테이너끼리는 서비스 이름으로 찾는다). 그 값은 compose가 알아서 만들므로
 > 위 표에 적지 않는다.
 
-### 문자 발송 (보류)
+### 가입 인증 발송 (필수)
 
-현재 가입 흐름은 임시로 인증번호 발송을 쓰지 않는다. 유효한 초대코드로 이메일·휴대폰
-확인을 누르면 서버가 즉시 확인 proof를 만들고, 가입 완료 때 그 proof를 한 번 소진한다.
-아래 값은 실제 SMS 확인을 다시 켤 때만 채운다.
+가입하려면 이메일과 휴대폰 인증번호를 모두 확인해야 한다. 운영에서는 이메일용 SMTP와
+문자용 알리고를 모두 설정한다. 설정이 없거나 발송이 실패한 채널은 콘솔 성공으로
+대체하지 않고 요청을 실패시킨다. 앱 시작 로그의 `인증 발송 경로`도 함께 확인한다.
 
 | 변수 | 설명 |
 |---|---|
 | `SMS_KEY` · `SMS_USER_ID` · `SMS_SENDER` | 알리고 계정 정보 |
 | `SMS_TEST_MODE` | **비워 둔다.** `true`면 알리고가 접수만 하고 실제로 안 보낸다 |
+| `SMTP_HOST` · `SMTP_FROM` | SMTP 서버 주소와 발신자. 둘 다 필수 |
+| `SMTP_PORT` | 기본 `587`. SMTPS는 보통 `465` |
+| `SMTP_SECURE` | 포트 465면 기본 `true`, 그 외 기본 `false` |
+| `SMTP_REQUIRE_TLS` | 포트 465가 아니면 기본 `true` |
+| `SMTP_USER` · `SMTP_PASSWORD` | 인증을 쓰는 서버라면 둘을 함께 설정 |
 
 > `SMS_TEST_MODE`를 켠 채 운영하면 가장 알아채기 힘든 실패가 된다 — 시스템은
 > 성공했다고 하는데 학부모에게 문자가 안 간다.
@@ -92,7 +97,9 @@ DATABASE_URL=postgresql://gbsw:<POSTGRES_PASSWORD와 같은 값>@localhost:5433/
 ## 2. 띄우기
 
 ```bash
-docker compose up -d --build
+docker compose build migrate
+docker compose build app
+docker compose up -d
 ```
 
 `db` → `migrate`(1회성) → `app` 순으로 뜬다. **마이그레이션이 성공해야 앱이 시작된다.**
@@ -305,7 +312,9 @@ CPU를 못 얻어 Cloudflare가 530을 냈다.
 
 ```bash
 git pull
-docker compose up -d --build     # 마이그레이션이 자동으로 먼저 돈다
+docker compose build migrate
+docker compose build app
+docker compose up -d             # 마이그레이션이 자동으로 먼저 돈다
 ```
 
 > **저장소가 비공개라 서버에서 `git clone`·`git pull`이 안 된다.** 배포키를 넣기
@@ -353,7 +362,7 @@ docker exec -i gbsw-db pg_restore \
   < backup-2026-08-18.dump
 
 # 3) 검증한다. 최소한 마이그레이션 상태, 관리자 로그인에 필요한 계정, 최근 감사로그 수를 본다.
-docker exec gbsw-db psql -U gbsw -d gbsw_restore -v ON_ERROR_STOP=1 -c 'select count(*) from "User";'
+docker exec gbsw-db psql -U gbsw -d gbsw_restore -v ON_ERROR_STOP=1 -c 'select count(*) from "user";'
 docker exec gbsw-db psql -U gbsw -d gbsw_restore -v ON_ERROR_STOP=1 -c 'select count(*) from "AuditLog";'
 
 # 4) 검증이 끝난 뒤 짧은 점검 시간에 이름을 바꿔 전환한다.
@@ -427,5 +436,5 @@ docker compose logs --tail 100 app
   Prisma 7.9.1의 `migrate diff`가 드리프트로 보지 않는 것을 빈 마이그레이션으로
   확인했으며, **Prisma 메이저 업그레이드 때 다시 확인한다.**
 - **감사로그의 접속 IP는 지금 무기한 보관된다.** 보존 기간 정책이 아직 없다.
-- 앱 컨테이너는 `mem_limit: 512m`이다. 전교 300명 규모에는 충분하지만, 느려지면
+- 앱 컨테이너는 `mem_limit: 1g`이다. 전교 300명 규모에는 충분하지만, 느려지면
   `docker stats`로 실제 사용량을 보고 조정한다.

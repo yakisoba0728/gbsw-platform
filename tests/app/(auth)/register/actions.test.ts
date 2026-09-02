@@ -15,7 +15,6 @@ const checkInvite = vi.fn();
 const completeRegistration = vi.fn();
 const requestVerification = vi.fn();
 const confirmCode = vi.fn();
-const requireVerified = vi.fn();
 const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
 vi.mock("@/modules/registration/registration.service", () => ({
@@ -27,7 +26,6 @@ vi.mock("@/modules/registration/registration.service", () => ({
 vi.mock("@/modules/verification/verification.service", () => ({
   VerificationError: class VerificationError extends Error {},
   confirmCode,
-  requireVerified,
 }));
 
 const { RegistrationError } = await import(
@@ -68,8 +66,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   signInSilently.mockResolvedValue(undefined);
   checkInvite.mockResolvedValue({ role: "STUDENT" });
-  requestVerification.mockResolvedValue({ verified: true });
-  requireVerified.mockResolvedValue({ id: "proof-1" });
+  requestVerification.mockResolvedValue({});
 });
 
 afterAll(() => {
@@ -461,12 +458,12 @@ describe("requestVerificationAction — 경계 검증", () => {
     expect(result.ok).toBe(false);
   });
 
-  it("임시 우회 확인 결과는 그대로 화면까지 전달한다", async () => {
-    requestVerification.mockResolvedValueOnce({ verified: true });
+  it("목업 코드가 있으면 화면에 전달하고 즉시 확인 처리하지 않는다", async () => {
+    requestVerification.mockResolvedValueOnce({ mockCode: "123456" });
 
     const result = await requestVerificationAction("EMAIL", "a@b.kr", CODE);
 
-    expect(result.verified).toBe(true);
+    expect(result).toMatchObject({ verified: false, mockCode: "123456" });
   });
 
   it("정제된 문구는 그대로, 그 밖의 오류는 감춘다", async () => {
@@ -485,12 +482,11 @@ describe("requestVerificationAction — 경계 검증", () => {
 });
 
 describe("confirmVerificationAction — 경계 검증", () => {
-  it("임시 우회 proof가 이미 있으면 인증번호 없이 확인된다", async () => {
+  it("빈 인증번호는 확인 서비스에 도달하지 않는다", async () => {
     const result = await confirmVerificationAction("PHONE", "010-1234-5678", "");
 
-    expect(requireVerified).toHaveBeenCalledWith("PHONE", "010-1234-5678");
     expect(confirmCode).not.toHaveBeenCalled();
-    expect(result).toEqual({ ok: true, error: null, verified: true });
+    expect(result.ok).toBe(false);
   });
 
   it("여섯 자리면 서비스까지 도달한다", async () => {

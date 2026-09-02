@@ -1,4 +1,5 @@
 import { createAligoSender, maskPhone, readAligoConfig } from "./senders/aligo";
+import { createSmtpSender, readSmtpConfig } from "./senders/smtp";
 import type { VerificationChannel } from "./verification.schema";
 
 export type VerificationSender = (input: {
@@ -21,7 +22,10 @@ export function maskEmail(email: string): string {
   return local.length <= 2 ? `***@${domain}` : `${local.slice(0, 2)}***@${domain}`;
 }
 
-function maskTarget(channel: VerificationChannel, target: string): string {
+export function maskVerificationTarget(
+  channel: VerificationChannel,
+  target: string,
+): string {
   return channel === "PHONE" ? maskPhone(target) : maskEmail(target);
 }
 
@@ -30,18 +34,27 @@ export const consoleSender: VerificationSender = async ({
   target,
 }) => {
   console.log(
-    `[인증코드] ${CHANNEL_LABEL[channel]} → ${maskTarget(channel, target)} 발송 (콘솔, 5분 유효)`,
+    `[인증코드] ${CHANNEL_LABEL[channel]} → ${maskVerificationTarget(channel, target)} 발송 (콘솔, 5분 유효)`,
   );
 };
 
 const aligoConfig = readAligoConfig();
-const smsSender = aligoConfig ? createAligoSender(aligoConfig) : consoleSender;
+const smtpConfig = readSmtpConfig();
 
 const emailSender: VerificationSender = async (input) => {
+  if (smtpConfig) return createSmtpSender(smtpConfig)(input);
   if (process.env.NODE_ENV === "production") {
     throw new Error(
-      "이메일 인증코드 발송 수단이 설정되지 않았습니다 (운영에서 EMAIL 채널 미지원 — SMTP 미결정).",
+      "이메일 인증코드 발송 수단이 설정되지 않았습니다.",
     );
+  }
+  return consoleSender(input);
+};
+
+const smsSender: VerificationSender = async (input) => {
+  if (aligoConfig) return createAligoSender(aligoConfig)(input);
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("문자 인증코드 발송 수단이 설정되지 않았습니다.");
   }
   return consoleSender(input);
 };
@@ -54,8 +67,13 @@ export const sendVerification: VerificationSender = async (input) => {
 export function describeSenders(): string {
   const sms = aligoConfig
     ? `알리고(${aligoConfig.sender}${aligoConfig.testMode ? ", 테스트모드" : ""})`
-    : "콘솔";
-  const email =
-    process.env.NODE_ENV === "production" ? "미설정(요청 시 실패)" : "콘솔";
+    : process.env.NODE_ENV === "production"
+      ? "미설정(요청 시 실패)"
+      : "콘솔";
+  const email = smtpConfig
+    ? `SMTP(${smtpConfig.host}:${smtpConfig.port})`
+    : process.env.NODE_ENV === "production"
+      ? "미설정(요청 시 실패)"
+      : "콘솔";
   return `문자=${sms} / 이메일=${email}`;
 }

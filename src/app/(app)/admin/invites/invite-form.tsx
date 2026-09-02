@@ -71,10 +71,11 @@ function ParentForm({ students }: { students: PickerStudent[] }) {
 
   return (
     <form action={formAction}>
-      <Label>학생</Label>
+      <Label htmlFor="p-student">학생</Label>
       <div className="mb-4">
         <StudentPicker
           key={keepStudentId ?? "none"}
+          id="p-student"
           students={students}
           name="studentId"
           defaultValue={keepStudentId}

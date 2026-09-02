@@ -181,6 +181,15 @@ describe("formatAuditMetadata()", () => {
     ).toBe("2026학년도 · 삭제 11");
   });
 
+  it("enrollment:import — 명단 제외는 삭제가 아니라 제외로 표시한다", () => {
+    expect(
+      formatAuditMetadata("enrollment:import", {
+        year: 2026,
+        softDeleted: 11,
+      }),
+    ).toBe("2026학년도 · 제외 11");
+  });
+
   it("enrollment:import — 전부 0이면 학년도만 남는다", () => {
     expect(
       formatAuditMetadata("enrollment:import", {

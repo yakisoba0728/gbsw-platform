@@ -57,9 +57,15 @@ export function IssueForm({
       </Segmented>
       <input type="hidden" name="type" value={type} />
 
-      <Label>학생</Label>
+      <Label htmlFor="studentId">학생</Label>
       <div className="mb-4">
-        <StudentPicker key={pickerKey} students={students} name="studentId" required />
+        <StudentPicker
+          key={pickerKey}
+          id="studentId"
+          students={students}
+          name="studentId"
+          required
+        />
       </div>
 
       {type === "OUTING" ? (

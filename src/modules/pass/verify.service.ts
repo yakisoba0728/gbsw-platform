@@ -45,29 +45,31 @@ export async function verifyStudentQr(
   const detailed = can(actor, "pass:read:any");
   const parsed = verifyStudentCode(code, now);
 
-  if (parsed === "MALFORMED") {
+  if (parsed === "MALFORMED" || parsed === "INVALID") {
     return { verdict: "UNKNOWN", student: null, pass: null, detailed };
   }
 
-  const year = await repo.displayYear();
-
-  // 서명이 맞지 않는 STALE 응답에는 출입증 정보를 싣지 않는다.
+  // 스텝을 품지 않은 legacy 코드는 만료 뒤 진위를 가릴 수 없어 조회하지 않는다.
   if (parsed === "STALE") {
-    const stale = await repo.findStudentForCard(profileIdOf(code), year);
     return {
-      verdict: stale ? "STALE" : "UNKNOWN",
-      student: stale ? toVerifiedStudent(stale) : null,
+      verdict: "STALE",
+      student: null,
       pass: null,
       detailed: false,
     };
   }
 
+  const year = await repo.displayYear();
   const profile = await repo.findStudentForCard(parsed.studentProfileId, year);
   if (!profile) {
     return { verdict: "UNKNOWN", student: null, pass: null, detailed };
   }
 
   const student = toVerifiedStudent(profile);
+  if (parsed.stale) {
+    return { verdict: "STALE", student, pass: null, detailed: false };
+  }
+
   const passes = await repo.listForVerify(parsed.studentProfileId, now, year);
   const picked = pick(passes, now);
 
@@ -79,10 +81,6 @@ export async function verifyStudentQr(
     pass: toVerifiedPass(picked.pass, detailed),
     detailed,
   };
-}
-
-function profileIdOf(code: string): string {
-  return code.slice(0, code.indexOf("."));
 }
 
 type Picked = { verdict: Verdict; pass: repo.PassWithStudent };

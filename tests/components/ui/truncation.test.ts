@@ -39,7 +39,9 @@ const truncating = files.filter((file) =>
 
 describe("잘린 글에는 전문을 볼 길이 있다", () => {
   it("src의 화면 파일을 실제로 읽는다", () => {
-    expect(truncating).toContain("src/components/ui/truncated-text.tsx");
+    expect(files.length).toBeGreaterThan(50);
+    expect(files).toContain("src/components/ui/truncated-text.tsx");
+    expect(truncating.length).toBeGreaterThan(Object.keys(ALLOWED).length);
   });
 
   it("자르는 파일은 TruncatedText를 들여온다", () => {

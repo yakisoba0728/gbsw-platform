@@ -124,7 +124,7 @@ beforeEach(() => {
   withTransaction.mockReset().mockImplementation(async (fn: (tx: unknown) => unknown) => fn(tx));
 });
 
-describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
+describe("applyRoster() — 명단에서 빠진 학생 기록 보존", () => {
   it("deleteStudentProfileIds가 비어 있으면 삭제 쿼리를 부르지 않는다", async () => {
     await applyRoster(2026, input({ deleteStudentProfileIds: [] }));
 
@@ -134,7 +134,7 @@ describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
     expect(userUpdateMany).not.toHaveBeenCalled();
   });
 
-  it("초대코드를 먼저 지우고 계정을 완전히 삭제한다", async () => {
+  it("계정과 연결 기록을 지우지 않고 비활성·제외 표시 후 세션만 끊는다", async () => {
     studentProfileFindMany.mockResolvedValue([
       { id: "sp-del-1", userId: "u-del-1" },
       { id: "sp-del-2", userId: "u-del-2" },
@@ -153,6 +153,7 @@ describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
     });
     expect(inviteFindMany).toHaveBeenCalledWith({
       where: {
+        status: "PENDING",
         OR: [
           { usedById: { in: ["u-del-1", "u-del-2"] } },
           { studentId: { in: ["sp-del-1", "sp-del-2"] } },
@@ -160,19 +161,19 @@ describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
       },
       select: { id: true, role: true, status: true },
     });
-    expect(inviteUpdateMany).not.toHaveBeenCalled();
-    expect(inviteDeleteMany).toHaveBeenCalledWith({
-      where: {
-        OR: [
-          { usedById: { in: ["u-del-1", "u-del-2"] } },
-          { studentId: { in: ["sp-del-1", "sp-del-2"] } },
-        ],
+    expect(inviteDeleteMany).not.toHaveBeenCalled();
+    expect(userDeleteMany).not.toHaveBeenCalled();
+    expect(userUpdateMany).toHaveBeenCalledWith({
+      where: { id: { in: ["u-del-1", "u-del-2"] } },
+      data: {
+        status: "INACTIVE",
+        deletedAt: expect.any(Date),
+        updatedAt: expect.any(Date),
       },
     });
-    expect(userDeleteMany).toHaveBeenCalledWith({
-      where: { id: { in: ["u-del-1", "u-del-2"] } },
+    expect(sessionDeleteMany).toHaveBeenCalledWith({
+      where: { userId: { in: ["u-del-1", "u-del-2"] } },
     });
-    expect(sessionDeleteMany).not.toHaveBeenCalled();
   });
 
   it("삭제 대상 조회를 role: STUDENT로 다시 좁혀 승격된 계정을 뺀다", async () => {
@@ -192,7 +193,7 @@ describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
     expect(userDeleteMany).not.toHaveBeenCalled();
   });
 
-  it("삭제 대상 조회에서 졸업생을 트랜잭션 안에서 다시 제외한다", async () => {
+  it("제외 대상 조회에서 졸업생을 트랜잭션 안에서 다시 제외한다", async () => {
     studentProfileFindMany.mockResolvedValue([{ id: "sp-del-1", userId: "u-del-1" }]);
 
     await applyRoster(2026, input({ deleteStudentProfileIds: ["sp-del-1", "sp-grad"] }));
@@ -205,19 +206,20 @@ describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
       },
       select: { id: true, userId: true },
     });
-    expect(userDeleteMany).toHaveBeenCalledWith({
+    expect(userDeleteMany).not.toHaveBeenCalled();
+    expect(userUpdateMany).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: { in: ["u-del-1"] } },
-    });
+    }));
   });
 
-  it("계정 삭제는 재배정(enrollment 재생성)보다 먼저 끝낸다", async () => {
+  it("계정 제외 표시는 재배정(enrollment 재생성)보다 먼저 끝낸다", async () => {
     studentProfileFindMany.mockResolvedValue([{ id: "sp-del-1", userId: "u-del-1" }]);
 
     await applyRoster(2026, input({ deleteStudentProfileIds: ["sp-del-1"] }));
 
-    const deleteOrder = userDeleteMany.mock.invocationCallOrder[0]!;
+    const removeOrder = userUpdateMany.mock.invocationCallOrder[0]!;
     for (const call of enrollmentCreateMany.mock.invocationCallOrder) {
-      expect(call).toBeGreaterThan(deleteOrder);
+      expect(call).toBeGreaterThan(removeOrder);
     }
   });
 
@@ -254,7 +256,7 @@ describe("applyRoster() — 명단에서 빠진 학생 계정 삭제", () => {
     const result = await applyRoster(2026, input({ deleteStudentProfileIds: ["sp-del-1"] }));
 
     expect(inviteUpdateMany).not.toHaveBeenCalled();
-    expect(inviteDeleteMany).toHaveBeenCalled();
+    expect(inviteDeleteMany).not.toHaveBeenCalled();
     expect(result.revokedInvites).toEqual([]);
   });
 

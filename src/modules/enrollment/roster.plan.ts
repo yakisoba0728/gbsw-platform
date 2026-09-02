@@ -12,6 +12,7 @@ export type ExistingStudent = {
   status: string | null;
   hasGraduatedEnrollment: boolean;
   accountActive: boolean;
+  removed: boolean;
 };
 
 export type PlannedRow = RosterRow & {
@@ -143,7 +144,7 @@ export function planRoster(
       continue;
     }
 
-    if (before.status === null) {
+    if (before.removed || before.status === null) {
       plan.newAssignment.push(planned);
     } else if (before.status !== r.status) {
       plan.statusChange.push(planned);
@@ -156,8 +157,10 @@ export function planRoster(
     }
   }
 
-  const missing = existing.filter((s) => !matchedIds.has(s.studentProfileId));
-  // 파일이 전체 명단이다. 빠진 학생은 삭제하되 어느 학년도든 졸업 기록이 있으면 보존한다.
+  const missing = existing.filter(
+    (s) => !s.removed && !matchedIds.has(s.studentProfileId),
+  );
+  // 파일이 전체 명단이다. 빠진 학생은 명단에서 제외하되 졸업 기록이 있으면 보존한다.
   plan.missingFromFile = missing.filter((s) => !s.hasGraduatedEnrollment);
 
   for (const s of missing) {

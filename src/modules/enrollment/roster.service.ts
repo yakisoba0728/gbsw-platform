@@ -37,6 +37,7 @@ export function createRosterFingerprint(existing: ExistingStudent[]): string {
       s.status,
       s.hasGraduatedEnrollment,
       s.accountActive,
+      s.removed,
     ])
     .sort((a, b) => String(a[0]).localeCompare(String(b[0])));
 
@@ -173,11 +174,19 @@ export async function applyRosterPlan(
   const accountActiveByProfile = new Map(
     existing.map((s) => [s.studentProfileId, s.accountActive]),
   );
+  const removedProfileIds = new Set(
+    existing.filter((s) => s.removed).map((s) => s.studentProfileId),
+  );
 
   const reassignedIds = new Set(plan.reassign.map((r) => r.studentProfileId));
   const statusChangedIds = new Set(plan.statusChange.map((r) => r.studentProfileId));
   const newAssignmentIds = new Set(plan.newAssignment.map((r) => r.studentProfileId));
   const missingIds = new Set(plan.missingFromFile.map((m) => m.studentProfileId));
+  const restoredCount = plan.newAssignment.filter(
+    (row) =>
+      row.studentProfileId !== null &&
+      removedProfileIds.has(row.studentProfileId),
+  ).length;
 
   // 반·번호 교환을 위해 현재 학년도 배정 전체를 다시 만들므로 미변경 학생도 포함한다.
   const untouched = existing
@@ -275,7 +284,8 @@ export async function applyRosterPlan(
               newStudents: plan.newStudents.length,
               invitesIssued: invites.length,
               excludedNew: excludedNewStudents.length,
-              deleted: plan.missingFromFile.length,
+              softDeleted: plan.missingFromFile.length,
+              ...(restoredCount > 0 ? { restored: restoredCount } : {}),
             },
           },
           tx,
@@ -287,7 +297,7 @@ export async function applyRosterPlan(
           entries.push({
             actorUserId: actor.id,
             actorName: actor.name,
-            action: "user:delete",
+            action: "user:soft-delete",
             targetType: "User",
             targetId: m.userId,
           });

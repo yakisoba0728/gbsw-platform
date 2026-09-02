@@ -15,7 +15,7 @@ const {
 } = coreMocks("registration-service-test");
 const requireVerified = vi.fn();
 const consumeVerifications = vi.fn();
-const createTemporaryVerifiedProof = vi.fn();
+const requestCode = vi.fn();
 const isStudentCodeCollision = vi.fn();
 
 class InviteRaceError extends Error {}
@@ -36,7 +36,7 @@ vi.mock("@/modules/registration/registration.repo", () => ({
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
 vi.mock("@/core/db/client", () => ({ withTransaction }));
 vi.mock("@/modules/verification/verification.service", () => ({
-  createTemporaryVerifiedProof,
+  requestCode,
   requireVerified,
   consumeVerifications,
 }));
@@ -86,9 +86,11 @@ beforeEach(() => {
   completeAdminRegistration.mockReset().mockResolvedValue(undefined);
   completeParentRegistration.mockReset().mockResolvedValue(undefined);
   recordAudit.mockReset();
-  requireVerified.mockReset().mockResolvedValue({ id: "v1" });
+  requireVerified.mockReset().mockImplementation(async (channel: string) => ({
+    id: channel === "EMAIL" ? "v-email" : "v-phone",
+  }));
   consumeVerifications.mockReset();
-  createTemporaryVerifiedProof.mockReset().mockResolvedValue({ id: "proof-1" });
+  requestCode.mockReset().mockResolvedValue({});
   withTransaction
     .mockReset()
     .mockImplementation(async (fn: (tx: typeof txClient) => Promise<unknown>) =>
@@ -127,13 +129,13 @@ describe("checkInvite()", () => {
 });
 
 describe("requestVerification() (I4)", () => {
-  it("유효한 가입코드면 발송 없이 확인 proof를 만든다", async () => {
+  it("유효한 가입코드면 소유 확인용 인증번호를 실제 발송 경로로 보낸다", async () => {
     findInviteByCode.mockResolvedValue(invite());
 
     const result = await requestVerification("GBSWA3K92M7P", "EMAIL", "a@b.kr");
 
-    expect(result).toEqual({ verified: true });
-    expect(createTemporaryVerifiedProof).toHaveBeenCalledWith("EMAIL", "a@b.kr");
+    expect(result).toEqual({});
+    expect(requestCode).toHaveBeenCalledWith("EMAIL", "a@b.kr");
   });
 
   it("가입코드가 없거나 이미 쓰였거나 폐기됐으면 발송하지 않는다 — 대상만 " +
@@ -147,7 +149,7 @@ describe("requestVerification() (I4)", () => {
       ).rejects.toThrow("가입코드 또는 입력한 정보가 맞지 않습니다.");
     }
 
-    expect(createTemporaryVerifiedProof).not.toHaveBeenCalled();
+    expect(requestCode).not.toHaveBeenCalled();
   });
 });
 
@@ -454,7 +456,14 @@ describe("completeRegistration() — 공통 방어", () => {
       }),
       txClient,
     );
-    expect(consumeVerifications).toHaveBeenCalledWith(["v1", "v1"], txClient);
+    expect(requireVerified.mock.calls).toEqual([
+      ["EMAIL", base.email],
+      ["PHONE", base.phone],
+    ]);
+    expect(consumeVerifications).toHaveBeenCalledWith(
+      ["v-email", "v-phone"],
+      txClient,
+    );
   });
 
   it("학생코드가 겹치면 성공 가입 트랜잭션 전체를 새로 연다", async () => {

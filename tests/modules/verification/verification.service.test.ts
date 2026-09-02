@@ -4,8 +4,11 @@ import { coreMocks } from "../../helpers/core-mocks";
 const countRecentSends = vi.fn();
 const countRecentSendsByIp = vi.fn();
 const lockSendRateLimitBuckets = vi.fn();
+const lockVerificationTarget = vi.fn();
 const expirePending = vi.fn();
 const insertCode = vi.fn();
+const activateCode = vi.fn();
+const hasNewerActivatedCode = vi.fn();
 const findLiveCode = vi.fn();
 const bumpAttempts = vi.fn();
 const expireById = vi.fn();
@@ -24,8 +27,11 @@ vi.mock("@/modules/verification/verification.repo", () => ({
   countRecentSends,
   countRecentSendsByIp,
   lockSendRateLimitBuckets,
+  lockVerificationTarget,
   expirePending,
   insertCode,
+  activateCode,
+  hasNewerActivatedCode,
   findLiveCode,
   bumpAttempts,
   expireById,
@@ -34,7 +40,8 @@ vi.mock("@/modules/verification/verification.repo", () => ({
   consume,
   deleteById,
 }));
-vi.mock("@/modules/verification/verification.sender", () => ({
+vi.mock("@/modules/verification/verification.sender", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   sendVerification,
 }));
 vi.mock("@/core/db/client", () => ({ withTransaction }));
@@ -43,7 +50,6 @@ vi.mock("@/core/audit/request-context", () => ({ readRequestContext }));
 const {
   confirmCode,
   consumeVerifications,
-  createTemporaryVerifiedProof,
   MAX_SENDS_PER_HOUR_PER_IP,
   requestCode,
   requireVerified,
@@ -56,8 +62,11 @@ beforeEach(() => {
   countRecentSends.mockReset().mockResolvedValue(0);
   countRecentSendsByIp.mockReset().mockResolvedValue(0);
   lockSendRateLimitBuckets.mockReset();
+  lockVerificationTarget.mockReset();
   expirePending.mockReset();
   insertCode.mockReset().mockResolvedValue({ id: "v1" });
+  activateCode.mockReset();
+  hasNewerActivatedCode.mockReset().mockResolvedValue(false);
   findLiveCode.mockReset();
   bumpAttempts.mockReset().mockResolvedValue(1);
   expireById.mockReset();
@@ -93,14 +102,116 @@ describe("requestCode()", () => {
     expect(saved.codeHash).not.toContain(sent.code);
   });
 
-  it("이전 코드를 먼저 만료시킨다 — 마지막 것만 살아 있어야 한다", async () => {
+  it("발송 성공 뒤에만 이전 코드를 만료하고 새 코드를 활성화한다", async () => {
     await requestCode("EMAIL", "a@b.kr");
+
     expect(expirePending).toHaveBeenCalledWith(
       "EMAIL",
       "a@b.kr",
       expect.any(Date),
       txClient,
     );
+    expect(activateCode).toHaveBeenCalledWith(
+      "v1",
+      expect.any(Date),
+      txClient,
+    );
+    expect(expirePending.mock.invocationCallOrder[0]).toBeGreaterThan(
+      sendVerification.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it("늦게 끝난 이전 발송이 더 최신 코드를 무효화하지 않는다", async () => {
+    let finishFirst!: () => void;
+    let finishSecond!: () => void;
+    const firstDelivery = new Promise<void>((resolve) => {
+      finishFirst = resolve;
+    });
+    const secondDelivery = new Promise<void>((resolve) => {
+      finishSecond = resolve;
+    });
+    insertCode
+      .mockResolvedValueOnce({ id: "v-first" })
+      .mockResolvedValueOnce({ id: "v-second" });
+    sendVerification
+      .mockImplementationOnce(() => firstDelivery)
+      .mockImplementationOnce(() => secondDelivery);
+    hasNewerActivatedCode.mockImplementation(
+      async (_channel, _target, id) => id === "v-first",
+    );
+
+    const first = requestCode("EMAIL", "a@b.kr");
+    const second = requestCode("EMAIL", "a@b.kr");
+    await vi.waitFor(() => expect(sendVerification).toHaveBeenCalledTimes(2));
+
+    finishSecond();
+    await expect(second).resolves.toEqual({});
+    finishFirst();
+    await expect(first).rejects.toThrow("더 최근에 요청한 인증번호");
+
+    expect(activateCode).toHaveBeenCalledTimes(1);
+    expect(activateCode).toHaveBeenCalledWith(
+      "v-second",
+      expect.any(Date),
+      txClient,
+    );
+    expect(deleteById).not.toHaveBeenCalledWith("v-first");
+  });
+
+  it("더 최신 요청이 아직 발송 중이면 먼저 성공한 코드를 임시로 활성화한다", async () => {
+    insertCode.mockResolvedValue({ id: "v-first" });
+    hasNewerActivatedCode.mockResolvedValue(false);
+
+    await expect(requestCode("EMAIL", "a@b.kr")).resolves.toEqual({});
+
+    expect(activateCode).toHaveBeenCalledWith(
+      "v-first",
+      expect.any(Date),
+      txClient,
+    );
+  });
+
+  it("세 요청이 겹쳐도 가장 최근에 성공한 발송을 더 오래된 발송이 덮지 않는다", async () => {
+    let finishFirst!: () => void;
+    let finishSecond!: () => void;
+    let failThird!: () => void;
+    const firstDelivery = new Promise<void>((resolve) => {
+      finishFirst = resolve;
+    });
+    const secondDelivery = new Promise<void>((resolve) => {
+      finishSecond = resolve;
+    });
+    const thirdDelivery = new Promise<void>((_resolve, reject) => {
+      failThird = () => reject(new Error("provider unavailable"));
+    });
+    insertCode
+      .mockResolvedValueOnce({ id: "v-first" })
+      .mockResolvedValueOnce({ id: "v-second" })
+      .mockResolvedValueOnce({ id: "v-third" });
+    sendVerification
+      .mockImplementationOnce(() => firstDelivery)
+      .mockImplementationOnce(() => secondDelivery)
+      .mockImplementationOnce(() => thirdDelivery);
+    hasNewerActivatedCode.mockImplementation(
+      async (_channel, _target, id) => id === "v-first",
+    );
+
+    const first = requestCode("EMAIL", "a@b.kr");
+    const second = requestCode("EMAIL", "a@b.kr");
+    const third = requestCode("EMAIL", "a@b.kr");
+    const thirdResult = third.catch((error: unknown) => error);
+    await vi.waitFor(() => expect(sendVerification).toHaveBeenCalledTimes(3));
+
+    finishSecond();
+    await expect(second).resolves.toEqual({});
+    finishFirst();
+    await expect(first).rejects.toThrow("더 최근에 요청한 인증번호");
+    failThird();
+    await expect(thirdResult).resolves.toBeInstanceOf(Error);
+
+    expect(activateCode.mock.calls.map((call) => call[0])).toEqual([
+      "v-second",
+    ]);
   });
 
   it("형식이 틀리면 보내지 않는다", async () => {
@@ -116,6 +227,8 @@ describe("requestCode()", () => {
     );
 
     expect(deleteById).toHaveBeenCalledWith("v1");
+    expect(expirePending).not.toHaveBeenCalled();
+    expect(activateCode).not.toHaveBeenCalled();
   });
 
   it("공급자 오류 원문을 사용자에게 그대로 내보내지 않는다", async () => {
@@ -124,6 +237,41 @@ describe("requestCode()", () => {
     );
 
     await expect(requestCode("EMAIL", "a@b.kr")).rejects.not.toThrow("-101");
+  });
+
+  it("공급자 오류 객체의 이메일과 인증번호를 로그에 남기지 않는다", async () => {
+    const target = "private.student@example.com";
+    let sentCode = "";
+    sendVerification.mockImplementationOnce(async (input) => {
+      sentCode = input.code;
+      throw Object.assign(
+        new Error(`rejected ${input.target} with ${input.code}`),
+        {
+          code: "EENVELOPE",
+          recipient: input.target,
+          rejected: [input.target],
+        },
+      );
+    });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      await expect(requestCode("EMAIL", target)).rejects.toThrow(
+        "인증번호를 보내지 못했습니다",
+      );
+
+      const logged = errorSpy.mock.calls
+        .map((call) => call.map((value) => JSON.stringify(value)).join(" "))
+        .join(" ");
+      expect(logged).toContain("pr***@example.com");
+      expect(logged).toContain("EENVELOPE");
+      expect(logged).not.toContain(target);
+      expect(logged).not.toContain(sentCode);
+      expect(logged).not.toContain("recipient");
+      expect(logged).not.toContain("rejected");
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 
   it("같은 대상에 너무 자주 보내면 막는다", async () => {
@@ -169,96 +317,18 @@ describe("requestCode()", () => {
   });
 });
 
-describe("createTemporaryVerifiedProof()", () => {
-  it("발송 없이 바로 확인된 일회성 proof를 만든다", async () => {
-    await createTemporaryVerifiedProof("EMAIL", "  Hong@GBSW.hs.kr ");
-
-    expect(expirePending).toHaveBeenCalledWith(
-      "EMAIL",
-      "hong@gbsw.hs.kr",
-      expect.any(Date),
-      txClient,
-    );
-    expect(insertCode).toHaveBeenCalledWith(
-      expect.objectContaining({
-        channel: "EMAIL",
-        target: "hong@gbsw.hs.kr",
-        requestIp: null,
-        verifiedAt: expect.any(Date),
-      }),
-      txClient,
-    );
-    expect(sendVerification).not.toHaveBeenCalled();
-  });
-
-  it("전화번호도 가입 입력과 같은 정규화 값으로 proof를 만든다", async () => {
-    await createTemporaryVerifiedProof("PHONE", "01012345678");
-
-    expect(insertCode.mock.calls[0]![0].target).toBe("010-1234-5678");
-  });
-
-  it("같은 대상에 너무 자주 proof를 만들면 막는다", async () => {
-    countRecentSends.mockResolvedValue(5);
-
-    await expect(createTemporaryVerifiedProof("EMAIL", "a@b.kr")).rejects.toThrow(
-      "너무 많이",
-    );
-
-    expect(insertCode).not.toHaveBeenCalled();
-  });
-
-  it("같은 접속 IP에서 너무 자주 proof를 만들면 막는다", async () => {
-    readRequestContext.mockResolvedValue({ ip: "203.0.113.9", userAgent: null });
-    countRecentSendsByIp.mockResolvedValue(MAX_SENDS_PER_HOUR_PER_IP);
-
-    await expect(createTemporaryVerifiedProof("EMAIL", "a@b.kr")).rejects.toThrow(
-      "너무 많이",
-    );
-
-    expect(insertCode).not.toHaveBeenCalled();
-  });
-
-  it("proof에도 요청 IP를 남겨 IP별 한도가 이어서 작동하게 한다", async () => {
-    readRequestContext.mockResolvedValue({ ip: "203.0.113.9", userAgent: null });
-
-    await createTemporaryVerifiedProof("PHONE", "01012345678");
-
-    expect(insertCode.mock.calls[0]![0].requestIp).toBe("203.0.113.9");
-  });
-
-  it("한도 검사와 proof 발급을 같은 트랜잭션 안에서 잠그고 처리한다", async () => {
-    readRequestContext.mockResolvedValue({ ip: "203.0.113.9", userAgent: null });
-
-    await createTemporaryVerifiedProof("EMAIL", "a@b.kr");
-
-    expect(withTransaction).toHaveBeenCalledWith(expect.any(Function));
-    expect(lockSendRateLimitBuckets).toHaveBeenCalledWith(
-      "EMAIL",
-      "a@b.kr",
-      "203.0.113.9",
-      txClient,
-    );
-    expect(countRecentSends).toHaveBeenCalledWith(
-      "EMAIL",
-      "a@b.kr",
-      expect.any(Date),
-      txClient,
-    );
-    expect(countRecentSendsByIp).toHaveBeenCalledWith(
-      "203.0.113.9",
-      expect.any(Date),
-      txClient,
-    );
-  });
-});
-
 describe("confirmCode()", () => {
   it("맞으면 확인 처리한다", async () => {
     findLiveCode.mockResolvedValue({ id: "v1", codeHash: hash("123456") });
 
     await confirmCode("EMAIL", "a@b.kr", "123456");
 
-    expect(markVerified).toHaveBeenCalledWith("v1", expect.any(Date));
+    expect(lockVerificationTarget).toHaveBeenCalledWith(
+      "EMAIL",
+      "a@b.kr",
+      txClient,
+    );
+    expect(markVerified).toHaveBeenCalledWith("v1", expect.any(Date), txClient);
   });
 
   it("틀리면 실패 횟수를 올린다", async () => {
@@ -267,7 +337,7 @@ describe("confirmCode()", () => {
     await expect(confirmCode("EMAIL", "a@b.kr", "000000")).rejects.toThrow(
       "인증번호가 맞지 않습니다.",
     );
-    expect(bumpAttempts).toHaveBeenCalledWith("v1");
+    expect(bumpAttempts).toHaveBeenCalledWith("v1", txClient);
     expect(markVerified).not.toHaveBeenCalled();
   });
 
@@ -278,7 +348,7 @@ describe("confirmCode()", () => {
     await expect(confirmCode("EMAIL", "a@b.kr", "000000")).rejects.toThrow(
       "여러 번",
     );
-    expect(expireById).toHaveBeenCalledWith("v1", expect.any(Date));
+    expect(expireById).toHaveBeenCalledWith("v1", expect.any(Date), txClient);
   });
 
   it("살아 있는 코드가 없으면 거부한다", async () => {
@@ -287,6 +357,26 @@ describe("confirmCode()", () => {
     await expect(confirmCode("EMAIL", "a@b.kr", "123456")).rejects.toThrow(
       "만료",
     );
+  });
+
+  it("잠금을 기다린 뒤의 시각으로 만료 여부를 다시 판정한다", async () => {
+    const beforeLock = new Date("2026-09-02T10:00:00.000Z");
+    const afterLock = new Date("2026-09-02T10:00:05.000Z");
+    vi.useFakeTimers();
+    vi.setSystemTime(beforeLock);
+    lockVerificationTarget.mockImplementationOnce(async () => {
+      vi.setSystemTime(afterLock);
+    });
+    findLiveCode.mockResolvedValue(null);
+
+    try {
+      await expect(confirmCode("EMAIL", "a@b.kr", "123456")).rejects.toThrow(
+        "만료",
+      );
+      expect(findLiveCode.mock.calls[0]![2]).toEqual(afterLock);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

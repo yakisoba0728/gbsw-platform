@@ -3,12 +3,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const count = vi.fn();
 const executeRaw = vi.fn();
 const updateMany = vi.fn();
+const update = vi.fn();
 const create = vi.fn();
+const findFirst = vi.fn();
+const findUnique = vi.fn();
 
 vi.mock("@/core/db/client", () => ({
   prisma: {
     $executeRaw: executeRaw,
-    verificationCode: { count, updateMany, create },
+    verificationCode: {
+      count,
+      updateMany,
+      update,
+      create,
+      findFirst,
+      findUnique,
+    },
   },
 }));
 
@@ -17,7 +27,10 @@ const {
   countRecentSends,
   countRecentSendsByIp,
   expirePending,
+  hasNewerActivatedCode,
+  findVerified,
   insertCode,
+  LEGACY_TEMPORARY_BYPASS_HASH,
   lockSendRateLimitBuckets,
 } = await import("@/modules/verification/verification.repo");
 
@@ -25,7 +38,10 @@ beforeEach(() => {
   count.mockReset();
   executeRaw.mockReset();
   updateMany.mockReset();
+  update.mockReset();
   create.mockReset();
+  findFirst.mockReset();
+  findUnique.mockReset();
 });
 
 describe("verification.repo rate-limit primitives", () => {
@@ -114,6 +130,30 @@ describe("verification.repo rate-limit primitives", () => {
       },
     });
   });
+
+  it("detects an activated code created after the current request", async () => {
+    const createdAt = new Date("2026-08-19T00:00:00.000Z");
+    const now = new Date("2026-08-19T00:01:00.000Z");
+    findUnique.mockResolvedValueOnce({ createdAt });
+    findFirst.mockResolvedValueOnce({ id: "v2" });
+
+    await expect(
+      hasNewerActivatedCode("EMAIL", "a@b.kr", "v1", now),
+    ).resolves.toBe(true);
+
+    expect(findFirst).toHaveBeenCalledWith({
+      where: {
+        channel: "EMAIL",
+        target: "a@b.kr",
+        expiresAt: { gt: now },
+        OR: [
+          { createdAt: { gt: createdAt } },
+          { createdAt, id: { gt: "v1" } },
+        ],
+      },
+      select: { id: true },
+    });
+  });
 });
 
 describe("verification.repo.consume()", () => {
@@ -127,6 +167,7 @@ describe("verification.repo.consume()", () => {
       where: {
         id: { in: ["v1", "v2"] },
         consumedAt: null,
+        codeHash: { not: LEGACY_TEMPORARY_BYPASS_HASH },
         verifiedAt: { not: null },
       },
       data: { consumedAt: now },
@@ -137,5 +178,25 @@ describe("verification.repo.consume()", () => {
     await expect(consume([], new Date())).resolves.toBe(0);
 
     expect(updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("verification.repo.findVerified()", () => {
+  it("이전 버전의 즉시 확인 bypass proof를 영구 제외한다", async () => {
+    const cutoff = new Date("2026-08-19T00:00:00.000Z");
+    findFirst.mockResolvedValueOnce(null);
+
+    await findVerified("EMAIL", "a@b.kr", cutoff);
+
+    expect(findFirst).toHaveBeenCalledWith({
+      where: {
+        channel: "EMAIL",
+        target: "a@b.kr",
+        consumedAt: null,
+        codeHash: { not: LEGACY_TEMPORARY_BYPASS_HASH },
+        verifiedAt: { gte: cutoff },
+      },
+      orderBy: { verifiedAt: "desc" },
+    });
   });
 });

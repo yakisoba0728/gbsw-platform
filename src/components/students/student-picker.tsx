@@ -31,12 +31,14 @@ type PickerGroup = { key: string; label: string; rows: PickerRow[] };
 export function StudentPicker({
   students,
   name,
+  id,
   defaultValue,
   label = "학생 고르기",
   required = false,
 }: {
   students: PickerStudent[];
   name: string;
+  id?: string;
   defaultValue?: string;
   label?: string;
   required?: boolean;
@@ -155,6 +157,7 @@ export function StudentPicker({
 
       <button
         ref={triggerRef}
+        id={id}
         type="button"
         aria-haspopup="dialog"
         aria-label={selectedText ? `${label} ${selectedText}` : undefined}
