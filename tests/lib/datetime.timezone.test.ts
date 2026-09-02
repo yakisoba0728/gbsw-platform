@@ -101,12 +101,6 @@ const PROBES: Probe[] = [
     run: (m) => bothSides(m.formatMonthDay),
   },
   {
-    // 요일까지 갈린다 — 하루 밀리면 (월)이 (화)가 된다.
-    name: "formatKstDay",
-    expected: "8월 17일 (월) | 8월 18일 (화)",
-    run: (m) => bothSides(m.formatKstDay),
-  },
-  {
     name: "formatDateTimeSheet",
     expected: "2026-08-17 23:59:59 | 2026-08-18 00:00:00",
     run: (m) => bothSides(m.formatDateTimeSheet),
@@ -116,17 +110,6 @@ const PROBES: Probe[] = [
     name: "formatDateInput",
     expected: "2026-08-17 | 2026-08-18",
     run: (m) => bothSides(m.formatDateInput),
-  },
-  {
-    name: "formatTimeInput",
-    expected: "23:59 | 00:00",
-    run: (m) => bothSides(m.formatTimeInput),
-  },
-  {
-    // 자정이 24가 아니라 0이어야 한다 — greetingFor가 이 값으로 인사를 고른다.
-    name: "kstHour",
-    expected: "23 | 0",
-    run: (m) => bothSides(m.kstHour),
   },
   {
     // 그 순간이 속한 KST 날짜의 자정. 통계 창의 왼쪽 끝이다.

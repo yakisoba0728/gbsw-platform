@@ -34,7 +34,12 @@ export function RegisterFlow() {
   return check.code && check.role ? (
     <ProfileStep code={check.code} role={check.role} />
   ) : (
-    <CodeStep formAction={checkAction} pending={checking} error={check.error} />
+    <CodeStep
+      formAction={checkAction}
+      pending={checking}
+      error={check.error}
+      defaultCode={check.values?.code ?? ""}
+    />
   );
 }
 
@@ -47,10 +52,12 @@ function CodeStep({
   formAction,
   pending,
   error,
+  defaultCode,
 }: {
   formAction: (formData: FormData) => void;
   pending: boolean;
   error: string | null;
+  defaultCode: string;
 }) {
   return (
     <form action={formAction} className="animate-auth-in">
@@ -65,6 +72,7 @@ function CodeStep({
         autoCapitalize="characters"
         required
         format={formatInviteCodeInput}
+        defaultValue={defaultCode}
         className="mb-6 font-mono"
       />
 

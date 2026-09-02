@@ -5,7 +5,6 @@ import { assertCan } from "@/core/authz/errors";
 import { withTransaction } from "@/core/db/client";
 import {
   DEFAULT_DEMERIT_THRESHOLDS,
-  isMeritTrack,
   MERIT_TRACKS,
   type DemeritThresholds,
   type MeritTrack,
@@ -69,9 +68,7 @@ export async function listThresholdSettings(
   await assertCan(actor, "merit:threshold:manage");
 
   const rows = await repo.listThresholds();
-  const byTrack = new Map(
-    rows.filter((row) => isMeritTrack(row.track)).map((row) => [row.track, row]),
-  );
+  const byTrack = new Map(rows.map((row) => [row.track, row]));
 
   return MERIT_TRACKS.map((track) => {
     const row = byTrack.get(track);

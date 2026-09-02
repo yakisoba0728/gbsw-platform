@@ -54,9 +54,11 @@ export function LogFilters({
        * 두는 것이 이 줄의 요점이다: 왼쪽은 눈금, 오른쪽은 목록.
        */}
       <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-3">
-        <div>
-          <Label htmlFor="log-period">기간</Label>
-          <Segmented id="log-period">
+        <fieldset className="m-0 min-w-0 border-0 p-0">
+          <legend className="mb-1.5 block text-caption font-medium text-ink">
+            기간
+          </legend>
+          <Segmented>
             {AUDIT_PERIODS.map((p) => (
               <SegmentButton
                 key={p}
@@ -67,7 +69,7 @@ export function LogFilters({
               </SegmentButton>
             ))}
           </Segmented>
-        </div>
+        </fieldset>
 
         <div className="min-w-52">
           <Label htmlFor="log-action">동작</Label>

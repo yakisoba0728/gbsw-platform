@@ -76,6 +76,31 @@ describe("planRoster()", () => {
     expect(plan.hasBlockingError).toBe(false);
   });
 
+  it("빈 학생코드 신규 줄의 이름·생년월일이 같으면 두 번째 줄을 막는다", () => {
+    const plan = planRoster(
+      [
+        row({ studentCode: "", name: "새학생", birthDate: "2011-01-01" }),
+        row({
+          line: 3,
+          studentCode: "",
+          name: "새학생",
+          birthDate: "2011-01-01",
+          classNo: 5,
+          number: 7,
+        }),
+      ],
+      [],
+    );
+
+    expect(plan.newStudents).toHaveLength(1);
+    expect(plan.errorRows).toHaveLength(1);
+    expect(plan.errorRows[0]).toMatchObject({
+      line: 3,
+      errors: ["2행과 이름·생년월일이 같습니다."],
+    });
+    expect(plan.hasBlockingError).toBe(true);
+  });
+
   it("학적이 바뀌면 재배정이 아니라 학적변동이다", () => {
     const plan = planRoster([row({ status: "GRADUATED", grade: null, classNo: null, number: null })], [재학생]);
 
@@ -313,15 +338,6 @@ describe("planRoster()", () => {
     expect(plan.hasBlockingError).toBe(false);
   });
 
-  describe("예전 deletedAt 표시가 남아 있는 입력", () => {
-    it("명단에 없으면 deleted 표시와 무관하게 missingFromFile에 들어간다", () => {
-      const 예전삭제표시 = { ...재학생, deleted: true };
-      const plan = planRoster([], [예전삭제표시]);
-
-      expect(plan.missingFromFile).toHaveLength(1);
-      expect(plan.missingFromFile[0]!.studentProfileId).toBe("sp-1");
-    });
-  });
 });
 
 /*

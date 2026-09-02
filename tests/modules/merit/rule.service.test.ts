@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
+import { coreMocks } from "../../helpers/core-mocks";
+import { user } from "../../helpers/session";
 
 const createRule = vi.fn();
 const findRule = vi.fn();
@@ -7,11 +8,11 @@ const updateRule = vi.fn();
 const markRuleDeleted = vi.fn();
 const listRules = vi.fn();
 const listActiveRules = vi.fn();
-const recordAudit = vi.fn();
-const txClient = { tx: "merit-rule-service-test" };
-const withTransaction = vi.fn(
-  async <T>(fn: (tx: typeof txClient) => Promise<T>) => fn(txClient),
-);
+const {
+  recordAudit,
+  txClient,
+  prewiredWithTransaction: withTransaction,
+} = coreMocks("merit-rule-service-test");
 
 vi.mock("@/modules/merit/merit.repo", () => ({
   createRule,
@@ -27,19 +28,7 @@ vi.mock("@/core/db/client", () => ({ withTransaction }));
 const { MeritError } = await import("@/modules/merit/merit.error");
 const service = await import("@/modules/merit/rule.service");
 
-function user(role: SessionUser["role"], id = "admin-1"): SessionUser {
-  return {
-    id,
-    name: "테스트",
-    email: "t@gbsw.hs.kr",
-    role,
-    status: "ACTIVE",
-    deletedAt: null,
-    mustChangePassword: false,
-  };
-}
-
-const admin = user("ADMIN");
+const admin = user("ADMIN", "admin-1");
 const student = user("STUDENT", "s-1");
 const parent = user("PARENT", "p-1");
 
@@ -72,11 +61,7 @@ beforeEach(() => {
   listRules.mockReset().mockResolvedValue([]);
   listActiveRules.mockReset().mockResolvedValue([]);
   recordAudit.mockReset().mockResolvedValue(undefined);
-  withTransaction
-    .mockReset()
-    .mockImplementation(
-      async <T>(fn: (tx: typeof txClient) => Promise<T>) => fn(txClient),
-    );
+  withTransaction.mockClear();
 });
 
 describe("createRule", () => {

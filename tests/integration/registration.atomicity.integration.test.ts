@@ -2,8 +2,9 @@ import { randomUUID } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Client } from "pg";
 import { prisma } from "@/core/db/client";
+import { coreMocks } from "../helpers/core-mocks";
 
-const recordAudit = vi.fn();
+const { recordAudit } = coreMocks("registration-atomicity-integration-test");
 
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
 
@@ -42,9 +43,6 @@ describe("completeRegistration() — 가입 원자성", () => {
       await prisma.academicYear.update({
         where: { year: 2026 },
         data: { isCurrent: true },
-      });
-      await prisma.schoolClass.deleteMany({
-        where: { year: { in: created.academicYears } },
       });
       await prisma.academicYear.deleteMany({
         where: { year: { in: created.academicYears } },
@@ -92,6 +90,7 @@ describe("completeRegistration() — 가입 원자성", () => {
         status: "PENDING",
         metadata: { name: "원자성 가입자" },
         createdById: creatorId,
+        createdByName: "원자성 발급자",
       },
     });
     await prisma.verificationCode.createMany({
@@ -139,7 +138,6 @@ describe("completeRegistration() — 가입 원자성", () => {
 
     expect(invite).toMatchObject({
       status: "PENDING",
-      usedAt: null,
       usedById: null,
     });
     expect(user).toBeNull();
@@ -200,6 +198,7 @@ describe("completeRegistration() — 가입 원자성", () => {
           number: 15,
         },
         createdById: creatorId,
+        createdByName: "학년도 경합 발급자",
       },
     });
     await prisma.verificationCode.createMany({

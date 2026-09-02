@@ -4,16 +4,19 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Role } from "@/core/authz/roles";
 import { cn } from "@/lib/cn";
-import { bottomTabItems, isActive } from "./nav";
+import { activeChild, bottomTabItems } from "./nav";
 
 export function BottomTab({ role }: { role: Role | null }) {
   const pathname = usePathname();
   const items = bottomTabItems(role);
+  // `/merit/recent`는 `/merit`에도 걸린다. 한 nav 안의 현재 페이지는 하나여야
+  // 하므로, 사이드바와 같은 최장 경로 규칙으로 가장 구체적인 탭만 고른다.
+  const current = activeChild(pathname, items);
 
   return (
     <nav className="flex flex-none border-t border-line bg-surface px-2 pt-2 pb-3 lg:hidden print:hidden">
       {items.map((item) => {
-        const active = isActive(pathname, item.href);
+        const active = current?.href === item.href;
         const Icon = item.icon;
 
         return (

@@ -113,7 +113,9 @@ src/
     api/auth/[...all]/  Better Auth 핸들러
     api/health/         컨테이너 헬스체크
   components/           ui/ (Button·Badge·Input) · app-shell/ · icons.tsx
-tests/                  core/ · modules/ — 구조를 src/와 맞춘다
+tests/
+  core/ · modules/      구조를 src/와 맞춘다
+  helpers/              공용 테스트 픽스처 — src/에 짝이 없는 예외
 ```
 
 **파일 구성은 `src/modules/account/`를 복사한다** — `<모듈>.schema.ts` ·
@@ -255,12 +257,10 @@ account에서 시작해 모듈이 커지면 merit의 모양으로 간다.
   요청 헤더로 알 수 없다. 서명 키도 `BETTER_AUTH_SECRET`에서 HKDF로 파생하므로, 그 값을
   바꾸면 **그 순간 살아 있던 QR이 전부 무효가 된다** (학생이 화면을 새로 고치면 된다).
 - **판독(`/scan`)은 메뉴에 없다.** 출입증 화면의 「스캔」 버튼으로 들어간다. 앱 셸 밖에
-  사는 화면이라 제목은 `nav.ts`의 `EXTRA_TITLES`가 소유한다.
-- **부분 유니크 인덱스는 마이그레이션 SQL에만 있다.** `AcademicYear_single_current`
-  (현재 학년도는 하나뿐)가 그렇다 — Prisma가 표현하지 못해 `schema.prisma`에 선언이 없고,
-  그래서 다음 `migrate dev`가 이것을 군더더기로 보고 `DROP INDEX`를 만들 수 있다. 드롭돼도
-  오류는 안 난다: 현재 학년도가 둘이 되고 `findCurrent()`(findFirst)가 어느 쪽을 줄지 몰라
-  전교 집계 범위가 흔들린다. **마이그레이션을 새로 만들면 생성된 SQL을 눈으로 확인한다.**
+  사는 화면이며 제목은 `src/app/scan/page.tsx`의 메타데이터와 `<h1>`이 소유한다.
+- **부분 유니크 인덱스는 마이그레이션 SQL에만 있다.** `AcademicYear_single_current`는
+  Prisma가 표현하지 못하며, Prisma 7.9.1의 `migrate diff`가 드리프트로 보지 않는 것을
+  빈 마이그레이션으로 확인했다. **Prisma 메이저 업그레이드 때 다시 확인한다.**
 - **스키마를 바꿨으면 `next dev`를 반드시 재시작한다** (`.next`도 지우고). 돌던 개발 서버는
   옛 Prisma 클라이언트를 물고 있어서, 새 필드를 쓰는 화면만 `PrismaClientValidationError`로
   조용히 실패한다. 타입 검사·테스트·빌드는 디스크의 새 클라이언트를 보므로 전부 통과한다 —
@@ -271,8 +271,9 @@ account에서 시작해 모듈이 커지면 merit의 모양으로 간다.
   화면·API 어디서도 작성자가 안 나오게 하는 일은 `community.view.ts` 한 곳이 맡는다 —
   **repo 행을 화면으로 직접 넘기지 않는다.**
 - **사진의 EXIF는 게시판을 가리지 않고 벗긴다** (`community.exif.ts`). 익명 게시판만
-  벗기면 우회로가 남아서다 — 첨부는 글보다 먼저 올라가고 `attachToPost`는 올린 사람과
-  `postId: null`만 보므로, 실명 게시판에 올려 그 id를 익명 글에 실으면 그만이다.
+  벗기면 우회로가 남아서다 — 첨부는 글보다 먼저 올라가고 새 글의 `attachToPost`는
+  올린 사람과 `postId: null`만 보므로, 실명 게시판에 올려 그 id를 익명 글에 실으면
+  그만이다. 글 수정에서는 본인의 미결 첨부와 이미 같은 글에 붙은 첨부만 센다.
   재인코딩이 아니라 세그먼트를 도려내므로 값은 버퍼 한 벌 복사이고, 벗길 것이 없으면
   원본 참조가 그대로 돌아온다. **벗기기에 실패하면 업로드를 거절한다** — 조용히 원본을
   저장하면 첨부가 「벗겨졌거나 아닐 수도 있는 것」이 되어 검사가 무의미해진다.

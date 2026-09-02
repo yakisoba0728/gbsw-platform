@@ -8,8 +8,13 @@ import {
   preflightXlsx,
   XLSX_PREFLIGHT_LIMITS,
 } from "@/modules/enrollment/roster.parse";
+import { MAX_ROSTER_ROWS } from "@/modules/enrollment/roster.schema";
 
 const HEADER = ["이름", "생년월일", "학년", "반", "번호", "학적"];
+
+it("xlsx 사전 검사는 명단 상한에 머리글 한 줄만 더 허용한다", () => {
+  expect(XLSX_PREFLIGHT_LIMITS.maxSheetRows).toBe(MAX_ROSTER_ROWS + 1);
+});
 
 describe("parseCsv()", () => {
   it("BOM과 CRLF를 걷어낸다 — 엑셀이 CSV UTF-8로 저장하면 둘 다 붙는다", () => {
@@ -86,6 +91,21 @@ describe("normalizeRows()", () => {
 
     expect(rows[0]!.name).toBe("김동혁".normalize("NFC"));
     expect(rows[0]!.name).not.toBe(nfdName);
+  });
+
+  it("조합형(NFD) 머리글도 NFC로 맞춰 열을 찾고 학생코드 안내를 만들지 않는다", () => {
+    const header = ["학생코드", ...HEADER].map((cell) => cell.normalize("NFD"));
+    const table = [
+      header,
+      ["ABCD2345", "김동혁", "2010-07-28", "1", "3", "3", "재학"],
+    ];
+
+    expect(normalizeRows(table)[0]).toMatchObject({
+      studentCode: "ABCD2345",
+      name: "김동혁",
+      errors: [],
+    });
+    expect(fileNotices(table)).toEqual([]);
   });
 
   it("재학인데 학년·반·번호가 비면 오류다", () => {
@@ -432,7 +452,7 @@ describe("preflightXlsx()", () => {
     expect(() => preflightXlsx(buffer)).toThrow("XLSX_ZIP_INVALID");
   });
 
-  it("워크시트 행이 2000개를 넘으면 비싼 xlsx 파서 전에 거부한다", async () => {
+  it("워크시트 행이 상한을 넘으면 비싼 xlsx 파서 전에 거부한다", async () => {
     const rows = Array.from(
       { length: XLSX_PREFLIGHT_LIMITS.maxSheetRows + 1 },
       (_, i) => `<row r="${i + 1}"/>`,

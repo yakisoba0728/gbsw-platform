@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { kindColorClass, signedPoints } from "@/components/merit/kind-badge";
 import { MeritTotalsCards } from "@/components/merit/merit-totals";
 import { Badge } from "@/components/ui/badge";
 import { buttonClass } from "@/components/ui/button";
@@ -37,7 +38,11 @@ import {
   listActivePasses,
   listPendingPasses,
 } from "@/modules/pass/decision.service";
-import { PASS_STATUS_TONES, passStatusLabel } from "@/modules/pass/pass.labels";
+import {
+  PASS_STATUS_TONES,
+  passEndLabel,
+  passStatusLabel,
+} from "@/modules/pass/pass.labels";
 import {
   getMyChildPassesAwaitingConsent,
   getMyLivePasses,
@@ -182,8 +187,8 @@ async function TeacherDashboard({ user }: { user: SessionUser }) {
                     title={honorificName(pass.studentProfile.user.name, "STUDENT")}
                     meta={joinMeta(
                       classLabel(
-                        enrollment?.schoolClass?.grade,
-                        enrollment?.schoolClass?.classNo,
+                        enrollment?.grade,
+                        enrollment?.classNo,
                         enrollment?.number,
                       ),
                       passTypeLabel(pass.type),
@@ -222,14 +227,9 @@ async function TeacherDashboard({ user }: { user: SessionUser }) {
                       <Badge tone="cancelled">취소</Badge>
                     ) : (
                       <span
-                        className={
-                          award.kind === "DEMERIT"
-                            ? "text-sm font-medium tabular-nums text-rose"
-                            : "text-sm font-medium tabular-nums text-blue"
-                        }
+                        className={`text-sm font-medium tabular-nums ${kindColorClass(award.kind)}`}
                       >
-                        {award.kind === "DEMERIT" ? "−" : "+"}
-                        {award.points}
+                        {signedPoints(award.kind, award.points)}
                       </span>
                     )
                   }
@@ -260,15 +260,15 @@ async function TeacherDashboard({ user }: { user: SessionUser }) {
                     title={honorificName(pass.studentProfile.user.name, "STUDENT")}
                     meta={joinMeta(
                       classLabel(
-                        enrollment?.schoolClass?.grade,
-                        enrollment?.schoolClass?.classNo,
+                        enrollment?.grade,
+                        enrollment?.classNo,
                         enrollment?.number,
                       ),
                       pass.destination,
                     )}
                     trailing={
                       <span className="text-caption tabular-nums text-mut">
-                        {formatTimeShort(pass.endAt)} 복귀
+                        {passEndLabel(pass)}까지
                       </span>
                     }
                   />

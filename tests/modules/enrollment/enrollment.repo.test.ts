@@ -1,14 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { coreMocks } from "../../helpers/core-mocks";
 
-const schoolClassUpsert = vi.fn();
 const enrollmentUpsert = vi.fn();
 const userUpdate = vi.fn();
 const sessionDeleteMany = vi.fn();
 const studentProfileFindMany = vi.fn();
-const withTransaction = vi.fn();
+const { bareWithTransaction: withTransaction } = coreMocks(
+  "enrollment-repo-test",
+);
 
 const tx = {
-  schoolClass: { upsert: schoolClassUpsert },
   enrollment: { upsert: enrollmentUpsert },
   user: { update: userUpdate },
   session: { deleteMany: sessionDeleteMany },
@@ -27,7 +28,7 @@ const { NumberTakenError, applyAll, listByYear } = await import(
 );
 
 /**
- * (classId, number)의 실물 P2002 — admin-user.repo.test.ts에서 관측한 것과 같은 모양.
+ * (year, grade, classNo, number)의 실물 P2002 — admin-user.repo.test.ts와 같은 모양.
  * Prisma 7.9 + @prisma/adapter-pg는 위반 컬럼을 meta.driverAdapterError에 담는다.
  */
 function realWorldNumberP2002() {
@@ -41,9 +42,9 @@ function realWorldNumberP2002() {
         cause: {
           originalCode: "23505",
           originalMessage:
-            'duplicate key value violates unique constraint "Enrollment_classId_number_key"',
+            'duplicate key value violates unique constraint "Enrollment_year_grade_classNo_number_key"',
           kind: "UniqueConstraintViolation",
-          constraint: { fields: ["classId", "number"] },
+          constraint: { fields: ["year", "grade", "classNo", "number"] },
         },
       },
     },
@@ -65,7 +66,6 @@ function planned(overrides: Partial<Parameters<typeof applyAll>[1][number]> = {}
 }
 
 beforeEach(() => {
-  schoolClassUpsert.mockReset().mockResolvedValue({ id: "class-1" });
   enrollmentUpsert.mockReset().mockResolvedValue(undefined);
   userUpdate.mockReset().mockResolvedValue(undefined);
   sessionDeleteMany.mockReset().mockResolvedValue(undefined);
@@ -148,15 +148,25 @@ describe("applyAll()", () => {
     await expect(applyAll(2026, [planned()])).rejects.toBe(boom);
   });
 
-  it("재학이 아닌 항목은 학급을 만들지 않는다", async () => {
+  it("재학이 아닌 항목은 좌석 세 필드를 모두 null로 저장한다", async () => {
     await applyAll(2026, [
       planned({ status: "GRADUATED", grade: null, classNo: null, number: null }),
     ]);
 
-    expect(schoolClassUpsert).not.toHaveBeenCalled();
     expect(enrollmentUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        create: expect.objectContaining({ classId: null, number: null, status: "GRADUATED" }),
+        create: expect.objectContaining({
+          grade: null,
+          classNo: null,
+          number: null,
+          status: "GRADUATED",
+        }),
+        update: expect.objectContaining({
+          grade: null,
+          classNo: null,
+          number: null,
+          status: "GRADUATED",
+        }),
       }),
     );
   });

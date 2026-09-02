@@ -3,8 +3,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
 import { prisma } from "@/core/db/client";
+import { user } from "../helpers/session";
 
 vi.mock("server-only", () => ({}));
 
@@ -23,15 +23,10 @@ const suffix = randomUUID().replaceAll("-", "").slice(0, 12);
 const userId = `attachment-cap-user-${suffix}`;
 const communitySlug = `attachment-cap-${suffix}`;
 
-const actor: SessionUser = {
-  id: userId,
+const actor = user("STUDENT", userId, {
   name: "첨부 상한 학생",
   email: `attachment-cap-${suffix}@example.invalid`,
-  role: "STUDENT",
-  status: "ACTIVE",
-  deletedAt: null,
-  mustChangePassword: false,
-};
+});
 
 describe("미결 첨부 계정당 상한 경쟁", () => {
   beforeAll(async () => {

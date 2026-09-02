@@ -112,7 +112,7 @@ async function createUserWithCredential(
 async function consumeInvite(tx: DbClient, inviteId: string, userId: string) {
   const { count } = await tx.invite.updateMany({
     where: { id: inviteId, status: "PENDING" },
-    data: { status: "USED", usedAt: new Date(), usedById: userId },
+    data: { status: "USED", usedById: userId },
   });
   if (count !== 1) throw new InviteRaceError("ALREADY_USED");
 }
@@ -125,19 +125,6 @@ async function completeStudentRegistrationWithDb(
   year: number,
 ): Promise<void> {
   await createUserWithCredential(db, account, "STUDENT");
-
-  // 학급은 없으면 만든다 — 교사가 미리 등록할 필요가 없게.
-  const schoolClass = await db.schoolClass.upsert({
-    where: {
-      year_grade_classNo: {
-        year,
-        grade: student.grade,
-        classNo: student.classNo,
-      },
-    },
-    create: { year, grade: student.grade, classNo: student.classNo },
-    update: {},
-  });
 
   const profile = await db.studentProfile.create({
     data: {
@@ -154,7 +141,8 @@ async function completeStudentRegistrationWithDb(
       data: {
         studentProfileId: profile.id,
         year,
-        classId: schoolClass.id,
+        grade: student.grade,
+        classNo: student.classNo,
         number: student.number,
         status: "ENROLLED",
       },

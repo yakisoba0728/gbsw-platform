@@ -48,7 +48,6 @@
   --color-green: #0d7a56;
   --color-green-soft: #e8f7f0;
   --color-green-line: #c7e8da;
-  --color-green-press: #0a6144;
 
   /* ── 대기 · 주의 ────────────────────────────────── */
   --color-amber-ink: #8a6116;
@@ -69,12 +68,6 @@
     BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     "Liberation Mono", monospace;
-
-  /* 페이지 대표 숫자 하나에만 쓴다. 제목(title)보다 크되 그 자리에 제목을
-     올리지 않는다 — 큰 글자가 둘이면 어느 쪽을 먼저 읽을지 정해지지 않는다. */
-  --text-display: 28px;
-  --text-display--line-height: 1.15;
-  --text-display--letter-spacing: -0.5px;
 
   --text-title: 22px;
   --text-title--line-height: 1.2;
@@ -157,6 +150,13 @@
     outline: none;
     border-color: var(--color-ink);
     box-shadow: 0 0 0 3px --alpha(var(--color-ink) / 10%);
+  }
+
+  /* 체크박스·파일 칸에는 바꿀 테두리가 없다. 키보드 위치를 잃지 않도록
+   * 글자 입력칸용 outline 리셋 뒤에 네이티브 포커스 고리를 되살린다. */
+  input:where([type="checkbox"], [type="file"]):focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
   }
 
   /* Tailwind 리셋이 UA의 margin:auto를 죽여 모달이 왼쪽 위에 붙는다. 되살린다. */

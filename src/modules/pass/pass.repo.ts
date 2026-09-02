@@ -1,5 +1,10 @@
 import { prisma, type DbClient, withTransaction } from "@/core/db/client";
-import type { PassStatus, PassType } from "@/core/authz/pass-type";
+import {
+  DECIDABLE_STATUSES,
+  LIVE_STATUSES,
+  type PassStatus,
+  type PassType,
+} from "@/core/authz/pass-type";
 import { Prisma } from "@/generated/prisma/client";
 
 /** Prisma 호출만 둔다. 권한 검사도, 업무 규칙도 여기 두지 않는다. */
@@ -13,8 +18,9 @@ function studentInclude(year: number) {
       enrollments: {
         where: { year },
         select: {
+          grade: true,
+          classNo: true,
           number: true,
-          schoolClass: { select: { grade: true, classNo: true } },
         },
         take: 1,
       },
@@ -89,7 +95,7 @@ export async function listForVerify(
     where: {
       studentProfileId,
       endAt: { gte: new Date(now.getTime() - DAY_MS) },
-      status: { in: ["REQUESTED", "CONSENTED", "APPROVED"] },
+      status: { in: [...LIVE_STATUSES] },
     },
     include: { studentProfile: studentInclude(year) },
     orderBy: { startAt: "asc" },
@@ -141,7 +147,7 @@ export async function listLiveForStudent(
   return db.pass.findMany({
     where: {
       studentProfileId,
-      status: { in: ["REQUESTED", "CONSENTED", "APPROVED"] },
+      status: { in: [...LIVE_STATUSES] },
       endAt: { gt: now },
     },
     include: { studentProfile: studentInclude(year) },
@@ -157,7 +163,7 @@ export async function listPendingForAdmin(
   db: DbClient = prisma,
 ): Promise<{ entries: PassWithStudent[]; total: number }> {
   const where = {
-    status: { in: ["REQUESTED", "CONSENTED"] },
+    status: { in: [...DECIDABLE_STATUSES] },
     endAt: { gt: now },
   } satisfies Prisma.PassWhereInput;
   const [entries, total] = await Promise.all([
@@ -257,22 +263,19 @@ export async function listEnrolledStudents(year: number, db: DbClient = prisma) 
       },
     },
     select: {
+      grade: true,
+      classNo: true,
       number: true,
-      schoolClass: { select: { grade: true, classNo: true } },
       studentProfile: { select: { id: true, user: { select: { name: true } } } },
     },
-    orderBy: [
-      { schoolClass: { grade: "asc" } },
-      { schoolClass: { classNo: "asc" } },
-      { number: "asc" },
-    ],
+    orderBy: [{ grade: "asc" }, { classNo: "asc" }, { number: "asc" }],
   });
 
   return enrollments.map((row) => ({
     id: row.studentProfile.id,
     name: row.studentProfile.user.name,
-    grade: row.schoolClass?.grade ?? null,
-    classNo: row.schoolClass?.classNo ?? null,
+    grade: row.grade ?? null,
+    classNo: row.classNo ?? null,
     number: row.number,
   }));
 }
@@ -293,7 +296,7 @@ export async function findOverlapping(
   return db.pass.findFirst({
     where: {
       studentProfileId,
-      status: { in: ["REQUESTED", "CONSENTED", "APPROVED"] },
+      status: { in: [...LIVE_STATUSES] },
       startAt: { lt: endAt },
       endAt: { gt: startAt },
     },
@@ -455,7 +458,6 @@ export type UnexpiredTransitionOutcome = "UPDATED" | "EXPIRED" | "UNCHANGED";
 export async function transitionUnexpired(
   passId: string,
   from: readonly PassStatus[],
-  _observedAt: Date,
   data: UnexpiredTransitionData,
   db?: DbClient,
 ): Promise<UnexpiredTransitionOutcome> {
@@ -603,11 +605,9 @@ function historyWhere(filter: PassHistoryFilter, year: number): Prisma.PassWhere
                       enrollments: {
                         some: {
                           year,
+                          grade: filter.studentNumber.grade,
+                          classNo: filter.studentNumber.classNo,
                           number: filter.studentNumber.number,
-                          schoolClass: {
-                            grade: filter.studentNumber.grade,
-                            classNo: filter.studentNumber.classNo,
-                          },
                         },
                       },
                     },

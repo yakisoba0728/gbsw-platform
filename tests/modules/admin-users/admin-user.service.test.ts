@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
+import { coreMocks } from "../../helpers/core-mocks";
+import { user } from "../../helpers/session";
 
 const listUsersRepo = vi.fn();
 const findById = vi.fn();
@@ -11,9 +12,11 @@ const findCurrentYear = vi.fn();
 const setActive = vi.fn();
 const resetCredential = vi.fn();
 const deletePermanently = vi.fn();
-const recordAudit = vi.fn();
-const withTransaction = vi.fn();
-const tx = { tx: true };
+const {
+  recordAudit,
+  txClient: tx,
+  bareWithTransaction: withTransaction,
+} = coreMocks("admin-user-service-test");
 
 class EmailTakenError extends Error {}
 class NumberTakenError extends Error {}
@@ -65,7 +68,7 @@ function detail(overrides: Record<string, unknown> = {}) {
       id: "sp-1",
       birthDate: BIRTH,
       enrollments: [
-        { id: "en-1", number: 15, status: "ENROLLED", schoolClass: { grade: 1, classNo: 2 } },
+        { id: "en-1", grade: 1, classNo: 2, number: 15, status: "ENROLLED" },
       ],
     },
     ...overrides,
@@ -83,19 +86,7 @@ const sameInput = {
   number: 15,
 };
 
-function user(role: SessionUser["role"], id = "admin-1"): SessionUser {
-  return {
-    id,
-    name: "테스트",
-    email: "t@gbsw.hs.kr",
-    role,
-    status: "ACTIVE",
-    deletedAt: null,
-    mustChangePassword: false,
-  };
-}
-
-const admin = user("ADMIN");
+const admin = user("ADMIN", "admin-1");
 const student = user("STUDENT", "s-1");
 
 beforeEach(() => {
@@ -488,9 +479,10 @@ describe("updateUser()", () => {
           enrollments: [
             {
               id: "en-1",
+              grade: null,
+              classNo: null,
               number: null,
               status: "GRADUATED",
-              schoolClass: null,
             },
           ],
         },

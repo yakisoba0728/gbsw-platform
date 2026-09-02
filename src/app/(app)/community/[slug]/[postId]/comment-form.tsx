@@ -39,6 +39,7 @@ export function CommentForm({
       {anonymous && <AnonymousNote kind="댓글" />}
       <Textarea
         name="body"
+        defaultValue={state.values?.body}
         required
         rows={3}
         maxLength={2000}

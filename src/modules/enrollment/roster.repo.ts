@@ -34,31 +34,28 @@ export async function findCurrentYear(db: DbClient = prisma): Promise<number | n
 }
 
 export async function listExisting(year: number, db: DbClient = prisma) {
-  const [profiles, entryByProfile] = await Promise.all([
-    db.studentProfile.findMany({
-      where: { user: { role: "STUDENT", deletedAt: null } },
-      select: {
-        id: true,
-        studentCode: true,
-        birthDate: true,
-        user: { select: { id: true, name: true, status: true, deletedAt: true } },
-        enrollments: {
-          where: { OR: [{ year }, { status: "GRADUATED" }] },
-          select: {
-            year: true,
-            number: true,
-            status: true,
-            schoolClass: { select: { grade: true, classNo: true } },
-          },
+  const profiles = await db.studentProfile.findMany({
+    where: { user: { role: "STUDENT", deletedAt: null } },
+    select: {
+      id: true,
+      studentCode: true,
+      birthDate: true,
+      user: { select: { id: true, name: true, status: true } },
+      enrollments: {
+        where: { OR: [{ year }, { status: "GRADUATED" }] },
+        select: {
+          year: true,
+          grade: true,
+          classNo: true,
+          number: true,
+          status: true,
         },
       },
-    }),
-    entrySeats(db),
-  ]);
+    },
+  });
 
   return profiles.map((p) => {
     const e = p.enrollments.find((enrollment) => enrollment.year === year);
-    const entry = entryByProfile.get(p.id);
     return {
       studentProfileId: p.id,
       userId: p.user.id,
@@ -70,16 +67,31 @@ export async function listExisting(year: number, db: DbClient = prisma) {
       birthDate: new Intl.DateTimeFormat("en-CA", {
         timeZone: "Asia/Seoul",
       }).format(p.birthDate),
-      grade: e?.schoolClass?.grade ?? null,
-      classNo: e?.schoolClass?.classNo ?? null,
+      grade: e?.grade ?? null,
+      classNo: e?.classNo ?? null,
       number: e?.number ?? null,
       status: e?.status ?? null,
       hasGraduatedEnrollment: p.enrollments.some(
         (enrollment) => enrollment.status === "GRADUATED",
       ),
       accountActive: p.user.status === "ACTIVE",
-      deleted: p.user.deletedAt !== null,
-      // 참고 열(입학반·입학번호)용. 내보내기만 쓴다.
+    };
+  });
+}
+
+/** 내보내기에서만 필요한 입학반·입학번호를 기존 명단에 붙인다. */
+export async function listForExport(year: number) {
+  // entrySeats는 전 학년도를 훑는다. 미리보기·확정 경로에서 빼고, 특히 확정이
+  // 잡는 AcademicYear 잠금 안에 다시 넣지 못하도록 이 함수는 tx 인자를 받지 않는다.
+  const [students, entryByProfile] = await Promise.all([
+    listExisting(year),
+    entrySeats(prisma),
+  ]);
+
+  return students.map((student) => {
+    const entry = entryByProfile.get(student.studentProfileId);
+    return {
+      ...student,
       entryClassNo: entry?.classNo ?? null,
       entryNumber: entry?.number ?? null,
     };
@@ -91,12 +103,12 @@ async function entrySeats(
   db: DbClient,
 ): Promise<Map<string, { classNo: number; number: number }>> {
   const rows = await db.enrollment.findMany({
-    where: { schoolClass: { grade: 1 } },
+    where: { grade: 1 },
     orderBy: { year: "asc" },
     select: {
       studentProfileId: true,
+      classNo: true,
       number: true,
-      schoolClass: { select: { classNo: true } },
     },
   });
 
@@ -104,8 +116,8 @@ async function entrySeats(
   for (const r of rows) {
     // year 오름차순이라 먼저 만난 것이 가장 이른 1학년이다.
     if (map.has(r.studentProfileId)) continue;
-    if (r.schoolClass && r.number !== null) {
-      map.set(r.studentProfileId, { classNo: r.schoolClass.classNo, number: r.number });
+    if (r.classNo !== null && r.number !== null) {
+      map.set(r.studentProfileId, { classNo: r.classNo, number: r.number });
     }
   }
   return map;
@@ -132,6 +144,7 @@ export type ApplyInput = {
   /** 명단에서 빠진 학생 — 계정과 학생 기록을 DB에서 완전히 지운다. */
   deleteStudentProfileIds: string[];
   createdById: string;
+  createdByName: string;
 };
 
 /**
@@ -167,14 +180,11 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
       const deleteUserIds = targets.map((t) => t.userId);
       const deleteProfileIds = targets.map((t) => t.id);
 
-      // 상태를 가리지 않고 모은다. 아래 deleteMany도 가리지 않기 때문이다 —
-      // Invite.createdBy가 Restrict라, 학생이 만든 학부모 코드는 이미 소진된
-      // 것까지 지워야 그 계정이 지워진다. 대기분만 모으면 소진된 행이 기록
-      // 없이 사라진다. 무엇이었는지는 status로 남는다.
+      // 상태를 가리지 않고 모은다. usedBy나 studentId에 삭제 대상 개인정보가
+      // 매달린 초대는 이미 소진됐어도 함께 지우므로, status를 감사로그로 옮긴다.
       revokedInvites = await tx.invite.findMany({
         where: {
           OR: [
-            { createdById: { in: deleteUserIds } },
             { usedById: { in: deleteUserIds } },
             { studentId: { in: deleteProfileIds } },
           ],
@@ -183,12 +193,11 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
       });
 
       if (deleteUserIds.length > 0) {
-        // Invite.createdBy는 Restrict라 사용자 삭제 전에 끊어야 한다. usedBy와
-        // studentId 쪽도 함께 지워 초대 metadata에 삭제 대상 정보가 남지 않게 한다.
+        // usedBy와 studentId 쪽을 지워 초대 metadata에 삭제 대상 정보가 남지 않게 한다.
+        // 발급자 참조는 SetNull + 이름 스냅샷이라 이 삭제 대상이 아니다.
         await tx.invite.deleteMany({
           where: {
             OR: [
-              { createdById: { in: deleteUserIds } },
               { usedById: { in: deleteUserIds } },
               { studentId: { in: deleteProfileIds } },
             ],
@@ -203,27 +212,6 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
       where: { year, studentProfileId: { in: input.managedStudentProfileIds } },
     });
 
-    // 학생마다 upsert하면 300번 왕복한다. 필요한 반을 모아 한 번씩만 부른다.
-    const neededClasses = new Map<string, { grade: number; classNo: number }>();
-    for (const row of input.assignments) {
-      if (row.grade !== null && row.classNo !== null) {
-        neededClasses.set(`${row.grade}-${row.classNo}`, {
-          grade: row.grade,
-          classNo: row.classNo,
-        });
-      }
-    }
-
-    const classIdByKey = new Map<string, string>();
-    for (const { grade, classNo } of neededClasses.values()) {
-      const cls = await tx.schoolClass.upsert({
-        where: { year_grade_classNo: { year, grade, classNo } },
-        create: { year, grade, classNo },
-        update: {},
-      });
-      classIdByKey.set(`${grade}-${classNo}`, cls.id);
-    }
-
     // 한 줄씩 넣지 않는다. 이 트랜잭션은 AcademicYear에 FOR UPDATE를 걸고 끝까지
     // 쥐는데 상벌점 부여도 같은 잠금을 잡으므로, 왕복 수가 곧 전교의 부여가 멈춰
     // 있는 시간이다. 300명이면 왕복 300번 → 1번. 돌려받는 id는 아무도 안 쓴다.
@@ -231,10 +219,8 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
       data: input.assignments.map((row) => ({
         studentProfileId: row.studentProfileId!,
         year,
-        classId:
-          row.grade !== null && row.classNo !== null
-            ? (classIdByKey.get(`${row.grade}-${row.classNo}`) ?? null)
-            : null,
+        grade: row.grade,
+        classNo: row.classNo,
         number: row.number,
         status: row.status!,
       })),
@@ -306,6 +292,7 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
           role: "STUDENT",
           status: "PENDING",
           createdById: input.createdById,
+          createdByName: input.createdByName,
           expiresAt: input.inviteExpiresAt,
           // 가입 때 2차 요소로 대조하는 값. 발급 화면과 같은 모양이어야 한다.
           metadata: {
@@ -340,9 +327,9 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
     );
   } catch (error) {
     if (isUniqueViolation(error, "code")) throw new InviteCodeCollisionError();
-    // Enrollment_classId_number_key. 명단 밖으로 빠진 계정(교사로 승격된 학생)의
-    // 그 학년도 배정은 managedStudentProfileIds 범위 밖이라 위에서 안 지워지고
-    // (반, 번호) 자리를 그대로 붙들고 있다 — 그 자리에 다른 학생을 넣으면 여기로 온다.
+    // Enrollment_year_grade_classNo_number_key. 명단 밖으로 빠진 계정(교사로 승격된
+    // 학생)의 그 학년도 배정은 managedStudentProfileIds 범위 밖이라 위에서 안 지워지고
+    // (학년도, 반, 번호) 자리를 그대로 붙든다 — 그 자리에 다른 학생을 넣으면 여기로 온다.
     // 날것의 P2002로 올려보내면 화면에 "반영하지 못했습니다."만 뜨고 원인이 사라진다.
     if (isUniqueViolation(error, "number")) throw new NumberTakenError();
     throw error;

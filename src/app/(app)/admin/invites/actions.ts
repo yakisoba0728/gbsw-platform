@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAuth } from "@/core/auth/session";
-import { ForbiddenError } from "@/core/authz/errors";
+import { actionMessage, text } from "@/lib/action-message";
 import { formatInviteCode } from "@/lib/invite-code";
 import {
   createAdminInviteSchema,
@@ -28,7 +28,7 @@ import type {
 export type { InviteFormState, InviteFormValues, RevokeState };
 
 /** 서비스가 던지는 오류 코드를 화면 문구로 옮긴다. */
-const MESSAGES: Record<string, string> = {
+const MESSAGES = {
   FORBIDDEN: "권한이 없습니다.",
   // 유일한 코드를 뽑지 못했다 — 일시적 장애라 다시 누르면 풀린다.
   CODE_GENERATION_FAILED: "코드를 만들지 못했습니다. 다시 시도해 주세요.",
@@ -36,31 +36,15 @@ const MESSAGES: Record<string, string> = {
   STUDENT_NOT_FOUND: "학생을 찾을 수 없습니다.",
   NOT_FOUND: "코드를 찾을 수 없습니다.",
   NOT_PENDING: "이미 쓰였거나 폐기된 코드입니다.",
-};
+} satisfies Record<string, string>;
 
 /** 코드로 가를 수 있는 오류는 사전에서, 나머지는 액션별 폴백으로. */
-function messageFor(error: unknown, fallback: string): string {
-  if (error instanceof InviteError || error instanceof ForbiddenError) {
-    return MESSAGES[error.message] ?? fallback;
-  }
-  // 예상 못 한 오류는 서버 콘솔에 남긴다. 화면에는 일반 문구만 나가므로
-  // 여기서 안 남기면 원인이 어디에도 없다.
-  console.error("[invite] 예상 못 한 오류", error);
-  return fallback;
-}
+const messageFor = actionMessage(InviteError, MESSAGES, "[invite]");
 
 function optionalDays(value: FormDataEntryValue | null): number | undefined {
   const raw = String(value ?? "").trim();
   if (!raw) return undefined;
   return Number(raw);
-}
-
-/**
- * 폼이 보낸 문자열 그대로. 실패 상태에 실어 되돌려 줄 값이라 다듬지 않는다 —
- * React 19가 액션이 끝난 폼을 리셋하므로 이것이 없으면 입력이 통째로 사라진다.
- */
-function text(formData: FormData, name: string): string {
-  return String(formData.get(name) ?? "");
 }
 
 export async function createStudentInviteAction(
@@ -97,7 +81,7 @@ export async function createStudentInviteAction(
 
   try {
     const invite = await createStudentInvite(actor, parsed.data);
-    revalidatePath("/admin/invites");
+    revalidatePath("/admin/users");
     return { error: null, code: formatInviteCode(invite.code) };
   } catch (error) {
     return {
@@ -134,7 +118,7 @@ export async function createAdminInviteAction(
 
   try {
     const invite = await createAdminInvite(actor, parsed.data);
-    revalidatePath("/admin/invites");
+    revalidatePath("/admin/users");
     return { error: null, code: formatInviteCode(invite.code) };
   } catch (error) {
     return {
@@ -174,7 +158,7 @@ export async function createParentInviteForAction(
 
   try {
     const invite = await createParentInviteFor(actor, parsed.data);
-    revalidatePath("/admin/invites");
+    revalidatePath("/admin/users");
     return { error: null, code: formatInviteCode(invite.code) };
   } catch (error) {
     return {
@@ -202,7 +186,7 @@ export async function revokeInviteAction(
   try {
     await revokeInvite(actor, parsed.data);
     // 교사 목록과 학생의 학부모 코드 목록 양쪽에서 쓰인다.
-    revalidatePath("/admin/invites");
+    revalidatePath("/admin/users");
     revalidatePath("/parent-invite");
     return { ok: true, error: null };
   } catch (error) {

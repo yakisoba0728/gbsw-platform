@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
 import { meritKindDelta, meritKindSign } from "@/core/authz/merit-track";
+import { user } from "../../helpers/session";
 
 /**
  * 상쇄점이 합계에 반영되는지 확인한다. 집계에서 종류 하나를 빠뜨리면 내역에는
@@ -32,9 +32,8 @@ const totals = vi.fn();
 const listAwards = vi.fn();
 const findStudentProfileByUserId = vi.fn();
 const listClassRoster = vi.fn();
-const classSummaries = vi.fn();
 const trackTotals = vi.fn();
-const topRules = vi.fn();
+const awardsByRule = vi.fn();
 const listAwardsForChart = vi.fn();
 const demeritTotalsByStudent = vi.fn();
 const findStudentsWithClass = vi.fn();
@@ -44,9 +43,8 @@ vi.mock("@/modules/merit/merit.repo", () => ({
   listAwards,
   findStudentProfileByUserId,
   listClassRoster,
-  classSummaries,
   trackTotals,
-  topRules,
+  awardsByRule,
   listAwardsForChart,
   demeritTotalsByStudent,
   findStudentsWithClass,
@@ -65,15 +63,7 @@ vi.mock("@/modules/merit/threshold.service", () => ({
 const service = await import("@/modules/merit/award.service");
 const statsService = await import("@/modules/merit/stats.service");
 
-const admin: SessionUser = {
-  id: "admin-1",
-  name: "이정민",
-  email: "t@gbsw.hs.kr",
-  role: "ADMIN",
-  status: "ACTIVE",
-  deletedAt: null,
-  mustChangePassword: false,
-};
+const admin = user("ADMIN", "admin-1", { name: "이정민" });
 
 /** 상점 10 · 벌점 20 · 상쇄 6 → 순점수 −4 */
 const MIXED = [
@@ -90,13 +80,12 @@ beforeEach(() => {
     user: { name: "김민준" },
   });
   listClassRoster.mockReset().mockResolvedValue([]);
-  classSummaries.mockReset().mockResolvedValue([]);
   demeritTotalsByStudent.mockReset().mockResolvedValue([]);
   findStudentsWithClass.mockReset().mockResolvedValue([]);
   trackTotals
     .mockReset()
     .mockResolvedValue(MIXED.map((r) => ({ ...r, _count: { _all: 1 } })));
-  topRules.mockReset().mockResolvedValue([]);
+  awardsByRule.mockReset().mockResolvedValue({ rows: [], rules: [] });
   listAwardsForChart.mockReset().mockResolvedValue([]);
 });
 

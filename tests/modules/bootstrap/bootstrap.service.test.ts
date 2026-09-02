@@ -1,9 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { coreMocks } from "../../helpers/core-mocks";
 
 const countUsers = vi.fn();
 const createAdminUser = vi.fn();
-const recordAudit = vi.fn();
-const withTransaction = vi.fn();
+const {
+  recordAudit,
+  txClient,
+  bareWithTransaction: withTransaction,
+} = coreMocks("bootstrap-service-test");
 
 vi.mock("@/modules/bootstrap/bootstrap.repo", () => ({
   countUsers,
@@ -44,7 +48,7 @@ describe("issueBootstrapTokenIfNeeded()", () => {
     countUsers.mockReset();
     createAdminUser.mockReset().mockResolvedValue(undefined);
     recordAudit.mockReset();
-    withTransaction.mockReset().mockImplementation(async (fn) => fn({ tx: true }));
+    withTransaction.mockReset().mockImplementation(async (fn) => fn(txClient));
   });
 
   it("사용자가 없으면 토큰을 발급한다", async () => {
@@ -102,7 +106,7 @@ describe("createInitialAdmin()", () => {
     countUsers.mockReset();
     createAdminUser.mockReset().mockResolvedValue(undefined);
     recordAudit.mockReset();
-    withTransaction.mockReset().mockImplementation(async (fn) => fn({ tx: true }));
+    withTransaction.mockReset().mockImplementation(async (fn) => fn(txClient));
   });
 
   it("사용자가 이미 있으면 아무것도 만들지 않는다", async () => {
@@ -141,14 +145,14 @@ describe("createInitialAdmin()", () => {
     // 평문 비밀번호가 저장 경로로 새어나가면 안 된다.
     expect(created.passwordHash).not.toBe(input.password);
     expect(created.passwordHash.length).toBeGreaterThan(20);
-    expect(createAdminUser.mock.calls[0]![1]).toEqual({ tx: true });
+    expect(createAdminUser.mock.calls[0]![1]).toBe(txClient);
 
     expect(recordAudit).toHaveBeenCalledWith({
       actorUserId: created.userId,
       action: "account:bootstrap",
       targetType: "User",
       targetId: created.userId,
-    }, { tx: true });
+    }, txClient);
   });
 
   it("성공하면 토큰이 소진되어 재사용할 수 없다", async () => {

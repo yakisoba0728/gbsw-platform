@@ -37,8 +37,8 @@ export default async function PassDetailPage({
   const actor = await requireAuth();
 
   // 없는 출입증은 404, 남의 출입증은 403이다 — 「없다」와 「못 본다」를 섞지 않는다.
-  // 403을 흘려 보내면 pass/error.tsx의 「출입증을 불러오지 못했습니다」가 떠서
-  // 원인을 안 알려 준다. 거부 감사로그는 서비스가 이미 남겼다.
+  // 403을 오류 경계로 흘려 보내면 「화면을 열지 못했습니다」만 떠서 원인을 안
+  // 알려 준다. 거부 감사로그는 서비스가 이미 남겼다.
   let pass: Awaited<ReturnType<typeof getPassDetail>>;
   try {
     pass = await getPassDetail(actor, passId);
@@ -58,8 +58,8 @@ export default async function PassDetailPage({
 
   const enrollment = pass.studentProfile.enrollments[0];
   const seat = formatSeat({
-    grade: enrollment?.schoolClass?.grade ?? null,
-    classNo: enrollment?.schoolClass?.classNo ?? null,
+    grade: enrollment?.grade ?? null,
+    classNo: enrollment?.classNo ?? null,
     number: enrollment?.number ?? null,
   });
 

@@ -14,6 +14,7 @@ import {
 import {
   confirmedDeletionIdsSchema,
   deletionCountConfirmationSchema,
+  MAX_ROSTER_ROWS,
   ROSTER_FILE_MAX_BYTES,
   rosterFingerprintSchema,
   rosterRowsSchema,
@@ -26,7 +27,7 @@ const MESSAGES: Record<string, string> = {
   YEAR_CHANGED: "학년도가 바뀌었습니다. 새로고침 후 다시 올려 주세요.",
   BLOCKED: "오류가 있는 줄이 남아 있습니다.",
   CODE_COLLISION: "초대코드가 겹쳤습니다. 다시 시도해 주세요.",
-  TOO_MANY_ROWS: "한 번에 2000줄까지 올릴 수 있습니다.",
+  TOO_MANY_ROWS: `한 번에 ${MAX_ROSTER_ROWS}줄까지 올릴 수 있습니다.`,
   XLSX_TOO_LARGE: "파일이 너무 큽니다.",
   XLSX_ZIP_BOMB: "압축을 풀었을 때 너무 큰 엑셀 파일입니다.",
   XLSX_ZIP_INVALID: "엑셀 파일을 읽지 못했습니다. 새 서식으로 다시 저장해 주세요.",
@@ -60,7 +61,14 @@ function emptyPreview(error: string): PreviewState {
 }
 
 function applyError(error: string): ApplyState {
-  return { error, saved: null, deleted: null, excludedNew: [], invites: [] };
+  return {
+    error,
+    saved: null,
+    invitesIssued: null,
+    deleted: null,
+    excludedNew: [],
+    invites: [],
+  };
 }
 
 function sortedDeletionIds(ids: string[]): string[] {
@@ -149,6 +157,7 @@ export async function applyRosterAction(
     return {
       error: rowsParsed.error.issues[0]?.message ?? "반영할 내용을 확인해 주세요.",
       saved: null,
+      invitesIssued: null,
       deleted: null,
       excludedNew: [],
       invites: [],
@@ -197,7 +206,13 @@ export async function applyRosterAction(
 
   try {
     // 봉인 검증은 서비스가 한다 — 액션에 두면 진입점이 바뀔 때 이 보증만 사라진다.
-    const { saved, deleted, invites, excludedNewStudents } = await applyRosterPlan(
+    const {
+      saved,
+      invitesIssued,
+      deleted,
+      invites,
+      excludedNewStudents,
+    } = await applyRosterPlan(
       actor,
       yearParsed.data.year,
       rowsParsed.data,
@@ -210,6 +225,7 @@ export async function applyRosterAction(
     return {
       error: null,
       saved,
+      invitesIssued,
       deleted,
       excludedNew: excludedNewStudents,
       invites,

@@ -1,12 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionUser } from "@/core/auth/session";
 import { ROSTER_COLUMNS, ROSTER_INFO_COLUMNS } from "@/modules/enrollment/roster.export";
+import { coreMocks } from "../../helpers/core-mocks";
+import { user } from "../../helpers/session";
 
 const listExisting = vi.fn();
+const listForExport = vi.fn();
 const applyRoster = vi.fn();
 const findCurrentYearForUpdate = vi.fn();
 const findCurrentYear = vi.fn();
-const recordAudit = vi.fn();
+const {
+  recordAudit,
+  txClient,
+  bareWithTransaction: withTransaction,
+} = coreMocks("enrollment-roster-service-test");
 const recordAuditMany = vi.fn();
 
 /**
@@ -27,8 +34,6 @@ function noAudit(): boolean {
 }
 const generateUniqueCode = vi.fn();
 const toExpiresAt = vi.fn();
-const withTransaction = vi.fn();
-const txClient = { tx: true };
 
 /** roster.repo.ts의 실물과 이름·상속만 같은 자리표시자. instanceof로 구분한다. */
 class InviteCodeCollisionError extends Error {}
@@ -36,6 +41,7 @@ class NumberTakenError extends Error {}
 
 vi.mock("@/modules/enrollment/roster.repo", () => ({
   listExisting,
+  listForExport,
   applyRoster,
   findCurrentYearForUpdate,
   findCurrentYear,
@@ -96,18 +102,7 @@ function applyRosterPlan(
   );
 }
 
-function user(role: SessionUser["role"], id = "admin-1"): SessionUser {
-  return {
-    id,
-    name: "테스트",
-    email: "t@gbsw.hs.kr",
-    role,
-    status: "ACTIVE",
-    deletedAt: null,
-    mustChangePassword: false,
-  };
-}
-const admin = user("ADMIN");
+const admin = user("ADMIN", "admin-1");
 const student = user("STUDENT", "s-1");
 
 const 재학생 = {
@@ -164,6 +159,9 @@ let codeCounter = 0;
 
 beforeEach(() => {
   listExisting.mockReset().mockResolvedValue([재학생]);
+  listForExport.mockReset().mockResolvedValue([
+    { ...재학생, entryClassNo: 3, entryNumber: 3 },
+  ]);
   applyRoster.mockReset().mockResolvedValue({ invites: [], revokedInvites: [] });
   findCurrentYearForUpdate.mockReset().mockResolvedValue(2026);
   findCurrentYear.mockReset().mockResolvedValue(2026);
@@ -175,6 +173,24 @@ beforeEach(() => {
   codeCounter = 0;
   generateUniqueCode.mockReset().mockImplementation(async () => `GBSWCODE${++codeCounter}`);
   toExpiresAt.mockReset().mockReturnValue(new Date("2099-01-01"));
+});
+
+describe("createRosterFingerprint()", () => {
+  it("내보내기 전용 필드를 떼어도 기존 미리보기 지문이 바뀌지 않는다", () => {
+    const legacyShape = {
+      ...재학생,
+      deleted: false,
+      entryClassNo: 3,
+      entryNumber: 3,
+    };
+
+    expect(createRosterFingerprint([legacyShape])).toBe(
+      "GgxlFVODrgh-hxzFlhX9W5uE2yIWGVQjvmvFsGMx5C4",
+    );
+    expect(createRosterFingerprint([재학생])).toBe(
+      createRosterFingerprint([legacyShape]),
+    );
+  });
 });
 
 describe("applyRosterPlan()", () => {
@@ -213,6 +229,7 @@ describe("applyRosterPlan()", () => {
     await applyRosterPlan(admin, 2026, [row], fingerprint(), [], null);
 
     expect(applyRoster).toHaveBeenCalledTimes(1);
+    expect(listForExport).not.toHaveBeenCalled();
     expect(withTransaction).toHaveBeenCalledWith(expect.any(Function), {
       timeout: 120_000,
       maxWait: 10_000,
@@ -256,7 +273,16 @@ describe("applyRosterPlan()", () => {
   it("신규 학생 수만큼 초대코드를 만들어 돌려준다", async () => {
     listExisting.mockResolvedValue([]);
     applyRoster.mockResolvedValue({
-      invites: [{ name: "김동혁", code: "GBSWCODE1", grade: 1, classNo: 5, number: 7 }],
+      invites: [
+        {
+          id: "inv-new-1",
+          name: "김동혁",
+          code: "GBSWCODE1",
+          grade: 1,
+          classNo: 5,
+          number: 7,
+        },
+      ],
       revokedInvites: [],
     });
 
@@ -264,7 +290,18 @@ describe("applyRosterPlan()", () => {
     const result = await applyRosterPlan(admin, 2026, [newRow], fingerprint([]), [], null);
 
     expect(result.invites).toHaveLength(1);
+    expect(result.saved).toBe(0);
+    expect(result.invitesIssued).toBe(1);
     expect(applyRoster.mock.calls[0]![1].newStudents).toHaveLength(1);
+
+    const inviteLogs = auditEntries().filter((entry) => entry.action === "invite:create");
+    expect(inviteLogs).toHaveLength(1);
+    expect(inviteLogs[0]).toMatchObject({
+      targetType: "Invite",
+      targetId: "inv-new-1",
+      metadata: { role: "STUDENT" },
+    });
+    expect(JSON.stringify(inviteLogs[0])).not.toContain("GBSWCODE1");
   });
 
   it("발급 코드에 기본 만료를 둔다 — 종이로 나눠주는 코드를 무기한으로 두지 않는다", async () => {
@@ -418,7 +455,14 @@ describe("applyRosterPlan()", () => {
     ];
     listExisting.mockResolvedValue(existing);
 
-    await applyRosterPlan(admin, 2026, rows, fingerprint(existing), [], null);
+    const result = await applyRosterPlan(
+      admin,
+      2026,
+      rows,
+      fingerprint(existing),
+      [],
+      null,
+    );
 
     const assignments: { studentProfileId: string; statusChanged: boolean }[] =
       applyRoster.mock.calls[0]![1].assignments;
@@ -428,6 +472,15 @@ describe("applyRosterPlan()", () => {
     expect(byId.get("sp-reassign")).toBe(false);
     expect(byId.get("sp-statuschange")).toBe(true);
     expect(byId.get("sp-newassign")).toBe(true);
+    expect(result.saved).toBe(3);
+    expect(applyRoster.mock.calls[0]![1].managedStudentProfileIds).toEqual([
+      "sp-untouched",
+      "sp-reassign",
+      "sp-statuschange",
+      "sp-newassign",
+    ]);
+    expect(applyRoster.mock.calls[0]![1].createdById).toBe(admin.id);
+    expect(applyRoster.mock.calls[0]![1].createdByName).toBe(admin.name);
   });
 
   it("자기 자신을 비재학으로 돌리는 반영은 거부한다 (자기 잠금 방어)", async () => {
@@ -796,12 +849,14 @@ describe("exportRoster()", () => {
   it("관리자가 아니면 내보내지 못한다", async () => {
     await expect(exportRoster(student)).rejects.toThrow("FORBIDDEN");
     expect(listExisting).not.toHaveBeenCalled();
+    expect(listForExport).not.toHaveBeenCalled();
   });
 
   it("현재 학년도 명단을 머리글 + 학생 행으로 만든다", async () => {
     const result = await exportRoster(admin);
 
-    expect(listExisting).toHaveBeenCalledWith(2026);
+    expect(listForExport).toHaveBeenCalledWith(2026);
+    expect(listExisting).not.toHaveBeenCalled();
     expect(result.year).toBe(2026);
     expect(result.rows[0]).toEqual([...ROSTER_COLUMNS, ...ROSTER_INFO_COLUMNS]);
     expect(result.rows[1]![0]).toBe("AAAA2345");
@@ -912,6 +967,33 @@ describe("previewRoster()", () => {
     const preview = await previewRoster(admin, file);
 
     expect(preview.rosterFingerprint).toBe(createRosterFingerprint(existing));
+    expect(listForExport).not.toHaveBeenCalled();
+  });
+
+  it("전교생 개인정보를 돌려준 사실은 건수만 감사로그에 남긴다", async () => {
+    const existing = [재학생];
+    listExisting.mockResolvedValue(existing);
+
+    await previewRoster(admin, file);
+
+    expect(recordAudit).toHaveBeenCalledWith({
+      actorUserId: admin.id,
+      action: "roster:preview",
+      targetType: "AcademicYear",
+      targetId: "2026",
+      metadata: {
+        year: 2026,
+        fileRows: 1,
+        existing: 1,
+        missingFromFile: 0,
+      },
+    });
+
+    const metadata = recordAudit.mock.calls[0]?.[0].metadata;
+    const serialized = JSON.stringify(metadata);
+    expect(serialized).not.toContain(재학생.name);
+    expect(serialized).not.toContain(재학생.birthDate);
+    expect(serialized).not.toContain(재학생.studentCode);
   });
 
   it("봉인을 함께 낸다 — 그 봉인으로 곧바로 확정할 수 있다", async () => {

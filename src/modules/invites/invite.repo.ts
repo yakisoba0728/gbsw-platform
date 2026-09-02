@@ -10,6 +10,7 @@ export type InsertInviteInput = {
   studentId?: string;
   expiresAt: Date | null;
   createdById: string;
+  createdByName: string;
 };
 
 export async function insertInvite(
@@ -24,6 +25,7 @@ export async function insertInvite(
       studentId: input.studentId ?? null,
       expiresAt: input.expiresAt,
       createdById: input.createdById,
+      createdByName: input.createdByName,
     },
   });
 }
@@ -42,7 +44,6 @@ export async function listAll(year: number) {
     // id는 cuid라 시간순은 아니지만 유일하고 결정적이다.
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     include: {
-      createdBy: { select: { name: true } },
       usedBy: { select: { name: true, email: true } },
       student: {
         select: {
@@ -51,8 +52,9 @@ export async function listAll(year: number) {
             where: { year },
             take: 1,
             select: {
+              grade: true,
+              classNo: true,
               number: true,
-              schoolClass: { select: { grade: true, classNo: true } },
             },
           },
         },
@@ -61,9 +63,9 @@ export async function listAll(year: number) {
   });
 }
 
-export async function listByStudent(studentId: string, createdById: string) {
+export async function listByStudent(studentId: string) {
   return prisma.invite.findMany({
-    where: { studentId, createdById, role: "PARENT" },
+    where: { studentId, role: "PARENT" },
     // 같은 이유로 보조 정렬키를 둔다 (listAll 참고). 한 학생에게 학부모 코드를
     // 한 번에 여러 개 발급하면 그 코드들이 밀리초까지 같은 createdAt을 갖는다.
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -75,7 +77,7 @@ export async function listByStudent(studentId: string, createdById: string) {
  *
  * 판정 규칙은 `lib/invite-code.ts`의 `isInviteUsable`과 같아야 한다 — 거기서는
  * 만료된 코드를 못 쓴다고 보는데 여기서만 안 봤다. 그 결과 학생이 쓸 수 없는
- * 코드 3개가 한도를 계속 차지해 새 코드를 만들지 못하고, 교사가 손으로 셋을
+ * 코드들이 한도를 계속 차지해 새 코드를 만들지 못하고, 교사가 손으로
  * 폐기해야만 풀렸다. `expiresAt`이 null이면 무기한이라 항상 센다.
  *
  * now를 인자로 받는다 — 테스트가 "지금"을 고정할 수 있어야 경계를 검증할 수 있다.
@@ -160,8 +162,9 @@ export async function listStudents(year: number) {
         where: { year },
         take: 1,
         select: {
+          grade: true,
+          classNo: true,
           number: true,
-          schoolClass: { select: { grade: true, classNo: true } },
         },
       },
     },
@@ -172,8 +175,8 @@ export async function listStudents(year: number) {
     const x = a.enrollments[0];
     const y = b.enrollments[0];
     return (
-      (x?.schoolClass?.grade ?? 99) - (y?.schoolClass?.grade ?? 99) ||
-      (x?.schoolClass?.classNo ?? 99) - (y?.schoolClass?.classNo ?? 99) ||
+      (x?.grade ?? 99) - (y?.grade ?? 99) ||
+      (x?.classNo ?? 99) - (y?.classNo ?? 99) ||
       (x?.number ?? 99) - (y?.number ?? 99)
     );
   });

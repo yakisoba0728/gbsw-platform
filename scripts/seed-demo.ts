@@ -58,7 +58,7 @@ function databaseHost(databaseUrl: string): string {
 
 function isLocalDatabaseUrl(databaseUrl: string): boolean {
   const host = databaseHost(databaseUrl);
-  return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
+  return host === "localhost" || host === "127.0.0.1" || host === "[::1]";
 }
 
 export function assertDemoSeedAllowed({
@@ -107,7 +107,9 @@ async function main() {
   }
 }
 
-async function cleanUp(prisma: Awaited<typeof import("../src/core/db/client")>["prisma"]) {
+export async function cleanUp(
+  prisma: Awaited<typeof import("../src/core/db/client")>["prisma"],
+) {
   const users = await prisma.user.findMany({
     where: { email: { endsWith: `@${DEMO_DOMAIN}` } },
     select: { id: true, email: true },
@@ -131,7 +133,13 @@ async function cleanUp(prisma: Awaited<typeof import("../src/core/db/client")>["
     where: { OR: [{ parentUserId: { in: ids } }, { studentId: { in: profileIds } }] },
   });
   await prisma.invite.deleteMany({
-    where: { OR: [{ usedById: { in: ids } }, { studentId: { in: profileIds } }] },
+    where: {
+      OR: [
+        { createdById: { in: ids } },
+        { usedById: { in: ids } },
+        { studentId: { in: profileIds } },
+      ],
+    },
   });
   await prisma.studentProfile.deleteMany({ where: { id: { in: profileIds } } });
   // 감사로그의 actorUserId는 SetNull이라 계정을 지워도 기록은 남는다 (설계대로).

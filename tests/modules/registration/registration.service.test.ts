@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { coreMocks } from "../../helpers/core-mocks";
 
 const findInviteByCode = vi.fn();
 const emailExists = vi.fn();
@@ -7,12 +8,14 @@ const findCurrentYearForUpdate = vi.fn();
 const completeStudentRegistration = vi.fn();
 const completeAdminRegistration = vi.fn();
 const completeParentRegistration = vi.fn();
-const recordAudit = vi.fn();
+const {
+  recordAudit,
+  txClient,
+  bareWithTransaction: withTransaction,
+} = coreMocks("registration-service-test");
 const requireVerified = vi.fn();
 const consumeVerifications = vi.fn();
 const createTemporaryVerifiedProof = vi.fn();
-const withTransaction = vi.fn();
-const txClient = { tx: true };
 const isStudentCodeCollision = vi.fn();
 
 class InviteRaceError extends Error {}
@@ -436,7 +439,8 @@ describe("completeRegistration() — 공통 방어", () => {
       Object.assign(new NumberTakenError(), {
         // 저장소가 실제로 던지는 값은 메시지가 없는 NumberTakenError뿐이지만,
         // 혹시라도 Prisma 원문이 메시지에 섞여 들어와도 새 나가지 않는지 같이 본다.
-        message: "Unique constraint failed on the fields: (`classId`,`number`)",
+        message:
+          "Unique constraint failed on the fields: (`year`,`grade`,`classNo`,`number`)",
       }),
     );
 

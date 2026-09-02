@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionUser } from "@/core/auth/session";
+import { user } from "../../../../helpers/session";
 
 const getSessionUser = vi.fn<() => Promise<SessionUser | null>>();
 const getMyStudentQr = vi.fn();
@@ -9,15 +10,10 @@ vi.mock("@/modules/pass/request.service", () => ({ getMyStudentQr }));
 
 const { GET } = await import("@/app/api/pass/qr/route");
 
-const student: SessionUser = {
-  id: "u-student",
+const student = user("STUDENT", "u-student", {
   name: "테스트 학생",
   email: "student@example.invalid",
-  role: "STUDENT",
-  status: "ACTIVE",
-  deletedAt: null,
-  mustChangePassword: false,
-};
+});
 
 beforeEach(() => {
   getSessionUser.mockReset().mockResolvedValue(student);

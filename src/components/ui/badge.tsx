@@ -7,8 +7,6 @@ export type BadgeTone =
   | "pending"
   | "rejected"
   | "cancelled"
-  | "read"
-  | "unread"
   | "info"
   | "neutral";
 
@@ -20,13 +18,11 @@ const TONES: Record<BadgeTone, string> = {
   pending: "border-amber-line bg-amber-soft text-amber-ink",
   rejected: "border-rose-line bg-rose-soft text-rose",
   cancelled: "border-line bg-mut-soft text-mut",
-  read: "border-line bg-mut-soft text-mut2",
-  unread: "border-pri-line bg-pri-soft text-pri-ink",
   info: "border-pri-line bg-pri-soft text-pri-ink",
   neutral: "border-line bg-mut-soft text-mut",
 };
 
-const WITH_DOT: ReadonlySet<BadgeTone> = new Set(["pending", "unread"]);
+const WITH_DOT: ReadonlySet<BadgeTone> = new Set(["pending"]);
 
 export function Badge({
   tone = "neutral",

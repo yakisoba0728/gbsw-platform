@@ -27,7 +27,6 @@ export async function AccountsPanel() {
 
   const rows: UserRow[] = users.map((u) => {
     const enrollment = u.studentProfile?.enrollments[0];
-    const cls = enrollment?.schoolClass;
     return {
       id: u.id,
       name: u.name,
@@ -38,12 +37,11 @@ export async function AccountsPanel() {
       active: u.status === "ACTIVE",
       mustChangePassword: u.mustChangePassword ?? false,
       classLabel: formatSeat({
-        grade: cls?.grade ?? null,
-        classNo: cls?.classNo ?? null,
+        grade: enrollment?.grade ?? null,
+        classNo: enrollment?.classNo ?? null,
         number: enrollment?.number ?? null,
       }),
       createdAt: formatDate(u.createdAt),
-      isSelf: u.id === actor.id,
     };
   });
 

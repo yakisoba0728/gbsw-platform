@@ -2,24 +2,66 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const studentProfileFindMany = vi.fn();
 const inviteCount = vi.fn();
+const inviteCreate = vi.fn();
+const inviteFindMany = vi.fn();
 const queryRaw = vi.fn();
 
 vi.mock("@/core/db/client", () => ({
   prisma: {
     studentProfile: { findMany: studentProfileFindMany },
-    invite: { count: inviteCount },
+    invite: { count: inviteCount, create: inviteCreate, findMany: inviteFindMany },
     $queryRaw: queryRaw,
   },
 }));
 
-const { countActiveByStudent, listStudents, lockStudentForParentInvite } = await import(
-  "@/modules/invites/invite.repo"
-);
+const {
+  countActiveByStudent,
+  insertInvite,
+  listByStudent,
+  listStudents,
+  lockStudentForParentInvite,
+} = await import("@/modules/invites/invite.repo");
 
 beforeEach(() => {
   studentProfileFindMany.mockReset().mockResolvedValue([]);
   inviteCount.mockReset().mockResolvedValue(0);
+  inviteCreate.mockReset().mockResolvedValue({ id: "inv-1" });
+  inviteFindMany.mockReset().mockResolvedValue([]);
   queryRaw.mockReset().mockResolvedValue([{ id: "sp-1" }]);
+});
+
+describe("insertInvite()", () => {
+  it("발급자 id와 이름 스냅샷을 함께 저장한다", async () => {
+    await insertInvite({
+      code: "ABCD2345",
+      role: "ADMIN",
+      metadata: { name: "신규 교사" },
+      expiresAt: null,
+      createdById: "admin-1",
+      createdByName: "관리자",
+    });
+
+    expect(inviteCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        createdById: "admin-1",
+        createdByName: "관리자",
+      }),
+    });
+  });
+});
+
+describe("listByStudent()", () => {
+  it("학생에게 귀속된 학부모 코드는 발급자를 가리지 않고 모두 보여준다", async () => {
+    await listByStudent("sp-1");
+
+    expect(inviteFindMany).toHaveBeenCalledWith({
+      where: { studentId: "sp-1", role: "PARENT" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    });
+    expect(inviteFindMany.mock.calls[0]![0].where).not.toHaveProperty(
+      "createdById",
+    );
+  });
 });
 
 describe("lockStudentForParentInvite()", () => {

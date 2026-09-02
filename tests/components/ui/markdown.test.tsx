@@ -27,7 +27,16 @@ describe("Markdown — 문법이 실제로 동작한다", () => {
   });
 
   it("번호 목록", () => {
-    expect(html("1. 하나\n2. 둘")).toContain("<ol");
+    const out = html("1. 하나\n2. 둘");
+    expect(out).toContain("<ol");
+    expect(out).toContain("my-3 list-decimal space-y-1 pl-5");
+  });
+
+  it("체크리스트도 목록 여백·글머리표를 잃지 않는다", () => {
+    const out = html("- [ ] 할 일\n- [x] 한 일");
+
+    expect(out).toContain("my-3 list-disc space-y-1 pl-5");
+    expect(out).toContain("contains-task-list");
   });
 
   it("제목은 h3부터 시작한다 — 페이지에 이미 h1·h2가 있다", () => {
@@ -44,6 +53,13 @@ describe("Markdown — 문법이 실제로 동작한다", () => {
   it("코드", () => {
     expect(html("`한 줄`")).toContain("<code");
     expect(html("```\n여러 줄\n```")).toContain("<pre");
+  });
+
+  it("언어가 붙은 코드 블록도 코드 디자인과 언어 class를 함께 가진다", () => {
+    const out = html("```js\nconst answer = 42;\n```");
+
+    expect(out).toContain("rounded-btn bg-soft px-1 py-0.5 text-caption");
+    expect(out).toContain("language-js");
   });
 
   it("표 (GFM)", () => {

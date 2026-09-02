@@ -117,7 +117,6 @@ export type PostPage = {
   posts: PostListItemView[];
   page: number;
   pageCount: number;
-  total: number;
   canWrite: boolean;
 };
 
@@ -146,7 +145,6 @@ export async function listPostPage(
     page,
     // 글이 없어도 한 쪽이다 — 페이지 0은 화면에서 표현할 수 없다.
     pageCount: Math.max(1, Math.ceil(total / POSTS_PER_PAGE)),
-    total,
     // 목록 화면의 「글쓰기」 버튼을 그릴지. 순수 함수를 직접 쓴다 — 버튼을
     // 그릴지 정하는 일이라 거부 기록이 필요 없다. 실제 통제는 createPost가
     // getWritableBySlug로 한다.
@@ -279,20 +277,11 @@ export async function updatePost(
     );
     if (!ok) throw new CommunityError("POST_CONFLICT");
 
-    // 이미 이 글에 붙어 있는 첨부는 다시 붙지 않으므로(`attachToPost`가
-    // `postId: null`인 행만 고른다) 붙은 개수만으로는 「그대로 둔 첨부」와
-    // 「사라진 첨부」를 못 가른다. 붙어 있던 것을 먼저 세어 둔다 — attach보다
-    // 뒤에 세면 방금 붙인 것까지 함께 세어진다.
-    const existingIds = new Set(
-      (await repo.listAttachments(input.postId, tx)).map((a) => a.id),
-    );
     const requested = [...new Set(input.attachmentIds)];
-    const kept = requested.filter((id) => existingIds.has(id)).length;
-
     const attached = await repo.attachToPost(requested, input.postId, actor.id, tx);
-    // 새 글과 같은 검사다 — 고아 정리가 그 사이 지운 첨부를 조용히 통과시키면
-    // 「일부만 사라진 글」이 오류도 안내도 없이 저장된다.
-    if (kept + attached !== requested.length) {
+    // 같은 글에 이미 붙은 첨부까지 attachToPost가 세므로 새 글과 같은 검사다.
+    // 고아 정리가 지운 첨부·남의 첨부·다른 글의 첨부는 세지 않아 막힌다.
+    if (attached !== requested.length) {
       throw new CommunityError("ATTACHMENT_NOT_FOUND");
     }
 
@@ -318,7 +307,9 @@ export async function updatePost(
           slug: community.slug,
           titleFrom: post.title,
           titleTo: input.title,
-          attachmentsAdded: attached,
+          // 새로 붙인 수가 아니라 **수정 뒤 남은 전체 첨부 수**다. 첨부가 꺼진
+          // 게시판은 기존 파일을 일부러 조회·삭제하지 않으므로 이 값도 생략한다.
+          ...(community.allowAttachments ? { attachments: attached } : {}),
           attachmentsRemoved: detached.length,
         },
       },
@@ -347,9 +338,14 @@ export async function updatePost(
     }
   });
 
-  // 커밋된 뒤에 디스크를 지운다.
+  // 커밋된 뒤에 디스크를 지운다. 실패해도 이미 저장된 글 수정을 실패로
+  // 보고할 수는 없으므로 서버에 남기고 다음 파일을 계속 정리한다.
   for (const file of detached) {
-    await deleteAttachment(file.storageKey, file.createdAt);
+    try {
+      await deleteAttachment(file.storageKey, file.createdAt);
+    } catch (error) {
+      console.error("[community] 분리한 첨부 파일을 지우지 못했습니다.", error);
+    }
   }
 
   return { slug: community.slug };
@@ -374,7 +370,7 @@ export async function deletePost(
   if (!isMine && !input.reason) throw new CommunityError("REASON_REQUIRED");
 
   await withTransaction(async (tx) => {
-    const removed = await repo.markPostDeleted(input.postId, actor.id, input.reason, tx);
+    const removed = await repo.markPostDeleted(input.postId, tx);
     // 이미 지운 글에 사유만 새로 남기지 않는다 — 삭제는 한 번만 일어난 일이다.
     if (removed === 0) return;
 

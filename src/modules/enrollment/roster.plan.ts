@@ -22,8 +22,6 @@ export type ExistingStudent = {
   hasGraduatedEnrollment: boolean;
   /** 이번 반영 전, 계정이 로그인 가능한 상태였는가. */
   accountActive: boolean;
-  /** 예전 deletedAt 표시. 새 명단 삭제 경로는 이 값을 만들지 않는다. */
-  deleted?: boolean;
 };
 
 export type PlannedRow = RosterRow & {
@@ -76,12 +74,14 @@ export function planRoster(
   // 파일 안의 중복을 먼저 본다. DB 유일 제약에 닿기 전에 읽을 수 있는 오류로 돌려준다.
   const seenCode = new Map<string, number>();
   const seenSeat = new Map<string, number>();
+  const seenNewIdentity = new Map<string, number>();
   const dupErrors = new Map<number, string[]>();
 
   for (const r of rows) {
     if (r.errors.length > 0) continue;
 
-    // 빈 학생코드는 전부 "신규"라 서로 겹쳐도 다른 사람이다.
+    // 학생코드가 있으면 그 값으로 같은 학생을 찾는다. 빈 신규 줄끼리는 아래에서
+    // 이름·생년월일을 맞대 같은 사람에게 코드가 두 장 나가는 것을 막는다.
     if (r.studentCode) {
       const prevCode = seenCode.get(r.studentCode);
       if (prevCode !== undefined) {
@@ -98,6 +98,17 @@ export function planRoster(
           `${prevSeat}행과 학년·반·번호가 같습니다.`,
         ]);
       } else seenSeat.set(sk, r.line);
+    }
+
+    if (!r.studentCode) {
+      const identity = `${r.name}|${r.birthDate}`;
+      const prevIdentity = seenNewIdentity.get(identity);
+      if (prevIdentity !== undefined) {
+        dupErrors.set(r.line, [
+          ...(dupErrors.get(r.line) ?? []),
+          `${prevIdentity}행과 이름·생년월일이 같습니다.`,
+        ]);
+      } else seenNewIdentity.set(identity, r.line);
     }
   }
 

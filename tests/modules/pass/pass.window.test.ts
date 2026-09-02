@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { PassError } from "@/modules/pass/pass.error";
-import { issueWindow, requestWindow } from "@/modules/pass/pass.window";
+import {
+  conflictWindow,
+  issueWindow,
+  requestWindow,
+} from "@/modules/pass/pass.window";
 
 /** 2026-08-27 (목) 09:00 KST */
 const NOW = new Date("2026-08-27T00:00:00.000Z");
@@ -186,6 +190,22 @@ describe("issueWindow — 교사 직접 부여", () => {
     expect(endAt.toISOString()).toBe("2026-08-27T09:00:00.000Z");
   });
 
+  it("KST로 날짜가 바뀐 뒤에는 새 날짜의 종료 시각을 쓴다", () => {
+    const afterKstMidnight = new Date("2026-08-27T16:00:00.000Z");
+    const { endAt } = issueWindow(
+      {
+        type: "OUTING",
+        studentId: "s-1",
+        endTime: "18:00",
+        destination: "치과",
+        reason: "검진",
+      },
+      afterKstMidnight,
+    );
+
+    expect(endAt.toISOString()).toBe("2026-08-28T09:00:00.000Z");
+  });
+
   it("끝이 이미 지났으면 INVALID_PERIOD", () => {
     expect(() =>
       issueWindow(
@@ -231,5 +251,17 @@ describe("issueWindow — 교사 직접 부여", () => {
     expect(() => issueWindow(input("2026-09-03", "09:01"), NOW)).toThrow(
       new PassError("PERIOD_TOO_LONG"),
     );
+  });
+});
+
+describe("conflictWindow — 연속 부재 방지 여백", () => {
+  it("유효 창의 앞뒤를 각각 60분 넓힌다", () => {
+    const result = conflictWindow({
+      startAt: new Date("2026-08-27T05:00:00.000Z"),
+      endAt: new Date("2026-08-27T09:00:00.000Z"),
+    });
+
+    expect(result.startAt.toISOString()).toBe("2026-08-27T04:00:00.000Z");
+    expect(result.endAt.toISOString()).toBe("2026-08-27T10:00:00.000Z");
   });
 });

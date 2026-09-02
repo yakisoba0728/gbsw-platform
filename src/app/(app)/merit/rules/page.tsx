@@ -9,7 +9,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { FilterRow } from "@/components/ui/filter-row";
 import { SearchForm } from "@/components/ui/search-form";
 import { SectionCard } from "@/components/ui/section-card";
-import { Skeleton, SkeletonTable } from "@/components/ui/skeleton";
+import {
+  Skeleton,
+  SkeletonRegion,
+  SkeletonTable,
+} from "@/components/ui/skeleton";
 import { DataTable, type Column } from "@/components/ui/table";
 import { requirePermission } from "@/core/auth/session";
 import {
@@ -173,7 +177,14 @@ export default async function MeritRulesPage({
         </Suspense>
       </SectionCard>
 
-      <Suspense key={`rows:${boundaryKey}`} fallback={<SkeletonTable rows={10} />}>
+      <Suspense
+        key={`rows:${boundaryKey}`}
+        fallback={
+          <SkeletonRegion>
+            <SkeletonTable rows={10} />
+          </SkeletonRegion>
+        }
+      >
         <RulesResult promise={rulesPromise} q={q} kind={kind} filtering={filtering} />
       </Suspense>
     </div>

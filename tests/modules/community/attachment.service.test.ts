@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
+import { coreMocks } from "../../helpers/core-mocks";
+import { user } from "../../helpers/session";
 
 const countPending = vi.fn();
 const lockAttachmentUploader = vi.fn();
@@ -12,11 +13,11 @@ const getReadableBySlug = vi.fn();
 const writeAttachment = vi.fn();
 const readAttachment = vi.fn();
 const deleteAttachment = vi.fn();
-const recordAudit = vi.fn();
-const txClient = { tx: "attachment-service-test" };
-const withTransaction = vi.fn(
-  async <T>(fn: (tx: typeof txClient) => Promise<T>) => fn(txClient),
-);
+const {
+  recordAudit,
+  txClient,
+  prewiredWithTransaction: withTransaction,
+} = coreMocks("attachment-service-test");
 
 vi.mock("@/modules/community/community.repo", () => ({
   countPending,
@@ -45,20 +46,8 @@ const { CommunityError } = await import("@/modules/community/community.error");
 const { ForbiddenError } = await import("@/core/authz/errors");
 const service = await import("@/modules/community/attachment.service");
 
-function user(role: SessionUser["role"], id: string): SessionUser {
-  return {
-    id,
-    name: "김민준",
-    email: "t@gbsw.hs.kr",
-    role,
-    status: "ACTIVE",
-    deletedAt: null,
-    mustChangePassword: false,
-  };
-}
-
-const student = user("STUDENT", "s-1");
-const parent = user("PARENT", "p-1");
+const student = user("STUDENT", "s-1", { name: "김민준" });
+const parent = user("PARENT", "p-1", { name: "김민준" });
 
 const board = {
   id: "c1",
@@ -229,7 +218,7 @@ describe("uploadAttachment — 익명 게시판의 메타데이터 벗기기", (
   });
 
   it("**실명 게시판도 벗긴다** — 익명만 벗기면 실명에 올려 그 id를 익명 글에 실으면 그만이다", async () => {
-    // 첨부는 글보다 먼저 올라가고 attachToPost는 올린 사람과 postId: null만 본다.
+    // 첨부는 글보다 먼저 올라가고 새 글의 attachToPost는 올린 사람과 postId: null만 본다.
     // 게시판으로 가르면 그 사이가 우회로가 된다.
     await service.uploadAttachment(student, { ...photo, bytes: jpegWithExif() });
 
@@ -290,17 +279,55 @@ describe("uploadAttachment — 문 ③: 미결 첨부 수", () => {
 });
 
 describe("uploadAttachment — 고아 정리", () => {
-  it("올릴 때마다 내 오래된 고아를 지운다 — DB와 디스크 둘 다", async () => {
+  it("내 고아와 주인이 사라진 고아를 구분해 지운다 — DB·디스크·감사로그", async () => {
     const createdAt = new Date("2026-08-27T00:00:00.000Z");
     listStalePending.mockResolvedValue([
-      { id: "old1", storageKey: "a".repeat(32), createdAt },
+      {
+        id: "old1",
+        storageKey: "a".repeat(32),
+        filename: "내-옛파일.pdf",
+        uploaderUserId: "s-1",
+        createdAt,
+      },
+      {
+        id: "old2",
+        storageKey: "b".repeat(32),
+        filename: "주인-없는-옛파일.pdf",
+        uploaderUserId: null,
+        createdAt,
+      },
     ]);
 
     await service.uploadAttachment(student, upload);
 
     expect(listStalePending).toHaveBeenCalledWith("s-1", expect.any(Date));
-    expect(deleteAttachments).toHaveBeenCalledWith(["old1"]);
+    expect(deleteAttachments).toHaveBeenCalledWith(["old1", "old2"], txClient);
     expect(deleteAttachment).toHaveBeenCalledWith("a".repeat(32), createdAt);
+    expect(deleteAttachment).toHaveBeenCalledWith("b".repeat(32), createdAt);
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "community:attachment:delete",
+        targetId: "old1",
+        metadata: expect.objectContaining({
+          filename: "내-옛파일.pdf",
+          cleanup: true,
+          orphaned: false,
+        }),
+      }),
+      txClient,
+    );
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "community:attachment:delete",
+        targetId: "old2",
+        metadata: expect.objectContaining({
+          filename: "주인-없는-옛파일.pdf",
+          cleanup: true,
+          orphaned: true,
+        }),
+      }),
+      txClient,
+    );
   });
 
   it("정리가 실패해도 업로드는 성공한다 — 청소가 본 일을 막지 않는다", async () => {
@@ -346,7 +373,15 @@ describe("uploadAttachment — DB와 디스크의 순서", () => {
     writeAttachment.mockRejectedValue(new Error("ENOSPC"));
 
     await expect(service.uploadAttachment(student, upload)).rejects.toThrow("ENOSPC");
-    expect(deleteAttachments).toHaveBeenCalledWith(["a1"]);
+    expect(deleteAttachments).toHaveBeenCalledWith(["a1"], txClient);
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "community:attachment:delete",
+        targetId: "a1",
+        metadata: expect.objectContaining({ filename: "가정통신문.pdf" }),
+      }),
+      txClient,
+    );
   });
 
   it("그 정리마저 실패해도 원래 오류를 올린다", async () => {
@@ -413,9 +448,51 @@ describe("getDownload", () => {
     });
 
     await expect(service.getDownload(student, "a1")).resolves.toBeDefined();
-    await expect(service.getDownload(user("STUDENT", "s-9"), "a1")).rejects.toThrow(
+    await expect(
+      service.getDownload(user("STUDENT", "s-9", { name: "김민준" }), "a1"),
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it.each([
+    ["다른 사용자가 올린", "s-1"],
+    ["올린 계정이 사라진", null],
+  ])("%s 미결 첨부 접근을 거부하고 대상을 기록한다", async (_label, uploaderUserId) => {
+    findAttachmentForDownload.mockResolvedValue({
+      ...attachment,
+      postId: null,
+      post: null,
+      uploaderUserId,
+    });
+    const intruder = user("STUDENT", "s-9", { name: "김민준" });
+
+    await expect(service.getDownload(intruder, "a1")).rejects.toThrow(
       ForbiddenError,
     );
+
+    expect(recordAudit).toHaveBeenCalledWith({
+      actorUserId: "s-9",
+      actorName: "김민준",
+      action: "authz:denied",
+      targetType: "CommunityAttachment",
+      targetId: "a1",
+      metadata: { action: "community:attachment:read" },
+    });
+    expect(readAttachment).not.toHaveBeenCalled();
+  });
+
+  it("감사 기록이 실패해도 소유권 거부는 ForbiddenError로 남는다", async () => {
+    findAttachmentForDownload.mockResolvedValue({
+      ...attachment,
+      postId: null,
+      post: null,
+      uploaderUserId: null,
+    });
+    recordAudit.mockRejectedValue(new Error("audit down"));
+
+    await expect(
+      service.getDownload(user("STUDENT", "s-9"), "a1"),
+    ).rejects.toThrow(new ForbiddenError("community:attachment:read"));
+    expect(readAttachment).not.toHaveBeenCalled();
   });
 
   it("없는 첨부면 ATTACHMENT_NOT_FOUND", async () => {

@@ -2,13 +2,13 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { auth } from "@/core/auth/auth";
 import type { Role } from "@/core/authz/roles";
 import {
   type BootstrapInput,
   bootstrapSchema,
 } from "@/modules/bootstrap/bootstrap.schema";
 import { createInitialAdmin } from "@/modules/bootstrap/bootstrap.service";
+import { signInSilently } from "@/modules/auth/auth.service";
 import {
   completeRegistrationSchema,
   inviteCodeSchema,
@@ -78,7 +78,7 @@ export async function createInitialAdminAction(
     return { error: "교사 계정을 만들 수 없습니다.", values };
   }
 
-  await signInSilently(parsed.data.email, parsed.data.password);
+  await signInSilently(parsed.data.email, parsed.data.password, headers());
   redirect("/");
 }
 
@@ -88,22 +88,38 @@ export type CheckInviteState = {
   code: string | null;
   role: Role | null;
   error: string | null;
+  values?: { code: string };
 };
 
 export async function checkInviteAction(
   _prev: CheckInviteState,
   formData: FormData,
 ): Promise<CheckInviteState> {
+  const values = { code: String(formData.get("code") ?? "") };
   const parsed = inviteCodeSchema.safeParse(formData.get("code"));
   if (!parsed.success) {
-    return { code: null, role: null, error: "가입코드를 입력해 주세요." };
+    return {
+      code: null,
+      role: null,
+      error: "가입코드를 입력해 주세요.",
+      values,
+    };
   }
 
   try {
     const { role } = await checkInvite(parsed.data);
     return { code: parsed.data, role, error: null };
-  } catch {
-    return { code: null, role: null, error: "쓸 수 없는 가입코드입니다." };
+  } catch (error) {
+    if (error instanceof RegistrationError) {
+      return { code: null, role: null, error: error.message, values };
+    }
+    console.error("[registration] 가입코드를 확인하지 못했습니다.", error);
+    return {
+      code: null,
+      role: null,
+      error: "쓸 수 없는 가입코드입니다.",
+      values,
+    };
   }
 }
 
@@ -156,7 +172,7 @@ export async function completeRegistrationAction(
     return { error: "가입하지 못했습니다.", values };
   }
 
-  await signInSilently(parsed.data.email, parsed.data.password);
+  await signInSilently(parsed.data.email, parsed.data.password, headers());
   redirect("/");
 }
 
@@ -243,17 +259,5 @@ export async function confirmVerificationAction(
     }
     console.error("[verification] 인증하지 못했습니다.", error);
     return { ok: false, error: "인증하지 못했습니다." };
-  }
-}
-
-/** 방금 만든 계정으로 바로 로그인시킨다. 실패해도 가입 자체는 성공이라 삼킨다. */
-async function signInSilently(email: string, password: string): Promise<void> {
-  try {
-    await auth.api.signInEmail({
-      body: { email, password },
-      headers: await headers(),
-    });
-  } catch {
-    // 로그인만 실패했으면 사용자가 /login에서 직접 하면 된다.
   }
 }

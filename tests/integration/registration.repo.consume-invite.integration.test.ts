@@ -53,6 +53,7 @@ describe("completeAdminRegistration() — 초대코드 동시 소진 (I7)", () =
         status: "PENDING",
         metadata: { name: "동시가입 테스트" },
         createdById: creatorId,
+        createdByName: "통합테스트 발급자",
       },
     });
   });

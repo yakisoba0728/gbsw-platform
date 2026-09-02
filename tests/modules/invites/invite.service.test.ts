@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
+import { coreMocks } from "../../helpers/core-mocks";
+import { user } from "../../helpers/session";
 
 // generateUniqueCode()가 generate-invite-code.ts(M15로 분리, node:crypto +
 // "server-only" 마커)를 부른다 — 마커 패키지를 무해하게 만든다.
@@ -16,11 +17,11 @@ const findById = vi.fn();
 const revokePending = vi.fn();
 const findStudentById = vi.fn();
 const listStudents = vi.fn();
-const recordAudit = vi.fn();
-const txClient = { tx: "invite-service-test" };
-const withTransaction = vi.fn(async (fn: (tx: typeof txClient) => Promise<unknown>) =>
-  fn(txClient),
-);
+const {
+  recordAudit,
+  txClient,
+  prewiredWithTransaction: withTransaction,
+} = coreMocks("invite-service-test");
 
 vi.mock("@/modules/invites/invite.repo", () => ({
   insertInvite,
@@ -53,19 +54,7 @@ const {
   revokeInvite,
 } = await import("@/modules/invites/invite.service");
 
-function user(role: SessionUser["role"], id = "u1"): SessionUser {
-  return {
-    id,
-    name: "테스트",
-    email: "t@gbsw.hs.kr",
-    role,
-    status: "ACTIVE",
-    deletedAt: null,
-    mustChangePassword: false,
-  };
-}
-
-const admin = user("ADMIN");
+const admin = user("ADMIN", "u1");
 const student = user("STUDENT", "s-user");
 const parent = user("PARENT", "p-user");
 
@@ -90,11 +79,7 @@ beforeEach(() => {
   listStudents.mockReset().mockResolvedValue([]);
   revokePending.mockReset().mockResolvedValue(1);
   recordAudit.mockReset();
-  withTransaction
-    .mockReset()
-    .mockImplementation(async (fn: (tx: typeof txClient) => Promise<unknown>) =>
-      fn(txClient),
-    );
+  withTransaction.mockClear();
 });
 
 describe("관리자 코드 발급", () => {
@@ -161,6 +146,10 @@ describe("관리자 코드 발급", () => {
 });
 
 describe("학부모 코드 발급", () => {
+  it("학생 한 명은 학부모 코드를 두 장까지만 살려둘 수 있다", () => {
+    expect(MAX_ACTIVE_PARENT_INVITES).toBe(2);
+  });
+
   it("학부모는 만들 수 없다", async () => {
     await expect(createParentInvite(parent, { name: "김보호" })).rejects.toThrow(
       "FORBIDDEN",
@@ -189,6 +178,21 @@ describe("학부모 코드 발급", () => {
     const arg = insertInvite.mock.calls[0]![0];
     expect(arg.role).toBe("PARENT");
     expect(arg.studentId).toBe("student-1");
+    expect(arg.createdByName).toBe(student.name);
+  });
+
+  it("학생이 만든 학부모 코드는 입력 없이도 90일 뒤 만료한다", async () => {
+    getStudentProfileByUserId.mockResolvedValue({ id: "student-1" });
+    const before = Date.now();
+
+    await createParentInvite(student, { name: "김보호" });
+
+    const { expiresAt } = insertInvite.mock.calls[0]![0];
+    const after = Date.now();
+    const ninetyDays = 90 * 24 * 60 * 60 * 1000;
+    expect(expiresAt).toBeInstanceOf(Date);
+    expect(expiresAt.getTime()).toBeGreaterThanOrEqual(before + ninetyDays);
+    expect(expiresAt.getTime()).toBeLessThanOrEqual(after + ninetyDays);
   });
 
   it("살아 있는 코드가 한도에 차면 더 만들지 못한다", async () => {
@@ -364,6 +368,46 @@ describe("폐기", () => {
     expect(revokePending).toHaveBeenCalledWith("inv1", txClient);
   });
 
+  it("학생은 교사가 발급했어도 자기에게 귀속된 학부모 코드를 폐기할 수 있다", async () => {
+    findById.mockResolvedValue({
+      id: "inv1",
+      role: "PARENT",
+      studentId: "student-1",
+      createdById: admin.id,
+    });
+    getStudentProfileByUserId.mockResolvedValue({ id: "student-1" });
+
+    await revokeInvite(student, { inviteId: "inv1", reason: "다시 발급" });
+
+    expect(revokePending).toHaveBeenCalledWith("inv1", txClient);
+    expect(recordAudit).not.toHaveBeenCalledWith(
+      expect.objectContaining({ action: "authz:denied" }),
+    );
+  });
+
+  it("학생에게 귀속됐어도 교사 초대코드는 폐기할 수 없다", async () => {
+    findById.mockResolvedValue({
+      id: "inv1",
+      role: "ADMIN",
+      studentId: "student-1",
+      createdById: admin.id,
+    });
+    getStudentProfileByUserId.mockResolvedValue({ id: "student-1" });
+
+    await expect(
+      revokeInvite(student, { inviteId: "inv1", reason: "역할이 다름" }),
+    ).rejects.toThrow("FORBIDDEN");
+
+    expect(revokePending).not.toHaveBeenCalled();
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: student.id,
+        action: "authz:denied",
+        targetType: "Invite",
+      }),
+    );
+  });
+
   it("남의 코드는 폐기하지 못한다", async () => {
     findById.mockResolvedValue({ id: "inv1", studentId: "other-student" });
     getStudentProfileByUserId.mockResolvedValue({ id: "student-1" });
@@ -426,8 +470,8 @@ describe("listMyParentInvites() — 세션에서만 유도한다", () => {
     );
 
     expect(getStudentProfileByUserId).toHaveBeenCalledWith(student.id);
-    expect(listByStudent).toHaveBeenCalledWith("sp-mine", student.id);
-    expect(listByStudent).not.toHaveBeenCalledWith("sp-남의학생", student.id);
+    expect(listByStudent).toHaveBeenCalledWith("sp-mine");
+    expect(listByStudent).not.toHaveBeenCalledWith("sp-남의학생");
   });
 
   it("학생 프로필이 없으면 빈 목록이다 — 코드가 새지 않는다", async () => {

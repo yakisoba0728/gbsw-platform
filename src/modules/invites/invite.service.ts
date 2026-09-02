@@ -17,7 +17,10 @@ import type {
 export class InviteError extends Error {}
 
 /** 학생 한 명이 동시에 살려둘 수 있는 학부모 코드 수. */
-export const MAX_ACTIVE_PARENT_INVITES = 3;
+export const MAX_ACTIVE_PARENT_INVITES = 2;
+
+/** 학생이 종이로 전달하는 학부모 코드는 분실 뒤에도 영원히 살아 있으면 안 된다. */
+const PARENT_INVITE_EXPIRES_DAYS = 90;
 
 /** 코드 충돌 시 재시도 횟수. 코드 공간의 근거는 generate-invite-code.ts에 있다. */
 const CODE_RETRIES = 5;
@@ -57,6 +60,7 @@ export async function createStudentInvite(
     },
     expiresAt: toExpiresAt(input.expiresInDays),
     createdById: actor.id,
+    createdByName: actor.name,
   };
 
   return withTransaction(async (tx) => {
@@ -87,6 +91,7 @@ export async function createAdminInvite(
     metadata: { name: input.name },
     expiresAt: toExpiresAt(input.expiresInDays),
     createdById: actor.id,
+    createdByName: actor.name,
   };
 
   return withTransaction(async (tx) => {
@@ -124,8 +129,9 @@ export async function createParentInvite(
     role: "PARENT",
     metadata: { name: input.name },
     studentId: profile.id,
-    expiresAt: toExpiresAt(input.expiresInDays),
+    expiresAt: toExpiresAt(PARENT_INVITE_EXPIRES_DAYS),
     createdById: actor.id,
+    createdByName: actor.name,
   };
 
   return withTransaction(async (tx) => {
@@ -171,6 +177,7 @@ export async function createParentInviteFor(
     studentId: student.id,
     expiresAt: toExpiresAt(input.expiresInDays),
     createdById: actor.id,
+    createdByName: actor.name,
   };
 
   return withTransaction(async (tx) => {
@@ -209,17 +216,17 @@ export async function listInvites(actor: SessionUser) {
   return repo.listAll(await getCurrentYear());
 }
 
-/** 학생 본인이 만든 학부모 코드 목록. studentId를 인자로 받지 않는다. */
+/** 학생 본인에게 귀속된 학부모 코드 목록. studentId를 인자로 받지 않는다. */
 export async function listMyParentInvites(sessionUser: { id: string }) {
   const profile = await repo.getStudentProfileByUserId(sessionUser.id);
   if (!profile) return [];
-  return repo.listByStudent(profile.id, sessionUser.id);
+  return repo.listByStudent(profile.id);
 }
 
 // ── 폐기 ──────────────────────────────────────────────────────
 
 /**
- * 코드 폐기. 교사는 아무 코드나, 학생은 자기가 만든 학부모 코드만 폐기할 수 있다.
+ * 코드 폐기. 교사는 아무 코드나, 학생은 자기에게 귀속된 학부모 코드를 폐기할 수 있다.
  * 이미 사용됐거나 폐기된 코드는 건드리지 않는다.
  */
 export async function revokeInvite(actor: SessionUser, input: RevokeInviteInput) {
@@ -236,8 +243,7 @@ export async function revokeInvite(actor: SessionUser, input: RevokeInviteInput)
     const owns =
       profile !== null &&
       invite.role === "PARENT" &&
-      invite.studentId === profile.id &&
-      invite.createdById === actor.id;
+      invite.studentId === profile.id;
     if (!owns) {
       try {
         await recordAudit({

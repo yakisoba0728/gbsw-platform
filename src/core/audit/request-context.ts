@@ -15,15 +15,18 @@ export async function readRequestContext(): Promise<RequestContext> {
   try {
     const h = await headers();
 
-    // 리버스 프록시 뒤라 원 IP는 x-forwarded-for 첫 항목이다.
+    // 앱은 127.0.0.1 뒤의 프록시 한 홉에서만 요청을 받는다. 따라서 목록의 마지막
+    // 항목이 프록시가 실제로 본 상대이고, 첫 항목은 클라이언트가 지어낼 수 있다.
     //
-    // 이 헤더는 클라이언트가 마음대로 보낼 수 있으므로, **앱이 프록시로만
-    // 닿을 때에만** 믿을 수 있다. compose가 앱을 127.0.0.1에 묶고 프록시가
-    // 이 헤더를 자기 값으로 덮어쓰는 것이 그 전제다. 앱을 외부에 직접
-    // 노출하면 누구나 아무 IP나 감사로그에 심을 수 있다.
+    // 마지막 항목 읽기는 덧붙임 오설정에 대한 둘째 방어선일 뿐이다. 프록시가
+    // 헤더를 아예 손대지 않고 넘기면 위조한 단일 값을 코드로 구분할 수 없으므로,
+    // compose의 루프백 바인딩과 프록시의 덮어쓰기는 여전히 필수다.
+    // X-Forwarded-Proto는 접속 IP 홉 목록이 아니라 원 요청의 scheme을 전하는
+    // 별도 헤더이므로 이 규칙의 대상이 아니다.
     const forwarded = h.get("x-forwarded-for");
+    const hops = forwarded?.split(",").map((value) => value.trim()).filter(Boolean) ?? [];
     const ip =
-      forwarded?.split(",")[0]?.trim() || h.get("x-real-ip")?.trim() || null;
+      hops[hops.length - 1] || h.get("x-real-ip")?.trim() || null;
 
     const userAgent = h.get("user-agent")?.slice(0, MAX_USER_AGENT) ?? null;
 

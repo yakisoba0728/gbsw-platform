@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { coreMocks } from "../../helpers/core-mocks";
 
 const verifyPassword = vi.fn();
-const withTransaction = vi.fn();
+const { bareWithTransaction: withTransaction } = coreMocks(
+  "credential-session-boundary-test",
+);
 
 vi.mock("better-auth/crypto", () => ({ verifyPassword }));
 vi.mock("@/core/db/client", () => ({

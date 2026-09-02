@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
 import { prisma } from "@/core/db/client";
 import { listPostPage } from "@/modules/community/post.service";
+import { user } from "../helpers/session";
 
 vi.mock("server-only", () => ({}));
 
@@ -15,15 +15,10 @@ const postIds = Array.from(
   (_, index) => `community-page-${suffix}-${String(index).padStart(2, "0")}`,
 );
 
-const actor: SessionUser = {
-  id: userId,
+const actor = user("ADMIN", userId, {
   name: "페이지 정렬 관리자",
   email: `community-page-${suffix}@example.invalid`,
-  role: "ADMIN",
-  status: "ACTIVE",
-  deletedAt: null,
-  mustChangePassword: false,
-};
+});
 
 describe("게시판 offset 페이지 정렬", () => {
   beforeAll(async () => {

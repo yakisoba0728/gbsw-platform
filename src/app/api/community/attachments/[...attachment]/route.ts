@@ -38,14 +38,10 @@ export async function GET(
 
     return new NextResponse(new Uint8Array(file.bytes), {
       headers: {
+        // CSP·nosniff는 next.config.ts의 ATTACHMENT_HEADERS가 소유한다.
         "Content-Type": file.mimeType,
         "Content-Length": String(file.bytes.byteLength),
         "Content-Disposition": contentDisposition(file.filename, file.inline),
-        // 브라우저가 타입을 추측해 실행하지 않게.
-        "X-Content-Type-Options": "nosniff",
-        // 허용 목록이 뚫려 HTML이 흘러도 아무것도 못 하게. 이 응답에만 건다 —
-        // next.config.ts의 전역 CSP는 페이지용이라 여기서 덮어쓴다.
-        "Content-Security-Policy": "default-src 'none'; sandbox",
         // 권한이 붙은 자료라 프록시가 들고 있으면 안 된다.
         "Cache-Control": "private, no-store",
       },
@@ -53,10 +49,7 @@ export async function GET(
   } catch (error) {
     // 권한이 없는 것과 없는 것을 가르지 않는다 — 가르면 첨부 id를 훑어
     // "존재하는 id"를 알아낼 수 있다.
-    if (error instanceof ForbiddenError) {
-      return NextResponse.json({ error: "찾을 수 없습니다." }, { status: 404 });
-    }
-    if (error instanceof CommunityError) {
+    if (error instanceof ForbiddenError || error instanceof CommunityError) {
       return NextResponse.json({ error: "찾을 수 없습니다." }, { status: 404 });
     }
     // 행은 있는데 디스크에 파일이 없는 경우(업로드가 커밋 뒤 쓰기에서 실패한 자리).

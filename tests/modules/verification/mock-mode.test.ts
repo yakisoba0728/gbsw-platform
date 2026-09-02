@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { coreMocks } from "../../helpers/core-mocks";
 
 const countRecentSends = vi.fn();
 const countRecentSendsByIp = vi.fn();
@@ -8,8 +9,10 @@ const insertCode = vi.fn();
 const deleteById = vi.fn();
 const sendVerification = vi.fn();
 const readRequestContext = vi.fn();
-const withTransaction = vi.fn();
-const txClient = { tx: true };
+const {
+  txClient,
+  bareWithTransaction: withTransaction,
+} = coreMocks("verification-mock-mode-test");
 
 vi.mock("@/modules/verification/verification.repo", () => ({
   countRecentSends,

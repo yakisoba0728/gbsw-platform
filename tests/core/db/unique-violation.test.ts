@@ -68,14 +68,16 @@ describe("isUniqueViolation() — 드라이버 어댑터 모양", () => {
   });
 
   it("복합 제약이면 구성 컬럼 어느 쪽으로 물어도 잡힌다", () => {
-    const error = adapterP2002(["classId", "number"]);
+    const error = adapterP2002(["year", "grade", "classNo", "number"]);
     expect(isUniqueViolation(error, "number")).toBe(true);
-    expect(isUniqueViolation(error, "classId")).toBe(true);
+    expect(isUniqueViolation(error, "classNo")).toBe(true);
   });
 
   it("제약에 없는 필드로는 잡히지 않는다", () => {
     expect(isUniqueViolation(adapterP2002(["email"]), "number")).toBe(false);
-    expect(isUniqueViolation(adapterP2002(["classId", "number"]), "email")).toBe(false);
+    expect(
+      isUniqueViolation(adapterP2002(["year", "grade", "classNo", "number"]), "email"),
+    ).toBe(false);
   });
 
   it("어댑터가 컬럼 목록 대신 인덱스 이름만 주면 이름 안에서 찾는다", () => {
@@ -123,7 +125,9 @@ describe("isUniqueViolation() — 드라이버 어댑터 모양", () => {
 describe("isUniqueViolation() — 구형(meta.target) 모양", () => {
   it("배열로 온 target에서 필드를 찾는다 — 어댑터 없이 돌 때를 위한 뒷문", () => {
     expect(isUniqueViolation(legacyP2002(["email"]), "email")).toBe(true);
-    expect(isUniqueViolation(legacyP2002(["classId", "number"]), "number")).toBe(true);
+    expect(
+      isUniqueViolation(legacyP2002(["year", "grade", "classNo", "number"]), "number"),
+    ).toBe(true);
     expect(isUniqueViolation(legacyP2002(["email"]), "number")).toBe(false);
   });
 

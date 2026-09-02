@@ -24,6 +24,12 @@ export function IssueForm({
   today: string;
 }) {
   const [type, setType] = useState<PassType>("OUTING");
+  const [endDate, setEndDate] = useState(today);
+  const [endTime, setEndTime] = useState("");
+  const [destination, setDestination] = useState("");
+  const [reason, setReason] = useState("");
+  const [guardianConfirmed, setGuardianConfirmed] = useState(false);
+  const [consentNote, setConsentNote] = useState("");
   const [state, action, pending] = useActionState(issueAction, EMPTY_PASS_STATE);
 
   /**
@@ -35,7 +41,15 @@ export function IssueForm({
   const [handled, setHandled] = useState(state);
   if (state !== handled) {
     setHandled(state);
-    if (state.ok) setPickerKey((n) => n + 1);
+    if (state.ok) {
+      setPickerKey((n) => n + 1);
+      setEndDate(today);
+      setEndTime("");
+      setDestination("");
+      setReason("");
+      setGuardianConfirmed(false);
+      setConsentNote("");
+    }
   }
 
   return (
@@ -64,7 +78,15 @@ export function IssueForm({
       {type === "OUTING" ? (
         <>
           <Label htmlFor="endTime">돌아오는 시각</Label>
-          <Input id="endTime" name="endTime" type="time" required className="mb-4" />
+          <Input
+            id="endTime"
+            name="endTime"
+            type="time"
+            value={endTime}
+            onChange={(event) => setEndTime(event.target.value)}
+            required
+            className="mb-4"
+          />
         </>
       ) : (
         // 이 폼은 사이드 칼럼(20rem)에도 서므로 두 칸을 나란히 두지 않는다 —
@@ -75,13 +97,22 @@ export function IssueForm({
             id="endDate"
             name="endDate"
             type="date"
-            defaultValue={today}
+            value={endDate}
+            onChange={(event) => setEndDate(event.target.value)}
             min={today}
             required
             className="mb-4"
           />
           <Label htmlFor="endTime">돌아오는 시각</Label>
-          <Input id="endTime" name="endTime" type="time" required className="mb-4" />
+          <Input
+            id="endTime"
+            name="endTime"
+            type="time"
+            value={endTime}
+            onChange={(event) => setEndTime(event.target.value)}
+            required
+            className="mb-4"
+          />
         </>
       )}
 
@@ -89,6 +120,8 @@ export function IssueForm({
       <Input
         id="issue-destination"
         name="destination"
+        value={destination}
+        onChange={(event) => setDestination(event.target.value)}
         maxLength={60}
         required
         className="mb-4"
@@ -98,6 +131,8 @@ export function IssueForm({
       <Textarea
         id="issue-reason"
         name="reason"
+        value={reason}
+        onChange={(event) => setReason(event.target.value)}
         rows={2}
         maxLength={200}
         required
@@ -109,11 +144,15 @@ export function IssueForm({
           <CheckboxField
             name="guardianConfirmed"
             value="on"
+            checked={guardianConfirmed}
+            onChange={(event) => setGuardianConfirmed(event.target.checked)}
             label="보호자를 확인했습니다"
             required
           />
           <Input
             name="consentNote"
+            value={consentNote}
+            onChange={(event) => setConsentNote(event.target.value)}
             size="sm"
             maxLength={100}
             placeholder="확인 방법 (예: 아버지와 통화)"

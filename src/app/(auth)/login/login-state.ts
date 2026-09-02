@@ -15,5 +15,6 @@ export type LoginErrorCode = keyof typeof LOGIN_ERROR_MESSAGES;
 
 export function loginErrorMessage(value: unknown): string | null {
   if (typeof value !== "string") return null;
-  return LOGIN_ERROR_MESSAGES[value as LoginErrorCode] ?? null;
+  if (!Object.hasOwn(LOGIN_ERROR_MESSAGES, value)) return null;
+  return LOGIN_ERROR_MESSAGES[value as LoginErrorCode];
 }

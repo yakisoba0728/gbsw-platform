@@ -119,11 +119,6 @@ async function createStudent(year: number, tag: string) {
     data: [{ year, isCurrent: false }],
     skipDuplicates: true,
   });
-  const schoolClass = await prisma.schoolClass.upsert({
-    where: { year_grade_classNo: { year, grade: 1, classNo: 1 } },
-    create: { year, grade: 1, classNo: 1 },
-    update: {},
-  });
 
   await prisma.user.create({
     data: {
@@ -137,14 +132,15 @@ async function createStudent(year: number, tag: string) {
         create: {
           studentCode,
           birthDate: new Date("2010-03-04T00:00:00+09:00"),
-              enrollments: {
-                create: {
-                  year,
-                  classId: schoolClass.id,
-                  number: 1,
-                  status: "ENROLLED",
-                },
-              },
+          enrollments: {
+            create: {
+              year,
+              grade: 1,
+              classNo: 1,
+              number: 1,
+              status: "ENROLLED",
+            },
+          },
         },
       },
     },
@@ -182,9 +178,6 @@ afterEach(async () => {
   await prisma.user.deleteMany({ where: { id: { in: created.userIds } } });
   if (created.academicYears.length > 0) {
     await setOnlyCurrentYear(FALLBACK_CURRENT_YEAR);
-    await prisma.schoolClass.deleteMany({
-      where: { year: { in: created.academicYears } },
-    });
     await prisma.academicYear.deleteMany({
       where: { year: { in: created.academicYears } },
     });
@@ -232,13 +225,15 @@ describe("현재 학년도 전환과 확정 저장 경합", () => {
         },
       },
       select: {
+        grade: true,
+        classNo: true,
         number: true,
-        schoolClass: { select: { grade: true, classNo: true } },
       },
     });
     expect(enrollment).toMatchObject({
+      grade: 1,
+      classNo: 1,
       number: 1,
-      schoolClass: { grade: 1, classNo: 1 },
     });
   });
 

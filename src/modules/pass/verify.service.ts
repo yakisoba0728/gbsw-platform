@@ -149,8 +149,8 @@ function toVerifiedStudent(profile: repo.PassWithStudent["studentProfile"]) {
     studentName: profile.user.name,
     studentNumber: enrollment
       ? formatStudentNumber({
-          grade: enrollment.schoolClass?.grade ?? null,
-          classNo: enrollment.schoolClass?.classNo ?? null,
+          grade: enrollment.grade,
+          classNo: enrollment.classNo,
           number: enrollment.number,
         })
       : null,

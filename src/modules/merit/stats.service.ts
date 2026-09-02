@@ -28,6 +28,63 @@ import { scopeYear, sumTotals, type MeritTotals } from "./award.service";
 /** 아직 아무것도 안 더한 합계. 부여자 줄을 만들 때의 출발점이다. */
 const EMPTY_TOTALS: MeritTotals = withNetScore(emptyKindTotals());
 
+type ClassRosterRow = Awaited<ReturnType<typeof repo.listClassRoster>>[number];
+
+export type ClassSummary = {
+  grade: number;
+  classNo: number;
+  students: number;
+  merit: number;
+  demerit: number;
+  offset: number;
+  net: number;
+  avgNet: number;
+};
+
+/**
+ * 전교 명단의 학생별 합계를 반별로 접는다. DB 표현을 알지 않는 순수 함수라
+ * 명단 술어·합계 범위는 listClassRoster 한 곳만 책임진다.
+ */
+export function foldClasses(rows: readonly ClassRosterRow[]): ClassSummary[] {
+  const byClass = new Map<
+    string,
+    {
+      grade: number;
+      classNo: number;
+      students: number;
+      merit: number;
+      demerit: number;
+      offset: number;
+    }
+  >();
+
+  for (const row of rows) {
+    const { grade, classNo } = row;
+    // 반 미배정 학생은 전교 명단에는 남지만 반별 표에는 담을 줄이 없다.
+    if (grade === null || classNo === null) continue;
+
+    const key = `${grade}-${classNo}`;
+    const current =
+      byClass.get(key) ?? { grade, classNo, students: 0, ...emptyKindTotals() };
+    current.students += 1;
+    // 기록이 없는 학생도 listClassRoster가 0점으로 내므로 평균의 분모에 든다.
+    addKindTotals(current, row);
+    byClass.set(key, current);
+  }
+
+  return [...byClass.values()]
+    .map((row) => {
+      const net = withNetScore(row).net;
+      return {
+        ...row,
+        net,
+        // 인원이 0인 반은 위에서 만들어지지 않으므로 나눗셈이 안전하다.
+        avgNet: Math.round((net / row.students) * 10) / 10,
+      };
+    })
+    .sort((a, b) => a.grade - b.grade || a.classNo - b.classNo);
+}
+
 /**
  * 통계 화면이 쓰는 집계. 합계 접기와 학년도 범위는 조회와 공유해야 하므로
  * award.service에서 가져다 쓴다 — 이쪽에서 저쪽으로만 의존한다.
@@ -53,7 +110,7 @@ export type MeritStats = {
   /** 반 편성 기준 학년도. 기숙사여도 반은 어느 해 기준인지가 필요하다. */
   rosterYear: number;
   totals: MeritTotals & { awardCount: number };
-  classes: Awaited<ReturnType<typeof repo.classSummaries>>;
+  classes: ClassSummary[];
   topRules: TopRuleRow[];
   /** 벌점이 기준(warn) 이상인 학생들 — 벌점 많은 순. 표시 전용이다. */
   watchList: WatchListRow[];
@@ -123,8 +180,8 @@ async function readWatchList(
           studentProfileId: student.id,
           name: student.user.name,
           studentCode: student.studentCode,
-          grade: enrollment?.schoolClass?.grade ?? null,
-          classNo: enrollment?.schoolClass?.classNo ?? null,
+          grade: enrollment?.grade ?? null,
+          classNo: enrollment?.classNo ?? null,
           number: enrollment?.number ?? null,
           demerit: row.demerit,
           level: demeritLevel(thresholds, row.demerit),
@@ -223,32 +280,52 @@ export type TopRuleRow = {
   points: number;
 };
 
+type AwardsByRule = Awaited<ReturnType<typeof repo.awardsByRule>>;
+type CurrentRule = AwardsByRule["rules"][number];
+
+/** 두 규정별 화면이 같은 현재 이름·스냅샷 대체 규칙을 쓰게 한다. */
+function indexCurrentRules(rules: readonly CurrentRule[]): Map<string, CurrentRule> {
+  return new Map(rules.map((rule) => [rule.id, rule]));
+}
+
+function currentRuleLabel(
+  row: AwardsByRule["rows"][number],
+  rulesById: ReadonlyMap<string, CurrentRule>,
+): string {
+  return rulesById.get(row.ruleId)?.label ?? row.label;
+}
+
 /**
  * 규정 하나를 한 줄로 만든다. repo는 (ruleId·label 스냅샷·kind)로 묶어 오므로
- * 이름을 고친 규정이 여러 줄로 온다 — repo가 붙여 준 **현재 이름**이 그 줄들을
- * 도로 하나로 모은다(getRuleStats가 ruleId로 접는 것과 같은 결과다).
+ * 이름을 고친 규정이 여러 줄로 온다 — 함께 온 **현재 규정 이름**으로 그 줄들을
+ * 도로 하나로 모은다(getRuleStats가 ruleId로 접는 것과 같은 결과다). 현재 규정을
+ * 찾지 못하면 부여 시점 이름 스냅샷을 보존한다.
  *
  * 접는 열쇠를 ruleId가 아니라 (kind·label)로 두는 이유: 화면이 그 둘을 행 key로
  * 쓴다. 이름이 같은 별개 규정 둘을 따로 내면 같은 key가 두 번 나온다 — 화면에서
  * 구분되지도 않는 두 줄이다.
  */
-function foldTopRules(rows: Awaited<ReturnType<typeof repo.topRules>>): TopRuleRow[] {
+function foldTopRules({ rows, rules }: AwardsByRule): TopRuleRow[] {
   const folded = new Map<string, TopRuleRow>();
+  const rulesById = indexCurrentRules(rules);
 
   for (const row of rows) {
-    const key = `${row.kind}\u0000${row.label}`;
+    const label = currentRuleLabel(row, rulesById);
+    const count = row._count._all;
+    const points = row._sum.points ?? 0;
+    const key = `${row.kind}\u0000${label}`;
     const cur = folded.get(key);
     if (!cur) {
       folded.set(key, {
-        label: row.label,
+        label,
         kind: row.kind,
-        count: row.count,
-        points: row.points,
+        count,
+        points,
       });
       continue;
     }
-    cur.count += row.count;
-    cur.points += row.points;
+    cur.count += count;
+    cur.points += points;
   }
 
   // 건수는 흔하게 같다 — 자르는 자리에 동점이 걸리면 어느 항목이 남는지가
@@ -289,15 +366,15 @@ export async function getMeritStats(
   // 화면마다 달라진다. 그래프가 덮는 기간은 chartRange로 내보낸다.
   const since = isYearScoped(track) ? undefined : monthStart(axis[0].key);
 
-  // 학생 목록을 먼저 뽑아야 나머지 질의에 넘길 수 있어서 이 조회만 앞선다.
+  // 반별 현황과 학생별 현황이 같은 명단·합계를 보도록 전교 명단을 한 번만 읽고
+  // 고른 반은 메모리에서 좁힌다. 범위를 DB에 넘기면 반별 순위가 한 줄로 무너진다.
+  const allRoster = await repo.listClassRoster({
+    year: rosterYear,
+    track,
+    totalsYear: scoped,
+  });
   const classRoster = scope
-    ? await repo.listClassRoster({
-        year: rosterYear,
-        grade: scope.grade,
-        classNo: scope.classNo,
-        track,
-        totalsYear: scoped,
-      })
+    ? allRoster.filter((row) => row.grade === scope.grade && row.classNo === scope.classNo)
     : null;
   const studentProfileIds = classRoster?.map((r) => r.studentProfileId);
 
@@ -306,13 +383,12 @@ export async function getMeritStats(
   // 반을 안 골랐을 때 학생 조건이 통째로 빠지면 머리글·항목·그래프가 「반별
   // 현황」과 다른 모집단을 센다(퇴학·졸업으로 재적이 끊긴 학생이 머리글에만
   // 남는다). rosterYear를 넘겨 repo가 같은 명단 술어를 걸게 한다.
-  const [totalRows, classes, topRules, chartAwards, watchList] = await Promise.all([
+  const [totalRows, ruleAwards, chartAwards, watchList] = await Promise.all([
     repo.trackTotals({ track, totalsYear: scoped, rosterYear, studentProfileIds }),
-    repo.classSummaries({ year: rosterYear, track, totalsYear: scoped }),
-    repo.topRules({ track, totalsYear: scoped, rosterYear, studentProfileIds }),
+    repo.awardsByRule({ track, totalsYear: scoped, rosterYear, studentProfileIds }),
     repo.listAwardsForChart({
       track,
-      year: scoped,
+      totalsYear: scoped,
       since,
       rosterYear,
       studentProfileIds,
@@ -322,6 +398,7 @@ export async function getMeritStats(
 
   const totals = sumTotals(totalRows);
   const awardCount = totalRows.reduce((sum, row) => sum + row._count._all, 0);
+  const classes = foldClasses(allRoster);
 
   return {
     track,
@@ -339,7 +416,7 @@ export async function getMeritStats(
     classes: scope
       ? classes.filter((c) => c.grade === scope.grade && c.classNo === scope.classNo)
       : classes,
-    topRules: foldTopRules(topRules),
+    topRules: foldTopRules(ruleAwards),
     watchList,
     thresholds,
   };
@@ -388,8 +465,13 @@ export async function getTeacherStats(
 ): Promise<TeacherStats> {
   await assertCan(actor, "merit:read:any");
 
-  const scoped = await scopeYear(track, year);
-  const { byUser, byName } = await repo.teacherTotals({ track, totalsYear: scoped });
+  const rosterYear = year ?? (await getCurrentYear());
+  const scoped = await scopeYear(track, rosterYear);
+  const { byUser, byName } = await repo.teacherTotals({
+    track,
+    totalsYear: scoped,
+    rosterYear,
+  });
 
   // 살아 있는 계정은 지금 이름을 쓴다 — 스냅샷은 개명 전 이름일 수 있다.
   const ids = [...new Set(byUser.map((r) => r.awardedByUserId!))];
@@ -483,13 +565,14 @@ export async function getRuleStats(
 ): Promise<RuleStats> {
   await assertCan(actor, "merit:read:any");
 
-  const scoped = await scopeYear(track, year);
+  const rosterYear = year ?? (await getCurrentYear());
+  const scoped = await scopeYear(track, rosterYear);
   const [{ rows, rules }, unused] = await Promise.all([
-    repo.ruleStats({ track, totalsYear: scoped }),
+    repo.awardsByRule({ track, totalsYear: scoped, rosterYear }),
     repo.unusedRules({ track, totalsYear: scoped }),
   ]);
 
-  const byId = new Map(rules.map((r) => [r.id, r]));
+  const byId = indexCurrentRules(rules);
 
   // 한 규정이 여러 줄로 오는 것을 여기서 접는다. 부여 기록의 label은 부여 시점
   // 스냅샷이고 규정 수정이 이름을 바꿀 수 있어(updateRuleSchema), 이름을 고친 뒤
@@ -516,7 +599,7 @@ export async function getRuleStats(
       // 규정의 현재 이름을 쓴다 — 이름을 고친 직후 옛 이름이 뜨면 방금 고친 사람이
       // 자기가 고친 항목을 못 찾는다. 규정 행은 지우는 경로가 없어 언제나 찾히지만,
       // 못 찾으면 스냅샷으로 떨어진다.
-      label: rule?.label ?? row.label,
+      label: currentRuleLabel(row, byId),
       kind: row.kind,
       category: rule?.category ?? null,
       // active가 false면 규정 관리에서 지운 것이다. 기록은 남으므로 여기 나온다.
@@ -562,7 +645,7 @@ export type RankingStats = {
    */
   students: RankedStudent[];
   /** 반 순위 — 1인 평균 순점수 순. 인원이 다른 반을 합계로 줄 세우면 큰 반이 불리하다. */
-  classes: (Awaited<ReturnType<typeof repo.classSummaries>>[number] & { rank: number })[];
+  classes: (ClassSummary & { rank: number })[];
   thresholds: DemeritThresholds;
 };
 
@@ -583,9 +666,9 @@ export async function getRankingStats(
   const rosterYear = year ?? (await getCurrentYear());
   const thresholds = await getDemeritThresholds(track);
 
-  // 두 갈래를 따로 쓴다 — 한 삼항으로 묶으면 두 조회의 합집합 타입이 되어
-  // 어느 쪽에도 없는 필드를 컴파일러가 막지 못한다.
-  const classesPromise = repo.classSummaries({
+  // 반 순위까지 만들 전교 명단이므로 scope를 DB에 넘기지 않는다. 고른 반 학생만
+  // 아래에서 좁혀도 반별 현황은 전교 그대로 남고, 조회 실패도 처리 밖에 떠 있지 않는다.
+  const all = await repo.listClassRoster({
     year: rosterYear,
     track,
     totalsYear: scoped,
@@ -593,22 +676,13 @@ export async function getRankingStats(
 
   let students: RankedStudent[];
   if (scope) {
-    // repo가 이미 번호순으로 준다. 반 소속은 고른 반 그 자체다.
-    const roster = await repo.listClassRoster({
-      year: rosterYear,
-      grade: scope.grade,
-      classNo: scope.classNo,
-      track,
-      totalsYear: scoped,
-    });
-    students = withRanks(
-      roster.map((r) => ({ ...r, grade: scope.grade, classNo: scope.classNo })),
-      thresholds,
-      true,
+    // 전교 명단이 학년·반·번호순이므로 한 반만 남겨도 번호순이다.
+    const roster = all.filter(
+      (row) => row.grade === scope.grade && row.classNo === scope.classNo,
     );
+    students = withRanks(roster, thresholds, true);
   } else {
     // 범위를 주지 않는다 — 순위는 전교가 대상이고 반 미배정 학생도 들어가야 한다.
-    const all = await repo.listClassRoster({ year: rosterYear, track, totalsYear: scoped });
     students = withRanks(
       [...all].sort((a, b) => b.net - a.net || a.name.localeCompare(b.name, "ko")),
       thresholds,
@@ -622,7 +696,7 @@ export async function getRankingStats(
     rosterYear,
     scope: scope ?? null,
     students,
-    classes: rankClasses(await classesPromise),
+    classes: rankClasses(foldClasses(all)),
     thresholds,
   };
 }

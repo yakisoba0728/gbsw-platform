@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { previewFingerprintFor } from "@/app/(app)/admin/students/import/preview-fingerprint";
+import { applySuccessMessage } from "@/app/(app)/admin/students/import/action-state";
 import type { RosterRow } from "@/modules/enrollment/roster.parse";
 import type { RosterPlan } from "@/modules/enrollment/roster.plan";
 
@@ -123,5 +124,16 @@ describe("previewFingerprintFor()", () => {
     expect(previewFingerprintFor({ ...base, notices: ["I2Cca"] })).not.toBe(
       previewFingerprintFor({ ...base, notices: ["eCada"] }),
     );
+  });
+});
+
+describe("applySuccessMessage()", () => {
+  it("실제 변경·초대코드 발급·명단 제외를 서로 다른 수로 알린다", () => {
+    expect(
+      applySuccessMessage({ saved: 1, invitesIssued: 2, deleted: 3 }),
+    ).toBe("1건 반영, 초대코드 2장 발급, 3명 명단에서 뺐습니다.");
+    expect(
+      applySuccessMessage({ saved: 0, invitesIssued: 300, deleted: 0 }),
+    ).toBe("0건 반영, 초대코드 300장 발급했습니다.");
   });
 });

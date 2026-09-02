@@ -64,7 +64,7 @@ describe("액션 라벨 커버리지", () => {
     // 스캐너가 조용히 좁아진 채 통과하면 이 테스트는 의미가 없어진다 — 하한을
     // 실제 개수 바로 아래에 둔다. 예전 13은 27을 놓친 스캐너도 통과시켰다.
     // 감사로그 액션을 **의도해서** 없앴다면 이 숫자도 함께 내린다.
-    expect(recorded.size).toBeGreaterThanOrEqual(39);
+    expect(recorded.size).toBeGreaterThanOrEqual(43);
 
     const known = new Set<string>(AUDIT_ACTIONS);
     const missing = [...recorded].filter((a) => !known.has(a));
@@ -79,6 +79,12 @@ describe("auditActionLabel() / auditActionTone()", () => {
 
     expect(auditActionLabel("invite:create:parent")).toBe("학부모 코드 발급");
     expect(auditActionTone("invite:create:parent")).toBe("approved");
+
+    expect(auditActionLabel("auth:logout")).toBe("로그아웃");
+    expect(auditActionTone("auth:logout")).toBe("neutral");
+
+    expect(auditActionLabel("roster:preview")).toBe("명단 미리보기");
+    expect(auditActionTone("roster:preview")).toBe("info");
   });
 
   it("모르는 액션은 원본 문자열 그대로, 톤은 neutral로 떨어진다", () => {
@@ -138,6 +144,34 @@ describe("formatAuditMetadata()", () => {
     ).toBe("생년월일 · 학년 바뀜");
   });
 
+  it("계정 수정·상태 변경·비밀번호 초기화 사유를 한글로 그린다", () => {
+    expect(
+      formatAuditMetadata("user:update", {
+        changed: ["name"],
+        reason: "전학",
+      }),
+    ).toBe("이름 바뀜 · 사유: 전학");
+    expect(formatAuditMetadata("user:activate", { reason: "복학" })).toBe(
+      "사유: 복학",
+    );
+    expect(formatAuditMetadata("user:deactivate", { reason: "전학" })).toBe(
+      "사유: 전학",
+    );
+    expect(formatAuditMetadata("user:reset-password", { reason: "분실" })).toBe(
+      "사유: 분실",
+    );
+  });
+
+  it("community:delete — 게시판 제거 사유를 한글로 그린다", () => {
+    expect(
+      formatAuditMetadata("community:delete", {
+        slug: "notice",
+        name: "공지사항",
+        reason: "게시판 통합",
+      }),
+    ).toBe("사유: 게시판 통합");
+  });
+
   it("user:update — 모르는 필드 키는 원본 그대로 섞어 보여준다", () => {
     expect(formatAuditMetadata("user:update", { changed: ["foo", "name"] })).toBe(
       "foo · 이름 바뀜",
@@ -195,6 +229,16 @@ describe("formatAuditMetadata()", () => {
         newAssignment: 0,
       }),
     ).toBe("2026학년도 · 신규 2 · 초대발급 1");
+  });
+
+  it("roster:preview — 개인정보 없이 파일·기존·누락 건수만 한글로 그린다", () => {
+    const result = formatAuditMetadata("roster:preview", {
+      year: 2026,
+      fileRows: 1,
+      existing: 312,
+      missingFromFile: 311,
+    });
+    expect(result).toBe("2026학년도 · 파일 1명 · 기존 312명 · 누락 311명");
   });
 
   it("academic-year:set-current — 이전 학년도를 보여준다", () => {

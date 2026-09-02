@@ -18,14 +18,6 @@ import { join } from "node:path";
 
 const ROOT = join(process.cwd(), "src", "app");
 
-/** 갈래마다 return이라 한 번에 하나만 서는 화면. 형제가 아니므로 충돌하지 않는다. */
-const ALLOWED = new Map<string, string>([
-  [
-    "src/app/(app)/merit/stats/page.tsx",
-    "갈래(view)마다 따로 return하고 두 경계가 shell과 본문으로 부모가 갈린다",
-  ],
-]);
-
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const full = join(dir, name);
@@ -45,18 +37,8 @@ describe("형제 Suspense 경계의 key", () => {
   it("맨 key={boundaryKey}를 쓰는 화면이 없다", () => {
     const offenders = files
       .filter((file) => readFileSync(file, "utf8").includes("key={boundaryKey}"))
-      .map((file) => file.slice(process.cwd().length + 1))
-      .filter((rel) => !ALLOWED.has(rel));
+      .map((file) => file.slice(process.cwd().length + 1));
 
     expect(offenders).toEqual([]);
-  });
-
-  it("허용 목록에 죽은 항목이 없다", () => {
-    for (const [rel] of ALLOWED) {
-      const source = readFileSync(join(process.cwd(), rel), "utf8");
-      expect(source, `${rel}은 이제 맨 key를 쓰지 않는다`).toContain(
-        "key={boundaryKey}",
-      );
-    }
   });
 });

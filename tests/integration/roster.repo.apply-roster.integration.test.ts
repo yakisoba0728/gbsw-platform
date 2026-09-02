@@ -65,7 +65,8 @@ describe("applyRoster() — 명단에서 빠진 학생은 DB에서 영구 삭제
       data: {
         studentProfileId,
         year: YEAR,
-        classId: null,
+        grade: null,
+        classNo: null,
         number: null,
         status: "ENROLLED",
       },
@@ -106,6 +107,7 @@ describe("applyRoster() — 명단에서 빠진 학생은 DB에서 영구 삭제
           role: "PARENT",
           status: "PENDING",
           createdById: studentUserId,
+          createdByName: "통합테스트 학생",
           studentId: studentProfileId,
         },
         {
@@ -113,6 +115,7 @@ describe("applyRoster() — 명단에서 빠진 학생은 DB에서 영구 삭제
           role: "PARENT",
           status: "PENDING",
           createdById: adminId,
+          createdByName: "통합테스트 관리자",
           studentId: studentProfileId,
         },
         {
@@ -120,9 +123,9 @@ describe("applyRoster() — 명단에서 빠진 학생은 DB에서 영구 삭제
           role: "PARENT",
           status: "USED",
           createdById: adminId,
+          createdByName: "통합테스트 관리자",
           studentId: studentProfileId,
           usedById: parentUserId,
-          usedAt: new Date(),
         },
       ],
     });
@@ -137,7 +140,6 @@ describe("applyRoster() — 명단에서 빠진 학생은 DB에서 영구 삭제
     await prisma.user.deleteMany({
       where: { id: { in: [parentUserId, studentUserId, adminId] } },
     });
-    await prisma.schoolClass.deleteMany({ where: { year: YEAR } });
     await prisma.academicYear.deleteMany({ where: { year: YEAR } });
   });
 
@@ -160,6 +162,7 @@ describe("applyRoster() — 명단에서 빠진 학생은 DB에서 영구 삭제
       managedStudentProfileIds: [studentProfileId],
       deleteStudentProfileIds: [studentProfileId],
       createdById: adminId,
+      createdByName: "통합테스트 관리자",
     });
 
     expect(result.revokedInvites.map((i) => i.id).sort()).toEqual(removedIds);

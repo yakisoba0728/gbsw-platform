@@ -76,7 +76,6 @@ export async function approvePass(
       outcome = await repo.transitionUnexpired(
         input.passId,
         ["REQUESTED"],
-        now,
         {
           ...decisionFields,
           decisionNote,
@@ -98,7 +97,6 @@ export async function approvePass(
         outcome = await repo.transitionUnexpired(
           input.passId,
           ["CONSENTED"],
-          now,
           { ...decisionFields, decisionNote },
           tx,
         );
@@ -107,7 +105,6 @@ export async function approvePass(
       outcome = await repo.transitionUnexpired(
         input.passId,
         DECIDABLE_STATUSES,
-        now,
         { ...decisionFields, decisionNote },
         tx,
       );
@@ -465,8 +462,8 @@ function toExportRow(pass: PassWithStudent): PassHistoryExportRow {
   return {
     type: pass.type,
     status: pass.status,
-    grade: enrollment?.schoolClass?.grade ?? null,
-    classNo: enrollment?.schoolClass?.classNo ?? null,
+    grade: enrollment?.grade ?? null,
+    classNo: enrollment?.classNo ?? null,
     number: enrollment?.number ?? null,
     studentName: pass.studentProfile.user.name,
     startAt: pass.startAt,

@@ -18,7 +18,7 @@ import {
   NUMBER_RANGE_MESSAGE,
 } from "@/modules/enrollment/enrollment.schema";
 import { ROSTER_COLUMNS } from "@/modules/enrollment/roster.export";
-import { ROSTER_FILE_MAX_BYTES } from "./roster.schema";
+import { MAX_ROSTER_ROWS, ROSTER_FILE_MAX_BYTES } from "./roster.schema";
 
 /**
  * 명단 파일을 정규화된 행으로 옮긴다. 형식별 코드는 `string[][]`까지만 만들고
@@ -43,8 +43,6 @@ export type RosterRow = {
 };
 
 export class RosterParseError extends Error {}
-
-const MAX_ROSTER_ROWS = 2000;
 
 const XLSX_SIGNATURES = {
   endOfCentralDirectory: 0x06054b50,
@@ -459,7 +457,7 @@ export function normalizeRows(table: string[][]): RosterRow[] {
     throw new RosterParseError("TOO_MANY_ROWS");
   }
 
-  const header = table[0]!.map((h) => h.trim());
+  const header = table[0]!.map((h) => h.trim().normalize("NFC"));
   const at = (name: string) => header.indexOf(name);
   // 학생코드 열은 없어도 오류가 아니다 — 그 경우 전 줄이 신규로 분류된다.
   const missing = ROSTER_COLUMNS.filter((c) => c !== "학생코드" && at(c) === -1);
@@ -558,7 +556,7 @@ export function normalizeRows(table: string[][]): RosterRow[] {
 export function fileNotices(table: string[][]): string[] {
   if (table.length === 0) return [];
 
-  const header = table[0]!.map((h) => h.trim());
+  const header = table[0]!.map((h) => h.trim().normalize("NFC"));
   const notices: string[] = [];
 
   if (!header.includes("학생코드")) {

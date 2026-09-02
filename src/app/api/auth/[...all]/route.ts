@@ -1,6 +1,7 @@
 import { toNextJsHandler } from "better-auth/next-js";
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/core/auth/auth";
+import { signOut } from "@/modules/auth/auth.service";
 
 const handlers = toNextJsHandler(auth);
 
@@ -8,15 +9,15 @@ type AuthRouteContext = { params: Promise<{ all: string[] }> };
 
 const SAFE_ENDPOINTS: Record<string, ReadonlySet<string>> = {
   GET: new Set(["get-session"]),
-  POST: new Set(["get-session", "sign-in/email", "sign-out"]),
+  POST: new Set(["sign-out"]),
 };
 
 /**
  * Better Auth의 raw mutation endpoint를 앱 밖으로 열지 않는다.
  *
- * 이 앱은 로그인·세션조회·로그아웃만 Better Auth 라우트로 쓴다. 사용자 수정,
- * 비밀번호 변경, admin mutation은 반드시 앱 서비스 계층을 지나야 감사로그와
- * 업무 규칙이 함께 적용된다.
+ * 이 앱은 세션조회·로그아웃만 Better Auth 라우트로 쓴다. 로그인은 감사로그를
+ * 남기는 /login/submit으로, 사용자 수정·비밀번호 변경·admin mutation은 앱 서비스
+ * 계층으로만 지나야 업무 규칙이 함께 적용된다.
  */
 export async function isAllowedAuthEndpoint(
   method: "GET" | "POST",
@@ -36,7 +37,13 @@ async function guarded(
   if (!(await isAllowedAuthEndpoint(method, context))) {
     return new NextResponse(null, { status: 404 });
   }
-  return handler(request);
+
+  const { all } = await context.params;
+  if (method !== "POST" || all.join("/") !== "sign-out") {
+    return handler(request);
+  }
+
+  return signOut(request);
 }
 
 export async function GET(request: NextRequest, context: AuthRouteContext) {

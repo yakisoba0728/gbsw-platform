@@ -456,7 +456,7 @@ export function ClassRoster({
         </Note>
       )}
 
-      {/* 폼 안에 둔다 — 확인 버튼이 이 폼을 제출한다. */}
+      {/* 폼 안에 둔다 — 확인 버튼이 이 폼을 찾아 requestSubmit()으로 제출한다. */}
       {rule && (
         <AwardConfirmDialog
           open={confirmOpen}

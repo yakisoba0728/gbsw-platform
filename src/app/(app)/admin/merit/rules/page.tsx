@@ -15,7 +15,11 @@ import { ChipLink } from "@/components/ui/chip-link";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SearchForm } from "@/components/ui/search-form";
 import { SectionCard } from "@/components/ui/section-card";
-import { Skeleton, SkeletonTable } from "@/components/ui/skeleton";
+import {
+  Skeleton,
+  SkeletonRegion,
+  SkeletonTable,
+} from "@/components/ui/skeleton";
 import { TrackTabs } from "@/components/merit/track-tabs";
 import { hrefWith } from "@/lib/search-params";
 import { filterRules } from "@/components/merit/rule-filter";
@@ -124,7 +128,14 @@ export default async function RulesPage({
         </Suspense>
       </SectionCard>
 
-      <Suspense key={`rows:${boundaryKey}`} fallback={<SkeletonTable rows={10} />}>
+      <Suspense
+        key={`rows:${boundaryKey}`}
+        fallback={
+          <SkeletonRegion>
+            <SkeletonTable rows={10} />
+          </SkeletonRegion>
+        }
+      >
         <RulesResult
           promise={rulesPromise}
           q={q}

@@ -57,7 +57,7 @@ model User {
   ///      `app/api/community/attachments/**`.
   ///   2. 계정 관리: `admin-users/admin-user.repo.ts`(목록 필터·상세 select)와
   ///      `admin-user.service.ts`의 `ACCOUNT_DELETED`, 사용자 상세의 「삭제 표시일」.
-  ///   3. 명단·초대: `enrollment/roster.repo.ts`(기존 명단 조회와 `deleted` 표시),
+  ///   3. 명단·초대: `enrollment/roster.repo.ts`(기존 명단 조회),
   ///      `enrollment/enrollment.repo.ts`의 `listByYear`, `invites/invite.repo.ts`.
   ///   4. 전자출입증: `pass/pass.repo.ts`(부여 선택지·QR 조회).
   /// 즉 값을 채우는 날 소프트 삭제는 그대로 동작한다.
@@ -224,17 +224,11 @@ model ParentStudent {
 /// (`ON "AcademicYear" ("isCurrent") WHERE "isCurrent"`)이고,
 /// `prisma/migrations/20260813005023_academic_year_and_enrollment/migration.sql`에
 /// 손으로 적혀 있다. **Prisma는 부분 인덱스를 표현하지 못해 여기에 대응 선언이
-/// 없다** — 즉 스키마만 보면 이 인덱스는 존재하지 않는 것처럼 보인다.
+/// 없다. Prisma 7.9.1의 `migrate diff`가 이 인덱스를 드리프트로 보지 않는 것을 빈
+/// 마이그레이션으로 확인했으며, **Prisma 메이저 업그레이드 때 다시 확인한다.**
 ///
-/// 그래서 `prisma migrate dev`가 스키마와 섀도 DB를 비교하면 이 인덱스를
-/// **군더더기로 보고 `DROP INDEX`를 생성할 수 있다.** 드롭돼도 아무 오류가 나지
-/// 않는다는 것이 위험한 지점이다: `isCurrent = true`인 행이 둘이 되고,
-/// `academic-year.repo.findCurrent()`는 `findFirst`라 어느 쪽이 나올지 모른 채
-/// 전교 상벌점의 집계 범위가 요청마다 흔들린다.
-///
-/// **마이그레이션을 새로 만들면 생성된 SQL을 눈으로 확인하고, 이 인덱스를 지우는
-/// 줄이 있으면 지워라.** 같은 이유로 `academic-year.repo.setCurrent`는 "먼저 전부
-/// 내리고 나서 올린다"는 순서를 지켜야 하고,
+/// 이 인덱스의 유일 제약 때문에 `academic-year.repo.setCurrent`는 "먼저 전부 내리고
+/// 나서 올린다"는 순서를 지켜야 하고,
 /// `tests/integration/academic-year.single-current.integration.test.ts`가 이
 /// 불변식을 통째로 검증한다.
 model AcademicYear {
@@ -242,28 +236,12 @@ model AcademicYear {
   isCurrent Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  classes     SchoolClass[]
   enrollments Enrollment[]
   meritAwards MeritAward[]
 }
 
-/// 학년/반. 학년도마다 별개의 행이다 — "1학년 3반"이 해마다 새로 생긴다.
-model SchoolClass {
-  id        String   @id @default(cuid())
-  year      Int
-  grade     Int
-  classNo   Int
-  createdAt DateTime @default(now())
-
-  academicYear AcademicYear @relation(fields: [year], references: [year], onDelete: Restrict)
-  enrollments  Enrollment[]
-
-  @@unique([year, grade, classNo])
-  @@index([year])
-}
-
 /// 학생의 그 학년도 소속과 학적.
-/// classId·number는 ENROLLED일 때만 채운다 — 졸업·자퇴에 반과 번호는 의미가 없다.
+/// grade·classNo·number는 ENROLLED일 때만 채운다 — 졸업·자퇴에는 의미가 없다.
 model Enrollment {
   id String @id @default(cuid())
 
@@ -273,13 +251,9 @@ model Enrollment {
   year         Int
   academicYear AcademicYear @relation(fields: [year], references: [year], onDelete: Restrict)
 
-  classId     String?
-  // 반이 지워져도 지난 학년도 소속 기록은 남아야 한다 ("기록은 지우지 않는다").
-  // academicYear와 같은 이유로 Restrict — SetNull이면 SchoolClass 삭제 한 번에
-  // 그 반을 거쳐간 모든 학년도의 Enrollment에서 반 정보가 조용히 사라진다.
-  schoolClass SchoolClass? @relation(fields: [classId], references: [id], onDelete: Restrict)
-
-  number Int?
+  grade   Int?
+  classNo Int?
+  number  Int?
 
   /// src/core/authz/enrollment-status.ts의 EnrollmentStatus와 일치해야 한다.
   status String @default("ENROLLED")
@@ -289,11 +263,10 @@ model Enrollment {
 
   /// 한 학생은 한 학년도에 한 줄. 동시 요청은 애플리케이션 검사로 못 막는다.
   @@unique([studentProfileId, year])
-  /// 한 반에 같은 번호 둘을 막는다. Postgres는 NULL을 서로 다르게 보므로
-  /// 비재학 행끼리는 걸리지 않는다 — 의도한 동작이다.
-  @@unique([classId, number])
+  /// 한 학년도·학년·반에 같은 번호 둘을 막는다. Postgres는 NULL을 서로 다르게
+  /// 보므로 비재학 행끼리는 걸리지 않는다 — 의도한 동작이다.
+  @@unique([year, grade, classNo, number])
   @@index([year])
-  @@index([studentProfileId])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -327,17 +300,17 @@ model Invite {
   /// 2차 요소 대조 실패 횟수. 5회 도달 시 코드를 폐기한다.
   failedAttempts Int @default(0)
 
-  createdById String
-  createdBy   User   @relation("InviteCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  /// 발급자가 탈퇴하면 참조만 끊고 발급 당시 이름은 스냅샷으로 보존한다.
+  createdById   String?
+  createdBy     User?  @relation("InviteCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdByName String
 
   /// 코드 하나는 계정 하나만 만든다.
   usedById String?   @unique
   usedBy   User?     @relation("InviteUsedBy", fields: [usedById], references: [id], onDelete: SetNull)
-  usedAt   DateTime?
 
   createdAt DateTime @default(now())
 
-  @@index([status])
   @@index([createdById])
   @@index([studentId])
 }
@@ -378,7 +351,6 @@ model VerificationCode {
   createdAt DateTime @default(now())
 
   @@index([channel, target])
-  @@index([expiresAt])
   @@index([requestIp, createdAt])
 }
 
@@ -667,9 +639,7 @@ model CommunityPost {
   authorRole String
 
   /// 삭제는 행을 지우지 않는다. 댓글이 매달려 있다.
-  deletedAt       DateTime?
-  deletedByUserId String?
-  deletedReason   String?
+  deletedAt DateTime?
 
   comments    CommunityComment[]
   attachments CommunityAttachment[]
@@ -694,9 +664,7 @@ model CommunityComment {
   authorName   String
   authorRole   String
 
-  deletedAt       DateTime?
-  deletedByUserId String?
-  deletedReason   String?
+  deletedAt DateTime?
 
   createdAt DateTime @default(now())
 

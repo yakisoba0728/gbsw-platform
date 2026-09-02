@@ -40,7 +40,9 @@ const { AcademicYearError } = await import(
 const { issuePreviewToken } = await import(
   "@/modules/enrollment/roster.preview-token"
 );
-const { rosterRowsSchema } = await import("@/modules/enrollment/roster.schema");
+const { MAX_ROSTER_ROWS, rosterRowsSchema } = await import(
+  "@/modules/enrollment/roster.schema"
+);
 const { previewRosterAction, applyRosterAction, exportRosterAction } =
   await import("@/app/(app)/admin/students/import/actions");
 
@@ -144,6 +146,7 @@ const PREVIEW_INITIAL = {
 const APPLY_INITIAL = {
   error: null,
   saved: null,
+  invitesIssued: null,
   deleted: null,
   excludedNew: [],
   invites: [],
@@ -163,6 +166,7 @@ beforeEach(() => {
   });
   applyRosterPlan.mockResolvedValue({
     saved: 2,
+    invitesIssued: 0,
     deleted: 0,
     invites: [],
     excludedNewStudents: [],
@@ -229,6 +233,16 @@ describe("previewRosterAction — 경계 검증", () => {
     expect(state.error).toBe("읽을 수 있는 줄이 없습니다. 서식 파일을 받아 확인해 주세요.");
   });
 
+  it("행 수 초과 안내는 실제 명단 상한을 따른다", async () => {
+    // 실제 파서는 RosterError가 아니라 RosterParseError(일반 Error)를 올린다.
+    previewRoster.mockRejectedValueOnce(new Error("TOO_MANY_ROWS"));
+    const file = new File(["a"], "명단.csv");
+
+    const state = await previewRosterAction(PREVIEW_INITIAL, form({ file }));
+
+    expect(state.error).toBe(`한 번에 ${MAX_ROSTER_ROWS}줄까지 올릴 수 있습니다.`);
+  });
+
   it("사전에 없는 오류는 영문을 화면에 흘리지 않는다", async () => {
     previewRoster.mockRejectedValueOnce(new Error("Corrupt zip"));
     const file = new File(["a"], "명단.xlsx");
@@ -264,6 +278,7 @@ describe("applyRosterAction — 경계 검증", () => {
     expect(state).toEqual({
       error: null,
       saved: 2,
+      invitesIssued: 0,
       deleted: 0,
       excludedNew: [],
       invites: [],
@@ -450,6 +465,7 @@ describe("applyRosterAction — 경계 검증", () => {
   it("계정이 안 만들어진 신규 줄을 화면까지 전달한다", async () => {
     applyRosterPlan.mockResolvedValueOnce({
       saved: 3,
+      invitesIssued: 1,
       deleted: 1,
       invites: [{ code: "GBSWAAAA1111" }],
       excludedNewStudents: [{ line: 7, name: "김철수" }],
@@ -459,6 +475,7 @@ describe("applyRosterAction — 경계 검증", () => {
 
     expect(state.excludedNew).toEqual([{ line: 7, name: "김철수" }]);
     expect(state.invites).toHaveLength(1);
+    expect(state.invitesIssued).toBe(1);
     expect(state.deleted).toBe(1);
   });
 

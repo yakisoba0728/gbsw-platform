@@ -65,8 +65,8 @@ export async function uploadAttachment(
   // ②′ 사진의 촬영 위치·기기·시각을 벗긴다.
   //
   // **게시판을 가리지 않는다.** 익명 게시판만 벗기면 우회로가 남는다 — 첨부는 글보다
-  // 먼저 올라가고 `attachToPost`는 올린 사람과 `postId: null`만 보므로, 실명 게시판에
-  // 올려 벗기기를 건너뛴 id를 익명 게시판 글에 실어 보내면 그만이다. 그 구멍을 막는
+  // 먼저 올라가고 새 글의 `attachToPost`는 올린 사람과 `postId: null`만 보므로, 실명
+  // 게시판에 올려 벗기기를 건너뛴 id를 익명 게시판 글에 실어 보내면 그만이다. 그 구멍을 막는
   // 값이 아끼는 값보다 크다: 재인코딩이 아니라 세그먼트를 도려내는 방식이라 비용이
   // 버퍼 한 벌 복사뿐이고, 벗길 것이 없으면 원본 참조가 그대로 돌아와 복사도 없다.
   // 실명 게시판이라고 촬영 위치가 붙어 나갈 이유도 없다.
@@ -87,7 +87,7 @@ export async function uploadAttachment(
   }
 
   // ③ 미결 수. 정리를 먼저 돌려 방금 만료된 것이 상한을 차지하지 않게 한다.
-  await sweepMyOrphans(actor.id);
+  await sweepMyOrphans(actor);
 
   const storageKey = newStorageKey();
 
@@ -145,7 +145,24 @@ export async function uploadAttachment(
   } catch (error) {
     // 쓰기가 실패했으면 가리킬 것이 없는 행이다. 최선을 다해 지우고 올린다 —
     // 이 정리가 실패해도 남는 것은 행 하나뿐이라 고아 정리가 나중에 걷어 간다.
-    await repo.deleteAttachments([id]).catch(() => {});
+    await withTransaction(async (tx) => {
+      await repo.deleteAttachments([id], tx);
+      await recordAudit(
+        {
+          actorUserId: actor.id,
+          actorName: actor.name,
+          action: "community:attachment:delete",
+          targetType: "CommunityAttachment",
+          targetId: id,
+          metadata: {
+            slug: community.slug,
+            filename: input.filename,
+            writeFailed: true,
+          },
+        },
+        tx,
+      );
+    }).catch(() => {});
     throw error;
   }
 
@@ -158,18 +175,41 @@ export async function uploadAttachment(
 }
 
 /**
- * 내 고아만 지운다. 크론 없이 수렴하고 남의 행은 건드리지 않는다.
+ * 이 사용자의 고아와, 계정이 완전히 삭제돼 uploaderUserId가 null인 고아를 지운다.
+ * 크론 없이 다음 업로드 때마다 수렴한다.
  * **실패해도 삼킨다** — 청소가 본 일을 막으면 안 된다.
  */
-async function sweepMyOrphans(uploaderUserId: string): Promise<void> {
+async function sweepMyOrphans(actor: SessionUser): Promise<void> {
   try {
     const stale = await repo.listStalePending(
-      uploaderUserId,
+      actor.id,
       new Date(Date.now() - PENDING_TTL_MS),
     );
     if (stale.length === 0) return;
 
-    await repo.deleteAttachments(stale.map((a) => a.id));
+    await withTransaction(async (tx) => {
+      await repo.deleteAttachments(
+        stale.map((attachment) => attachment.id),
+        tx,
+      );
+      for (const attachment of stale) {
+        await recordAudit(
+          {
+            actorUserId: actor.id,
+            actorName: actor.name,
+            action: "community:attachment:delete",
+            targetType: "CommunityAttachment",
+            targetId: attachment.id,
+            metadata: {
+              filename: attachment.filename,
+              cleanup: true,
+              orphaned: attachment.uploaderUserId !== actor.id,
+            },
+          },
+          tx,
+        );
+      }
+    });
     for (const attachment of stale) {
       await deleteAttachment(attachment.storageKey, attachment.createdAt);
     }
@@ -185,6 +225,27 @@ export type Download = {
   inline: boolean;
 };
 
+/** 글에 붙기 전 첨부의 소유권 거부. 감사 실패가 원래 거부를 바꾸지 않는다. */
+async function denyOwnership(
+  actor: SessionUser,
+  action: string,
+  attachmentId: string,
+): Promise<never> {
+  try {
+    await recordAudit({
+      actorUserId: actor.id,
+      actorName: actor.name,
+      action: "authz:denied",
+      targetType: "CommunityAttachment",
+      targetId: attachmentId,
+      metadata: { action },
+    });
+  } catch {
+    // 감사 기록 실패가 거부 자체를 막지 않는다.
+  }
+  throw new ForbiddenError(action);
+}
+
 export async function getDownload(
   actor: SessionUser,
   attachmentId: string,
@@ -196,7 +257,7 @@ export async function getDownload(
     // 아직 글에 안 붙은 첨부. 글쓰기 화면의 미리보기가 이 길로 온다.
     // **올린 본인만** — 게시판 권한으로는 가릴 수 없는 상태다.
     if (attachment.uploaderUserId === null || attachment.uploaderUserId !== actor.id) {
-      throw new ForbiddenError("community:attachment:read");
+      await denyOwnership(actor, "community:attachment:read", attachmentId);
     }
   } else {
     // 지워진 글의 첨부는 없는 것으로 친다 — 글이 안 보이는데 첨부만 열리면 안 된다.

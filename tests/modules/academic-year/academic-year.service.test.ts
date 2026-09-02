@@ -1,13 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
+import { coreMocks } from "../../helpers/core-mocks";
+import { user } from "../../helpers/session";
 
 const findCurrent = vi.fn();
 const listYearsRepo = vi.fn();
 const createYearRepo = vi.fn();
 const setCurrentRepo = vi.fn();
-const recordAudit = vi.fn();
-const withTransaction = vi.fn();
-const tx = { tx: true };
+const {
+  recordAudit,
+  txClient: tx,
+  bareWithTransaction: withTransaction,
+} = coreMocks("academic-year-service-test");
 
 class YearTakenError extends Error {}
 
@@ -24,19 +27,7 @@ vi.mock("@/core/db/client", () => ({ withTransaction }));
 const { AcademicYearError, createYear, getCurrentYear, listYears, setCurrentYear } =
   await import("@/modules/academic-year/academic-year.service");
 
-function user(role: SessionUser["role"], id = "admin-1"): SessionUser {
-  return {
-    id,
-    name: "테스트",
-    email: "t@gbsw.hs.kr",
-    role,
-    status: "ACTIVE",
-    deletedAt: null,
-    mustChangePassword: false,
-  };
-}
-
-const admin = user("ADMIN");
+const admin = user("ADMIN", "admin-1");
 const student = user("STUDENT", "s-1");
 
 beforeEach(() => {

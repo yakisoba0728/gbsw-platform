@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
+import { user } from "../../helpers/session";
 
 /**
  * 기준 초과 학생 명단. 명단이 한 명 짧아도 화면은 멀쩡해 보이므로 경계값과
@@ -13,8 +13,7 @@ const DANGER = 18;
 const getDemeritThresholds = vi.fn();
 
 const trackTotals = vi.fn();
-const classSummaries = vi.fn();
-const topRules = vi.fn();
+const awardsByRule = vi.fn();
 const listAwardsForChart = vi.fn();
 const listClassRoster = vi.fn();
 const demeritTotalsByStudent = vi.fn();
@@ -22,8 +21,7 @@ const findStudentsWithClass = vi.fn();
 
 vi.mock("@/modules/merit/merit.repo", () => ({
   trackTotals,
-  classSummaries,
-  topRules,
+  awardsByRule,
   listAwardsForChart,
   listClassRoster,
   demeritTotalsByStudent,
@@ -38,19 +36,7 @@ vi.mock("@/modules/merit/threshold.service", () => ({ getDemeritThresholds }));
 
 const service = await import("@/modules/merit/stats.service");
 
-function user(role: SessionUser["role"]): SessionUser {
-  return {
-    id: "u-1",
-    name: "이정민",
-    email: "t@gbsw.hs.kr",
-    role,
-    status: "ACTIVE",
-    deletedAt: null,
-    mustChangePassword: false,
-  };
-}
-
-const admin = user("ADMIN");
+const admin = user("ADMIN", "u-1", { name: "이정민" });
 const NOW = new Date("2026-08-16T12:00:00+09:00");
 
 /** repo.demeritTotalsByStudent가 내는 모양. */
@@ -65,7 +51,7 @@ function student(id: string, name: string, enrolled = true) {
     studentCode: `CODE-${id}`,
     user: { name },
     enrollments: enrolled
-      ? [{ number: 3, schoolClass: { grade: 2, classNo: 3 } }]
+      ? [{ grade: 2, classNo: 3, number: 3 }]
       : [],
   };
 }
@@ -74,9 +60,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   getDemeritThresholds.mockResolvedValue({ warn: WARN, danger: DANGER });
   trackTotals.mockResolvedValue([]);
-  classSummaries.mockResolvedValue([]);
-  topRules.mockResolvedValue([]);
+  awardsByRule.mockResolvedValue({ rows: [], rules: [] });
   listAwardsForChart.mockResolvedValue([]);
+  listClassRoster.mockResolvedValue([]);
   demeritTotalsByStudent.mockResolvedValue([]);
   findStudentsWithClass.mockResolvedValue([]);
 });
@@ -144,6 +130,17 @@ describe("기준 초과 명단 — 경계", () => {
 });
 
 describe("기준 초과 명단 — 순서와 소속", () => {
+  it("재학생 소속을 학년·반·번호로 유지한다", async () => {
+    demeritTotalsByStudent.mockResolvedValue([sum("sp-1", DANGER)]);
+    findStudentsWithClass.mockResolvedValue([student("sp-1", "김민준")]);
+
+    const stats = await service.getMeritStats(admin, "SCHOOL", undefined, NOW);
+
+    expect(stats.watchList[0]).toEqual(
+      expect.objectContaining({ grade: 2, classNo: 3, number: 3 }),
+    );
+  });
+
   it("벌점이 많은 순이고, 같으면 이름순이다", async () => {
     demeritTotalsByStudent.mockResolvedValue([
       sum("sp-a", WARN),
@@ -224,12 +221,43 @@ describe("기준 초과 명단 — 집계 범위", () => {
   });
 
   it("반을 골랐으면 그 반 학생만 본다", async () => {
+    const students = [
+      {
+        studentProfileId: "sp-1",
+        studentCode: "CODE-sp-1",
+        name: "학생1",
+        grade: 2,
+        classNo: 3,
+        number: 1,
+        merit: 0,
+        demerit: 0,
+        offset: 0,
+        net: 0,
+      },
+      {
+        studentProfileId: "sp-2",
+        studentCode: "CODE-sp-2",
+        name: "학생2",
+        grade: 2,
+        classNo: 3,
+        number: 2,
+        merit: 0,
+        demerit: 0,
+        offset: 0,
+        net: 0,
+      },
+    ];
     listClassRoster.mockResolvedValue([
-      { studentProfileId: "sp-1" },
-      { studentProfileId: "sp-2" },
+      ...students,
+      {
+        ...students[0],
+        studentProfileId: "sp-other",
+        grade: 1,
+        classNo: 1,
+      },
     ]);
 
-    await service.getMeritStats(admin, "SCHOOL", undefined, NOW, {
+    const stats = await service.getMeritStats(admin, "SCHOOL", undefined, NOW, {
       grade: 2,
       classNo: 3,
     });
@@ -237,11 +265,99 @@ describe("기준 초과 명단 — 집계 범위", () => {
     expect(demeritTotalsByStudent).toHaveBeenCalledWith(
       expect.objectContaining({ studentProfileIds: ["sp-1", "sp-2"] }),
     );
+    expect(awardsByRule).toHaveBeenCalledWith({
+      track: "SCHOOL",
+      totalsYear: 2026,
+      rosterYear: 2026,
+      studentProfileIds: ["sp-1", "sp-2"],
+    });
+    expect(stats.classes).toEqual([
+      {
+        grade: 2,
+        classNo: 3,
+        students: 2,
+        merit: 0,
+        demerit: 0,
+        offset: 0,
+        net: 0,
+        avgNet: 0,
+      },
+    ]);
+    expect(stats.scope).toEqual({ grade: 2, classNo: 3 });
+    expect(stats.students).toEqual(students);
+    expect(listClassRoster).toHaveBeenCalledTimes(1);
+    expect(listClassRoster).toHaveBeenCalledWith({
+      year: 2026,
+      track: "SCHOOL",
+      totalsYear: 2026,
+    });
+    expect(listClassRoster.mock.calls[0][0]).not.toHaveProperty("grade");
+    expect(listClassRoster.mock.calls[0][0]).not.toHaveProperty("classNo");
   });
 
-  it("전교로 보면 학생 목록 조건 없이 부른다", async () => {
-    await service.getMeritStats(admin, "SCHOOL", undefined, NOW);
+  it("빈 반도 빈 학생 목록을 넘겨 전교 집계로 넓어지지 않게 한다", async () => {
+    await service.getMeritStats(admin, "SCHOOL", undefined, NOW, {
+      grade: 2,
+      classNo: 3,
+    });
 
+    expect(awardsByRule).toHaveBeenCalledWith({
+      track: "SCHOOL",
+      totalsYear: 2026,
+      rosterYear: 2026,
+      studentProfileIds: [],
+    });
+  });
+
+  it("전교로 보면 명단을 한 번 접고 학생 목록 조건은 넘기지 않는다", async () => {
+    listClassRoster.mockResolvedValue([
+      {
+        studentProfileId: "sp-assigned",
+        studentCode: "CODE-sp-assigned",
+        name: "배정학생",
+        grade: 1,
+        classNo: 2,
+        number: 1,
+        merit: 0,
+        demerit: 0,
+        offset: 0,
+        net: 0,
+      },
+      {
+        studentProfileId: "sp-unassigned",
+        studentCode: "CODE-sp-unassigned",
+        name: "미배정학생",
+        grade: null,
+        classNo: null,
+        number: null,
+        merit: 0,
+        demerit: 0,
+        offset: 0,
+        net: 0,
+      },
+    ]);
+
+    const stats = await service.getMeritStats(admin, "SCHOOL", undefined, NOW);
+
+    expect(listClassRoster).toHaveBeenCalledTimes(1);
+    expect(listClassRoster).toHaveBeenCalledWith({
+      year: 2026,
+      track: "SCHOOL",
+      totalsYear: 2026,
+    });
+    expect(stats.students).toBeNull();
+    expect(stats.classes).toEqual([
+      {
+        grade: 1,
+        classNo: 2,
+        students: 1,
+        merit: 0,
+        demerit: 0,
+        offset: 0,
+        net: 0,
+        avgNet: 0,
+      },
+    ]);
     expect(demeritTotalsByStudent.mock.calls[0][0].studentProfileIds).toBeUndefined();
   });
 
@@ -258,14 +374,24 @@ describe("기준 초과 명단 — 집계 범위", () => {
 describe("기준 초과 명단 — 권한", () => {
   it("학생은 볼 수 없다", async () => {
     await expect(
-      service.getMeritStats(user("STUDENT"), "SCHOOL", undefined, NOW),
+      service.getMeritStats(
+        user("STUDENT", "u-1", { name: "이정민" }),
+        "SCHOOL",
+        undefined,
+        NOW,
+      ),
     ).rejects.toThrow("FORBIDDEN");
     expect(demeritTotalsByStudent).not.toHaveBeenCalled();
   });
 
   it("학부모도 볼 수 없다", async () => {
     await expect(
-      service.getMeritStats(user("PARENT"), "SCHOOL", undefined, NOW),
+      service.getMeritStats(
+        user("PARENT", "u-1", { name: "이정민" }),
+        "SCHOOL",
+        undefined,
+        NOW,
+      ),
     ).rejects.toThrow("FORBIDDEN");
   });
 });

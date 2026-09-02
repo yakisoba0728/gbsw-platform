@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
 import { prisma } from "@/core/db/client";
 import {
   createParentInviteFor,
   InviteError,
   MAX_ACTIVE_PARENT_INVITES,
 } from "@/modules/invites/invite.service";
+import { user } from "../helpers/session";
 
 vi.mock("server-only", () => ({}));
 
@@ -15,15 +15,10 @@ const adminId = `invite-cap-admin-${suffix}`;
 const studentUserId = `invite-cap-student-${suffix}`;
 let studentProfileId = "";
 
-const actor: SessionUser = {
-  id: adminId,
+const actor = user("ADMIN", adminId, {
   name: "초대 상한 관리자",
   email: `invite-cap-admin-${suffix}@example.invalid`,
-  role: "ADMIN",
-  status: "ACTIVE",
-  deletedAt: null,
-  mustChangePassword: false,
-};
+});
 
 describe("학부모 초대 활성 상한 경쟁", () => {
   beforeAll(async () => {
@@ -57,14 +52,18 @@ describe("학부모 초대 활성 상한 경쟁", () => {
     studentProfileId = student.studentProfile!.id;
 
     await prisma.invite.createMany({
-      data: [0, 1].map((index) => ({
-        code: `CAP-${suffix}-${index}`,
-        role: "PARENT",
-        status: "PENDING",
-        metadata: { name: `기존 보호자 ${index}` },
-        studentId: studentProfileId,
-        createdById: adminId,
-      })),
+      data: Array.from(
+        { length: MAX_ACTIVE_PARENT_INVITES - 1 },
+        (_, index) => ({
+          code: `CAP-${suffix}-${index}`,
+          role: "PARENT",
+          status: "PENDING",
+          metadata: { name: `기존 보호자 ${index}` },
+          studentId: studentProfileId,
+          createdById: adminId,
+          createdByName: actor.name,
+        }),
+      ),
     });
   });
 
@@ -76,7 +75,7 @@ describe("학부모 초대 활성 상한 경쟁", () => {
     });
   });
 
-  it("활성 2개에서 병렬 발급해도 하나만 성공해 최종 3개다", async () => {
+  it("한도 바로 아래에서 병렬 발급해도 하나만 성공해 최종 2개다", async () => {
     const results = await Promise.allSettled([
       createParentInviteFor(actor, {
         studentId: studentProfileId,

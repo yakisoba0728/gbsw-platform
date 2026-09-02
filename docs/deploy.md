@@ -47,7 +47,7 @@ cp .env.example .env
 
 ```bash
 # 비밀번호와 세션 키는 반드시 새로 만든다
-openssl rand -base64 24    # POSTGRES_PASSWORD 에 넣는다
+openssl rand -hex 24       # POSTGRES_PASSWORD 에 넣는다
 openssl rand -base64 32    # BETTER_AUTH_SECRET 에 넣는다
 ```
 
@@ -131,9 +131,9 @@ docker compose logs app       # 앱이 뜨다 죽었나
 gbsw.example.hs.kr {
 	reverse_proxy 127.0.0.1:3000 {
 		# **이 두 줄을 빠뜨리면 안 된다.** Caddy는 X-Forwarded-For를 덮어쓰지 않고
-		# 클라이언트가 보낸 값 **뒤에 덧붙인다.** 앱은 그 헤더의 첫 항목을 접속 IP로
-		# 믿으므로(src/core/audit/request-context.ts), 그대로 두면 헤더를 지어 보내는
-		# 사람이 감사로그에 아무 IP나 심을 수 있다. {remote_host}는 실제 TCP 상대다.
+		# 클라이언트가 보낸 값 **뒤에 덧붙인다.** 앱은 한 홉 프록시 규약에 따라
+		# 마지막 항목을 읽지만(src/core/audit/request-context.ts), 이것은 덧붙임 실수에
+		# 대한 둘째 방어선일 뿐이다. {remote_host}로 덮어써야 위조한 단일 값도 지워진다.
 		header_up X-Forwarded-For {remote_host}
 		header_up X-Real-IP {remote_host}
 	}
@@ -209,8 +209,11 @@ server {
 }
 ```
 
-> **`X-Forwarded-For`를 반드시 프록시가 덮어써야 한다.** 앱은 이 헤더의 첫 항목을
-> 접속 IP로 믿고 감사로그에 남긴다(`src/core/audit/request-context.ts`).
+> **`X-Forwarded-For`를 반드시 프록시가 덮어써야 한다.** 앱은 한 홉 프록시가
+> 덧붙인 마지막 항목을 접속 IP로 읽지만(`src/core/audit/request-context.ts`), 프록시가
+> 헤더를 손대지 않고 넘긴 위조값은 구분할 수 없다. 마지막 항목 읽기는 둘째 방어선이지
+> 덮어쓰기 설정을 빼도 된다는 뜻이 아니다. `X-Forwarded-Proto`는 IP 홉 목록이 아니라
+> 원 요청의 scheme을 전하는 별도 헤더라 같은 선택 규칙을 적용하지 않는다.
 
 ---
 
@@ -420,10 +423,9 @@ docker compose logs --tail 100 app
 
 - **DB 볼륨은 `docker compose down`으로 지워지지 않는다.** 데이터를 정말 지우려면
   `docker compose down -v`인데, 이건 **되돌릴 수 없다.**
-- **마이그레이션을 새로 만들면 생성된 SQL을 눈으로 확인한다.** 부분 유니크 인덱스
-  `AcademicYear_single_current`가 마이그레이션 SQL에만 있어서, Prisma가 이것을
-  군더더기로 보고 `DROP INDEX`를 넣을 수 있다. 드롭돼도 오류는 안 나고, 현재 학년도가
-  둘이 되어 전교 집계 범위가 요청마다 흔들린다.
+- **`AcademicYear_single_current`는 Prisma가 표현하지 못해 초기 마이그레이션 SQL에만 있다.**
+  Prisma 7.9.1의 `migrate diff`가 드리프트로 보지 않는 것을 빈 마이그레이션으로
+  확인했으며, **Prisma 메이저 업그레이드 때 다시 확인한다.**
 - **감사로그의 접속 IP는 지금 무기한 보관된다.** 보존 기간 정책이 아직 없다.
 - 앱 컨테이너는 `mem_limit: 512m`이다. 전교 300명 규모에는 충분하지만, 느려지면
   `docker stats`로 실제 사용량을 보고 조정한다.

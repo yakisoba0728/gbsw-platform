@@ -4,13 +4,11 @@ import {
   formatDateInput,
   formatDateTime,
   kstDayStart,
-  kstHour,
   isSameKstDate,
   KST,
   parseDateInputKst,
   formatMonthDay,
   parseDateTimeInputKst,
-  formatTimeInput,
   kstNextDayStart,
 } from "@/lib/datetime";
 
@@ -270,17 +268,6 @@ describe("kstDayStart", () => {
   });
 });
 
-describe("kstHour", () => {
-  it("KST 기준 시를 준다", () => {
-    expect(kstHour(new Date("2026-08-18T00:10:00+09:00"))).toBe(0);
-    expect(kstHour(new Date("2026-08-18T23:59:00+09:00"))).toBe(23);
-  });
-
-  it("UTC 자정이 KST 오전 9시다 — 서버 시간대를 따라가면 안 된다", () => {
-    expect(kstHour(new Date("2026-08-18T00:00:00Z"))).toBe(9);
-  });
-});
-
 describe("formatMonthDay()", () => {
   it("연도를 빼고 월·일만 적는다 — 이레짜리 범위는 두 끝이 같은 해다", () => {
     expect(formatMonthDay(new Date("2026-08-26T00:00:00+09:00"))).toBe("8. 26.");
@@ -315,22 +302,6 @@ describe("parseDateTimeInputKst", () => {
     expect(() => parseDateTimeInputKst("2026-08-27", "24:00")).toThrow(RangeError);
     expect(() => parseDateTimeInputKst("2026-08-27", "14:60")).toThrow(RangeError);
     expect(() => parseDateTimeInputKst("2026-08-27", "1430")).toThrow(RangeError);
-  });
-});
-
-describe("formatTimeInput", () => {
-  it("KST 24시간 표기로 낸다", () => {
-    expect(formatTimeInput(new Date("2026-08-27T05:30:00.000Z"))).toBe("14:30");
-  });
-
-  it("자정은 24:00이 아니라 00:00이다", () => {
-    expect(formatTimeInput(new Date("2026-08-26T15:00:00.000Z"))).toBe("00:00");
-  });
-
-  it("parseDateTimeInputKst와 왕복한다", () => {
-    for (const time of ["00:00", "07:05", "12:00", "18:45", "23:59"]) {
-      expect(formatTimeInput(parseDateTimeInputKst("2026-08-27", time))).toBe(time);
-    }
   });
 });
 

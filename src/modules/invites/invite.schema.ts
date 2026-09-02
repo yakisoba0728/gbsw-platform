@@ -69,7 +69,6 @@ export const createAdminInviteSchema = z.object({
 /** 학생이 학부모 코드를 만들 때 입력하는 값. 학생 본인은 세션에서 판별한다. */
 export const createParentInviteSchema = z.object({
   name,
-  expiresInDays,
 });
 
 /** 교사가 학생을 지정해 학부모 코드를 발급할 때. */
@@ -102,9 +101,6 @@ export const studentInviteMetaSchema = z.object({
 export const namedInviteMetaSchema = z.object({
   name: z.string(),
 });
-
-export type StudentInviteMeta = z.infer<typeof studentInviteMetaSchema>;
-export type NamedInviteMeta = z.infer<typeof namedInviteMetaSchema>;
 
 /**
  * 초대코드 폐기. **사유가 필수다** — 취소·삭제와 같은 규약이다.

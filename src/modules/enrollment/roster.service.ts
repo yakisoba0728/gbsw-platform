@@ -64,7 +64,7 @@ async function assertMayImport(actor: SessionUser): Promise<void> {
   await assertCan(actor, "invite:create");
 }
 
-/** 미리보기. **아무것도 저장하지 않는다.** */
+/** 미리보기. 업무 명단은 저장하지 않지만, 누가 전교생 명단을 열람했는지는 남긴다. */
 export async function previewRoster(
   actor: SessionUser,
   file: { filename: string; buffer: Buffer },
@@ -96,15 +96,29 @@ export async function previewRoster(
     rosterFingerprint,
   });
 
+  await recordAudit({
+    actorUserId: actor.id,
+    action: "roster:preview",
+    targetType: "AcademicYear",
+    targetId: String(year),
+    // 감사로그 자체가 명단 사본이 되지 않도록 개인정보 대신 건수만 남긴다.
+    metadata: {
+      year,
+      fileRows: rows.length,
+      existing: existing.length,
+      missingFromFile: plan.missingFromFile.length,
+    },
+  });
+
   return { year, rows, plan, notices, rosterFingerprint, previewToken };
 }
 
 /**
  * 전체 명단 내보내기.
  *
- * **읽기지만 기록을 남긴다.** 전교생의 이름·생년월일·학생코드가 한 번에 파일로
- * 나가는 유일한 경로라, 교사 계정 하나가 털렸을 때 「누가 언제 명단을 통째로
- * 받았나」에 답할 자료가 여기밖에 없다. 남기는 것은 학년도와 건수뿐이다 —
+ * **읽기지만 기록을 남긴다.** 미리보기와 마찬가지로 전교생의 이름·생년월일·
+ * 학생코드가 한 번에 나가므로, 교사 계정 하나가 털렸을 때 「누가 언제 명단을
+ * 통째로 받았나」에 답할 자료가 필요하다. 남기는 것은 학년도와 건수뿐이다 —
  * 이름을 실으면 감사로그 자체가 명단 사본이 된다.
  */
 export async function exportRoster(
@@ -113,9 +127,7 @@ export async function exportRoster(
   await assertCan(actor, "student:manage");
 
   const year = await getCurrentYear();
-  const existing = await repo.listExisting(year);
-  // legacy deletedAt 표시가 남은 계정은 listExisting()에서 이미 빠진다.
-  const students = existing.filter((s) => !s.deleted);
+  const students = await repo.listForExport(year);
   const rows = buildExportRows(students);
 
   await recordAudit({
@@ -147,6 +159,7 @@ export async function applyRosterPlan(
   previewToken: string,
 ): Promise<{
   saved: number;
+  invitesIssued: number;
   deleted: number;
   invites: Awaited<ReturnType<typeof repo.applyRoster>>["invites"];
   /** 신규로 잡혔지만 재학이 아니라 아무것도 만들어지지 않은 줄. 화면이 따로 알린다. */
@@ -294,6 +307,7 @@ export async function applyRosterPlan(
             managedStudentProfileIds: existing.map((s) => s.studentProfileId),
             deleteStudentProfileIds: currentDeletionIdList,
             createdById: actor.id,
+            createdByName: actor.name,
           },
           tx,
         );
@@ -410,7 +424,11 @@ export async function applyRosterPlan(
   // deleted는 화면이 "N명 제외"를 따로 알리는 데 쓴다 — 반영 건수 하나만 주면
   // 몇 명이 명단에서 빠졌는지가 묻힌다.
   return {
-    saved: assignments.length,
+    saved:
+      plan.reassign.length +
+      plan.statusChange.length +
+      plan.newAssignment.length,
+    invitesIssued: invites.length,
     deleted: plan.missingFromFile.length,
     invites,
     excludedNewStudents,

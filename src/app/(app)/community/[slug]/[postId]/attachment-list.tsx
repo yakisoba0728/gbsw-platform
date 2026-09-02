@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { buttonClass } from "@/components/ui/button";
 
 export type PostAttachment = {
@@ -96,9 +95,9 @@ function AttachmentLink({ file }: { file: PostAttachment }) {
   }
 
   return (
-    <Link href={href(file.id, file.filename)} className={className}>
+    <a href={href(file.id, file.filename)} className={className}>
       {file.filename}
       {size}
-    </Link>
+    </a>
   );
 }

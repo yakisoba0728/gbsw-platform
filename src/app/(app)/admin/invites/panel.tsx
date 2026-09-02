@@ -73,8 +73,8 @@ function toRow(invite: Listed): InviteRow {
       ...base,
       name: meta?.name ?? "—",
       classLabel: classLabel(
-        childEnrollment?.schoolClass?.grade,
-        childEnrollment?.schoolClass?.classNo,
+        childEnrollment?.grade,
+        childEnrollment?.classNo,
         childEnrollment?.number,
       ),
       birthDate: null,
@@ -124,8 +124,8 @@ export async function InvitesPanel() {
     return {
       id: s.id,
       name: s.user.name,
-      grade: enrollment?.schoolClass?.grade ?? null,
-      classNo: enrollment?.schoolClass?.classNo ?? null,
+      grade: enrollment?.grade ?? null,
+      classNo: enrollment?.classNo ?? null,
       number: enrollment?.number ?? null,
     };
   });

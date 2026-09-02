@@ -137,19 +137,12 @@ const POST_WITH_COUNTS = {
   include: { _count: { select: { comments: { where: { deletedAt: null } } } } },
 } as const;
 
-/**
- * 목록 한 줄. **`community.view.ts`의 `PostRow`와 이름이 겹치지 않게 한다** —
- * 그쪽은 뷰 변환기가 받는 최소 모양이고, 이쪽은 댓글 수까지 붙은 조회 결과다.
- * 두 이름이 같으면 `post.service.ts`가 둘 다 import하는 자리에서 무엇이
- * 무엇인지 읽히지 않는다.
- */
-export type PostWithCounts = Awaited<ReturnType<typeof listPosts>>[number];
-
 /** 지워진 글은 세지 않는다. 페이지 수 계산이 화면과 어긋나면 빈 쪽이 생긴다. */
 export function countPosts(communityId: string, db: DbClient = prisma): Promise<number> {
   return db.communityPost.count({ where: { communityId, deletedAt: null } });
 }
 
+/** 댓글 수까지 붙인 목록을 읽는다. 뷰 변환기의 최소 입력 모양은 community.view.ts가 정한다. */
 export function listPosts(
   communityId: string,
   skip: number,
@@ -234,13 +227,11 @@ export async function updatePost(
 /** 이미 지운 글이면 0. 감사로그가 두 줄 쌓이지 않게 서비스가 이 값을 본다. */
 export async function markPostDeleted(
   id: string,
-  actorUserId: string,
-  reason: string | null,
   db: DbClient = prisma,
 ): Promise<number> {
   const result = await db.communityPost.updateMany({
     where: { id, deletedAt: null },
-    data: { deletedAt: new Date(), deletedByUserId: actorUserId, deletedReason: reason },
+    data: { deletedAt: new Date() },
   });
   return result.count;
 }
@@ -249,8 +240,11 @@ export async function markPostDeleted(
 
 /**
  * 첨부를 글에 붙인다. **올린 사람이 글쓴이인 것만** — 남의 첨부 id를 폼에
- * 실어 보내도 조건에 안 걸려 붙지 않는다. 이미 붙은 것도 안 건드린다.
- * 실제로 붙은 개수를 돌려준다.
+ * 실어 보내도 조건에 안 걸려 붙지 않는다. 아직 안 붙었거나 이미 같은 글에 붙은
+ * 첨부만 센다 — 글 수정은 이 개수로 제출 목록 전체가 유효한지 확인한다.
+ *
+ * PostgreSQL updateMany는 postId가 이미 같은 행도 count에 넣는다. 이 성질은
+ * community.attachment-reattach.integration.test.ts가 실제 DB에서 고정한다.
  */
 export async function attachToPost(
   ids: string[],
@@ -260,7 +254,11 @@ export async function attachToPost(
 ): Promise<number> {
   if (ids.length === 0) return 0;
   const result = await db.communityAttachment.updateMany({
-    where: { id: { in: ids }, uploaderUserId, postId: null },
+    where: {
+      id: { in: ids },
+      uploaderUserId,
+      OR: [{ postId: null }, { postId }],
+    },
     data: { postId },
   });
   return result.count;
@@ -341,13 +339,11 @@ export async function createComment(
 
 export async function markCommentDeleted(
   id: string,
-  actorUserId: string,
-  reason: string | null,
   db: DbClient = prisma,
 ): Promise<number> {
   const result = await db.communityComment.updateMany({
     where: { id, deletedAt: null },
-    data: { deletedAt: new Date(), deletedByUserId: actorUserId, deletedReason: reason },
+    data: { deletedAt: new Date() },
   });
   return result.count;
 }
@@ -400,7 +396,13 @@ export function listStalePending(
       createdAt: { lt: before },
       OR: [{ uploaderUserId }, { uploaderUserId: null }],
     },
-    select: { id: true, storageKey: true, filename: true, createdAt: true },
+    select: {
+      id: true,
+      storageKey: true,
+      filename: true,
+      uploaderUserId: true,
+      createdAt: true,
+    },
   });
 }
 

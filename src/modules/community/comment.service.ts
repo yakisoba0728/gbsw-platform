@@ -110,12 +110,7 @@ export async function deleteComment(
   if (!isMine && !input.reason) throw new CommunityError("REASON_REQUIRED");
 
   await withTransaction(async (tx) => {
-    const removed = await repo.markCommentDeleted(
-      input.commentId,
-      actor.id,
-      input.reason,
-      tx,
-    );
+    const removed = await repo.markCommentDeleted(input.commentId, tx);
     if (removed === 0) return;
 
     await recordAudit(

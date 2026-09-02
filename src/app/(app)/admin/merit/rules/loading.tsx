@@ -3,6 +3,7 @@ import {
   Skeleton,
   SkeletonField,
   SkeletonScreen,
+  SkeletonTable,
   SkeletonTabs,
 } from "@/components/ui/skeleton";
 
@@ -36,16 +37,7 @@ export default function Loading() {
       </div>
 
       {/* 규정 목록 — 머리글 띠 + 표 */}
-      <div className={cardClass("flush")}>
-        <div className="border-b border-line px-5 py-4">
-          <Skeleton className="h-5 w-20 rounded-btn" />
-        </div>
-        <div className="space-y-3 px-5 py-4">
-          {Array.from({ length: 10 }, (_, i) => (
-            <Skeleton key={i} className="h-8 rounded-btn" />
-          ))}
-        </div>
-      </div>
+      <SkeletonTable rows={10} titleWidth="w-20" />
     </SkeletonScreen>
   );
 }

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
+import { coreMocks } from "../../helpers/core-mocks";
+import { user } from "../../helpers/session";
 
 const listComments = vi.fn();
 const findComment = vi.fn();
@@ -8,11 +9,11 @@ const markCommentDeleted = vi.fn();
 const findPost = vi.fn();
 const getReadableBySlug = vi.fn();
 const getWritableBySlug = vi.fn();
-const recordAudit = vi.fn();
-const txClient = { tx: "comment-service-test" };
-const withTransaction = vi.fn(
-  async <T>(fn: (tx: typeof txClient) => Promise<T>) => fn(txClient),
-);
+const {
+  recordAudit,
+  txClient,
+  prewiredWithTransaction: withTransaction,
+} = coreMocks("comment-service-test");
 
 vi.mock("@/modules/community/community.repo", () => ({
   listComments,
@@ -32,21 +33,9 @@ const { CommunityError } = await import("@/modules/community/community.error");
 const { ForbiddenError } = await import("@/core/authz/errors");
 const service = await import("@/modules/community/comment.service");
 
-function user(role: SessionUser["role"], id: string, name = "김민준"): SessionUser {
-  return {
-    id,
-    name,
-    email: "t@gbsw.hs.kr",
-    role,
-    status: "ACTIVE",
-    deletedAt: null,
-    mustChangePassword: false,
-  };
-}
-
-const student = user("STUDENT", "s-1");
-const other = user("STUDENT", "s-2", "박도현");
-const admin = user("ADMIN", "a-1", "이정민");
+const student = user("STUDENT", "s-1", { name: "김민준" });
+const other = user("STUDENT", "s-2", { name: "박도현" });
+const admin = user("ADMIN", "a-1", { name: "이정민" });
 
 const namedBoard = {
   id: "c1",
@@ -188,11 +177,17 @@ describe("deleteComment", () => {
   it("본인은 지운다 — byModerator는 false", async () => {
     await service.deleteComment(student, input);
 
-    expect(markCommentDeleted).toHaveBeenCalledWith("cm1", "s-1", null, txClient);
+    expect(markCommentDeleted).toHaveBeenCalledWith("cm1", txClient);
     expect(recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
+        actorUserId: "s-1",
+        actorName: "김민준",
         action: "community:comment:delete",
-        metadata: expect.objectContaining({ byModerator: false, postId: "p1" }),
+        metadata: expect.objectContaining({
+          byModerator: false,
+          postId: "p1",
+          reason: null,
+        }),
       }),
       txClient,
     );

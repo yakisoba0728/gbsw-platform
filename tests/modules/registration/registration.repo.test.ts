@@ -1,16 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { isStudentCode } from "@/lib/student-code";
+import { coreMocks } from "../../helpers/core-mocks";
 
 const userCreate = vi.fn();
 const accountCreate = vi.fn();
-const schoolClassUpsert = vi.fn();
 const studentProfileCreate = vi.fn();
 const enrollmentCreate = vi.fn();
 const inviteUpdate = vi.fn();
 const inviteUpdateMany = vi.fn();
 const academicYearFindFirst = vi.fn();
 const queryRaw = vi.fn();
-const withTransaction = vi.fn();
+const { bareWithTransaction: withTransaction } = coreMocks(
+  "registration-repo-test",
+);
 
 /**
  * `withTransaction(callback)`을 그대로 흉내 낸다 — 콜백에 tx를 넘겨 실행할 뿐,
@@ -20,7 +22,6 @@ const withTransaction = vi.fn();
 const txClient = {
   user: { create: userCreate },
   account: { create: accountCreate },
-  schoolClass: { upsert: schoolClassUpsert },
   studentProfile: { create: studentProfileCreate },
   enrollment: { create: enrollmentCreate },
   invite: { update: inviteUpdate, updateMany: inviteUpdateMany },
@@ -42,7 +43,7 @@ const {
 
 /**
  * `tests/modules/admin-users/admin-user.repo.test.ts`가 관측해 둔 실물 P2002 모양을
- * 그대로 가져온다. 다만 위반 컬럼은 email이 아니라 (classId, number) 복합 유일키다.
+ * 그대로 가져온다. 다만 위반 컬럼은 email이 아니라 좌석 복합 유일키다.
  */
 function realWorldP2002() {
   return Object.assign(new Error("Unique constraint failed"), {
@@ -55,9 +56,9 @@ function realWorldP2002() {
         cause: {
           originalCode: "23505",
           originalMessage:
-            'duplicate key value violates unique constraint "Enrollment_classId_number_key"',
+            'duplicate key value violates unique constraint "Enrollment_year_grade_classNo_number_key"',
           kind: "UniqueConstraintViolation",
-          constraint: { fields: ["classId", "number"] },
+          constraint: { fields: ["year", "grade", "classNo", "number"] },
         },
       },
     },
@@ -104,7 +105,6 @@ const student = {
 beforeEach(() => {
   userCreate.mockReset().mockResolvedValue(undefined);
   accountCreate.mockReset().mockResolvedValue(undefined);
-  schoolClassUpsert.mockReset().mockResolvedValue({ id: "class-1" });
   studentProfileCreate.mockReset().mockResolvedValue({ id: "profile-1" });
   enrollmentCreate.mockReset().mockResolvedValue(undefined);
   inviteUpdate.mockReset().mockResolvedValue({ failedAttempts: 1 });
@@ -119,6 +119,16 @@ beforeEach(() => {
 });
 
 describe("registerFailedAttempt()", () => {
+  it("실패 횟수가 한계 미만이면 코드를 폐기하지 않는다", async () => {
+    inviteUpdate.mockResolvedValue({ failedAttempts: 1 });
+
+    await expect(registerFailedAttempt("inv-1", 5)).resolves.toEqual({
+      revoked: false,
+    });
+
+    expect(inviteUpdateMany).not.toHaveBeenCalled();
+  });
+
   it("실패 횟수가 한계에 닿으면 PENDING 코드만 폐기한다", async () => {
     inviteUpdate.mockResolvedValue({ failedAttempts: 5 });
     inviteUpdateMany.mockResolvedValue({ count: 1 });
@@ -177,7 +187,7 @@ describe("completeStudentRegistration()", () => {
     const error = realWorldP2002();
     (
       error.meta.driverAdapterError.cause as { constraint: unknown }
-    ).constraint = { index: "Enrollment_classId_number_key" };
+    ).constraint = { index: "Enrollment_year_grade_classNo_number_key" };
     enrollmentCreate.mockRejectedValue(error);
 
     await expect(
@@ -185,7 +195,7 @@ describe("completeStudentRegistration()", () => {
     ).rejects.toBeInstanceOf(NumberTakenError);
   });
 
-  it("(classId, number)와 무관한 유일 제약 위반은 그대로 올려보낸다", async () => {
+  it("좌석 복합 유일키와 무관한 제약 위반은 그대로 올려보낸다", async () => {
     const other = Object.assign(new Error("dup"), {
       code: "P2002",
       meta: { target: ["studentProfileId", "year"] },
@@ -197,7 +207,7 @@ describe("completeStudentRegistration()", () => {
     ).rejects.toBe(other);
   });
 
-  it("성공하면 순서대로 계정·학급·소속을 만들고 코드를 소진한다", async () => {
+  it("성공하면 순서대로 계정·소속을 만들고 코드를 소진한다", async () => {
     await completeStudentRegistration("inv-1", account, student, 2026);
 
     expect(userCreate).toHaveBeenCalled();
@@ -205,14 +215,15 @@ describe("completeStudentRegistration()", () => {
       data: {
         studentProfileId: "profile-1",
         year: 2026,
-        classId: "class-1",
+        grade: 1,
+        classNo: 2,
         number: 15,
         status: "ENROLLED",
       },
     });
     expect(inviteUpdateMany).toHaveBeenCalledWith({
       where: { id: "inv-1", status: "PENDING" },
-      data: expect.objectContaining({ status: "USED" }),
+      data: { status: "USED", usedById: "u-1" },
     });
 
     // 학생코드는 여기서 직접 부여한다 — student-code.ts의 형식(8자리, 문자로 시작)을 따른다.

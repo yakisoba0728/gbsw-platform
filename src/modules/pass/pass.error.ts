@@ -20,6 +20,5 @@
  * | `PASS_EXPIRED` | 종료 시각에 도달해 더는 동의·승인할 수 없다 |
  * | `STUDENT_NOT_ELIGIBLE` | 직접 부여 대상이 현재 학년도 재학생·활성 계정이 아니다 |
  * | `PASS_BUSY` | 긴 명단 트랜잭션 때문에 직접 부여가 제한 시간 안에 끝나지 않았다 |
- * | `PASS_NOT_ACTIVE` | 지금 QR을 낼 수 있는 상태·기간이 아니다 |
  */
 export class PassError extends Error {}

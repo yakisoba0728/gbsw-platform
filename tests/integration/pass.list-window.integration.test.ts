@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
 import { prisma } from "@/core/db/client";
 import { listMyChildren } from "@/modules/merit/award.service";
 import {
@@ -14,6 +13,7 @@ import {
   getMyPasses,
 } from "@/modules/pass/request.service";
 import { PASS_HISTORY_PAGE_SIZE } from "@/modules/pass/pass.schema";
+import { user } from "../helpers/session";
 
 vi.mock("server-only", () => ({}));
 
@@ -26,33 +26,18 @@ const ids = {
   profile: "",
 };
 
-const admin: SessionUser = {
-  id: ids.admin,
+const admin = user("ADMIN", ids.admin, {
   name: "출입증 목록 관리자",
   email: `pass-list-admin-${suffix}@example.invalid`,
-  role: "ADMIN",
-  status: "ACTIVE",
-  deletedAt: null,
-  mustChangePassword: false,
-};
-const student: SessionUser = {
-  id: ids.student,
+});
+const student = user("STUDENT", ids.student, {
   name: "B 자녀",
   email: `pass-list-student-${suffix}@example.invalid`,
-  role: "STUDENT",
-  status: "ACTIVE",
-  deletedAt: null,
-  mustChangePassword: false,
-};
-const parent: SessionUser = {
-  id: ids.parent,
+});
+const parent = user("PARENT", ids.parent, {
   name: "출입증 목록 학부모",
   email: `pass-list-parent-${suffix}@example.invalid`,
-  role: "PARENT",
-  status: "ACTIVE",
-  deletedAt: null,
-  mustChangePassword: false,
-};
+});
 
 const now = new Date("2099-06-01T03:00:00.000Z");
 let pendingBefore = 0;

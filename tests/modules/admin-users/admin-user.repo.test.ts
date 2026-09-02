@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { vi } from "vitest";
+import { coreMocks } from "../../helpers/core-mocks";
 
 const userUpdate = vi.fn();
 const userUpdateMany = vi.fn();
@@ -8,12 +9,13 @@ const userFindMany = vi.fn();
 const userDelete = vi.fn();
 const userDeleteMany = vi.fn();
 const studentProfileUpdate = vi.fn();
-const schoolClassUpsert = vi.fn();
 const enrollmentUpsert = vi.fn();
 const sessionDeleteMany = vi.fn();
 const accountUpdateMany = vi.fn();
 const inviteDeleteMany = vi.fn();
-const withTransaction = vi.fn();
+const { bareWithTransaction: withTransaction } = coreMocks(
+  "admin-user-repo-test",
+);
 const queryRaw = vi.fn();
 
 const tx = {
@@ -26,7 +28,6 @@ const tx = {
     deleteMany: userDeleteMany,
   },
   studentProfile: { update: studentProfileUpdate },
-  schoolClass: { upsert: schoolClassUpsert },
   enrollment: { upsert: enrollmentUpsert },
   session: { deleteMany: sessionDeleteMany },
   account: { updateMany: accountUpdateMany },
@@ -86,7 +87,7 @@ function realWorldP2002() {
   });
 }
 
-/** enrollment 쪽 실물 P2002 — 위반 컬럼만 (classId, number) 복합 유일키로 바뀐다. */
+/** enrollment 쪽 실물 P2002 — 위반 컬럼만 좌석 복합 유일키로 바뀐다. */
 function realWorldNumberP2002() {
   return Object.assign(new Error("Unique constraint failed"), {
     name: "PrismaClientKnownRequestError",
@@ -98,9 +99,9 @@ function realWorldNumberP2002() {
         cause: {
           originalCode: "23505",
           originalMessage:
-            'duplicate key value violates unique constraint "Enrollment_classId_number_key"',
+            'duplicate key value violates unique constraint "Enrollment_year_grade_classNo_number_key"',
           kind: "UniqueConstraintViolation",
-          constraint: { fields: ["classId", "number"] },
+          constraint: { fields: ["year", "grade", "classNo", "number"] },
         },
       },
     },
@@ -146,7 +147,6 @@ beforeEach(() => {
   userDelete.mockReset().mockResolvedValue(undefined);
   userDeleteMany.mockReset().mockResolvedValue({ count: 1 });
   studentProfileUpdate.mockReset().mockResolvedValue(undefined);
-  schoolClassUpsert.mockReset().mockResolvedValue({ id: "class-1" });
   enrollmentUpsert.mockReset().mockResolvedValue(undefined);
   sessionDeleteMany.mockReset().mockResolvedValue(undefined);
   accountUpdateMany.mockReset().mockResolvedValue({ count: 1 });
@@ -263,7 +263,6 @@ describe("updateUserAndEnrollment() — studentProfile(생년월일)", () => {
       where: { id: "sp-1" },
       data: { birthDate: studentProfileData.birthDate },
     });
-    expect(schoolClassUpsert).not.toHaveBeenCalled();
     expect(enrollmentUpsert).not.toHaveBeenCalled();
   });
 
@@ -291,7 +290,7 @@ describe("updateUserAndEnrollment() — enrollment(학년·반·번호)", () => 
     ).rejects.toBeInstanceOf(NumberTakenError);
   });
 
-  it("성공하면 학급을 찾아 소속을 갱신한다", async () => {
+  it("성공하면 학년·반·번호를 소속에 직접 저장한다", async () => {
     await updateUserAndEnrollment("u-9", updateInput({
       profile: null,
       studentProfile: null,
@@ -301,6 +300,8 @@ describe("updateUserAndEnrollment() — enrollment(학년·반·번호)", () => 
     expect(enrollmentUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { studentProfileId_year: { studentProfileId: "sp-1", year: 2026 } },
+        create: expect.objectContaining({ grade: 1, classNo: 2, number: 15 }),
+        update: expect.objectContaining({ grade: 1, classNo: 2, number: 15 }),
       }),
     );
   });
@@ -325,7 +326,6 @@ describe("updateUserAndEnrollment() — enrollment(학년·반·번호)", () => 
       enrollment: null,
     }));
 
-    expect(schoolClassUpsert).not.toHaveBeenCalled();
     expect(enrollmentUpsert).not.toHaveBeenCalled();
   });
 
@@ -416,11 +416,13 @@ describe("resetCredential()", () => {
 });
 
 describe("deletePermanently()", () => {
-  it("발급한 코드(createdById)를 먼저 지워야 계정 삭제가 Restrict에 안 걸린다", async () => {
+  it("발급한 코드는 스냅샷과 함께 남기고 계정만 삭제한다", async () => {
     await deletePermanently("u-9", "김학생");
 
     expect(withTransaction).toHaveBeenCalledTimes(1);
-    expect(inviteDeleteMany).toHaveBeenCalledWith({ where: { createdById: "u-9" } });
+    expect(inviteDeleteMany).not.toHaveBeenCalledWith({
+      where: { createdById: "u-9" },
+    });
     expect(userDeleteMany).toHaveBeenCalledWith({ where: { id: "u-9", name: "김학생" } });
   });
 
@@ -449,7 +451,10 @@ describe("deletePermanently()", () => {
     await deletePermanently("u-9", "김학생", tx as never);
 
     expect(withTransaction).not.toHaveBeenCalled();
-    expect(inviteDeleteMany).toHaveBeenCalledWith({ where: { createdById: "u-9" } });
+    expect(inviteDeleteMany).not.toHaveBeenCalledWith({
+      where: { createdById: "u-9" },
+    });
+    expect(inviteDeleteMany).toHaveBeenCalledWith({ where: { usedById: "u-9" } });
     expect(userDeleteMany).toHaveBeenCalledWith({ where: { id: "u-9", name: "김학생" } });
   });
 });

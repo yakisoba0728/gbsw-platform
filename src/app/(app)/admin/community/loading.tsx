@@ -1,5 +1,9 @@
 import { cardClass } from "@/components/ui/card";
-import { Skeleton, SkeletonScreen } from "@/components/ui/skeleton";
+import {
+  Skeleton,
+  SkeletonScreen,
+  SkeletonTable,
+} from "@/components/ui/skeleton";
 
 /** `/admin/community`의 뼈대 — 게시판 추가 폼 · 목록 표. */
 export default function Loading() {
@@ -17,16 +21,7 @@ export default function Loading() {
       </div>
 
       {/* 게시판 목록 — 머리글 띠 + 표 */}
-      <div className={cardClass("flush")}>
-        <div className="border-b border-line px-5 py-4">
-          <Skeleton className="h-5 w-24 rounded-btn" />
-        </div>
-        <div className="space-y-3 px-5 py-4">
-          {Array.from({ length: 5 }, (_, i) => (
-            <Skeleton key={i} className="h-8 rounded-btn" />
-          ))}
-        </div>
-      </div>
+      <SkeletonTable rows={5} titleWidth="w-24" />
     </SkeletonScreen>
   );
 }

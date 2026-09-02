@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { renderToReadableStream } from "react-dom/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
 import { prisma } from "@/core/db/client";
+import { user } from "../helpers/session";
 
 const requireAuth = vi.hoisted(() => vi.fn());
 vi.mock("@/core/auth/session", () => ({ requireAuth }));
@@ -20,15 +20,10 @@ const ids = {
 };
 let createdAcademicYear: number | null = null;
 
-const parent: SessionUser = {
-  id: ids.parent,
+const parent = user("PARENT", ids.parent, {
   name: "다자녀 학부모",
   email: `dashboard-parent-${suffix}@example.invalid`,
-  role: "PARENT",
-  status: "ACTIVE",
-  deletedAt: null,
-  mustChangePassword: false,
-};
+});
 
 describe("학부모 대시보드 다자녀 범위", () => {
   beforeAll(async () => {

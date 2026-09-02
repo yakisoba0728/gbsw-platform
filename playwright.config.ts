@@ -51,7 +51,7 @@ export default defineConfig({
       HOSTNAME: "127.0.0.1",
       PORT: String(PORT),
       UPLOAD_DIR: uploadDir,
-      ...(databaseUrl ? { DATABASE_URL: databaseUrl } : {}),
+      DATABASE_URL: databaseUrl,
       ...(authSecret ? { BETTER_AUTH_SECRET: authSecret } : {}),
     },
     // 기존 서버를 재사용하면 위 UPLOAD_DIR/DB가 적용됐는지 보장할 수 없어

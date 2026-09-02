@@ -10,9 +10,10 @@ const currentEnrollment = (year: number) => ({
   take: 1,
   select: {
     id: true,
+    grade: true,
+    classNo: true,
     number: true,
     status: true,
-    schoolClass: { select: { grade: true, classNo: true } },
   },
 });
 
@@ -40,7 +41,7 @@ export async function listUsers(year: number) {
 export async function findById(userId: string, db: DbClient = prisma) {
   return db.user.findUnique({
     where: { id: userId },
-    select: { id: true, name: true, email: true, role: true, status: true, deletedAt: true },
+    select: { id: true, name: true, role: true, deletedAt: true },
   });
 }
 
@@ -187,25 +188,20 @@ async function updateUserAndEnrollmentWithDb(
   if (input.enrollment) {
     const { studentProfileId, year, grade, classNo, number } = input.enrollment;
 
-    const schoolClass = await db.schoolClass.upsert({
-      where: { year_grade_classNo: { year, grade, classNo } },
-      create: { year, grade, classNo },
-      update: {},
-    });
-
     try {
       await db.enrollment.upsert({
         where: { studentProfileId_year: { studentProfileId, year } },
         create: {
           studentProfileId,
           year,
-          classId: schoolClass.id,
+          grade,
+          classNo,
           number,
           status: "ENROLLED",
         },
         // update에 status를 넣지 않는다 — 넣으면 졸업생의 신원만 고치는 경로가
         // 여기 닿았을 때 학적이 재학으로 되돌아간다.
-        update: { classId: schoolClass.id, number },
+        update: { grade, classNo, number },
       });
     } catch (error) {
       if (isUniqueViolation(error, "number")) throw new NumberTakenError();
@@ -305,8 +301,6 @@ async function deletePermanentlyWithDb(
   userId: string,
   confirmName: string,
 ): Promise<boolean> {
-  // createdById는 Restrict + non-null이라 먼저 지우지 않으면 user.delete가 막힌다.
-  await db.invite.deleteMany({ where: { createdById: userId } });
   // usedById는 SetNull이라 안 지워도 되지만, metadata에 남는 이름·생년월일을 없앤다.
   await db.invite.deleteMany({ where: { usedById: userId } });
   // studentId로 달린 학부모 코드는 StudentProfile Cascade가 함께 지운다.

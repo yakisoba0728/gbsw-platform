@@ -27,9 +27,9 @@ export type ConfirmStudent = {
 /**
  * 부여 직전 확인. 누가·무엇을 받는지 다시 세우고 한 번 더 누르게 한다.
  *
- * **폼 안에 두어야 한다.** 확인 버튼이 `type="submit"`이라 바깥 `<form>`을 제출한다 —
- * 네이티브 `<dialog>`는 화면에서만 맨 위로 올라가고 DOM에서는 제자리에 있어서
- * 폼 소유 관계가 그대로 산다. 확인 버튼을 밖에 두면 눌러도 아무 일이 없다.
+ * **폼 안에 두어야 한다.** 확인 버튼이 자기 `form`에 `requestSubmit()`을 보내기
+ * 때문이다. 버튼 자체는 `type="button"`이라 닫힌 모달이 폼의 기본 submit 버튼이
+ * 되어 Enter만으로 확인 절차를 건너뛰는 길은 없다.
  *
  * 상태를 들지 않는다. 여는 것도 닫는 것도 호출부의 `open`·`onClose`가 정한다 —
  * 성공하면 닫고 실패하면 열어 둔 채 오류를 보여야 하는데, 그 판단은 액션 결과를
@@ -66,6 +66,7 @@ export function AwardConfirmDialog({
   const baseId = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const confirmRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const el = dialogRef.current;
@@ -79,6 +80,12 @@ export function AwardConfirmDialog({
     }
     if (!open && el.open) el.close();
   }, [open]);
+
+  function confirm() {
+    onConfirm();
+    // required 검사를 포함한 네이티브 제출 절차와 React form action을 그대로 탄다.
+    confirmRef.current?.form?.requestSubmit();
+  }
 
   const tint = kindColorClass(rule.kind);
 
@@ -172,7 +179,7 @@ export function AwardConfirmDialog({
             닫기
           </Button>
           {/* 여는 버튼과 같은 이름이다 — 한 동작은 흐름 내내 한 이름으로 부른다. */}
-          <Button type="submit" disabled={pending} onClick={onConfirm}>
+          <Button ref={confirmRef} type="button" disabled={pending} onClick={confirm}>
             {pending ? "부여하는 중…" : "부여"}
           </Button>
         </div>

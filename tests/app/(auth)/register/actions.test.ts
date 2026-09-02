@@ -1,9 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 /** 서버 액션의 경계 — FormData를 zod 스키마에 넘기는 그 지점. */
 
 const createInitialAdmin = vi.fn();
-const signInEmail = vi.fn();
+const signInSilently = vi.fn();
 const redirect = vi.fn(() => {
   // 실제 next/navigation의 redirect는 예외를 던져 이후 코드를 끊는다.
   throw new Error("NEXT_REDIRECT");
@@ -11,7 +11,7 @@ const redirect = vi.fn(() => {
 
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("next/navigation", () => ({ redirect }));
-vi.mock("@/core/auth/auth", () => ({ auth: { api: { signInEmail } } }));
+vi.mock("@/modules/auth/auth.service", () => ({ signInSilently }));
 vi.mock("@/modules/bootstrap/bootstrap.service", () => ({ createInitialAdmin }));
 
 // 가입·인증 액션도 같은 파일에 있다. 그쪽 서비스는 Prisma를 끌고 오므로 끊는다.
@@ -20,6 +20,7 @@ const completeRegistration = vi.fn();
 const requestVerification = vi.fn();
 const confirmCode = vi.fn();
 const requireVerified = vi.fn();
+const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
 vi.mock("@/modules/registration/registration.service", () => ({
   RegistrationError: class RegistrationError extends Error {},
@@ -71,9 +72,14 @@ function bootstrapForm(over: Record<string, string> = {}): FormData {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  signInSilently.mockResolvedValue(undefined);
   checkInvite.mockResolvedValue({ role: "STUDENT" });
   requestVerification.mockResolvedValue({ verified: true });
   requireVerified.mockResolvedValue({ id: "proof-1" });
+});
+
+afterAll(() => {
+  consoleError.mockRestore();
 });
 
 describe("createInitialAdminAction — 경계 검증", () => {
@@ -177,24 +183,11 @@ describe("createInitialAdminAction — 경계 검증", () => {
       createInitialAdminAction(BOOTSTRAP_INITIAL, bootstrapForm()),
     ).rejects.toThrow("NEXT_REDIRECT");
 
-    expect(signInEmail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        body: {
-          email: "admin@gbsw.hs.kr",
-          password: "correct-horse-battery",
-        },
-      }),
+    expect(signInSilently).toHaveBeenCalledWith(
+      "admin@gbsw.hs.kr",
+      "correct-horse-battery",
+      expect.any(Promise),
     );
-    expect(redirect).toHaveBeenCalledWith("/");
-  });
-
-  it("로그인이 실패해도 계정 생성은 성공으로 끝낸다", async () => {
-    signInEmail.mockRejectedValueOnce(new Error("세션 발급 실패"));
-
-    await expect(
-      createInitialAdminAction(BOOTSTRAP_INITIAL, bootstrapForm()),
-    ).rejects.toThrow("NEXT_REDIRECT");
-
     expect(redirect).toHaveBeenCalledWith("/");
   });
 });
@@ -253,8 +246,38 @@ describe("checkInviteAction — 경계 검증", () => {
     expect(state.error).toBe("가입코드를 입력해 주세요.");
   });
 
-  it("실패 원인을 구분해 알리지 않는다", async () => {
-    checkInvite.mockRejectedValueOnce(new RegistrationError("이미 사용된 코드입니다."));
+  it("검증에 걸려도 제출한 가입코드를 그대로 돌려준다", async () => {
+    const submitted = "GBSW-TOO-LONG-INVITE-CODE-123456789";
+    const fd = new FormData();
+    fd.set("code", submitted);
+
+    const state = await checkInviteAction(
+      { code: null, role: null, error: null },
+      fd,
+    );
+
+    expect(checkInvite).not.toHaveBeenCalled();
+    expect(state.values).toEqual({ code: submitted });
+  });
+
+  it("가입 서비스가 정제한 오류 문구는 그대로 보여준다", async () => {
+    checkInvite.mockRejectedValueOnce(
+      new RegistrationError("가입코드 또는 입력한 정보가 맞지 않습니다."),
+    );
+
+    const state = await checkInviteAction(
+      { code: null, role: null, error: null },
+      registerForm(),
+    );
+
+    expect(state.error).toBe("가입코드 또는 입력한 정보가 맞지 않습니다.");
+    expect(state.code).toBeNull();
+    expect(state.values).toEqual({ code: CODE });
+  });
+
+  it("예상 못 한 오류는 원문을 감추고 서버 로그에 남긴다", async () => {
+    const error = new Error("connect ECONNREFUSED");
+    checkInvite.mockRejectedValueOnce(error);
 
     const state = await checkInviteAction(
       { code: null, role: null, error: null },
@@ -262,7 +285,10 @@ describe("checkInviteAction — 경계 검증", () => {
     );
 
     expect(state.error).toBe("쓸 수 없는 가입코드입니다.");
-    expect(state.code).toBeNull();
+    expect(consoleError).toHaveBeenCalledWith(
+      "[registration] 가입코드를 확인하지 못했습니다.",
+      error,
+    );
   });
 });
 
@@ -422,13 +448,10 @@ describe("completeRegistrationAction — 경계 검증", () => {
       completeRegistrationAction(REGISTER_INITIAL, registerForm()),
     ).rejects.toThrow("NEXT_REDIRECT");
 
-    expect(signInEmail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        body: {
-          email: "hong@gbsw.hs.kr",
-          password: "correct-horse-battery",
-        },
-      }),
+    expect(signInSilently).toHaveBeenCalledWith(
+      "hong@gbsw.hs.kr",
+      "correct-horse-battery",
+      expect.any(Promise),
     );
   });
 });

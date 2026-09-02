@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/core/auth/session";
+import { coreMocks } from "../../helpers/core-mocks";
+import { user } from "../../helpers/session";
 
 // request.service → pass.qr → "server-only". 그 마커는 웹팩의 react-server 조건에서만
 // 무해한 empty.js로 풀리고 vitest에서는 그냥 던진다 — 무해하게 만든다.
@@ -22,11 +23,13 @@ const transitionUnexpired = vi.fn();
 const findStudentProfileByUserId = vi.fn();
 const isParentOf = vi.fn();
 const displayYear = vi.fn();
-const recordAudit = vi.fn();
-const txClient = { tx: "pass-request-service-test" };
-const withTransaction = vi.fn(
-  async <T>(fn: (tx: typeof txClient) => Promise<T>) => fn(txClient),
-);
+const toQrPath = vi.fn((text: string) => ({ size: 24, d: `M${text}` }));
+const {
+  recordAudit,
+  auditEntries,
+  txClient,
+  prewiredWithTransaction: withTransaction,
+} = coreMocks("pass-request-service-test");
 
 vi.mock("@/modules/pass/pass.repo", () => ({
   createPass,
@@ -48,26 +51,19 @@ vi.mock("@/modules/pass/pass.repo", () => ({
 }));
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
 vi.mock("@/core/db/client", () => ({ withTransaction }));
+vi.mock("@/modules/pass/pass.qr", () => ({ toQrPath }));
 
 const { PassError } = await import("@/modules/pass/pass.error");
 const { ForbiddenError } = await import("@/core/authz/errors");
+const { verifyStudentCode } = await import("@/modules/pass/pass.token");
+const { scanOrigin, tokenFromScanUrl } = await import("@/modules/pass/pass.url");
 const service = await import("@/modules/pass/request.service");
 
-function user(role: SessionUser["role"], id: string): SessionUser {
-  return {
-    id,
-    name: "테스트",
-    email: `${id}@gbsw.hs.kr`,
-    role,
-    status: "ACTIVE",
-    deletedAt: null,
-    mustChangePassword: false,
-  };
-}
-
-const student = user("STUDENT", "u-student");
-const parent = user("PARENT", "u-parent");
-const admin = user("ADMIN", "u-admin");
+const student = user("STUDENT", "u-student", {
+  email: "u-student@gbsw.hs.kr",
+});
+const parent = user("PARENT", "u-parent", { email: "u-parent@gbsw.hs.kr" });
+const admin = user("ADMIN", "u-admin", { email: "u-admin@gbsw.hs.kr" });
 
 /** 2026-08-27 09:00 KST */
 const NOW = new Date("2026-08-27T00:00:00.000Z");
@@ -91,11 +87,6 @@ const OVERNIGHT = {
   reason: "가족 행사",
 };
 
-/** recordAudit이 받은 입력들. 감사로그 검증이 이 헬퍼 하나를 쓴다. */
-function auditEntries(): { action: string; targetId?: string; metadata?: Record<string, unknown> }[] {
-  return recordAudit.mock.calls.map(([entry]) => entry);
-}
-
 beforeEach(() => {
   createPass.mockReset().mockResolvedValue({ id: "p-1" });
   findPass.mockReset();
@@ -114,9 +105,11 @@ beforeEach(() => {
   isParentOf.mockReset().mockResolvedValue(true);
   displayYear.mockReset().mockResolvedValue(2026);
   recordAudit.mockReset().mockResolvedValue(undefined);
-  withTransaction
-    .mockReset()
-    .mockImplementation(async <T>(fn: (tx: typeof txClient) => Promise<T>) => fn(txClient));
+  toQrPath.mockReset().mockImplementation((text: string) => ({
+    size: 24,
+    d: `M${text}`,
+  }));
+  withTransaction.mockClear();
 });
 
 describe("requestPass", () => {
@@ -137,6 +130,16 @@ describe("requestPass", () => {
     expect(auditEntries()).toEqual([
       expect.objectContaining({ action: "pass:request", targetId: "p-1" }),
     ]);
+    expect(findOverlapping).toHaveBeenCalledWith(
+      "sp-1",
+      new Date("2026-08-27T04:00:00.000Z"),
+      new Date("2026-08-27T10:00:00.000Z"),
+      txClient,
+    );
+    expect(withTransaction).toHaveBeenCalledWith(expect.any(Function), {
+      timeout: 130_000,
+      maxWait: 10_000,
+    });
   });
 
   it("외박도 REQUESTED다 — 동의는 그다음 단계다", async () => {
@@ -171,6 +174,16 @@ describe("requestPass", () => {
     await expect(
       service.requestPass(student, { ...OUTING, endTime: "13:00" }, NOW),
     ).rejects.toThrow(new PassError("INVALID_PERIOD"));
+  });
+
+  it("명단 반영 잠금이 제한을 넘기면 재시도 가능한 업무 오류로 옮긴다", async () => {
+    withTransaction.mockRejectedValueOnce(
+      Object.assign(new Error("timeout"), { code: "P2028" }),
+    );
+
+    await expect(service.requestPass(student, OUTING, NOW)).rejects.toThrow(
+      new PassError("PASS_BUSY"),
+    );
   });
 
   it("감사 metadata의 날짜는 문자열이다 — JSON 열이라 Date를 넣으면 안 된다", async () => {
@@ -301,7 +314,6 @@ describe("consentPass", () => {
     expect(transitionUnexpired).toHaveBeenCalledWith(
       "p-1",
       ["REQUESTED"],
-      NOW,
       expect.objectContaining({
         status: "CONSENTED",
         consentedByUserId: "u-parent",
@@ -490,11 +502,18 @@ describe("getMyStudentQr", () => {
   });
 
   it("학생 본인에게 QR과 주소를 준다", async () => {
-    const result = await service.getMyStudentQr(student);
+    const at = new Date("2026-08-27T05:30:00.000Z");
+    findStudentProfileByUserId.mockResolvedValue({ id: "student0001" });
+
+    const result = await service.getMyStudentQr(student, at);
+    const text = toQrPath.mock.calls[0]?.[0];
+    const token = typeof text === "string" ? tokenFromScanUrl(text, scanOrigin()) : null;
 
     expect(result.qr.size).toBeGreaterThan(20);
     expect(result.qr.d.startsWith("M")).toBe(true);
     expect(typeof result.validUntil).toBe("string");
+    expect(token).not.toBeNull();
+    expect(verifyStudentCode(token!, at)).toEqual({ studentProfileId: "student0001" });
   });
 
   // **학생증의 성질이다.** 승인된 출입증이 하나도 없어도 나온다 — 학생증은
@@ -514,14 +533,29 @@ describe("getMyStudentQr", () => {
     expect(a.validUntil).not.toBe(b.validUntil);
   });
 
+  it("학생 역할인데 프로필 행이 없으면 User를 대상으로 거부를 기록한다", async () => {
+    findStudentProfileByUserId.mockResolvedValue(null);
+
+    await expect(service.getMyStudentQr(student)).rejects.toThrow(ForbiddenError);
+
+    expect(auditEntries()).toEqual([
+      expect.objectContaining({
+        actorUserId: "u-student",
+        action: "authz:denied",
+        targetType: "User",
+        targetId: "u-student",
+        metadata: { action: "pass:request" },
+      }),
+    ]);
+  });
+
   // 교사·보호자에게는 없다. 남이 대신 띄울 수 있으면 학생증이 아니게 된다.
   it.each([
-    ["교사", "admin"],
-    ["학부모", "parent"],
-  ])("%s는 학생 프로필이 없어 ForbiddenError다", async (_label, who) => {
-    findStudentProfileByUserId.mockResolvedValue(null);
-    const actor = who === "admin" ? admin : parent;
+    ["교사", admin],
+    ["학부모", parent],
+  ])("%s는 학생 프로필을 조회하기 전에 막힌다", async (_label, actor) => {
     await expect(service.getMyStudentQr(actor)).rejects.toThrow(ForbiddenError);
+    expect(findStudentProfileByUserId).not.toHaveBeenCalled();
     expect(recordAudit).toHaveBeenCalled();
   });
 });
