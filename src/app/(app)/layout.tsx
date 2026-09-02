@@ -8,6 +8,7 @@ export default async function AppLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   const user = await requireAuth();
 
+  // 인쇄에서 내용이 잘리지 않도록 화면 높이 제한과 스크롤 넘침을 푼다.
   return (
     <div className="flex h-dvh overflow-hidden print:block print:h-auto print:overflow-visible">
       <Sidebar name={user.name} role={user.role} />

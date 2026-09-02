@@ -59,6 +59,7 @@ export function TableFrame({
   );
 }
 
+// 카드 여백에 맞춰 기본 패딩은 첫·끝 열 px-5, 나머지 px-3으로 둔다.
 export function tableCellPadding(
   index: number,
   count: number,

@@ -9,6 +9,7 @@ const TONES: Record<NoteTone, string> = {
   warn: "border-amber-line bg-amber-soft text-amber-ink",
 };
 
+// tone="error"면 role="alert"를 기본으로 붙인다.
 export function Note({
   tone,
   className,

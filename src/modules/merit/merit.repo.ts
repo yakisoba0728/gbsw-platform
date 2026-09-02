@@ -533,6 +533,7 @@ export async function listChildren(parentUserId: string) {
   });
 }
 
+// 학부모 연결만 판단하므로 deletedAt이나 재적으로 거르지 않는다.
 export async function isChildOf(
   parentUserId: string,
   studentProfileId: string,
