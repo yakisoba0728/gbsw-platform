@@ -15,6 +15,7 @@ import { DECIDABLE_STATUSES, requiresConsent } from "./pass.policy";
 import * as repo from "./pass.repo";
 import type { PassHistoryFilter, PassWithStudent } from "./pass.repo";
 import {
+  PASS_ADMIN_PAGE_SIZE,
   PASS_HISTORY_PAGE_SIZE,
   passHistoryRange,
   type ApprovePassInput,
@@ -293,14 +294,29 @@ export async function cancelPass(
   });
 }
 
-export async function listPendingPasses(actor: SessionUser, now: Date = new Date()) {
+/* 두 목록은 각자의 커서로 넘긴다 — 한 화면에 함께 있어도 서로의 자리를 모른다. */
+export async function listPendingPasses(
+  actor: SessionUser,
+  now: Date = new Date(),
+  cursor: string | null = null,
+) {
   await assertCan(actor, "pass:read:any");
-  return repo.listPendingForAdmin(now, await repo.displayYear());
+  return repo.listPendingForAdmin(now, await repo.displayYear(), {
+    cursor,
+    take: PASS_ADMIN_PAGE_SIZE,
+  });
 }
 
-export async function listActivePasses(actor: SessionUser, now: Date = new Date()) {
+export async function listActivePasses(
+  actor: SessionUser,
+  now: Date = new Date(),
+  cursor: string | null = null,
+) {
   await assertCan(actor, "pass:read:any");
-  return repo.listActiveNow(now, await repo.displayYear());
+  return repo.listActiveNow(now, await repo.displayYear(), {
+    cursor,
+    take: PASS_ADMIN_PAGE_SIZE,
+  });
 }
 
 export async function listStudentsForIssue(actor: SessionUser) {

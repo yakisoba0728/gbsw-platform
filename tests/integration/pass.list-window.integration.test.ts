@@ -12,7 +12,10 @@ import {
   getMyLivePasses,
   getMyPasses,
 } from "@/modules/pass/request.service";
-import { PASS_HISTORY_PAGE_SIZE } from "@/modules/pass/pass.schema";
+import {
+  PASS_ADMIN_PAGE_SIZE,
+  PASS_HISTORY_PAGE_SIZE,
+} from "@/modules/pass/pass.schema";
 import { user } from "../helpers/session";
 
 vi.mock("server-only", () => ({}));
@@ -42,6 +45,33 @@ const parent = user("PARENT", ids.parent, {
 const now = new Date("2099-06-01T03:00:00.000Z");
 let pendingBefore = 0;
 let activeBefore = 0;
+
+type CursorPage = {
+  entries: { id: string }[];
+  total: number;
+  nextCursor: string | null;
+};
+
+/* 커서를 따라 끝까지 걷는다. 쪽 수를 전체 건수로 미리 묶어 두어, 커서가 듣지 않아
+   같은 쪽이 되풀이되면 매달리지 않고 stoppedAtEnd: false로 끝난다. */
+async function walkPages(
+  fetchPage: (cursor: string | null) => Promise<CursorPage>,
+): Promise<{ seen: string[]; total: number; pages: number; stoppedAtEnd: boolean }> {
+  const seen: string[] = [];
+  let cursor: string | null = null;
+  let total = 0;
+  let pages = 0;
+
+  do {
+    const page = await fetchPage(cursor);
+    total = page.total;
+    seen.push(...page.entries.map((entry) => entry.id));
+    cursor = page.nextCursor;
+    pages += 1;
+  } while (cursor !== null && pages <= Math.ceil(total / PASS_ADMIN_PAGE_SIZE) + 1);
+
+  return { seen, total, pages, stoppedAtEnd: cursor === null };
+}
 
 describe("역할별 출입증 목록 창과 정확한 건수", () => {
   beforeAll(async () => {
@@ -218,10 +248,57 @@ describe("역할별 출입증 목록 창과 정확한 건수", () => {
       listActivePasses(admin, now),
     ]);
 
-    expect(pending.entries).toHaveLength(100);
+    expect(pending.entries).toHaveLength(PASS_ADMIN_PAGE_SIZE);
     expect(pending.total).toBe(pendingBefore + 101);
-    expect(active.entries).toHaveLength(200);
+    expect(pending.nextCursor).toBe(pending.entries.at(-1)!.id);
+    expect(active.entries).toHaveLength(PASS_ADMIN_PAGE_SIZE);
     expect(active.total).toBe(activeBefore + 201);
+    expect(active.nextCursor).toBe(active.entries.at(-1)!.id);
+  });
+
+  it("교사는 커서를 따라 마지막 결재 대기 신청까지 도달한다", async () => {
+    const walk = await walkPages((cursor) => listPendingPasses(admin, now, cursor));
+
+    // 커서를 무시하면 같은 쪽이 반복되어 여기서 멈추지 않는다.
+    expect(walk.stoppedAtEnd).toBe(true);
+    expect(walk.seen).toHaveLength(walk.total);
+    expect(new Set(walk.seen).size).toBe(walk.seen.length);
+    // 상한 100건에 가려 승인도 반려도 할 수 없던 101번째 신청이다.
+    expect(walk.seen).toContain(`pass-list-pending-${suffix}-100`);
+  });
+
+  it("교사는 커서를 따라 마지막 사용 중 출입증까지 도달한다", async () => {
+    const walk = await walkPages((cursor) => listActivePasses(admin, now, cursor));
+
+    expect(walk.stoppedAtEnd).toBe(true);
+    expect(walk.seen).toHaveLength(walk.total);
+    expect(new Set(walk.seen).size).toBe(walk.seen.length);
+    // 상한 200건에 가려 정문에서 찾을 수 없던 201번째 출입증이다.
+    expect(walk.seen).toContain(`pass-list-active-${suffix}-200`);
+  });
+
+  it("커서 행이 결재되어 목록에서 빠져도 다음 쪽이 한 건을 건너뛰지 않는다", async () => {
+    const first = await listPendingPasses(admin, now);
+    const cursor = first.nextCursor!;
+    const second = await listPendingPasses(admin, now, cursor);
+    const head = second.entries[0]!.id;
+
+    await prisma.pass.update({
+      where: { id: cursor },
+      data: { status: "APPROVED", decidedByUserId: admin.id, decidedByName: admin.name },
+    });
+
+    try {
+      const again = await listPendingPasses(admin, now, cursor);
+
+      expect(again.entries[0]!.id).toBe(head);
+      expect(again.total).toBe(first.total - 1);
+    } finally {
+      await prisma.pass.update({
+        where: { id: cursor },
+        data: { status: "REQUESTED", decidedByUserId: null, decidedByName: null },
+      });
+    }
   });
 
   it("보호자 동의 대기는 호출 화면의 상한 이상을 읽지 않는다", async () => {

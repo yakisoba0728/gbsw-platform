@@ -4,6 +4,8 @@ import {
   approvePassSchema,
   cancelPassSchema,
   issuePassSchema,
+  parseCursorTrail,
+  PASS_ADMIN_CURSOR_DEPTH,
   passHistoryExportSchema,
   passHistoryQuerySchema,
   passHistoryRange,
@@ -286,5 +288,30 @@ describe("passHistoryRange", () => {
   it("끝을 고르면 그날을 통째로 포함한다 — 다음 날 자정 미만", () => {
     const { until } = passHistoryRange({ to: "2026-08-20" }, NOW);
     expect(until?.toISOString()).toBe("2026-08-20T15:00:00.000Z");
+  });
+});
+
+describe("parseCursorTrail — 주소의 커서 자취", () => {
+  it("파라미터가 없으면 첫 페이지다", () => {
+    expect(parseCursorTrail(undefined)).toEqual([]);
+    expect(parseCursorTrail("")).toEqual([]);
+  });
+
+  it("점으로 이어진 커서를 순서대로 읽는다", () => {
+    expect(parseCursorTrail("aaa.bbb.ccc")).toEqual(["aaa", "bbb", "ccc"]);
+  });
+
+  it("id 형식이 아니면 첫 페이지로 떨어진다", () => {
+    expect(parseCursorTrail("aaa.<script>")).toEqual([]);
+    expect(parseCursorTrail("aaa..bbb")).toEqual([]);
+    expect(parseCursorTrail(["aaa", "bbb"])).toEqual([]);
+  });
+
+  it("자취가 너무 길면 받지 않는다", () => {
+    const long = Array.from({ length: PASS_ADMIN_CURSOR_DEPTH + 1 }, (_, i) => `c${i}`);
+    expect(parseCursorTrail(long.join("."))).toEqual([]);
+    expect(parseCursorTrail(long.slice(0, PASS_ADMIN_CURSOR_DEPTH).join("."))).toHaveLength(
+      PASS_ADMIN_CURSOR_DEPTH,
+    );
   });
 });

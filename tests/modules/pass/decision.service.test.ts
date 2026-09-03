@@ -46,6 +46,7 @@ vi.mock("@/core/db/client", () => ({ withTransaction }));
 
 const { PassError } = await import("@/modules/pass/pass.error");
 const { ForbiddenError } = await import("@/core/authz/errors");
+const { PASS_ADMIN_PAGE_SIZE } = await import("@/modules/pass/pass.schema");
 const service = await import("@/modules/pass/decision.service");
 
 const student = user("STUDENT", "u-student", {
@@ -520,10 +521,12 @@ describe("cancelPass", () => {
 });
 
 describe("목록", () => {
+  const window = { cursor: null, take: PASS_ADMIN_PAGE_SIZE };
+
   it("결재 대기는 교사만 본다", async () => {
     await expect(service.listPendingPasses(student, NOW)).rejects.toThrow(ForbiddenError);
     await service.listPendingPasses(admin, NOW);
-    expect(listPendingForAdmin).toHaveBeenCalledWith(NOW, 2026);
+    expect(listPendingForAdmin).toHaveBeenCalledWith(NOW, 2026, window);
   });
 
   it("지금 유효한 목록도 교사만 본다", async () => {
@@ -531,7 +534,18 @@ describe("목록", () => {
     expect(listActiveNow).not.toHaveBeenCalled();
 
     await service.listActivePasses(admin, NOW);
-    expect(listActiveNow).toHaveBeenCalledWith(NOW, 2026);
+    expect(listActiveNow).toHaveBeenCalledWith(NOW, 2026, window);
+  });
+
+  it("커서를 받은 목록만 그 자리에서 이어 읽는다", async () => {
+    await service.listPendingPasses(admin, NOW, "pending-50");
+    await service.listActivePasses(admin, NOW);
+
+    expect(listPendingForAdmin).toHaveBeenCalledWith(NOW, 2026, {
+      cursor: "pending-50",
+      take: PASS_ADMIN_PAGE_SIZE,
+    });
+    expect(listActiveNow).toHaveBeenCalledWith(NOW, 2026, window);
   });
 });
 
