@@ -1,6 +1,8 @@
 import { randomBytes } from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { mkdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { Readable } from "node:stream";
 import { MAX_ATTACHMENT_BYTES } from "./community.schema";
 
 const UPLOAD_ROOT = process.env.UPLOAD_DIR ?? path.join(process.cwd(), ".uploads");
@@ -80,8 +82,68 @@ export async function writeAttachment(
   await writeFile(target, bytes);
 }
 
-export function readAttachment(key: string, at: Date): Promise<Buffer> {
-  return readFile(/* turbopackIgnore: true */ storagePath(key, at));
+/*
+ * 첨부는 파일당 20MB다. 통째로 버퍼에 올리면 동시 내려받기 수만큼 그 크기가
+ * 힙에 쌓이므로, 존재 확인과 크기만 먼저 읽고 바이트는 흘려보낸다.
+ * 없는 파일은 여기서 ENOENT로 터져 라우트가 404로 가린다.
+ */
+export async function attachmentSize(key: string, at: Date): Promise<number> {
+  const info = await stat(/* turbopackIgnore: true */ storagePath(key, at));
+  return info.size;
+}
+
+export type ByteRange = { start: number; end: number };
+
+export type RangeVerdict =
+  | { kind: "full" }
+  | { kind: "partial"; range: ByteRange }
+  | { kind: "unsatisfiable" };
+
+/*
+ * Range를 읽는 순수 함수다. 알아듣지 못하는 형태는 전부 전체 응답으로 떨어뜨린다 —
+ * Range는 서버가 무시해도 되는 요청이라, 애매한 값에 206을 붙이는 것보다 안전하다.
+ * 시작이 파일 끝을 넘는 것만 416으로 되돌려준다.
+ */
+export function parseRangeHeader(
+  header: string | null | undefined,
+  size: number,
+): RangeVerdict {
+  if (!header) return { kind: "full" };
+
+  const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+  if (!match) return { kind: "full" };
+
+  const [, rawStart, rawEnd] = match;
+  const last = size - 1;
+
+  // bytes=-N — 끝에서 N바이트.
+  if (rawStart === "") {
+    if (rawEnd === "") return { kind: "full" };
+    const suffix = Number(rawEnd);
+    if (suffix === 0) return { kind: "unsatisfiable" };
+    return { kind: "partial", range: { start: Math.max(0, size - suffix), end: last } };
+  }
+
+  const start = Number(rawStart);
+  if (start > last) return { kind: "unsatisfiable" };
+
+  const end = rawEnd === "" ? last : Math.min(Number(rawEnd), last);
+  if (end < start) return { kind: "full" };
+
+  return { kind: "partial", range: { start, end } };
+}
+
+/* 바이트를 흘려보낸다. 범위를 주면 그 조각만 읽는다. */
+export function openAttachment(
+  key: string,
+  at: Date,
+  range?: ByteRange,
+): ReadableStream<Uint8Array> {
+  const stream = createReadStream(
+    /* turbopackIgnore: true */ storagePath(key, at),
+    range ? { start: range.start, end: range.end } : undefined,
+  );
+  return Readable.toWeb(stream) as ReadableStream<Uint8Array>;
 }
 
 export async function deleteAttachment(key: string, at: Date): Promise<void> {

@@ -7,12 +7,18 @@ const getSessionUser = vi.fn<() => Promise<SessionUser | null>>();
 const getWritableBySlug = vi.fn();
 const uploadAttachment = vi.fn();
 const getDownload = vi.fn();
+const openAttachment = vi.fn();
 
 vi.mock("@/core/auth/session", () => ({ getSessionUser }));
 vi.mock("@/modules/community/board.service", () => ({ getWritableBySlug }));
 vi.mock("@/modules/community/attachment.service", () => ({
   uploadAttachment,
   getDownload,
+}));
+// 라우트가 여는 스트림만 가른다 — Range 계산과 헤더 조립은 실제 코드가 한다.
+vi.mock("@/modules/community/community.storage", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  openAttachment,
 }));
 
 const { ForbiddenError } = await import("@/core/authz/errors");
@@ -66,11 +72,21 @@ beforeEach(() => {
     .mockResolvedValue({ id: "c1", slug: "free", allowAttachments: true });
   uploadAttachment.mockReset().mockResolvedValue({ id: "att-1" });
   getDownload.mockReset().mockResolvedValue({
-    bytes: Buffer.from("PDF"),
+    storageKey: "a".repeat(32),
+    storedAt: new Date("2026-08-28T00:00:00.000Z"),
+    size: 3,
     filename: "가정통신문.pdf",
     mimeType: "application/pdf",
     inline: true,
   });
+  openAttachment.mockReset().mockReturnValue(
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array([80, 68, 70]));
+        controller.close();
+      },
+    }),
+  );
 });
 
 describe("POST /api/community/attachments", () => {
@@ -189,5 +205,58 @@ describe("GET /api/community/attachments/[...attachment]", () => {
     expect(response.headers.get("Content-Length")).toBe("3");
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
     expect(response.headers.get("Content-Disposition")).toContain("inline;");
+    expect(response.headers.get("Accept-Ranges")).toBe("bytes");
+  });
+
+  /*
+   * 20MB 파일을 통째로 버퍼에 올리면 동시 내려받기 수만큼 그 크기가 힙에 쌓인다.
+   * 라우트는 좌표만 받아 디스크에서 응답으로 흘려보낸다.
+   */
+  it("바이트를 버퍼로 받지 않고 스트림으로 흘려보낸다", async () => {
+    const response = await GET(new Request("http://localhost"), downloadParams("att-1"));
+
+    expect(openAttachment).toHaveBeenCalledWith(
+      "a".repeat(32),
+      new Date("2026-08-28T00:00:00.000Z"),
+      undefined,
+    );
+    await expect(response.text()).resolves.toBe("PDF");
+  });
+
+  it("Range를 주면 그 조각만 열고 206으로 답한다", async () => {
+    getDownload.mockResolvedValue({
+      storageKey: "a".repeat(32),
+      storedAt: new Date("2026-08-28T00:00:00.000Z"),
+      size: 1000,
+      filename: "가정통신문.pdf",
+      mimeType: "application/pdf",
+      inline: true,
+    });
+
+    const response = await GET(
+      new Request("http://localhost", { headers: { range: "bytes=100-199" } }),
+      downloadParams("att-1"),
+    );
+
+    expect(response.status).toBe(206);
+    expect(response.headers.get("Content-Range")).toBe("bytes 100-199/1000");
+    expect(response.headers.get("Content-Length")).toBe("100");
+    expect(openAttachment).toHaveBeenCalledWith(
+      "a".repeat(32),
+      new Date("2026-08-28T00:00:00.000Z"),
+      { start: 100, end: 199 },
+    );
+  });
+
+  // 범위를 고쳐 다시 물을 수 있게 파일 크기를 알려준다.
+  it("파일 끝을 넘는 Range는 416이고 파일을 열지 않는다", async () => {
+    const response = await GET(
+      new Request("http://localhost", { headers: { range: "bytes=9999-" } }),
+      downloadParams("att-1"),
+    );
+
+    expect(response.status).toBe(416);
+    expect(response.headers.get("Content-Range")).toBe("bytes */3");
+    expect(openAttachment).not.toHaveBeenCalled();
   });
 });

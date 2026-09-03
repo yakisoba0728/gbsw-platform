@@ -12,7 +12,7 @@ const findAttachmentForDownload = vi.fn();
 const getWritableBySlug = vi.fn();
 const getReadableBySlug = vi.fn();
 const writeAttachment = vi.fn();
-const readAttachment = vi.fn();
+const attachmentSize = vi.fn();
 const deleteAttachment = vi.fn();
 const {
   recordAudit,
@@ -38,7 +38,7 @@ vi.mock("@/modules/community/community.storage", async () => {
   const actual = await vi.importActual<
     typeof import("@/modules/community/community.storage")
   >("@/modules/community/community.storage");
-  return { ...actual, writeAttachment, readAttachment, deleteAttachment };
+  return { ...actual, writeAttachment, attachmentSize, deleteAttachment };
 });
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
 vi.mock("@/core/db/client", () => ({ withTransaction }));
@@ -454,7 +454,7 @@ describe("getDownload", () => {
 
   beforeEach(() => {
     findAttachmentForDownload.mockResolvedValue(attachment);
-    readAttachment.mockResolvedValue(Buffer.from("PNG"));
+    attachmentSize.mockResolvedValue(3);
   });
 
   it("읽기 권한이 있으면 준다 — 이미지는 inline", async () => {
@@ -468,11 +468,30 @@ describe("getDownload", () => {
     });
   });
 
+  /*
+   * 바이트를 돌려주면 20MB 파일이 동시 내려받기 수만큼 힙에 쌓인다. 라우트가
+   * 스트림을 열 좌표만 준다 — size는 DB에 적힌 값이 아니라 디스크의 실제 크기라
+   * Content-Range·Content-Length가 응답하는 파일과 어긋나지 않는다.
+   */
+  it("바이트가 아니라 스트림을 열 좌표와 실제 크기를 준다", async () => {
+    attachmentSize.mockResolvedValue(4096);
+
+    const result = await service.getDownload(student, "a1");
+
+    expect(result).not.toHaveProperty("bytes");
+    expect(result).toMatchObject({
+      storageKey: "b".repeat(32),
+      storedAt: attachment.createdAt,
+      size: 4096,
+    });
+    expect(attachmentSize).toHaveBeenCalledWith("b".repeat(32), attachment.createdAt);
+  });
+
   it("읽기 권한이 없으면 거부하고 파일을 안 읽는다", async () => {
     getReadableBySlug.mockRejectedValue(new ForbiddenError("community:read"));
 
     await expect(service.getDownload(parent, "a1")).rejects.toThrow(ForbiddenError);
-    expect(readAttachment).not.toHaveBeenCalled();
+    expect(attachmentSize).not.toHaveBeenCalled();
   });
 
   it("지워진 글의 첨부는 막는다", async () => {
@@ -483,7 +502,7 @@ describe("getDownload", () => {
     await expect(service.getDownload(student, "a1")).rejects.toThrow(
       new CommunityError("ATTACHMENT_NOT_FOUND"),
     );
-    expect(readAttachment).not.toHaveBeenCalled();
+    expect(attachmentSize).not.toHaveBeenCalled();
   });
 
   it("아직 글에 안 붙은 첨부는 올린 본인만 본다", async () => {
@@ -524,7 +543,7 @@ describe("getDownload", () => {
       targetId: "a1",
       metadata: { action: "community:attachment:read" },
     });
-    expect(readAttachment).not.toHaveBeenCalled();
+    expect(attachmentSize).not.toHaveBeenCalled();
   });
 
   it("감사 기록이 실패해도 소유권 거부는 ForbiddenError로 남는다", async () => {
@@ -539,7 +558,7 @@ describe("getDownload", () => {
     await expect(
       service.getDownload(user("STUDENT", "s-9"), "a1"),
     ).rejects.toThrow(new ForbiddenError("community:attachment:read"));
-    expect(readAttachment).not.toHaveBeenCalled();
+    expect(attachmentSize).not.toHaveBeenCalled();
   });
 
   it("없는 첨부면 ATTACHMENT_NOT_FOUND", async () => {

@@ -46,7 +46,9 @@ vi.mock("@/core/db/client", () => ({ withTransaction }));
 
 const { PassError } = await import("@/modules/pass/pass.error");
 const { ForbiddenError } = await import("@/core/authz/errors");
-const { PASS_ADMIN_PAGE_SIZE } = await import("@/modules/pass/pass.schema");
+const { PASS_ADMIN_PAGE_SIZE, PASS_HISTORY_EXPORT_MAX_ROWS } = await import(
+  "@/modules/pass/pass.schema",
+);
 const service = await import("@/modules/pass/decision.service");
 
 const student = user("STUDENT", "u-student", {
@@ -640,13 +642,68 @@ describe("전체 내역", () => {
     );
   });
 
+  /* 시트로 옮길 수 있는 최소한의 한 줄. 건수만 바꿔 상한을 넘겨 본다. */
+  function exported(count: number) {
+    return Array.from({ length: count }, () => ({
+      type: "OUTING",
+      status: "APPROVED",
+      startAt: NOW,
+      endAt: NOW,
+      destination: "병원",
+      reason: "진료",
+      requestedByName: "김민준",
+      consentedByName: null,
+      consentedAt: null,
+      consentByProxy: false,
+      consentNote: null,
+      decidedByName: "이정민",
+      decidedAt: NOW,
+      decisionNote: null,
+      cancelledByName: null,
+      cancelledAt: null,
+      cancelReason: null,
+      studentProfile: {
+        user: { name: "김민준" },
+        enrollments: [{ grade: 2, classNo: 3, number: 5 }],
+      },
+    }));
+  }
+
   it("내보내기는 쪽을 나누지 않는다 — 조건에 맞는 전부가 한 파일이다", async () => {
     const { filename } = await service.exportPassHistory(admin, exportInput);
 
+    // 상한을 넘겼는지 보려고 한 건 더 받는다. 쪽을 나누는 것이 아니다.
     expect(listHistory).toHaveBeenCalledWith(
-      expect.objectContaining({ skip: 0, take: null }),
+      expect.objectContaining({ skip: 0, take: PASS_HISTORY_EXPORT_MAX_ROWS + 1 }),
       2026,
     );
     expect(filename).toBe("출입증내역_2026-08-01~2026-08-26.xlsx");
+  });
+
+  /*
+   * 상한이 없으면 조회·시트 생성·전송이 한 요청에 몰려 그동안 다른 요청이 밀린다.
+   * 기간을 좁히라고 되돌려 주는 편이 낫다 — 전교 300명의 기본 30일은 천 건 안쪽이다.
+   */
+  it("상한을 넘으면 시트를 만들지 않고 기간을 좁히라고 한다", async () => {
+    listHistory.mockResolvedValue({
+      entries: exported(PASS_HISTORY_EXPORT_MAX_ROWS + 1),
+      total: PASS_HISTORY_EXPORT_MAX_ROWS + 1,
+    });
+
+    await expect(service.exportPassHistory(admin, exportInput)).rejects.toThrow(
+      new PassError("EXPORT_TOO_LARGE"),
+    );
+  });
+
+  it("상한과 같은 건수까지는 그대로 내보낸다", async () => {
+    listHistory.mockResolvedValue({
+      entries: exported(PASS_HISTORY_EXPORT_MAX_ROWS),
+      total: PASS_HISTORY_EXPORT_MAX_ROWS,
+    });
+
+    const { rows } = await service.exportPassHistory(admin, exportInput);
+
+    // 머리글이 붙으므로 자료 줄은 상한만큼이다.
+    expect(rows.length).toBeGreaterThanOrEqual(PASS_HISTORY_EXPORT_MAX_ROWS);
   });
 });

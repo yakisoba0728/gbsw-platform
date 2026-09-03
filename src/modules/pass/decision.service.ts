@@ -16,6 +16,7 @@ import * as repo from "./pass.repo";
 import type { PassHistoryFilter, PassWithStudent } from "./pass.repo";
 import {
   PASS_ADMIN_PAGE_SIZE,
+  PASS_HISTORY_EXPORT_MAX_ROWS,
   PASS_HISTORY_PAGE_SIZE,
   passHistoryRange,
   type ApprovePassInput,
@@ -387,10 +388,14 @@ export async function exportPassHistory(
 
   const year = await repo.displayYear();
   const range = passHistoryRange(input);
+  // 한 건 더 받아 상한을 넘겼는지 본다 — 넘긴 만큼을 세느라 다시 훑지 않는다.
   const { entries } = await repo.listHistory(
-    { ...historyFilter(input, range), skip: 0, take: null },
+    { ...historyFilter(input, range), skip: 0, take: PASS_HISTORY_EXPORT_MAX_ROWS + 1 },
     year,
   );
+  if (entries.length > PASS_HISTORY_EXPORT_MAX_ROWS) {
+    throw new PassError("EXPORT_TOO_LARGE");
+  }
 
   return {
     rows: toPassHistorySheet(entries.map(toExportRow), input, range),

@@ -4,6 +4,7 @@ import {
   classifyUpload,
   contentDisposition,
   newStorageKey,
+  parseRangeHeader,
   storagePath,
 } from "@/modules/community/community.storage";
 
@@ -144,5 +145,72 @@ describe("contentDisposition", () => {
     expect(value).not.toContain("\n");
     const ascii = value.slice(value.indexOf('filename="') + 10);
     expect(ascii.slice(0, ascii.indexOf('"'))).not.toContain('"');
+  });
+});
+
+describe("parseRangeHeader()", () => {
+  const SIZE = 1000;
+
+  it("Range가 없으면 전체를 준다", () => {
+    expect(parseRangeHeader(null, SIZE)).toEqual({ kind: "full" });
+    expect(parseRangeHeader(undefined, SIZE)).toEqual({ kind: "full" });
+  });
+
+  it("bytes=start-end는 그 조각이다", () => {
+    expect(parseRangeHeader("bytes=100-199", SIZE)).toEqual({
+      kind: "partial",
+      range: { start: 100, end: 199 },
+    });
+  });
+
+  it("끝을 안 적으면 파일 끝까지다", () => {
+    expect(parseRangeHeader("bytes=900-", SIZE)).toEqual({
+      kind: "partial",
+      range: { start: 900, end: 999 },
+    });
+  });
+
+  it("끝이 파일보다 뒤면 파일 끝으로 줄인다", () => {
+    expect(parseRangeHeader("bytes=0-99999", SIZE)).toEqual({
+      kind: "partial",
+      range: { start: 0, end: 999 },
+    });
+  });
+
+  it("bytes=-N은 끝에서 N바이트다", () => {
+    expect(parseRangeHeader("bytes=-100", SIZE)).toEqual({
+      kind: "partial",
+      range: { start: 900, end: 999 },
+    });
+  });
+
+  it("파일보다 큰 꼬리 요청은 처음부터 준다", () => {
+    expect(parseRangeHeader("bytes=-99999", SIZE)).toEqual({
+      kind: "partial",
+      range: { start: 0, end: 999 },
+    });
+  });
+
+  // 416으로 되돌려 줘야 클라이언트가 범위를 고쳐 다시 묻는다.
+  it.each([
+    ["시작이 파일 끝을 넘음", "bytes=1000-1100"],
+    ["0바이트 꼬리", "bytes=-0"],
+  ])("%s이면 만족시킬 수 없다", (_label, header) => {
+    expect(parseRangeHeader(header, SIZE)).toEqual({ kind: "unsatisfiable" });
+  });
+
+  // Range는 서버가 무시해도 되는 요청이다. 애매한 값에 206을 붙이지 않는다.
+  it.each([
+    ["단위가 bytes가 아님", "items=0-99"],
+    ["여러 구간", "bytes=0-99,200-299"],
+    ["형식이 아님", "bytes=abc"],
+    ["빈 값", "bytes=-"],
+    ["시작이 끝보다 뒤", "bytes=500-100"],
+  ])("%s이면 전체로 떨어진다", (_label, header) => {
+    expect(parseRangeHeader(header, SIZE)).toEqual({ kind: "full" });
+  });
+
+  it("빈 파일은 어떤 범위도 만족시킬 수 없다", () => {
+    expect(parseRangeHeader("bytes=0-", 0)).toEqual({ kind: "unsatisfiable" });
   });
 });

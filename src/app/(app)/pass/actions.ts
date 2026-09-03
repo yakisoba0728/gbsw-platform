@@ -24,6 +24,7 @@ import {
   cancelPassSchema,
   consentPassSchema,
   issuePassSchema,
+  PASS_HISTORY_EXPORT_MAX_ROWS,
   passHistoryExportSchema,
   rejectPassSchema,
   requestPassSchema,
@@ -50,6 +51,7 @@ const MESSAGES: Record<string, string> & { FORBIDDEN: string } = {
   NOT_ENROLLED: "현재 학년도 재학생만 신청할 수 있습니다.",
   STUDENT_NOT_ELIGIBLE: "현재 학년도에 재학 중인 활성 학생에게만 부여할 수 있습니다.",
   PASS_BUSY: "명단 반영 중일 수 있습니다. 잠시 후 다시 시도해 주세요.",
+  EXPORT_TOO_LARGE: `한 번에 ${PASS_HISTORY_EXPORT_MAX_ROWS.toLocaleString("ko-KR")}건까지 받을 수 있습니다. 기간을 좁혀 주세요.`,
 };
 
 const UNKNOWN_MESSAGE = "처리하지 못했습니다.";

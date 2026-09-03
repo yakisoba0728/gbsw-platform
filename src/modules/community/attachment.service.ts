@@ -8,10 +8,10 @@ import { stripImageMetadata } from "./community.exif";
 import * as repo from "./community.repo";
 import { MAX_PENDING_ATTACHMENTS } from "./community.schema";
 import {
+  attachmentSize,
   classifyUpload,
   deleteAttachment,
   newStorageKey,
-  readAttachment,
   writeAttachment,
 } from "./community.storage";
 
@@ -172,8 +172,15 @@ async function sweepMyOrphans(actor: SessionUser): Promise<void> {
   }
 }
 
+/*
+ * 바이트를 담지 않는다 — 20MB 파일을 통째로 힙에 올리지 않으려고 라우트가
+ * 이 좌표로 스트림을 연다. size는 디스크에서 읽은 실제 크기라 Range 계산과
+ * Content-Length가 응답하는 파일과 어긋나지 않는다.
+ */
 type Download = {
-  bytes: Buffer;
+  storageKey: string;
+  storedAt: Date;
+  size: number;
   filename: string;
   mimeType: string;
   inline: boolean;
@@ -204,7 +211,10 @@ export async function getDownload(
   const mimeType = verdict.ok ? verdict.mimeType : "application/octet-stream";
 
   return {
-    bytes: await readAttachment(attachment.storageKey, attachment.createdAt),
+    storageKey: attachment.storageKey,
+    storedAt: attachment.createdAt,
+    // 없는 파일은 여기서 ENOENT로 터지고 라우트가 404로 가린다.
+    size: await attachmentSize(attachment.storageKey, attachment.createdAt),
     filename: attachment.filename,
     mimeType,
     inline,
