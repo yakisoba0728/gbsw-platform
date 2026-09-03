@@ -4,7 +4,8 @@ import { user } from "../../helpers/session";
 
 const countPending = vi.fn();
 const lockAttachmentUploader = vi.fn();
-const listStalePending = vi.fn();
+const lockStalePending = vi.fn();
+const deleteStalePending = vi.fn();
 const deleteAttachments = vi.fn();
 const createAttachment = vi.fn();
 const findAttachmentForDownload = vi.fn();
@@ -15,6 +16,7 @@ const readAttachment = vi.fn();
 const deleteAttachment = vi.fn();
 const {
   recordAudit,
+  auditEntries,
   txClient,
   prewiredWithTransaction: withTransaction,
 } = coreMocks("attachment-service-test");
@@ -22,7 +24,8 @@ const {
 vi.mock("@/modules/community/community.repo", () => ({
   countPending,
   lockAttachmentUploader,
-  listStalePending,
+  lockStalePending,
+  deleteStalePending,
   deleteAttachments,
   createAttachment,
   findAttachmentForDownload,
@@ -70,7 +73,8 @@ beforeEach(() => {
   getReadableBySlug.mockResolvedValue(board);
   countPending.mockResolvedValue(0);
   lockAttachmentUploader.mockResolvedValue(undefined);
-  listStalePending.mockResolvedValue([]);
+  lockStalePending.mockResolvedValue([]);
+  deleteStalePending.mockImplementation(async (ids: string[]) => ids);
   deleteAttachments.mockResolvedValue(undefined);
   writeAttachment.mockResolvedValue(undefined);
   deleteAttachment.mockResolvedValue(undefined);
@@ -255,29 +259,38 @@ describe("uploadAttachment — 미결 첨부 수", () => {
 });
 
 describe("uploadAttachment — 고아 정리", () => {
+  const createdAt = new Date("2026-08-27T00:00:00.000Z");
+  const mine = {
+    id: "old1",
+    storageKey: "a".repeat(32),
+    filename: "내-옛파일.pdf",
+    uploaderUserId: "s-1" as string | null,
+    createdAt,
+  };
+  const ownerless = {
+    id: "old2",
+    storageKey: "b".repeat(32),
+    filename: "주인-없는-옛파일.pdf",
+    uploaderUserId: null,
+    createdAt,
+  };
+
+  function cleanupTargets(): Array<string | undefined> {
+    return auditEntries()
+      .filter((entry) => entry.action === "community:attachment:delete")
+      .map((entry) => entry.targetId);
+  }
+
   it("내 고아와 주인이 사라진 고아를 구분해 지운다 — DB·디스크·감사로그", async () => {
-    const createdAt = new Date("2026-08-27T00:00:00.000Z");
-    listStalePending.mockResolvedValue([
-      {
-        id: "old1",
-        storageKey: "a".repeat(32),
-        filename: "내-옛파일.pdf",
-        uploaderUserId: "s-1",
-        createdAt,
-      },
-      {
-        id: "old2",
-        storageKey: "b".repeat(32),
-        filename: "주인-없는-옛파일.pdf",
-        uploaderUserId: null,
-        createdAt,
-      },
-    ]);
+    lockStalePending.mockResolvedValue([mine, ownerless]);
 
     await service.uploadAttachment(student, upload);
 
-    expect(listStalePending).toHaveBeenCalledWith("s-1", expect.any(Date));
-    expect(deleteAttachments).toHaveBeenCalledWith(["old1", "old2"], txClient);
+    expect(deleteStalePending).toHaveBeenCalledWith(
+      ["old1", "old2"],
+      expect.any(Date),
+      txClient,
+    );
     expect(deleteAttachment).toHaveBeenCalledWith("a".repeat(32), createdAt);
     expect(deleteAttachment).toHaveBeenCalledWith("b".repeat(32), createdAt);
     expect(recordAudit).toHaveBeenCalledWith(
@@ -306,8 +319,66 @@ describe("uploadAttachment — 고아 정리", () => {
     );
   });
 
+  it("목록을 트랜잭션 안에서 잠근 채 읽는다 — 밖에서 읽으면 그사이 붙은 첨부를 못 거른다", async () => {
+    await service.uploadAttachment(student, upload);
+
+    expect(lockStalePending).toHaveBeenCalledWith("s-1", expect.any(Date), txClient);
+  });
+
+  it("그사이 글에 붙은 첨부는 파일도 감사로그도 건드리지 않는다", async () => {
+    lockStalePending.mockResolvedValue([mine, ownerless]);
+    // 잠금 뒤 조건을 다시 본 삭제가 실제로 지운 것은 old1뿐 — old2는 그새 글에 붙었다.
+    deleteStalePending.mockResolvedValue(["old1"]);
+
+    await service.uploadAttachment(student, upload);
+
+    expect(deleteAttachment).toHaveBeenCalledTimes(1);
+    expect(deleteAttachment).toHaveBeenCalledWith("a".repeat(32), createdAt);
+    expect(deleteAttachment).not.toHaveBeenCalledWith("b".repeat(32), createdAt);
+    expect(cleanupTargets()).toEqual(["old1"]);
+  });
+
+  it("모두 글에 붙었으면 하나도 지우지 않는다", async () => {
+    lockStalePending.mockResolvedValue([mine, ownerless]);
+    deleteStalePending.mockResolvedValue([]);
+
+    await service.uploadAttachment(student, upload);
+
+    expect(deleteAttachment).not.toHaveBeenCalled();
+    expect(cleanupTargets()).toEqual([]);
+  });
+
+  it("한 시간이 지난 것만 노리고, 잠글 때와 지울 때가 같은 기준시각을 본다", async () => {
+    lockStalePending.mockResolvedValue([mine]);
+    const opened = Date.now();
+
+    await service.uploadAttachment(student, upload);
+
+    const closed = Date.now();
+    const cutoff = lockStalePending.mock.calls[0][1] as Date;
+    expect(cutoff.getTime()).toBeGreaterThanOrEqual(opened - 60 * 60 * 1000);
+    expect(cutoff.getTime()).toBeLessThanOrEqual(closed - 60 * 60 * 1000);
+    expect(deleteStalePending.mock.calls[0][1]).toBe(cutoff);
+  });
+
+  it("파일은 커밋 뒤에 지운다 — 롤백돼도 파일은 돌아오지 않는다", async () => {
+    const order: string[] = [];
+    lockStalePending.mockResolvedValue([mine]);
+    deleteStalePending.mockImplementation(async (ids: string[]) => {
+      order.push("row");
+      return ids;
+    });
+    deleteAttachment.mockImplementation(async () => {
+      order.push("file");
+    });
+
+    await service.uploadAttachment(student, upload);
+
+    expect(order).toEqual(["row", "file"]);
+  });
+
   it("정리가 실패해도 업로드는 성공한다 — 청소가 본 일을 막지 않는다", async () => {
-    listStalePending.mockRejectedValue(new Error("db down"));
+    lockStalePending.mockRejectedValue(new Error("db down"));
     await expect(service.uploadAttachment(student, upload)).resolves.toBeDefined();
   });
 });

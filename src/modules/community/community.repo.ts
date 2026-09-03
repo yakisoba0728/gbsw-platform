@@ -1,5 +1,5 @@
 import { prisma, type DbClient } from "@/core/db/client";
-import type { Community } from "@/generated/prisma/client";
+import { Prisma, type Community } from "@/generated/prisma/client";
 import type { CreateCommunityInput } from "./community.schema";
 
 export type CommunityRow = Community;
@@ -328,25 +328,52 @@ export async function lockAttachmentUploader(
   `;
 }
 
-export function listStalePending(
+export type StalePendingRow = {
+  id: string;
+  storageKey: string;
+  filename: string;
+  uploaderUserId: string | null;
+  createdAt: Date;
+};
+
+// 지울 후보를 잠근 채 읽는다. READ COMMITTED에서는 앞선 attachToPost가 커밋되기를
+// 기다린 뒤 WHERE를 다시 평가하므로, 그사이 글에 붙은 첨부는 결과에서 빠진다 —
+// 잠그지 않고 읽으면 그 첨부의 파일까지 지운다.
+// id 순으로 잠가 동시에 도는 청소끼리 교착하지 않게 한다.
+// createdAt은 시간대 없는 TIMESTAMP(3)에 UTC 값을 담고 드라이버도 Date를 UTC
+// 벽시계 문자열로 보내므로, 같은 축끼리라 시간대 변환이 필요 없다.
+export function lockStalePending(
   uploaderUserId: string,
   before: Date,
-  db: DbClient = prisma,
-) {
-  return db.communityAttachment.findMany({
-    where: {
-      postId: null,
-      createdAt: { lt: before },
-      OR: [{ uploaderUserId }, { uploaderUserId: null }],
-    },
-    select: {
-      id: true,
-      storageKey: true,
-      filename: true,
-      uploaderUserId: true,
-      createdAt: true,
-    },
-  });
+  db: DbClient,
+): Promise<StalePendingRow[]> {
+  return db.$queryRaw<StalePendingRow[]>`
+    SELECT "id", "storageKey", "filename", "uploaderUserId", "createdAt"
+    FROM "CommunityAttachment"
+    WHERE "postId" IS NULL
+      AND "createdAt" < ${before}
+      AND ("uploaderUserId" = ${uploaderUserId} OR "uploaderUserId" IS NULL)
+    ORDER BY "id"
+    FOR UPDATE
+  `;
+}
+
+// 잠긴 집합만, 그것도 조건을 다시 붙여 지우고 실제로 지워진 id를 돌려준다.
+// 감사로그와 디스크 삭제가 이 반환값만 보므로 DB와 어긋날 수 없다.
+export async function deleteStalePending(
+  ids: string[],
+  before: Date,
+  db: DbClient,
+): Promise<string[]> {
+  if (ids.length === 0) return [];
+  const deleted = await db.$queryRaw<Array<{ id: string }>>`
+    DELETE FROM "CommunityAttachment"
+    WHERE "id" IN (${Prisma.join(ids)})
+      AND "postId" IS NULL
+      AND "createdAt" < ${before}
+    RETURNING "id"
+  `;
+  return deleted.map((row) => row.id);
 }
 
 export async function deleteAttachments(
