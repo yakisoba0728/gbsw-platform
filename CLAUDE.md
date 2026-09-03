@@ -104,6 +104,10 @@ src/
                           벗긴다). 서비스는 board·post·comment·attachment 넷이다.
                           **첨부 업로드는 서버 액션이 아니라 라우트 핸들러다** —
                           bodySizeLimit이 액션 전체에 걸려서다.
+    verification/        가입 인증코드. 감사로그 예외다(아래 참조). 순수 조각이 하나
+                          있다 — verification.code-hash.ts(BETTER_AUTH_SECRET에서
+                          HKDF로 키를 파생해 코드를 HMAC으로 묶는다. DB도 시계도
+                          모른다).
   app/
     (auth)/             비로그인 — login
     (app)/              로그인 필수 — layout.tsx가 세션 가드 + mustChangePassword 가로채기
@@ -247,6 +251,17 @@ account에서 시작해 모듈이 커지면 merit의 모양으로 간다.
 - **학생증 QR은 `BETTER_AUTH_URL`을 가리킨다.** 앱은 `127.0.0.1`에만 묶여 공개 주소를
   요청 헤더로 알 수 없다. 서명 키도 `BETTER_AUTH_SECRET`에서 HKDF로 파생하므로, 그 값을
   바꾸면 **그 순간 살아 있던 QR이 전부 무효가 된다** (학생이 화면을 새로 고치면 된다).
+  **가입 인증코드도 같은 비밀에서 키를 파생한다**(`verification.code-hash.ts`, info는
+  다르다) — 회전하면 발송된 인증번호도 함께 무효가 된다. 수명이 5분이라 다시 요청하면
+  된다. 6자리는 후보가 10^6뿐이라 비밀키 없는 해시로 저장하면 DB 한 줄이 곧 코드다.
+- **완전 삭제는 삭제 표시된 계정만 지운다.** `deletedAt`이 없는 계정은 서비스와
+  repo 양쪽에서 거절한다 — `User` 삭제는 `StudentProfile`을 타고 학적·상벌점·출입증·
+  보호자 연결까지 Cascade로 지운다. 명단에서 빠뜨리는 것(soft delete)이 먼저다.
+- **출입증 자격은 진입점마다 같아야 한다.** 판정 술어(학생·활성·미삭제·현재 학년도
+  ENROLLED)는 `pass.repo.ts`의 `ELIGIBLE_USER`와 `enrolledIn()` 두 조각에만 적는다.
+  쓰기 경로는 `lockEligibleStudentForPassCreation`(잠근다), 학생증처럼 쓰기가 없는
+  경로는 `isEligibleStudent`를 쓴다. **새 진입점에서 조건을 손으로 다시 적지 않는다** —
+  학생 신청 경로만 느슨했던 것이 실제 결함이었다.
 - **판독(`/scan`)은 메뉴에 없다.** 출입증 화면의 「스캔」 버튼으로 들어간다. 앱 셸 밖에
   사는 화면이며 제목은 `src/app/scan/page.tsx`의 메타데이터와 `<h1>`이 소유한다.
 - **부분 유니크 인덱스는 마이그레이션 SQL에만 있다.** `AcademicYear_single_current`는
