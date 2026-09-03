@@ -62,6 +62,10 @@ export default defineConfig({
           include: ["tests/integration/**/*.test.ts"],
           env: {
             DATABASE_URL: readTestDatabaseUrl(),
+            // 인증코드 해시와 학생증 QR이 이 값에서 키를 파생한다. 단위 테스트는
+            // 파일마다 직접 넣지만 통합 테스트는 실제 서비스를 그대로 부르므로
+            // 프로젝트 env에 둔다 — 개발자·CI 환경의 실제 비밀에 기대지 않는다.
+            BETTER_AUTH_SECRET: "test-only-secret-for-integration-0123456789",
           },
           fileParallelism: false,
         },
