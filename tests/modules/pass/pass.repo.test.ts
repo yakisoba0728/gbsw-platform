@@ -15,8 +15,10 @@ beforeEach(() => {
   queryRaw.mockReset();
 });
 
+// 조각(Prisma.sql)을 끼운 질의는 조각의 문장이 values로 넘어가 템플릿 문자열에는
+// 없다 — 합쳐진 최종 SQL로 펴서 본다.
 function sqlAt(index: number): string {
-  return queryRaw.mock.calls[index]![0].join(" ");
+  return Prisma.sql(...(queryRaw.mock.calls[index]! as [never])).sql;
 }
 
 describe("출입증 상태 집합", () => {
@@ -121,40 +123,83 @@ describe("transitionUnexpired SQL", () => {
   });
 });
 
+// 자격 판정의 기준. 잠그는 경로와 잠그지 않는 경로가 이 넷을 모두 봐야 한다.
+const ELIGIBILITY_PREDICATES = [
+  `u."role" = 'STUDENT'`,
+  `u."status" = 'ACTIVE'`,
+  `u."deletedAt" IS NULL`,
+  `e."status" = 'ENROLLED'`,
+];
+
+async function lockingSql(): Promise<string> {
+  queryRaw
+    .mockResolvedValueOnce([{ id: "u-1" }])
+    .mockResolvedValueOnce([{ id: "sp-1" }])
+    .mockResolvedValueOnce([{ id: "e-1" }]);
+
+  await expect(
+    repo.lockEligibleStudentForPassCreation("sp-1", 2026, {
+      $queryRaw: queryRaw,
+    } as never),
+  ).resolves.toBe(true);
+
+  return [sqlAt(0), sqlAt(1), sqlAt(2)].join(" ");
+}
+
+async function readingSql(): Promise<string> {
+  queryRaw.mockResolvedValueOnce([{ id: "e-1" }]);
+
+  await expect(
+    repo.isEligibleStudent("sp-1", 2026, { $queryRaw: queryRaw } as never),
+  ).resolves.toBe(true);
+
+  return sqlAt(0);
+}
+
 describe("출입증 생성 잠금 순서", () => {
-  it("학생 신청은 User를 먼저 잠그고 StudentProfile을 잠근다", async () => {
-    queryRaw
-      .mockResolvedValueOnce([{ id: "u-1" }])
-      .mockResolvedValueOnce([{ id: "sp-1" }]);
-
-    await expect(
-      repo.lockStudentForPassCreation("sp-1", { $queryRaw: queryRaw } as never),
-    ).resolves.toBe(true);
-
-    expect(queryRaw).toHaveBeenCalledTimes(2);
-    expect(sqlAt(0)).toContain('FROM "user"');
-    expect(sqlAt(1)).toContain('FROM "StudentProfile"');
-  });
-
-  it("직접 부여는 User → StudentProfile → Enrollment 순으로 잠그고 학생 역할도 확인한다", async () => {
-    queryRaw
-      .mockResolvedValueOnce([{ id: "u-1" }])
-      .mockResolvedValueOnce([{ id: "sp-1" }])
-      .mockResolvedValueOnce([{ id: "e-1" }]);
-
-    await expect(
-      repo.lockEligibleStudentForPassCreation(
-        "sp-1",
-        2026,
-        { $queryRaw: queryRaw } as never,
-      ),
-    ).resolves.toBe(true);
+  it("User → StudentProfile → Enrollment 순으로 잠그고 학생 역할도 확인한다", async () => {
+    await lockingSql();
 
     expect(queryRaw).toHaveBeenCalledTimes(3);
     expect(sqlAt(0)).toContain('FROM "user"');
     expect(sqlAt(0)).toContain('"role" = \'STUDENT\'');
     expect(sqlAt(1)).toContain('FROM "StudentProfile"');
     expect(sqlAt(2)).toContain('FROM "Enrollment"');
+  });
+});
+
+describe("재학 자격 판정", () => {
+  it("잠그는 경로와 잠그지 않는 경로가 같은 조건을 본다", async () => {
+    const locking = await lockingSql();
+    queryRaw.mockReset();
+    const reading = await readingSql();
+
+    for (const predicate of ELIGIBILITY_PREDICATES) {
+      expect(locking).toContain(predicate);
+      expect(reading).toContain(predicate);
+    }
+  });
+
+  it("학년도는 문장에 박지 않고 값으로 넘긴다", async () => {
+    queryRaw.mockResolvedValueOnce([{ id: "e-1" }]);
+    await repo.isEligibleStudent("sp-1", 2026, { $queryRaw: queryRaw } as never);
+
+    expect(sqlAt(0)).toContain(`e."year" = ?`);
+    expect(Prisma.sql(...(queryRaw.mock.calls[0]! as [never])).values).toEqual([
+      "sp-1",
+      2026,
+    ]);
+  });
+
+  it("학생증 조회는 한 문장으로 끝나고 행을 잠그지 않는다", async () => {
+    queryRaw.mockResolvedValueOnce([]);
+
+    await expect(
+      repo.isEligibleStudent("sp-1", 2026, { $queryRaw: queryRaw } as never),
+    ).resolves.toBe(false);
+
+    expect(queryRaw).toHaveBeenCalledTimes(1);
+    expect(sqlAt(0)).not.toContain("FOR UPDATE");
   });
 });
 

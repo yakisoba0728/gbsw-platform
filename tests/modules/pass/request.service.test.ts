@@ -14,7 +14,9 @@ const listActiveNow = vi.fn();
 const listForParent = vi.fn();
 const listAwaitingParentConsent = vi.fn();
 const findOverlapping = vi.fn();
-const lockStudentForPassCreation = vi.fn();
+const findCurrentYearForUpdate = vi.fn();
+const lockEligibleStudentForPassCreation = vi.fn();
+const isEligibleStudent = vi.fn();
 const transition = vi.fn();
 const transitionUnexpired = vi.fn();
 const findStudentProfileByUserId = vi.fn();
@@ -39,7 +41,9 @@ vi.mock("@/modules/pass/pass.repo", () => ({
   listForParent,
   listAwaitingParentConsent,
   findOverlapping,
-  lockStudentForPassCreation,
+  findCurrentYearForUpdate,
+  lockEligibleStudentForPassCreation,
+  isEligibleStudent,
   transition,
   transitionUnexpired,
   findStudentProfileByUserId,
@@ -94,7 +98,9 @@ beforeEach(() => {
   listForParent.mockReset().mockResolvedValue({ entries: [], total: 0 });
   listAwaitingParentConsent.mockReset().mockResolvedValue([]);
   findOverlapping.mockReset().mockResolvedValue(null);
-  lockStudentForPassCreation.mockReset().mockResolvedValue(true);
+  findCurrentYearForUpdate.mockReset().mockResolvedValue(2026);
+  lockEligibleStudentForPassCreation.mockReset().mockResolvedValue(true);
+  isEligibleStudent.mockReset().mockResolvedValue(true);
   transition.mockReset().mockResolvedValue(1);
   transitionUnexpired.mockReset().mockResolvedValue("UPDATED");
   findStudentProfileByUserId.mockReset().mockResolvedValue({ id: "sp-1" });
@@ -156,6 +162,46 @@ describe("requestPass", () => {
     await expect(service.requestPass(student, OUTING, NOW)).rejects.toThrow(
       new PassError("NO_STUDENT_PROFILE"),
     );
+  });
+
+  it("자격 판정은 교사의 직접 부여와 같은 잠금 함수를 현재 학년도로 부른다", async () => {
+    await service.requestPass(student, OUTING, NOW);
+
+    expect(findCurrentYearForUpdate).toHaveBeenCalledWith(txClient);
+    expect(lockEligibleStudentForPassCreation).toHaveBeenCalledWith(
+      "sp-1",
+      2026,
+      txClient,
+    );
+    // 잠금 순서는 AcademicYear → User → StudentProfile → Enrollment다.
+    expect(findCurrentYearForUpdate.mock.invocationCallOrder[0]!).toBeLessThan(
+      lockEligibleStudentForPassCreation.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  // 재학·활성·미탈퇴를 가르는 것은 repo의 SQL이다(대조는 pass.repo.test.ts).
+  // 여기서는 자격 함수가 거절하면 신청이 서지 않는다는 것만 본다.
+  it.each([["전학·졸업"], ["계정 비활성"], ["탈퇴 처리"]])(
+    "%s로 자격을 잃은 학생은 신청할 수 없다",
+    async () => {
+      lockEligibleStudentForPassCreation.mockResolvedValue(false);
+
+      await expect(service.requestPass(student, OUTING, NOW)).rejects.toThrow(
+        new PassError("NOT_ENROLLED"),
+      );
+      expect(createPass).not.toHaveBeenCalled();
+      expect(auditEntries()).toEqual([]);
+    },
+  );
+
+  it("현재 학년도가 없으면 자격을 물을 것도 없이 막힌다", async () => {
+    findCurrentYearForUpdate.mockResolvedValue(null);
+
+    await expect(service.requestPass(student, OUTING, NOW)).rejects.toThrow(
+      new PassError("NOT_ENROLLED"),
+    );
+    expect(lockEligibleStudentForPassCreation).not.toHaveBeenCalled();
+    expect(createPass).not.toHaveBeenCalled();
   });
 
   it("기간이 겹치면 OVERLAPPING_PASS", async () => {
@@ -532,6 +578,42 @@ describe("getMyStudentQr", () => {
         metadata: { action: "pass:request" },
       }),
     ]);
+  });
+
+  // 신청과 같은 자격을 요구한다 — 조건의 판별은 repo의 SQL이 한다.
+  it.each([["전학·졸업"], ["계정 비활성"], ["탈퇴 처리"]])(
+    "%s로 자격을 잃은 학생에게는 학생증도 내주지 않는다",
+    async () => {
+      isEligibleStudent.mockResolvedValue(false);
+
+      await expect(service.getMyStudentQr(student)).rejects.toThrow(ForbiddenError);
+      expect(toQrPath).not.toHaveBeenCalled();
+      expect(auditEntries()).toEqual([
+        expect.objectContaining({
+          actorUserId: "u-student",
+          action: "authz:denied",
+          targetType: "StudentProfile",
+          targetId: "sp-1",
+          metadata: { action: "pass:request" },
+        }),
+      ]);
+    },
+  );
+
+  it("자격은 현재 학년도로 묻고 학생증은 행을 잠그지 않는다", async () => {
+    await service.getMyStudentQr(student);
+
+    expect(displayYear).toHaveBeenCalled();
+    expect(isEligibleStudent).toHaveBeenCalledWith("sp-1", 2026);
+    expect(lockEligibleStudentForPassCreation).not.toHaveBeenCalled();
+    expect(findCurrentYearForUpdate).not.toHaveBeenCalled();
+  });
+
+  it("현재 학년도가 없으면 자격을 묻지 않고 거부한다", async () => {
+    displayYear.mockResolvedValue(null);
+
+    await expect(service.getMyStudentQr(student)).rejects.toThrow(ForbiddenError);
+    expect(isEligibleStudent).not.toHaveBeenCalled();
   });
 
   it.each([

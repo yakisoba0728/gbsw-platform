@@ -32,8 +32,12 @@ export async function requestPass(
   try {
     return await withTransaction(
       async (tx) => {
-        const exists = await repo.lockStudentForPassCreation(profile.id, tx);
-        if (!exists) throw new PassError("NO_STUDENT_PROFILE");
+        // 자격 판정은 교사의 직접 부여와 같은 잠금 함수를 쓴다 — 진입점마다 정책이 갈리지 않는다.
+        const year = await repo.findCurrentYearForUpdate(tx);
+        const eligible =
+          year !== null &&
+          (await repo.lockEligibleStudentForPassCreation(profile.id, year, tx));
+        if (!eligible) throw new PassError("NOT_ENROLLED");
 
         const conflict = conflictWindow({ startAt, endAt });
         const overlapping = await repo.findOverlapping(
@@ -314,6 +318,16 @@ export async function getMyStudentQr(
     return denyAccess(actor, "pass:request", {
       targetType: "User",
       targetId: actor.id,
+    });
+  }
+
+  // 학생증도 신청과 같은 자격을 요구한다 — 전학·졸업·휴학이면 코드가 나오지 않는다.
+  const year = await repo.displayYear();
+  const eligible = year !== null && (await repo.isEligibleStudent(profile.id, year));
+  if (!eligible) {
+    return denyAccess(actor, "pass:request", {
+      targetType: "StudentProfile",
+      targetId: profile.id,
     });
   }
 
