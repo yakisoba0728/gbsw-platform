@@ -38,7 +38,10 @@ describe("Invite 발급자 이름 스냅샷", () => {
       },
     });
 
-    await expect(deletePermanently(creatorId, creatorName)).resolves.toBe(true);
+    // 트랜잭션 경계는 호출자가 소유한다 — 초대 삭제와 사용자 삭제가 함께 되돌려져야 한다.
+    await expect(
+      prisma.$transaction((tx) => deletePermanently(creatorId, creatorName, tx)),
+    ).resolves.toBe(true);
 
     await expect(
       prisma.invite.findUnique({

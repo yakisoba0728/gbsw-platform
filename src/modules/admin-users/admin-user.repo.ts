@@ -232,26 +232,18 @@ export async function resetCredential(
 
 // 삭제 표시(deletedAt)를 DB 조건으로도 건다 — 서비스가 이미 막지만, 같은 불변식을
 // 두 곳에서 세워 두면 서비스를 거치지 않는 호출이 살아 있는 계정을 지우지 못한다.
-async function deletePermanentlyWithDb(
-  db: DbClient,
+//
+// db를 선택 인자로 두지 않는다. 초대 삭제와 사용자 삭제가 한 트랜잭션 안에서
+// 함께 되돌려져야 하는데, 자체 트랜잭션을 열면 false(=삭제 안 됨)가 정상 반환이라
+// 초대만 지워진 채로 커밋된다. 트랜잭션 경계는 호출하는 서비스가 소유한다.
+export async function deletePermanently(
   userId: string,
   confirmName: string,
+  db: DbClient,
 ): Promise<boolean> {
   await db.invite.deleteMany({ where: { usedById: userId } });
   const { count } = await db.user.deleteMany({
     where: { id: userId, name: confirmName, deletedAt: { not: null } },
   });
   return count === 1;
-}
-
-export async function deletePermanently(
-  userId: string,
-  confirmName: string,
-  db?: DbClient,
-): Promise<boolean> {
-  if (db) {
-    return deletePermanentlyWithDb(db, userId, confirmName);
-  }
-
-  return withTransaction((tx) => deletePermanentlyWithDb(tx, userId, confirmName));
 }

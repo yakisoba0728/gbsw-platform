@@ -409,9 +409,8 @@ describe("resetCredential()", () => {
 
 describe("deletePermanently()", () => {
   it("발급한 코드는 스냅샷과 함께 남기고 계정만 삭제한다", async () => {
-    await deletePermanently("u-9", "김학생");
+    await deletePermanently("u-9", "김학생", tx as never);
 
-    expect(withTransaction).toHaveBeenCalledTimes(1);
     expect(inviteDeleteMany).not.toHaveBeenCalledWith({
       where: { createdById: "u-9" },
     });
@@ -421,13 +420,13 @@ describe("deletePermanently()", () => {
   });
 
   it("가입에 쓴 코드(usedById)도 지운다 — metadata에 이름·생년월일이 남는다", async () => {
-    await deletePermanently("u-9", "김학생");
+    await deletePermanently("u-9", "김학생", tx as never);
 
     expect(inviteDeleteMany).toHaveBeenCalledWith({ where: { usedById: "u-9" } });
   });
 
   it("studentId로 달린 코드는 Cascade가 지우므로 손대지 않는다", async () => {
-    await deletePermanently("u-9", "김학생");
+    await deletePermanently("u-9", "김학생", tx as never);
 
     const calls = inviteDeleteMany.mock.calls.map((c) => c[0]);
     expect(calls.some((c) => "studentId" in (c as { where: object }).where)).toBe(false);
@@ -437,20 +436,31 @@ describe("deletePermanently()", () => {
   it("조건이 맞지 않아 삭제되지 않으면 false를 돌려준다", async () => {
     userDeleteMany.mockResolvedValue({ count: 0 });
 
-    const deleted = await deletePermanently("u-9", "김학생");
+    const deleted = await deletePermanently("u-9", "김학생", tx as never);
 
     expect(deleted).toBe(false);
   });
 
-  it("db가 전달되면 자체 트랜잭션을 열지 않는다", async () => {
-    await deletePermanently("u-9", "김학생", tx as never);
+  // 자체 트랜잭션을 열면 false(=삭제 안 됨)가 정상 반환이라 초대만 지워진 채로
+  // 커밋된다. 삭제가 실패하는 경우에도 두 쓰기가 호출자의 핸들 하나에서만
+  // 일어나야 함께 되돌려진다 — 별도 핸들을 넘겨 그것이 쓰였는지 확인한다.
+  it("삭제가 실패해도 자체 트랜잭션을 열지 않고 받은 핸들로만 쓴다", async () => {
+    const lonelyInviteDeleteMany = vi.fn().mockResolvedValue({ count: 1 });
+    const lonelyUserDeleteMany = vi.fn().mockResolvedValue({ count: 0 });
+    const lonely = {
+      invite: { deleteMany: lonelyInviteDeleteMany },
+      user: { deleteMany: lonelyUserDeleteMany },
+    };
 
+    const deleted = await deletePermanently("u-9", "김학생", lonely as never);
+
+    expect(deleted).toBe(false);
     expect(withTransaction).not.toHaveBeenCalled();
-    expect(inviteDeleteMany).not.toHaveBeenCalledWith({
-      where: { createdById: "u-9" },
-    });
-    expect(inviteDeleteMany).toHaveBeenCalledWith({ where: { usedById: "u-9" } });
-    expect(userDeleteMany).toHaveBeenCalledWith({
+    // 전역 prisma가 아니라 넘긴 핸들로 갔다.
+    expect(inviteDeleteMany).not.toHaveBeenCalled();
+    expect(userDeleteMany).not.toHaveBeenCalled();
+    expect(lonelyInviteDeleteMany).toHaveBeenCalledWith({ where: { usedById: "u-9" } });
+    expect(lonelyUserDeleteMany).toHaveBeenCalledWith({
       where: { id: "u-9", name: "김학생", deletedAt: { not: null } },
     });
   });
