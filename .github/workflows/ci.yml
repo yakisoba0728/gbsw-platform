@@ -5,6 +5,11 @@ on:
   push:
     branches:
       - main
+      # 외부 감사가 이 SHA의 CI 결과를 요구한다. PR을 열지 않는 수정 브랜치도
+      # 밀면 바로 돌아야 한다 — 로컬 verify 통과 주장만으로는 대조할 것이 없다.
+      - "fix/**"
+  # main에 이 항목이 있어야 다른 브랜치를 골라 수동 실행할 수 있다.
+  workflow_dispatch:
 
 permissions:
   contents: read
