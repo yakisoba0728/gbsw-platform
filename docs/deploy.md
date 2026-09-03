@@ -135,7 +135,25 @@ docker compose logs app       # 앱이 뜨다 죽었나
 `/etc/caddy/Caddyfile`:
 
 ```
+{
+	# 크기가 아니라 시간으로 거는 상한이다 — 느리게 흘리는 요청을 끊는다.
+	# **전역 옵션이라 파일 맨 위에 있어야 한다.** 사이트 블록 안에 쓰면
+	# `unrecognized directive: servers`로 Caddy가 뜨지 않는다.
+	servers {
+		timeouts {
+			read_body   15s
+			read_header 15s
+		}
+	}
+}
+
 gbsw.example.hs.kr {
+	# 커뮤니티 첨부는 파일당 20MB. Caddy는 기본 상한이 없어 이 줄이 없으면
+	# 앱이 유일한 방어선이 된다.
+	request_body {
+		max_size 24MB
+	}
+
 	reverse_proxy 127.0.0.1:3000 {
 		# **이 두 줄을 빠뜨리면 안 된다.** Caddy는 X-Forwarded-For를 덮어쓰지 않고
 		# 클라이언트가 보낸 값 **뒤에 덧붙인다.** 앱은 한 홉 프록시 규약에 따라
@@ -155,6 +173,18 @@ gbsw.example.hs.kr {
 발급이 안 되므로, 학교에서 쓰는 인증서를 직접 지정한다:
 
 ```
+{
+	# 크기가 아니라 시간으로 거는 상한이다 — 느리게 흘리는 요청을 끊는다.
+	# **전역 옵션이라 파일 맨 위에 있어야 한다.** 사이트 블록 안에 쓰면
+	# `unrecognized directive: servers`로 Caddy가 뜨지 않는다.
+	servers {
+		timeouts {
+			read_body   15s
+			read_header 15s
+		}
+	}
+}
+
 gbsw.example.hs.kr {
 	tls /경로/인증서.crt /경로/개인키.key
 
@@ -178,6 +208,12 @@ gbsw.example.hs.kr {
 > 스스로 세어 끊지만, 프록시가 먼저 끊어 주면 큰 요청이 앱에 닿지도 않는다.
 > Caddy는 기본 상한이 **없으므로** 아래 `request_body`를 넣어야 하고(없다고
 > 손댈 것이 없는 것이 아니다), nginx는 기본값 1m을 올려야 한다.
+>
+> **크기 상한만으로는 느린 본문을 막지 못한다.** 상한 안의 크기를 아주 느리게
+> 흘리는 요청은 크기 검사를 통과한다. 그 자리를 시간 상한이 맡는다 —
+> 위 설정의 `client_body_timeout`·`read_body`가 그것이다. nginx는 본문을 다
+> 받은 뒤에야 앱으로 넘기므로(`proxy_request_buffering`이 기본 on) 느린 업로드가
+> 앱 프로세스를 붙들지 않지만, **이 값을 끄면 그 보호도 함께 사라진다.**
 
 ### nginx
 
@@ -192,6 +228,11 @@ server {
     # 커뮤니티 첨부는 파일당 20MB까지 받는다. nginx 기본값은 1m이라, 이 줄이
     # 없으면 업로드가 앱에 닿기도 전에 끊기고 **앱 로그에는 아무 흔적도 안 남는다.**
     client_max_body_size 24m;
+
+    # 크기가 아니라 시간으로 거는 상한이다. 기본값(60초)은 「읽기 한 번」마다
+    # 새로 세므로, 1초에 1바이트씩 흘리는 요청은 영원히 살아 있는다.
+    client_body_timeout   15s;
+    client_header_timeout 15s;
 
     location / {
         proxy_pass http://127.0.0.1:3000;
