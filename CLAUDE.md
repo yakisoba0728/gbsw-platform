@@ -276,6 +276,12 @@ account에서 시작해 모듈이 커지면 merit의 모양으로 간다.
   (`bootstrap.repo.ts`의 `BOOTSTRAP_LOCK_KEY` 주석에 방법이 있다).
 - **판독(`/scan`)은 메뉴에 없다.** 출입증 화면의 「스캔」 버튼으로 들어간다. 앱 셸 밖에
   사는 화면이며 제목은 `src/app/scan/page.tsx`의 메타데이터와 `<h1>`이 소유한다.
+- **DB CHECK 제약은 전부 `NOT VALID`로 붙인다.** 기존 행을 검사하는 제약은 위반 행이
+  하나만 있어도 `migrate deploy`를 실패시켜 배포 전체를 막는다. 새 쓰기를 막는 것과
+  옛 행을 정정하는 것을 한 배포에 묶지 않는다 — 검증 절차는
+  `prisma/migrations/*_check_constraints/migration.sql` 맨 아래에 있다.
+  **증명하지 못하는 조합은 넣지 않는다.** 예로 Enrollment의 좌석↔status는 양방향 모두
+  거짓이다(그 근거는 `schema.prisma`의 Enrollment 주석에 적었다).
 - **부분 유니크 인덱스는 마이그레이션 SQL에만 있다.** `AcademicYear_single_current`는
   Prisma가 표현하지 못하며, Prisma 7.9.1의 `migrate diff`가 드리프트로 보지 않는 것을
   빈 마이그레이션으로 확인했다. **Prisma 메이저 업그레이드 때 다시 확인한다.**

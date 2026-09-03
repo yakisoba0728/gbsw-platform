@@ -171,7 +171,12 @@ model AcademicYear {
   meritAwards MeritAward[]
 }
 
-/// grade·classNo·number는 ENROLLED일 때만 채운다.
+/// grade·classNo·number는 보통 ENROLLED일 때만 채우지만 **강제되지 않는다.**
+/// 양방향 모두 깨지므로 CHECK 제약으로 만들지 마라 —
+/// enrollment.repo.applyAll은 좌석 유니크 제약과 부딪치지 않으려고 ENROLLED인 채로
+/// 좌석을 먼저 null로 비우고(CHECK는 문장마다 즉시 검사하므로 그 중간에서 터진다),
+/// enrollment.schema의 enrollmentChangeSchema는 status와 좌석을 서로 독립으로 두어
+/// 교사가 화면에서 GRADUATED에 학년·반·번호를 함께 저장할 수 있다.
 model Enrollment {
   id String @id @default(cuid())
 
