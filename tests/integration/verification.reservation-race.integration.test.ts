@@ -25,7 +25,9 @@ import {
 
 /* 발송이 끝나기 전에 다음 요청이 들어오도록, 발송보다 짧은 간격으로 쏜다. */
 const SEND_MS = 400;
-const STAGGER_MS = 60;
+// 발송(400ms)보다 짧기만 하면 되고, 길수록 「예약이 커밋된 뒤 다음이 온다」는
+// 조건이 확실해진다. CI 러너가 느려도 흔들리지 않게 여유를 둔다.
+const STAGGER_MS = 100;
 
 const MAX_SENDS_PER_HOUR = 5;
 const MAX_SENDS_PER_HOUR_PER_INVITE = 10;
@@ -114,21 +116,24 @@ describe("발송 중인 인증 예약 행", () => {
     ).resolves.toBe(MAX_SENDS_PER_HOUR);
   });
 
-  // 발송에 성공한 코드가 확인 대상으로 남지 못하면 학생은 받은 번호를 넣을 수 없다.
+  /*
+   * 발송에 성공한 코드가 확인 대상으로 남지 못하면 학생은 받은 번호를 넣을 수 없다.
+   * 단언은 행 수로 한다 — 두 발송의 완료 순서가 뒤집히면 먼저 것이 「더 최근에
+   * 요청한 인증번호를 사용해 주세요」로 끝날 수 있고, 그것은 이 결함과 무관한
+   * 정상 동작이다. 여기서 볼 것은 앞선 예약 행이 지워졌는가 하나뿐이다.
+   */
   it("먼저 보낸 코드가 다음 요청 때문에 사라지지 않는다", async () => {
     const target = freshTarget("survive");
 
-    const first = requestCode("EMAIL", target);
+    const first = settle(requestCode("EMAIL", target));
     await sleep(STAGGER_MS);
-    const second = requestCode("EMAIL", target);
+    const second = settle(requestCode("EMAIL", target));
 
-    const [firstResult, secondResult] = await Promise.all([first, second]);
+    await Promise.all([first, second]);
 
-    for (const challengeId of [firstResult.challengeId, secondResult.challengeId]) {
-      await expect(
-        prisma.verificationCode.count({ where: { challengeId } }),
-      ).resolves.toBe(1);
-    }
+    await expect(
+      prisma.verificationCode.count({ where: { target } }),
+    ).resolves.toBe(2);
   });
 
   /*
