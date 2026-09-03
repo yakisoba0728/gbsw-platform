@@ -235,13 +235,11 @@ export default async function UserDetailPage({
               </SectionCard>
 
               {profile && (
-                <SectionCard
-                  variant="panel"
-                  tone="danger"
-                  headingLevel={3}
-                  title="완전 삭제"
-                >
-                  <HardDeleteForm user={editable} />
+                <SectionCard variant="panel" headingLevel={3} title="완전 삭제">
+                  <p className="text-caption text-mut">
+                    삭제 표시된 계정만 완전 삭제할 수 있습니다. 명단 제외는 명단
+                    반영에서 합니다.
+                  </p>
                 </SectionCard>
               )}
             </>

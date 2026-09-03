@@ -231,6 +231,12 @@ export async function resetPassword(
   return { tempPassword };
 }
 
+/**
+ * 계정 행 자체를 지운다. 되돌릴 수 없고 Cascade로 학적·상벌점·출입증·학부모
+ * 연결까지 함께 사라지므로, 명단에서 빠져 삭제 표시(deletedAt)된 계정만 대상으로
+ * 한다 — 재학 중인 학생의 업무 기록은 보존하는 것이 원칙이다
+ * (prisma/schema.prisma의 User.deletedAt 주석).
+ */
 export async function deleteUserPermanently(
   actor: SessionUser,
   userId: string,
@@ -245,6 +251,9 @@ export async function deleteUserPermanently(
       const target = await repo.findById(userId, tx);
       if (!target) throw new AdminUserError("NOT_FOUND");
       if (target.role !== "STUDENT") throw new AdminUserError("DELETE_STUDENT_ONLY");
+      // 삭제 표시가 선행되어야 한다. 이름 대조보다 먼저 막아, 확인 이름이 맞아도
+      // 살아 있는 계정에는 삭제 경로가 열리지 않게 한다.
+      if (!target.deletedAt) throw new AdminUserError("NOT_SOFT_DELETED");
       if (target.name !== confirmName) throw new AdminUserError("NAME_MISMATCH");
 
       const deleted = await repo.deletePermanently(userId, confirmName, tx);

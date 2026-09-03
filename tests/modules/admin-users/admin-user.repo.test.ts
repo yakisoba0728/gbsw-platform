@@ -415,7 +415,9 @@ describe("deletePermanently()", () => {
     expect(inviteDeleteMany).not.toHaveBeenCalledWith({
       where: { createdById: "u-9" },
     });
-    expect(userDeleteMany).toHaveBeenCalledWith({ where: { id: "u-9", name: "김학생" } });
+    expect(userDeleteMany).toHaveBeenCalledWith({
+      where: { id: "u-9", name: "김학생", deletedAt: { not: null } },
+    });
   });
 
   it("가입에 쓴 코드(usedById)도 지운다 — metadata에 이름·생년월일이 남는다", async () => {
@@ -431,7 +433,8 @@ describe("deletePermanently()", () => {
     expect(calls.some((c) => "studentId" in (c as { where: object }).where)).toBe(false);
   });
 
-  it("이름 조건이 맞지 않아 삭제되지 않으면 false를 돌려준다", async () => {
+  // where의 두 조건(이름·삭제 표시) 중 하나라도 어긋나면 count가 0으로 돌아온다.
+  it("조건이 맞지 않아 삭제되지 않으면 false를 돌려준다", async () => {
     userDeleteMany.mockResolvedValue({ count: 0 });
 
     const deleted = await deletePermanently("u-9", "김학생");
@@ -447,6 +450,8 @@ describe("deletePermanently()", () => {
       where: { createdById: "u-9" },
     });
     expect(inviteDeleteMany).toHaveBeenCalledWith({ where: { usedById: "u-9" } });
-    expect(userDeleteMany).toHaveBeenCalledWith({ where: { id: "u-9", name: "김학생" } });
+    expect(userDeleteMany).toHaveBeenCalledWith({
+      where: { id: "u-9", name: "김학생", deletedAt: { not: null } },
+    });
   });
 });

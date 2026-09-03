@@ -32,6 +32,7 @@ const MESSAGES = {
   NO_CREDENTIAL_ACCOUNT: "비밀번호 로그인을 쓰지 않는 계정입니다.",
   CANNOT_DELETE_SELF: "자기 계정은 삭제할 수 없습니다.",
   DELETE_STUDENT_ONLY: "학생 계정만 삭제할 수 있습니다.",
+  NOT_SOFT_DELETED: "명단에서 빠져 삭제 표시된 계정만 완전 삭제할 수 있습니다.",
   USER_CHANGED: "계정 정보가 다른 곳에서 바뀌었습니다. 새로고침 후 다시 저장해 주세요.",
   YEAR_CHANGED: "현재 학년도가 바뀌었습니다. 새로고침 후 다시 저장해 주세요.",
   NAME_MISMATCH: "이름이 일치하지 않습니다.",
