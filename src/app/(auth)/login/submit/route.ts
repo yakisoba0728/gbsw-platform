@@ -9,38 +9,51 @@ import {
 const EMAIL_MAX_LENGTH = 320;
 const PASSWORD_MAX_LENGTH = 128;
 
-function candidateRequestOrigins(request: NextRequest): string[] {
-  const forwardedProtocol = request.headers
-    .get("x-forwarded-proto")
-    ?.split(",")[0]
-    ?.trim();
-  const protocol = forwardedProtocol === "https" ? "https:" : request.nextUrl.protocol;
-  const hosts = [
-    request.headers.get("x-forwarded-host")?.split(",")[0]?.trim(),
-    request.headers.get("host")?.trim(),
-  ];
-  const origins = new Set<string>();
-
-  for (const host of hosts) {
-    if (!host) continue;
-    try {
-      origins.add(new URL(`${protocol}//${host}`).origin);
-    } catch {
-      // 잘못된 프록시 헤더는 후보에서 제외한다.
-    }
+// 공개 주소의 유일한 출처는 BETTER_AUTH_URL이다. 앱은 127.0.0.1에만 묶여 있어
+// 요청 헤더로는 공개 주소를 알 수 없고(학생증 QR도 같은 이유로 이 값을 쓴다),
+// x-forwarded-host·host에서 유도하면 프록시가 헤더를 덮어쓰지 않거나 원본 포트에
+// 직접 닿는 순간 공격자가 오리진 검사를 스스로 통과시킨다.
+function configuredOrigin(): string | null {
+  const url = process.env.BETTER_AUTH_URL;
+  if (!url) return null;
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
   }
-  origins.add(request.nextUrl.origin);
+}
+
+// 허용 오리진은 요청이 아니라 설정이 정하는 고정 목록이다.
+function allowedOrigins(request: NextRequest): string[] {
+  const origins = new Set<string>();
+  const configured = configuredOrigin();
+  if (configured) origins.add(configured);
+
+  // 개발에서는 teacher.localhost·student.localhost처럼 하위 도메인을 나눠 세 역할을
+  // 동시에 띄운다. BETTER_AUTH_URL 하나로 좁히면 그 방식이 전부 막히므로 요청 자신의
+  // 오리진도 허용한다 — 이 값은 결국 Host 헤더에서 나오므로 **운영에서는 쓰지 않는다.**
+  // NODE_ENV 리터럴을 여기서 직접 읽어 운영 번들에서는 이 가지가 통째로 지워진다.
+  if (process.env.NODE_ENV !== "production") {
+    origins.add(request.nextUrl.origin);
+  }
+
+  // BETTER_AUTH_URL이 없거나 파싱되지 않으면 목록이 비어 로그인이 전부 403이 된다.
+  // compose가 이 값을 필수로 요구하므로(:?) 운영에서는 생기지 않는 상태이고, 모르는
+  // 공개 주소를 헤더로 메우는 것이 곧 여기서 없앤 결함이다.
   return [...origins];
 }
 
 // Origin이 null인 JS 비활성 브라우저도 같은 오리진임을 별도 확인해야 한다.
 function validatedRequestOrigin(request: NextRequest): string | null {
-  const expected = candidateRequestOrigins(request);
+  const allowed = allowedOrigins(request);
   const origin = request.headers.get("origin");
 
-  if (origin && origin !== "null") return expected.includes(origin) ? origin : null;
+  if (origin && origin !== "null") return allowed.includes(origin) ? origin : null;
   if (request.headers.get("sec-fetch-site") === "same-origin") {
-    return expected[0] ?? null;
+    // 요청이 스스로 말하는 오리진은 허용 목록에 있을 때만 쓴다 — 개발의 하위 도메인이
+    // 자기 주소로 돌아가고, 운영에서는 위조 Host가 목록에 없어 공개 오리진으로 떨어진다.
+    const own = request.nextUrl.origin;
+    return allowed.includes(own) ? own : (allowed[0] ?? null);
   }
 
   const referer = request.headers.get("referer");
@@ -48,7 +61,7 @@ function validatedRequestOrigin(request: NextRequest): string | null {
 
   try {
     const refererOrigin = new URL(referer).origin;
-    return expected.includes(refererOrigin) ? refererOrigin : null;
+    return allowed.includes(refererOrigin) ? refererOrigin : null;
   } catch {
     return null;
   }
