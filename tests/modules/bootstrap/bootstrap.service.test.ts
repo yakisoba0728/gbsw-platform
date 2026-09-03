@@ -3,6 +3,7 @@ import { coreMocks } from "../../helpers/core-mocks";
 
 const countUsers = vi.fn();
 const createAdminUser = vi.fn();
+const lockBootstrap = vi.fn();
 const {
   recordAudit,
   txClient,
@@ -12,6 +13,7 @@ const {
 vi.mock("@/modules/bootstrap/bootstrap.repo", () => ({
   countUsers,
   createAdminUser,
+  lockBootstrap,
 }));
 vi.mock("@/core/audit/audit", () => ({ recordAudit }));
 vi.mock("@/core/db/client", () => ({ withTransaction }));
@@ -46,6 +48,7 @@ describe("issueBootstrapTokenIfNeeded()", () => {
     clearToken();
     countUsers.mockReset();
     createAdminUser.mockReset().mockResolvedValue(undefined);
+    lockBootstrap.mockReset().mockResolvedValue(undefined);
     recordAudit.mockReset();
     withTransaction.mockReset().mockImplementation(async (fn) => fn(txClient));
   });
@@ -103,6 +106,7 @@ describe("createInitialAdmin()", () => {
     clearToken();
     countUsers.mockReset();
     createAdminUser.mockReset().mockResolvedValue(undefined);
+    lockBootstrap.mockReset().mockResolvedValue(undefined);
     recordAudit.mockReset();
     withTransaction.mockReset().mockImplementation(async (fn) => fn(txClient));
   });
@@ -147,6 +151,48 @@ describe("createInitialAdmin()", () => {
       targetType: "User",
       targetId: created.userId,
     }, txClient);
+  });
+
+  it("트랜잭션 안에서 잠금을 먼저 잡고 사용자 수를 다시 센다", async () => {
+    const token = await issueForEmptyDb();
+
+    await createInitialAdmin(token, input);
+
+    // 발급 1회 + 트랜잭션 밖 확인 1회 + 잠금 뒤 재확인 1회.
+    expect(countUsers).toHaveBeenCalledTimes(3);
+    expect(lockBootstrap).toHaveBeenCalledWith(txClient);
+    // 재확인이 잠금과 같은 트랜잭션 안에 있다는 증거는 인자가 tx라는 것뿐이다.
+    expect(countUsers).toHaveBeenLastCalledWith(txClient);
+
+    const locked = lockBootstrap.mock.invocationCallOrder[0]!;
+    expect(countUsers.mock.invocationCallOrder[2]!).toBeGreaterThan(locked);
+    expect(createAdminUser.mock.invocationCallOrder[0]!).toBeGreaterThan(locked);
+    expect(recordAudit.mock.invocationCallOrder[0]!).toBeGreaterThan(locked);
+  });
+
+  it("잠금을 잡은 뒤 사용자가 이미 있으면 만들지 않는다", async () => {
+    const token = await issueForEmptyDb();
+    // 트랜잭션 밖 확인은 통과시키고 잠금 뒤 재확인에서만 1을 돌려준다.
+    countUsers.mockResolvedValueOnce(0).mockResolvedValue(1);
+
+    await expect(createInitialAdmin(token, input)).rejects.toThrow(
+      "ALREADY_INITIALIZED",
+    );
+
+    expect(lockBootstrap).toHaveBeenCalledOnce();
+    expect(createAdminUser).not.toHaveBeenCalled();
+    expect(recordAudit).not.toHaveBeenCalled();
+  });
+
+  it("잠금 뒤 재확인으로 거절되면 토큰을 되돌리지 않는다", async () => {
+    const token = await issueForEmptyDb();
+    countUsers.mockResolvedValueOnce(0).mockResolvedValue(1);
+
+    await expect(createInitialAdmin(token, input)).rejects.toThrow(
+      "ALREADY_INITIALIZED",
+    );
+
+    expect(matchesToken(token)).toBe(false);
   });
 
   it("성공하면 토큰이 소진되어 재사용할 수 없다", async () => {

@@ -54,6 +54,13 @@ export async function createInitialAdmin(
     const passwordHash = await hashPassword(input.password);
 
     await withTransaction(async (tx) => {
+      // 위의 확인은 트랜잭션 밖이라 인스턴스가 둘이면 서로를 보지 못한다.
+      // 잠금을 먼저 잡고 그 안에서 사용자 수를 다시 세는 것이 실제 직렬화다.
+      await repo.lockBootstrap(tx);
+      if ((await repo.countUsers(tx)) !== 0) {
+        throw new BootstrapError("ALREADY_INITIALIZED");
+      }
+
       await repo.createAdminUser({
         userId,
         accountId: randomUUID(),
@@ -71,7 +78,13 @@ export async function createInitialAdmin(
       }, tx);
     });
   } catch (error) {
-    restoreToken(token);
+    // 이미 만들어졌으면 되돌릴 것이 없다 — 소진된 토큰을 살려 두면 다음 요청이
+    // 같은 벽에 다시 부딪힌다. 일시적 오류만 토큰을 돌려준다.
+    if (!isAlreadyInitialized(error)) restoreToken(token);
     throw error;
   }
+}
+
+function isAlreadyInitialized(error: unknown): boolean {
+  return error instanceof BootstrapError && error.message === "ALREADY_INITIALIZED";
 }
