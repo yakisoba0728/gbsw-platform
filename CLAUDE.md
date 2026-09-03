@@ -262,6 +262,9 @@ account에서 시작해 모듈이 커지면 merit의 모양으로 간다.
   쓰기 경로는 `lockEligibleStudentForPassCreation`(잠근다), 학생증처럼 쓰기가 없는
   경로는 `isEligibleStudent`를 쓴다. **새 진입점에서 조건을 손으로 다시 적지 않는다** —
   학생 신청 경로만 느슨했던 것이 실제 결함이었다.
+  **자격 상실은 `denyAccess`로 처리하지 않는다.** 권한 위반이 아니라 도메인 상태다 —
+  학생증 화면이 3.3초마다 되묻기 때문에 `authz:denied`가 열린 탭 하나당 시간당 천 건
+  넘게 쌓인다. `PassError`로 던지고 화면은 4xx를 종료 상태로 읽어 재시도를 멈춘다.
 - **판독(`/scan`)은 메뉴에 없다.** 출입증 화면의 「스캔」 버튼으로 들어간다. 앱 셸 밖에
   사는 화면이며 제목은 `src/app/scan/page.tsx`의 메타데이터와 `<h1>`이 소유한다.
 - **부분 유니크 인덱스는 마이그레이션 SQL에만 있다.** `AcademicYear_single_current`는

@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionUser } from "@/core/auth/session";
+import { ForbiddenError } from "@/core/authz/errors";
+import { PassError } from "@/modules/pass/pass.error";
 import { user } from "../../../../helpers/session";
 
 const getSessionUser = vi.fn<() => Promise<SessionUser | null>>();
@@ -40,5 +42,31 @@ describe("GET /api/pass/qr", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toBe("no-store, must-revalidate");
     expect(getMyStudentQr).toHaveBeenCalledWith(student);
+  });
+
+  // 화면은 4xx를 종료 상태로 읽고 재시도를 멈춘다. 재학이 끝난 학생의 열린 탭이
+  // 3.3초마다 되묻지 않게 하는 것이 이 응답의 목적이다.
+  it("재학 자격이 없으면 사유를 담아 403으로 끝낸다", async () => {
+    getMyStudentQr.mockRejectedValue(new PassError("NOT_ENROLLED"));
+
+    const response = await GET();
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ error: "NOT_ENROLLED" });
+  });
+
+  it("권한 위반은 그대로 403 FORBIDDEN이다", async () => {
+    getMyStudentQr.mockRejectedValue(new ForbiddenError("pass:request"));
+
+    const response = await GET();
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ error: "FORBIDDEN" });
+  });
+
+  it("그 밖의 오류는 삼키지 않는다", async () => {
+    getMyStudentQr.mockRejectedValue(new Error("boom"));
+
+    await expect(GET()).rejects.toThrow("boom");
   });
 });

@@ -322,14 +322,12 @@ export async function getMyStudentQr(
   }
 
   // 학생증도 신청과 같은 자격을 요구한다 — 전학·졸업·휴학이면 코드가 나오지 않는다.
+  // 자격 상실은 권한 위반이 아니라 도메인 상태다. denyAccess로 처리하면 화면이
+  // 3.3초마다 다시 물어 authz:denied가 시간당 천 건 넘게 쌓인다 — 「누가 무엇을
+  // 했는가」를 읽으려는 기록이 재학이 끝난 학생의 열린 탭 하나에 묻힌다.
   const year = await repo.displayYear();
   const eligible = year !== null && (await repo.isEligibleStudent(profile.id, year));
-  if (!eligible) {
-    return denyAccess(actor, "pass:request", {
-      targetType: "StudentProfile",
-      targetId: profile.id,
-    });
-  }
+  if (!eligible) throw new PassError("NOT_ENROLLED");
 
   const { code, validUntil } = issueStudentCode(profile.id, now);
   return {

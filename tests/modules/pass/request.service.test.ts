@@ -586,17 +586,11 @@ describe("getMyStudentQr", () => {
     async () => {
       isEligibleStudent.mockResolvedValue(false);
 
-      await expect(service.getMyStudentQr(student)).rejects.toThrow(ForbiddenError);
+      await expect(service.getMyStudentQr(student)).rejects.toThrow("NOT_ENROLLED");
       expect(toQrPath).not.toHaveBeenCalled();
-      expect(auditEntries()).toEqual([
-        expect.objectContaining({
-          actorUserId: "u-student",
-          action: "authz:denied",
-          targetType: "StudentProfile",
-          targetId: "sp-1",
-          metadata: { action: "pass:request" },
-        }),
-      ]);
+      // 자격 상실은 권한 위반이 아니다. denyAccess로 처리하면 화면이 3.3초마다
+      // 되물어 authz:denied가 시간당 천 건 넘게 쌓인다.
+      expect(auditEntries()).toEqual([]);
     },
   );
 
@@ -612,8 +606,9 @@ describe("getMyStudentQr", () => {
   it("현재 학년도가 없으면 자격을 묻지 않고 거부한다", async () => {
     displayYear.mockResolvedValue(null);
 
-    await expect(service.getMyStudentQr(student)).rejects.toThrow(ForbiddenError);
+    await expect(service.getMyStudentQr(student)).rejects.toThrow("NOT_ENROLLED");
     expect(isEligibleStudent).not.toHaveBeenCalled();
+    expect(auditEntries()).toEqual([]);
   });
 
   it.each([
