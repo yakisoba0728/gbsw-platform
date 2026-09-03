@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ENROLLMENT_STATUSES } from "@/core/authz/enrollment-status";
 import { canonicalDateInputSchema } from "@/lib/date-input";
-import { isStudentCode } from "@/lib/student-code";
+import { isStudentCode } from "@/modules/enrollment/student-code";
 import {
   CLASS_NO_RANGE_MESSAGE,
   GRADE_RANGE_MESSAGE,
@@ -12,7 +12,7 @@ import {
   MIN_GRADE,
   MIN_NUMBER,
   NUMBER_RANGE_MESSAGE,
-} from "@/modules/enrollment/enrollment.schema";
+} from "@/modules/student/student-position";
 
 const nameSchema = z
   .string()

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { isStudentCode } from "@/lib/student-code";
+import { isStudentCode } from "@/modules/enrollment/student-code";
 import { coreMocks } from "../../helpers/core-mocks";
 
 const userCreate = vi.fn();

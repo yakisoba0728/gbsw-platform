@@ -1,4 +1,4 @@
-import { recordAudit } from "@/core/audit/audit";
+import { recordAudit, recordAuditMany } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
 import { can } from "@/core/authz/can";
 import { denyAccess } from "@/core/authz/errors";
@@ -8,6 +8,8 @@ import { canWrite } from "./community.access";
 import { CommunityError } from "./community.error";
 import * as repo from "./community.repo";
 import {
+  FLOOD_WINDOW_MS,
+  MAX_POSTS_PER_WINDOW,
   POSTS_PER_PAGE,
   type CreatePostInput,
   type DeletePostInput,
@@ -144,6 +146,8 @@ export async function createPost(
   }
 
   return withTransaction(async (tx) => {
+    await assertNotFloodingPosts(actor, tx);
+
     const { id } = await repo.createPost(
       {
         communityId: community.id,
@@ -181,6 +185,19 @@ export async function createPost(
 
     return { postId: id, slug: community.slug };
   });
+}
+
+/* 도배 방지 — 최근 윈도 안에 이미 상한만큼 썼으면 더 쓰지 못한다. */
+async function assertNotFloodingPosts(
+  actor: SessionUser,
+  tx: Parameters<typeof repo.lockFloodBucket>[2],
+): Promise<void> {
+  await repo.lockFloodBucket(actor.id, "post", tx);
+  const since = new Date(Date.now() - FLOOD_WINDOW_MS);
+  const recent = await repo.countRecentPostsByAuthor(actor.id, since, tx);
+  if (recent >= MAX_POSTS_PER_WINDOW) {
+    throw new CommunityError("TOO_MANY_POSTS");
+  }
 }
 
 export async function updatePost(
@@ -241,23 +258,21 @@ export async function updatePost(
       tx,
     );
 
-    for (const file of detached) {
-      await recordAudit(
-        {
-          actorUserId: actor.id,
-          actorName: actor.name,
-          action: "community:attachment:delete",
-          targetType: "CommunityAttachment",
-          targetId: file.id,
-          metadata: {
-            postId: input.postId,
-            slug: community.slug,
-            filename: file.filename,
-          },
+    await recordAuditMany(
+      detached.map((file) => ({
+        actorUserId: actor.id,
+        actorName: actor.name,
+        action: "community:attachment:delete",
+        targetType: "CommunityAttachment",
+        targetId: file.id,
+        metadata: {
+          postId: input.postId,
+          slug: community.slug,
+          filename: file.filename,
         },
-        tx,
-      );
-    }
+      })),
+      tx,
+    );
   });
 
   // 롤백 시 파일이 사라지지 않도록 커밋 후 삭제한다.

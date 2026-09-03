@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_DEMERIT_THRESHOLDS } from "@/core/authz/merit-track";
+import { DEFAULT_DEMERIT_THRESHOLDS } from "@/modules/merit/merit.points";
 import { coreMocks } from "../../helpers/core-mocks";
 import { user } from "../../helpers/session";
 

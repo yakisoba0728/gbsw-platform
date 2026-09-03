@@ -5,7 +5,7 @@ import {
   type EnrollmentStatus,
 } from "@/core/authz/enrollment-status";
 import { isCanonicalDateInput } from "@/lib/date-input";
-import { isStudentCode } from "@/lib/student-code";
+import { isStudentCode } from "@/modules/enrollment/student-code";
 import {
   CLASS_NO_RANGE_MESSAGE,
   GRADE_RANGE_MESSAGE,
@@ -16,7 +16,7 @@ import {
   MIN_GRADE,
   MIN_NUMBER,
   NUMBER_RANGE_MESSAGE,
-} from "@/modules/enrollment/enrollment.schema";
+} from "@/modules/student/student-position";
 // 내보내기는 브라우저에서도 쓰므로 서버 전용 파서를 역으로 참조하면 안 된다.
 import { ROSTER_COLUMNS } from "@/modules/enrollment/roster.export";
 import { MAX_ROSTER_ROWS, ROSTER_FILE_MAX_BYTES } from "./roster.schema";
@@ -509,6 +509,23 @@ export function normalizeRows(table: string[][]): RosterRow[] {
         }
         if (number !== null && (number < MIN_NUMBER || number > MAX_NUMBER)) {
           errors.push(NUMBER_RANGE_MESSAGE);
+        }
+      }
+
+      // 비재학 줄의 학년·반·번호는 어차피 null로 버려진다. 값이 남아 있으면 그
+      // 사실을 알려야 "졸업 / 학년=9" 같은 오탈자가 경고 없이 사라져 미리보기와
+      // 원본 파일이 달라지는 일을 막는다. 학적을 읽지 못한 줄은 이미 위의 오류로
+      // 잡히므로 여기서 덧붙이지 않는다.
+      if (status !== null && status !== "ENROLLED") {
+        const leftovers: string[] = [];
+        if (gradeRaw) leftovers.push(`학년: ${gradeRaw}`);
+        if (classNoRaw) leftovers.push(`반: ${classNoRaw}`);
+        if (numberRaw) leftovers.push(`번호: ${numberRaw}`);
+        if (leftovers.length > 0) {
+          errors.push(
+            `재학이 아니면 학년·반·번호가 반영되지 않습니다. ` +
+              `(${leftovers.join(", ")}) 파일에서 지워 주세요.`,
+          );
         }
       }
     }

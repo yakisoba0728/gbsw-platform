@@ -110,6 +110,40 @@ export function countPosts(communityId: string, db: DbClient = prisma): Promise<
   return db.communityPost.count({ where: { communityId, deletedAt: null } });
 }
 
+/** 같은 사용자의 동시 작성 요청을 직렬화해 count와 insert 사이 우회를 막는다. */
+export async function lockFloodBucket(
+  authorUserId: string,
+  kind: "post" | "comment",
+  db: DbClient,
+): Promise<void> {
+  await db.$executeRaw`
+    SELECT pg_advisory_xact_lock(
+      hashtextextended(${`community:flood:${kind}:${authorUserId}`}, 0)
+    )
+  `;
+}
+
+/* 도배 방지 카운트 — 지운 글·댓글도 지운 시점의 행은 남으므로 함께 센다. */
+export function countRecentPostsByAuthor(
+  authorUserId: string,
+  since: Date,
+  db: DbClient = prisma,
+): Promise<number> {
+  return db.communityPost.count({
+    where: { authorUserId, createdAt: { gte: since } },
+  });
+}
+
+export function countRecentCommentsByAuthor(
+  authorUserId: string,
+  since: Date,
+  db: DbClient = prisma,
+): Promise<number> {
+  return db.communityComment.count({
+    where: { authorUserId, createdAt: { gte: since } },
+  });
+}
+
 export function listPosts(
   communityId: string,
   skip: number,

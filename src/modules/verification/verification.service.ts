@@ -79,6 +79,10 @@ async function insertRateLimitedCode(input: {
   return withTransaction(async (tx) => {
     await repo.lockSendRateLimitBuckets(input.channel, input.target, ip, tx);
 
+    // 프로세스 종료 등으로 활성화되지 못한 예약 행은 한도를 계산하기 전에
+    // 정리한다. 그렇지 않으면 고아 행이 꽉 찬 대상은 정리 코드에 도달하지 못한다.
+    await repo.deleteStaleReservations(input.channel, input.target, now, tx);
+
     const recent = await repo.countRecentSends(input.channel, input.target, since, tx);
     if (recent >= MAX_SENDS_PER_HOUR) {
       throw new VerificationError(RATE_LIMIT_MESSAGE);

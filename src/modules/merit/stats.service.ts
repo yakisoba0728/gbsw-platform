@@ -1,16 +1,18 @@
 import type { SessionUser } from "@/core/auth/session";
 import { assertCan } from "@/core/authz/errors";
 import {
+  isYearScoped,
+  type MeritTrack,
+} from "@/core/authz/merit-track";
+import {
   addKindPoints,
   addKindTotals,
   demeritLevel,
   emptyKindTotals,
-  isYearScoped,
-  withNetScore,
   type DemeritLevel,
   type DemeritThresholds,
-  type MeritTrack,
-} from "@/core/authz/merit-track";
+  withNetScore,
+} from "./merit.points";
 import { getDemeritThresholds } from "./threshold.service";
 import {
   categoryDistribution,
@@ -22,6 +24,7 @@ import {
 } from "./merit.chart";
 import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
 import { kstDayStart } from "@/lib/datetime";
+import { SUMMARY_DAYS } from "./merit.schema";
 import * as repo from "./merit.repo";
 import { scopeYear, sumTotals, type MeritTotals } from "./award.service";
 
@@ -154,8 +157,6 @@ async function readWatchList(
     })
     .sort((a, b) => b.demerit - a.demerit || a.name.localeCompare(b.name, "ko"));
 }
-
-export const SUMMARY_DAYS = 7;
 
 const SUMMARY_KINDS = ["MERIT", "DEMERIT"] as const;
 
@@ -359,14 +360,21 @@ export async function getTeacherStats(
     rosterYear,
   });
 
-  const ids = [...new Set(byUser.map((r) => r.awardedByUserId!))];
+  const ids = [
+    ...new Set(
+      byUser.flatMap((row) =>
+        row.awardedByUserId === null ? [] : [row.awardedByUserId],
+      ),
+    ),
+  ];
   const users = await repo.findUserNames(ids);
   const nameById = new Map(users.map((u) => [u.id, u.name]));
 
   const rows = new Map<string, TeacherRow>();
 
   for (const row of byUser) {
-    const id = row.awardedByUserId!;
+    const id = row.awardedByUserId;
+    if (id === null) continue;
     const key = `u:${id}`;
     const entry =
       rows.get(key) ??

@@ -8,7 +8,7 @@ import {
   MAX_GRADE,
   MIN_CLASS_NO,
   MIN_GRADE,
-} from "@/modules/enrollment/enrollment.schema";
+} from "@/modules/student/student-position";
 import { HintSkeleton, StatsShell } from "./stats-shell";
 import { parseStatsView, STATS_VIEW_SCOPED, type StatsView } from "./stats-view";
 import { loadOverview, OverviewBody, OverviewHint, OverviewSkeleton } from "./views/overview";

@@ -1,3 +1,4 @@
+import { createHmac, hkdfSync } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 
 beforeAll(() => {
@@ -16,6 +17,7 @@ function plus(seconds: number): Date {
   return new Date(AT.getTime() + seconds * 1000);
 }
 
+/* 스텝을 품지 않은 옛 형식(id.signature). v3에서는 어느 때든 거부된다. */
 function legacyCode(studentProfileId: string, at: Date): string {
   const [id, , signature] = issueStudentCode(studentProfileId, at).code.split(".");
   return `${id}.${signature}`;
@@ -73,16 +75,31 @@ describe("verifyStudentCode", () => {
     });
   });
 
-  it("배포 직전 형식도 현재·직전 스텝이면 통과시킨다", () => {
+  it("스텝이 없는 레거시 형식은 현재 스텝 안이어도 받지 않는다", () => {
     const code = legacyCode(PROFILE_ID, AT);
-    expect(verifyStudentCode(code, plus(STEP_SECONDS))).toEqual({
-      studentProfileId: PROFILE_ID,
-    });
+    expect(verifyStudentCode(code, AT)).toBe("MALFORMED");
   });
 
-  it("스텝이 없는 배포 직전 형식은 만료 뒤 신원을 인증하지 않는다", () => {
+  it("스텝이 없는 레거시 형식은 만료 뒤에도 받지 않는다", () => {
     const code = legacyCode(PROFILE_ID, AT);
-    expect(verifyStudentCode(code, plus(STEP_SECONDS * 2))).toBe("STALE");
+    expect(verifyStudentCode(code, plus(STEP_SECONDS * 2))).toBe("MALFORMED");
+  });
+
+  it("v2 서명으로 발급된 구형 코드는 유효 기간 안이라도 무효다 — info 버전이 올라갔다", () => {
+    const base = process.env.BETTER_AUTH_SECRET!;
+    const oldKey = Buffer.from(
+      hkdfSync("sha256", base, "", "gbsw-student-qr-v2", 32),
+    );
+    const step = Math.floor(AT.getTime() / 1000 / STEP_SECONDS);
+    const signature = createHmac("sha256", oldKey)
+      .update(`${PROFILE_ID}:${step}`)
+      .digest()
+      .subarray(0, 12)
+      .toString("base64url");
+
+    expect(verifyStudentCode(`${PROFILE_ID}.${step}.${signature}`, AT)).toBe(
+      "INVALID",
+    );
   });
 
   it("두 스텝 전은 STALE이다", () => {

@@ -5,7 +5,7 @@ import {
   meritKindDelta,
   withNetScore,
   type KindTotals,
-} from "@/core/authz/merit-track";
+} from "./merit.points";
 
 export type ChartAward = {
   occurredOn: Date;

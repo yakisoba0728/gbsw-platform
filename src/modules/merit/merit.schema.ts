@@ -6,15 +6,8 @@ import {
   MAX_GRADE,
   MIN_CLASS_NO,
   MIN_GRADE,
-} from "@/modules/enrollment/enrollment.schema";
-
-const optionalText = (max: number) =>
-  z
-    .preprocess(
-      (v) => (v == null ? "" : v),
-      z.string().trim().max(max, `${max}자를 넘을 수 없습니다.`),
-    )
-    .transform((v) => (v.length === 0 ? null : v));
+} from "@/modules/student/student-position";
+import { optionalText, searchText } from "@/lib/zod-fields";
 
 const positiveInt = z
   .string()
@@ -166,20 +159,20 @@ export type StudentHistoryExportInput = z.infer<typeof studentHistoryExportSchem
 
 export const RECENT_AWARD_PAGE_SIZE = 20;
 
+// 학생 검색 드롭다운이 한 번에 고를 수 있는 후보 수.
+export const STUDENT_SEARCH_LIMIT = 30;
+
+// 대시보드 요약이 최근 며칠의 부여를 보는지.
+export const SUMMARY_DAYS = 7;
+
 export const RECENT_AWARD_STATUSES = ["ACTIVE", "CANCELLED"] as const;
 export type RecentAwardStatus = (typeof RECENT_AWARD_STATUSES)[number];
-
-const recentAwardSearch = z.preprocess(
-  (value) =>
-    typeof value === "string" && value.trim().length === 0 ? undefined : value,
-  z.string().trim().max(60, "검색어는 60자를 넘을 수 없습니다.").optional(),
-);
 
 export const recentAwardsQuerySchema = z.object({
   track: trackSchema.default("SCHOOL"),
   kind: kindSchema.optional(),
   status: z.enum(RECENT_AWARD_STATUSES).optional(),
-  q: recentAwardSearch,
+  q: searchText(),
   page: z.coerce.number().int().min(1).max(1000).default(1),
 });
 

@@ -1,16 +1,18 @@
-import { recordAudit } from "@/core/audit/audit";
+import { recordAudit, recordAuditMany } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
 import { assertCan, denyAccess } from "@/core/authz/errors";
-import { withTransaction } from "@/core/db/client";
+import { TX_BUDGETS, withTransaction } from "@/core/db/client";
+import {
+  isYearScoped,
+  MERIT_TRACK_LABELS,
+  type MeritTrack,
+} from "@/core/authz/merit-track";
 import {
   addKindPoints,
   emptyKindTotals,
-  isYearScoped,
-  MERIT_TRACK_LABELS,
   withNetScore,
-  type MeritTrack,
   type NetTotals,
-} from "@/core/authz/merit-track";
+} from "./merit.points";
 import { schoolYearRange } from "./merit.chart";
 import {
   AcademicYearError,
@@ -128,7 +130,7 @@ export async function awardMerit(
       },
     }, tx);
   },
-  { timeout: 30_000, maxWait: 5_000 },
+  TX_BUDGETS.meritAward,
   );
 }
 
@@ -237,7 +239,11 @@ export async function bulkAwardMerit(
       if (found.length !== ids.length) throw new MeritError("STUDENT_NOT_FOUND");
 
       const byId = new Map(found.map((s) => [s.id, s]));
-      const students = ids.map((id) => byId.get(id)!);
+      // 조회 수와 선택 수가 같음을 위에서 확인했으므로 순서가 그대로 보존된다.
+      const students = ids.flatMap((id) => {
+        const student = byId.get(id);
+        return student ? [student] : [];
+      });
 
       const rule = await repo.findRuleForUpdate(input.ruleId, tx);
       if (!rule) throw new MeritError("RULE_NOT_FOUND");
@@ -258,17 +264,16 @@ export async function bulkAwardMerit(
       }));
 
       const rows = await repo.createAwards(items, tx);
-      for (const [index, row] of rows.entries()) {
-        const student = students[index];
-        await recordAudit({
+      await recordAuditMany(
+        rows.map((row, index) => ({
           actorUserId: actor.id,
           actorName: actor.name,
           action: "merit:award",
           targetType: "MeritAward",
           targetId: row.id,
           metadata: {
-            studentProfileId: student.id,
-            studentName: student.user.name,
+            studentProfileId: students[index].id,
+            studentName: students[index].user.name,
             year,
             track: rule.track,
             kind: rule.kind,
@@ -276,11 +281,12 @@ export async function bulkAwardMerit(
             points: rule.points,
             occurredOn: occurredOn.toISOString(),
           },
-        }, tx);
-      }
+        })),
+        tx,
+      );
       return rows;
     },
-    { timeout: 30_000, maxWait: 5_000 },
+    TX_BUDGETS.meritAward,
   );
 
   return { count: created.length };

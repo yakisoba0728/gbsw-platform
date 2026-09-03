@@ -1,9 +1,9 @@
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import {
   MERIT_KIND_LABELS,
-  meritKindSign,
   type MeritKind,
 } from "@/core/authz/merit-track";
+import { meritKindSign } from "@/modules/merit/merit.points";
 
 const TONES: Record<MeritKind, BadgeTone> = {
   MERIT: "merit",

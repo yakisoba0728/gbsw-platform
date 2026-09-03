@@ -1,6 +1,7 @@
 import { prisma, type DbClient, withTransaction } from "@/core/db/client";
-import { isUniqueViolation, NumberTakenError } from "@/core/db/unique-violation";
-import { generateStudentCode } from "@/lib/student-code";
+import { isUniqueViolation } from "@/core/db/unique-violation";
+import { generateStudentCode } from "@/modules/enrollment/student-code";
+import { NumberTakenError } from "@/modules/student/student-position";
 
 export { findCurrentYearForUpdate } from "@/modules/academic-year/academic-year.repo";
 

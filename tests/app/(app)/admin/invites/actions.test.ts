@@ -4,7 +4,7 @@ import {
   CLASS_NO_RANGE_MESSAGE,
   GRADE_RANGE_MESSAGE,
   NUMBER_RANGE_MESSAGE,
-} from "@/modules/enrollment/enrollment.schema";
+} from "@/modules/student/student-position";
 
 const requireAuth = vi.fn();
 const revalidatePath = vi.fn();

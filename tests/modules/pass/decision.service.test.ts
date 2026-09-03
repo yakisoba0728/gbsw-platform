@@ -4,6 +4,7 @@ import { user } from "../../helpers/session";
 
 const createPass = vi.fn();
 const findPass = vi.fn();
+const lockPassForDecision = vi.fn();
 const listPendingForAdmin = vi.fn();
 const listActiveNow = vi.fn();
 const listEnrolledStudents = vi.fn();
@@ -26,6 +27,7 @@ const {
 vi.mock("@/modules/pass/pass.repo", () => ({
   createPass,
   findPass,
+  lockPassForDecision,
   listPendingForAdmin,
   listActiveNow,
   listEnrolledStudents,
@@ -54,6 +56,9 @@ const admin = user("ADMIN", "u-admin", { email: "u-admin@gbsw.hs.kr" });
 beforeEach(() => {
   createPass.mockReset().mockResolvedValue({ id: "p-1" });
   findPass.mockReset();
+  lockPassForDecision
+    .mockReset()
+    .mockResolvedValue({ id: "p-1", status: "REQUESTED" });
   listPendingForAdmin.mockReset().mockResolvedValue([]);
   listActiveNow.mockReset().mockResolvedValue([]);
   listEnrolledStudents.mockReset().mockResolvedValue([]);
@@ -141,13 +146,43 @@ describe("approvePass", () => {
         NOW,
       ),
     ).rejects.toThrow(new PassError("CONSENT_REQUIRED"));
+    // 잠금 후 판정이므로 거부까지 행 잠금을 거친다.
+    expect(lockPassForDecision).toHaveBeenCalledWith("p-1", txClient);
     expect(transitionUnexpired).not.toHaveBeenCalled();
+  });
+
+  it("선체크 뒤에 보호자가 동의했으면 CONSENT_REQUIRED 대신 그대로 승인한다", async () => {
+    // findPass는 아직 REQUESTED(동의 전)이지만, 잠금 시점엔 보호자가 확인한 상태다.
+    findPass.mockResolvedValue(pending({ type: "OVERNIGHT" }));
+    lockPassForDecision.mockResolvedValue({ id: "p-1", status: "CONSENTED" });
+
+    await expect(
+      service.approvePass(
+        admin,
+        { passId: "p-1", decisionNote: "확인 완료", consentNote: null },
+        NOW,
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(transitionUnexpired).toHaveBeenCalledWith(
+      "p-1",
+      ["REQUESTED", "CONSENTED"],
+      expect.objectContaining({
+        status: "APPROVED",
+        decisionNote: "확인 완료",
+      }),
+      txClient,
+    );
+    expect(auditEntries()).toEqual([
+      expect.objectContaining({ metadata: expect.objectContaining({ byProxy: false }) }),
+    ]);
   });
 
   it("보호자가 이미 동의했으면 그대로 승인된다", async () => {
     findPass.mockResolvedValue(
       pending({ type: "OVERNIGHT", status: "CONSENTED", consentedAt: new Date() }),
     );
+    lockPassForDecision.mockResolvedValue({ id: "p-1", status: "CONSENTED" });
     await expect(
       service.approvePass(
         admin,
@@ -170,6 +205,7 @@ describe("approvePass", () => {
     findPass.mockResolvedValue(
       pending({ type: "OVERNIGHT", status: "CONSENTED", consentedAt: new Date() }),
     );
+    lockPassForDecision.mockResolvedValue({ id: "p-1", status: "CONSENTED" });
 
     await service.approvePass(
       admin,
@@ -228,11 +264,10 @@ describe("approvePass", () => {
     ]);
   });
 
-  it("대행 승인 직전 보호자가 확인하면 보호자 기록을 덮지 않고 승인만 한다", async () => {
+  it("대행 체크 시점에 이미 보호자가 확인했으면 보호자 기록을 새로 찍지 않고 승인만 한다", async () => {
+    // findPass는 REQUESTED(동의 전)로 보이지만, 잠금 시점엔 보호자가 먼저 확인했다.
     findPass.mockResolvedValue(pending({ type: "OVERNIGHT" }));
-    transitionUnexpired
-      .mockResolvedValueOnce("UNCHANGED")
-      .mockResolvedValueOnce("UPDATED");
+    lockPassForDecision.mockResolvedValue({ id: "p-1", status: "CONSENTED" });
 
     await service.approvePass(
       admin,
@@ -245,25 +280,26 @@ describe("approvePass", () => {
       NOW,
     );
 
-    expect(transitionUnexpired).toHaveBeenNthCalledWith(
-      1,
+    // 대행 없이 승인만 한다 — 동의 기록을 건드리는 필드가 전혀 없어야 한다.
+    expect(transitionUnexpired).toHaveBeenCalledTimes(1);
+    expect(transitionUnexpired).toHaveBeenCalledWith(
       "p-1",
-      ["REQUESTED"],
+      ["REQUESTED", "CONSENTED"],
       expect.objectContaining({
-        consentByProxy: true,
-        consentNote: "어머니와 전화 확인",
+        status: "APPROVED",
+        decisionNote: "어머니와 전화 확인",
       }),
       txClient,
     );
-    const secondUpdate = transitionUnexpired.mock.calls[1]![2];
-    expect(secondUpdate).not.toHaveProperty("consentByProxy");
-    expect(secondUpdate).not.toHaveProperty("consentedByUserId");
-    expect(secondUpdate).not.toHaveProperty("consentNote");
+    const update = transitionUnexpired.mock.calls[0]![2];
+    expect(update).not.toHaveProperty("consentByProxy");
+    expect(update).not.toHaveProperty("consentedByUserId");
+    expect(update).not.toHaveProperty("consentedAt");
+    expect(update).not.toHaveProperty("consentNote");
     expect(auditEntries()).toEqual([
       expect.objectContaining({
         metadata: expect.objectContaining({
           byProxy: false,
-          decisionNote: null,
           consentNote: null,
         }),
       }),

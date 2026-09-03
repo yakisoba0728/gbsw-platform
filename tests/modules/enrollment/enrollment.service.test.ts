@@ -8,11 +8,19 @@ const findCurrentYearForUpdate = vi.fn();
 const findCurrentYear = vi.fn();
 const applyAll = vi.fn();
 const findStudentDetail = vi.fn();
+const deleteEnrollmentsOfRemovedStudents = vi.fn();
 const {
   recordAudit,
   txClient,
   bareWithTransaction: withTransaction,
 } = coreMocks("enrollment-service-test");
+const recordAuditMany = vi.fn();
+
+function saveAuditEntries(): { action: string; [key: string]: unknown }[] {
+  return recordAuditMany.mock.calls.flatMap(
+    (c) => c[0] as { action: string }[],
+  );
+}
 
 class NumberTakenError extends Error {}
 
@@ -23,8 +31,9 @@ vi.mock("@/modules/enrollment/enrollment.repo", () => ({
   listByYear,
   applyAll,
   findStudentDetail,
+  deleteEnrollmentsOfRemovedStudents,
 }));
-vi.mock("@/core/audit/audit", () => ({ recordAudit }));
+vi.mock("@/core/audit/audit", () => ({ recordAudit, recordAuditMany }));
 vi.mock("@/core/db/client", () => ({ withTransaction }));
 vi.mock("@/modules/academic-year/academic-year.service", () => ({
   getCurrentYear: vi.fn().mockResolvedValue(2026),
@@ -77,7 +86,9 @@ beforeEach(() => {
   listByYear.mockReset().mockResolvedValue([current()]);
   applyAll.mockReset().mockResolvedValue(undefined);
   findStudentDetail.mockReset();
+  deleteEnrollmentsOfRemovedStudents.mockReset().mockResolvedValue(undefined);
   recordAudit.mockReset();
+  recordAuditMany.mockReset();
   withTransaction.mockReset().mockImplementation(async (fn: (tx: typeof txClient) => unknown) =>
     fn(txClient),
   );
@@ -111,7 +122,7 @@ describe("saveEnrollments()", () => {
     ).rejects.toThrow("ENROLLMENT_CHANGED");
 
     expect(applyAll).not.toHaveBeenCalled();
-    expect(recordAudit).not.toHaveBeenCalled();
+    expect(recordAuditMany).not.toHaveBeenCalled();
   });
 
   it("Serializable 충돌은 새로고침 가능한 업무 충돌로 옮긴다", async () => {
@@ -153,7 +164,7 @@ describe("saveEnrollments()", () => {
 
     expect(saved).toBe(0);
     expect(applyAll).not.toHaveBeenCalled();
-    expect(recordAudit).not.toHaveBeenCalled();
+    expect(recordAuditMany).not.toHaveBeenCalled();
   });
 
   it("바뀐 학생만 골라 한 번의 applyAll 호출로 저장한다 (C1 — 학생마다 트랜잭션을 나누지 않는다)", async () => {
@@ -201,19 +212,21 @@ describe("saveEnrollments()", () => {
       maxWait: 5_000,
       isolationLevel: "Serializable",
     });
-    expect(recordAudit.mock.calls[0]![1]).toBe(txClient);
-    expect(recordAudit).toHaveBeenCalledTimes(1);
-    const audit = recordAudit.mock.calls[0]![0];
+    expect(recordAuditMany).toHaveBeenCalledTimes(1);
+    expect(recordAuditMany.mock.calls[0]![1]).toBe(txClient);
+    const entries = saveAuditEntries();
+    expect(entries).toHaveLength(1);
+    const audit = entries[0]!;
     expect(audit.action).toBe("enrollment:update");
     expect(audit.targetId).toBe("sp-1");
-    expect(audit.metadata.changed).toEqual(["classNo"]);
-    expect(audit.metadata.classNo).toBeUndefined();
+    expect((audit.metadata as { changed: string[] }).changed).toEqual(["classNo"]);
+    expect(audit.metadata).not.toHaveProperty("classNo");
   });
 
   it("actorName을 미리 넘겨 배치 저장이 매번 이름을 다시 조회하지 않게 한다 (M8)", async () => {
     await save(admin, [{ ...unchanged, classNo: 5 }]);
 
-    expect(recordAudit.mock.calls[0]![0].actorName).toBe(admin.name);
+    expect(saveAuditEntries()[0]!.actorName).toBe(admin.name);
   });
 
   it("같은 저장에 속한 줄들은 같은 배치 식별자를 단다", async () => {
@@ -227,7 +240,8 @@ describe("saveEnrollments()", () => {
       { ...unchanged, studentProfileId: "sp-2", number: 8 },
     ]);
 
-    const [a, b] = recordAudit.mock.calls.map((c) => c[0].metadata.batch);
+    const entries = saveAuditEntries();
+    const [a, b] = entries.map((e) => (e.metadata as { batch: string }).batch);
     expect(a).toBeTruthy();
     expect(a).toBe(b);
   });
@@ -238,7 +252,7 @@ describe("saveEnrollments()", () => {
     await expect(save(admin, [{ ...unchanged, number: 9 }])).rejects.toThrow(
       "DB 장애",
     );
-    expect(recordAudit).not.toHaveBeenCalled();
+    expect(recordAuditMany).not.toHaveBeenCalled();
   });
 
   it("재학이면 반·번호가 있어야 한다", async () => {
@@ -320,7 +334,7 @@ describe("(grade, classNo, number) 충돌 사전 검사 (C1)", () => {
     expect(applyAll).not.toHaveBeenCalled();
   });
 
-  it("번호 교환(A↔B)은 둘 다 배치에 있어도 반려한다 — 단일 트랜잭션으로도 못 푸는 문제다", async () => {
+  it("번호 교환(A↔B)은 최종 자리 기준으로 겹치지 않아 한 번의 저장에 반영된다", async () => {
     listByYear.mockResolvedValue([
       current({ number: 3 }),
       current({ studentProfileId: "sp-2", userId: "u-2", name: "이학생", number: 4 }),
@@ -331,14 +345,93 @@ describe("(grade, classNo, number) 충돌 사전 검사 (C1)", () => {
         { ...unchanged, number: 4 },
         { ...unchanged, studentProfileId: "sp-2", number: 3 },
       ]),
-    ).rejects.toThrow("ENROLLMENT_CONFLICT");
-    expect(applyAll).not.toHaveBeenCalled();
+    ).resolves.toEqual({ saved: 2 });
+
+    expect(applyAll).toHaveBeenCalledTimes(1);
+    const items = applyAll.mock.calls[0]![1];
+    expect(items).toHaveLength(2);
+  });
+
+  it("비켜나는 학생이 같은 배치에 있으면 그 자리로의 이동도 받는다", async () => {
+    // B(2번)가 9번으로 비켜나는 중이면 A의 1번→2번 이동은 최종 상태 기준으로 자리가 비어 있다.
+    listByYear.mockResolvedValue([
+      current({ number: 1 }),
+      current({ studentProfileId: "sp-2", userId: "u-2", name: "이학생", number: 2 }),
+    ]);
+
+    await expect(
+      save(admin, [
+        { ...unchanged, number: 2 },
+        { ...unchanged, studentProfileId: "sp-2", number: 9 },
+      ]),
+    ).resolves.toEqual({ saved: 2 });
+    expect(applyAll).toHaveBeenCalledTimes(1);
+  });
+
+  it("비켜나는 학생이 재학을 그만두면(졸업 등) 그 자리로의 이동도 받는다", async () => {
+    listByYear.mockResolvedValue([
+      current({ number: 1 }),
+      current({ studentProfileId: "sp-2", userId: "u-2", name: "이학생", number: 2 }),
+    ]);
+
+    await save(admin, [
+      { ...unchanged, number: 2 },
+      { ...unchanged, studentProfileId: "sp-2", status: "GRADUATED", number: null },
+    ]);
+
+    expect(applyAll).toHaveBeenCalledTimes(1);
+    expect(applyAll.mock.calls[0]![1]).toHaveLength(2);
   });
 
   it("같은 학생이 자기 자리를 유지하는 건 충돌이 아니다", async () => {
     listByYear.mockResolvedValue([current({ status: "DEFERRED" })]);
 
     await expect(save(admin, [unchanged])).resolves.toEqual({ saved: 1 });
+  });
+});
+
+describe("소프트삭제 학생의 잔존 자리 정리", () => {
+  it("화면에 안 보이는 잔존 행이 점유한 자리로 배정하면 저장 전에 잔존 행을 지운다", async () => {
+    // listByYear는 deletedAt != null인 학생을 걸러 현재 자리가 1-3-9인 학생은 안 보인다.
+    listByYear.mockResolvedValue([current()]);
+
+    const { saved } = await save(admin, [{ ...unchanged, number: 9 }]);
+
+    expect(saved).toBe(1);
+    expect(deleteEnrollmentsOfRemovedStudents).toHaveBeenCalledTimes(1);
+    expect(deleteEnrollmentsOfRemovedStudents).toHaveBeenCalledWith(
+      YEAR,
+      [{ grade: 1, classNo: 3, number: 9 }],
+      txClient,
+    );
+    // 정리는 적용보다 먼저 — 유일 제약에 막히지 않으려면 순서가 지켜져야 한다.
+    expect(deleteEnrollmentsOfRemovedStudents.mock.invocationCallOrder[0]).toBeLessThan(
+      applyAll.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it("배치에 자리 배정이 없으면(비재학 전환뿐) 잔존 행 정리를 하지 않는다", async () => {
+    await save(admin, [{ ...unchanged, status: "GRADUATED", number: null }]);
+
+    expect(deleteEnrollmentsOfRemovedStudents).not.toHaveBeenCalled();
+  });
+
+  it("여러 자리로 배정해도 한 번의 호출에 자리별로 모아서 정리한다", async () => {
+    listByYear.mockResolvedValue([
+      current(),
+      current({ studentProfileId: "sp-2", userId: "u-2", name: "이학생", number: 4 }),
+    ]);
+
+    await save(admin, [
+      { ...unchanged, number: 9 },
+      { ...unchanged, studentProfileId: "sp-2", number: 10 },
+    ]);
+
+    expect(deleteEnrollmentsOfRemovedStudents).toHaveBeenCalledTimes(1);
+    expect(deleteEnrollmentsOfRemovedStudents).toHaveBeenCalledWith(YEAR, [
+      { grade: 1, classNo: 3, number: 9 },
+      { grade: 1, classNo: 3, number: 10 },
+    ], txClient);
   });
 });
 
@@ -350,8 +443,8 @@ describe("계정 상태 (I1 · I2)", () => {
 
     const item = applyAll.mock.calls[0]![1][0];
     expect(item.statusChanged).toBe(false);
-    expect(recordAudit).toHaveBeenCalledTimes(1);
-    expect(recordAudit.mock.calls[0]![0].action).toBe("enrollment:update");
+    expect(recordAuditMany).toHaveBeenCalledTimes(1);
+    expect(saveAuditEntries()[0]!.action).toBe("enrollment:update");
   });
 
   it("재학이 아니게 되면 계정을 비활성으로 넘기고 statusChanged를 알린다", async () => {
@@ -375,20 +468,19 @@ describe("계정 상태 (I1 · I2)", () => {
   it("계정 상태가 실제로 뒤집힐 때 admin-users와 같은 형식으로 감사로그를 한 줄 더 남긴다 (I2)", async () => {
     await save(admin, [{ ...unchanged, status: "WITHDRAWN" }]);
 
-    expect(recordAudit).toHaveBeenCalledTimes(2);
-    expect(recordAudit).toHaveBeenNthCalledWith(
-      1,
+    expect(recordAuditMany).toHaveBeenCalledTimes(1);
+    expect(recordAuditMany.mock.calls[0]![1]).toBe(txClient);
+    const entries = saveAuditEntries();
+    expect(entries).toHaveLength(2);
+    expect(entries[0]).toEqual(
       expect.objectContaining({ action: "enrollment:update", targetId: "sp-1" }),
-      txClient,
     );
-    expect(recordAudit).toHaveBeenNthCalledWith(
-      2,
+    expect(entries[1]).toEqual(
       expect.objectContaining({
         action: "user:deactivate",
         targetType: "User",
         targetId: "u-1",
       }),
-      txClient,
     );
   });
 
@@ -397,8 +489,9 @@ describe("계정 상태 (I1 · I2)", () => {
 
     await save(admin, [{ ...unchanged, status: "GRADUATED" }]);
 
-    expect(recordAudit).toHaveBeenCalledTimes(1);
-    expect(recordAudit.mock.calls[0]![0].action).toBe("enrollment:update");
+    expect(recordAuditMany).toHaveBeenCalledTimes(1);
+    expect(saveAuditEntries()).toHaveLength(1);
+    expect(saveAuditEntries()[0]!.action).toBe("enrollment:update");
   });
 });
 
@@ -432,7 +525,7 @@ describe("중복 제거 (M5)", () => {
     const items = applyAll.mock.calls[0]![1];
     expect(items).toHaveLength(1);
     expect(items[0].number).toBe(8);
-    expect(recordAudit).toHaveBeenCalledTimes(1);
+    expect(recordAuditMany).toHaveBeenCalledTimes(1);
   });
 });
 

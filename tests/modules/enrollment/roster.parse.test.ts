@@ -149,10 +149,46 @@ describe("normalizeRows()", () => {
 
     it("비재학 줄은 범위 검사 대상이 아니다 — grade/classNo/number가 애초에 null이다", () => {
       const rows = normalizeRows([HEADER, ["김동혁", "2010-07-28", "11", "99", "999", "졸업"]]);
-      expect(rows[0]!.errors).toEqual([]);
       expect(rows[0]!.grade).toBeNull();
       expect(rows[0]!.classNo).toBeNull();
       expect(rows[0]!.number).toBeNull();
+      expect(rows[0]!.errors.join()).not.toContain("학년은 1~3");
+      expect(rows[0]!.errors.join()).not.toContain("반은 1~20");
+      expect(rows[0]!.errors.join()).not.toContain("번호는 1~50");
+    });
+  });
+
+  describe("비재학 줄에 학년·반·번호 값이 남아 있으면 경고 (유실 방지)", () => {
+    it("졸업인데 학년=9가 남아 있으면 버려진다는 경고를 남긴다 — 조용히 유실되지 않게", () => {
+      const rows = normalizeRows([HEADER, ["김동혁", "2010-07-28", "9", "", "", "졸업"]]);
+      expect(rows[0]!.status).toBe("GRADUATED");
+      expect(rows[0]!.grade).toBeNull();
+      expect(rows[0]!.errors.join()).toContain("재학이 아니면 학년·반·번호가 반영되지 않습니다");
+      expect(rows[0]!.errors.join()).toContain("학년: 9");
+    });
+
+    it("남아 있는 값만 경고에 적는다", () => {
+      const rows = normalizeRows([HEADER, ["김동혁", "2010-07-28", "", "", "7", "자퇴"]]);
+      expect(rows[0]!.errors).toHaveLength(1);
+      expect(rows[0]!.errors[0]).toContain("번호: 7");
+      expect(rows[0]!.errors[0]).not.toContain("학년:");
+      expect(rows[0]!.errors[0]).not.toContain("반:");
+    });
+
+    it("비재학 줄에 값이 없으면 경고가 없다 — 졸업생 내보내기의 빈 배정은 정상이다", () => {
+      const rows = normalizeRows([HEADER, ["김동혁", "2010-07-28", "", "", "", "졸업"]]);
+      expect(rows[0]!.errors).toEqual([]);
+    });
+
+    it("학적을 읽지 못한 줄은 학적 오류만 낸다 — 같은 원인을 두 번 말하지 않는다", () => {
+      const rows = normalizeRows([HEADER, ["김동혁", "2010-07-28", "1", "3", "3", "휴학"]]);
+      expect(rows[0]!.errors).toHaveLength(1);
+      expect(rows[0]!.errors[0]).toContain("학적이 올바르지 않습니다");
+    });
+
+    it("넷 다 빈 줄(status:null)은 경고 대상이 아니다", () => {
+      const rows = normalizeRows([HEADER, ["김동혁", "2010-07-28", "", "", "", ""]]);
+      expect(rows[0]!.errors).toEqual([]);
     });
   });
 

@@ -2,8 +2,10 @@ import { recordAudit, type RecordAuditInput } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
 import { can } from "@/core/authz/can";
 import { assertCan, denyAccess } from "@/core/authz/errors";
+import type { DbClient } from "@/core/db/client";
 import { withTransaction } from "@/core/db/client";
-import { generateInviteCode } from "@/lib/generate-invite-code";
+import { isUniqueViolation } from "@/core/db/unique-violation";
+import { generateInviteCode } from "./generate-invite-code";
 import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
 import * as repo from "./invite.repo";
 import type {
@@ -16,21 +18,25 @@ import type {
 
 export class InviteError extends Error {}
 
+/** 열린 트랜잭션의 코드 충돌을 바깥의 전체 트랜잭션 재시도에 알린다. */
+export class InviteCodeCollisionError extends Error {}
+
 export const MAX_ACTIVE_PARENT_INVITES = 2;
 
-const PARENT_INVITE_EXPIRES_DAYS = 90;
+/** 학부모 코드와 명단 발급 학생 코드의 공통 만료일. */
+export const INVITE_EXPIRES_DAYS = 90;
 
-const CODE_RETRIES = 5;
+export const INVITE_CODE_RETRIES = 5;
 
-export async function generateUniqueCode(): Promise<string> {
-  for (let i = 0; i < CODE_RETRIES; i += 1) {
+async function generateUniqueCode(): Promise<string> {
+  for (let i = 0; i < INVITE_CODE_RETRIES; i += 1) {
     const code = generateInviteCode();
     if (!(await repo.codeExists(code))) return code;
   }
   throw new InviteError("CODE_GENERATION_FAILED");
 }
 
-export function toExpiresAt(days: number | undefined): Date | null {
+function toExpiresAt(days: number | undefined): Date | null {
   if (!days) return null;
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 }
@@ -120,7 +126,7 @@ export async function createParentInvite(
     role: "PARENT",
     metadata: { name: input.name },
     studentId: profile.id,
-    expiresInDays: PARENT_INVITE_EXPIRES_DAYS,
+    expiresInDays: INVITE_EXPIRES_DAYS,
     missingStudentError: "NOT_A_STUDENT",
     auditMetadata: { role: "PARENT", studentId: profile.id },
   });
@@ -191,4 +197,86 @@ export async function revokeInvite(actor: SessionUser, input: RevokeInviteInput)
       metadata: { reason },
     }, tx);
   });
+}
+
+/** 명단 반영으로 새로 들어온 학생의 사전등록 신원. */
+export type BulkInviteStudent = {
+  name: string;
+  birthDate: string;
+  grade: number | null;
+  classNo: number | null;
+  number: number | null;
+};
+
+export type IssuedBulkInvite = {
+  id: string;
+  name: string;
+  code: string;
+  grade: number | null;
+  classNo: number | null;
+  number: number | null;
+};
+
+/**
+ * 코드 충돌을 도메인 오류로 옮긴다. PostgreSQL은 제약 오류가 난 트랜잭션을
+ * 중단하므로 여기서 같은 tx를 재사용하지 않고, 호출자가 트랜잭션 전체를 다시 연다.
+ */
+async function insertInvite(
+  insert: repo.InsertInviteInput,
+  tx: DbClient,
+): Promise<{ id: string; code: string }> {
+  try {
+    const created = await repo.insertInvite(insert, tx);
+    return { id: created.id, code: created.code };
+  } catch (error) {
+    if (isUniqueViolation(error, "code")) {
+      throw new InviteCodeCollisionError();
+    }
+    throw error;
+  }
+}
+
+/**
+ * 명단 반영처럼 이미 열려 있는 트랜잭션 안에서 학생 초대코드를 대량 발급한다.
+ * 코드는 사전 DB 검사 없이 로컬로 만든다. 유일 제약 충돌은 호출자가 트랜잭션
+ * 전체를 다시 열 때 새 코드를 뽑는다 — 신규 학생 수만큼 codeExists를 치던 이전
+ * 방식의 쿼리 폭증을 없앤다. 발급 규칙(코드 알파벳·만료 90일·발급자 스냅샷)은
+ * 단건 발급과 이 한 곳에서 같다.
+ */
+export async function issueInvitesBulk(
+  input: {
+    actorId: string;
+    actorName: string;
+    students: BulkInviteStudent[];
+  },
+  tx: DbClient,
+): Promise<IssuedBulkInvite[]> {
+  const issued: IssuedBulkInvite[] = [];
+
+  for (const student of input.students) {
+    const { id, code } = await insertInvite({
+      code: generateInviteCode(),
+      role: "STUDENT",
+      metadata: {
+        name: student.name,
+        birthDate: student.birthDate,
+        grade: student.grade,
+        classNo: student.classNo,
+        number: student.number,
+      },
+      expiresAt: toExpiresAt(INVITE_EXPIRES_DAYS),
+      createdById: input.actorId,
+      createdByName: input.actorName,
+    }, tx);
+    issued.push({
+      id,
+      name: student.name,
+      code,
+      grade: student.grade,
+      classNo: student.classNo,
+      number: student.number,
+    });
+  }
+
+  return issued;
 }

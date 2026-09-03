@@ -3,7 +3,10 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { Client } from "pg";
 import { prisma } from "@/core/db/client";
 
-vi.mock("@/core/audit/audit", () => ({ recordAudit: vi.fn() }));
+vi.mock("@/core/audit/audit", () => ({
+  recordAudit: vi.fn(),
+  recordAuditMany: vi.fn(),
+}));
 
 const repo = await import("@/modules/merit/merit.repo");
 const service = await import("@/modules/merit/award.service");

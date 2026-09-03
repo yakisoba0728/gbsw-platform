@@ -26,6 +26,7 @@ const {
   consume,
   countRecentSends,
   countRecentSendsByIp,
+  deleteStaleReservations,
   expirePending,
   hasNewerActivatedCode,
   findVerified,
@@ -153,6 +154,27 @@ describe("verification.repo rate-limit primitives", () => {
       },
       select: { id: true },
     });
+  });
+});
+
+describe("verification.repo.deleteStaleReservations()", () => {
+  it("대상 기준으로 활성화되지 못한 예약 행만 지운다 — 만료된 정상 코드는 남긴다", async () => {
+    const now = new Date("2026-08-19T00:10:00.000Z");
+    const tx = { $executeRaw: executeRaw };
+
+    await deleteStaleReservations("EMAIL", "a@b.kr", now, tx as never);
+
+    expect(executeRaw).toHaveBeenCalledTimes(1);
+    const args = executeRaw.mock.calls[0]!;
+    const sql = (args[0] as unknown[]).join("");
+    expect(sql).toContain('DELETE FROM "VerificationCode"');
+    expect(sql).toContain('"consumedAt" IS NULL');
+    expect(sql).toContain('"verifiedAt" IS NULL');
+    // 활성화된 적 없는 행만 — expiresAt이 createdAt보다 뒤인 만료 코드는 한도 기록으로 남는다.
+    expect(sql).toContain('"expiresAt" <= "createdAt"');
+    expect(args).toContain("EMAIL");
+    expect(args).toContain("a@b.kr");
+    expect(args).toContain(now);
   });
 });
 

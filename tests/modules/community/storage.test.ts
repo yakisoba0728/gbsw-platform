@@ -1,3 +1,4 @@
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   classifyUpload,
@@ -101,7 +102,9 @@ describe("storagePath", () => {
   const at = new Date("2026-08-28T01:00:00.000Z");
 
   it("연·월로 나눠 담는다 — 한 디렉터리에 무한정 쌓이지 않게", () => {
-    expect(storagePath("a".repeat(32), at)).toMatch(/\/2026\/08\/a{32}$/);
+    expect(storagePath("a".repeat(32), at).endsWith(
+      path.join("2026", "08", "a".repeat(32)),
+    )).toBe(true);
   });
 
   it("만들어진 키를 그대로 받는다", () => {

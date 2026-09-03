@@ -1,16 +1,12 @@
 import type { BadgeTone } from "@/components/ui/badge";
-import {
-  isPassStatus,
-  PASS_STATUS_LABELS,
-  requiresConsent,
-  type PassStatus,
-} from "@/core/authz/pass-type";
+import { isPassStatus, PASS_STATUS_LABELS, type PassStatus } from "@/core/authz/pass-type";
 import {
   formatDateTimeShort,
   formatMonthDayTime,
   formatTimeShort,
 } from "@/lib/datetime";
 import type { Role } from "@/core/authz/roles";
+import { requiresConsent } from "./pass.policy";
 import type { Verdict } from "./verify.service";
 
 export const PASS_STATUS_TONES: Record<PassStatus, BadgeTone> = {

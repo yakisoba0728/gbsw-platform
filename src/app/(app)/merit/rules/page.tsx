@@ -21,11 +21,11 @@ import {
   isMeritTrack,
   MERIT_KIND_LABELS,
   MERIT_KINDS,
-  meritKindSign,
   type MeritKind,
   type MeritTrack,
 } from "@/core/authz/merit-track";
 import { hrefWith } from "@/lib/search-params";
+import { meritKindSign } from "@/modules/merit/merit.points";
 import { listRulesForReading } from "@/modules/merit/rule.service";
 
 export const metadata: Metadata = { title: "상벌점 규정" };

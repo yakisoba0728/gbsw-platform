@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DECIDABLE_STATUSES, LIVE_STATUSES } from "@/core/authz/pass-type";
+import { beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
+import { Prisma } from "@/generated/prisma/client";
+import { DECIDABLE_STATUSES, LIVE_STATUSES } from "@/modules/pass/pass.policy";
 
 vi.mock("@/core/db/client", () => ({
   prisma: {},
@@ -20,10 +21,6 @@ function sqlAt(index: number): string {
 
 describe("출입증 상태 집합", () => {
   const now = new Date("2026-09-02T12:00:00+09:00");
-
-  it("살아 있는 상태는 신청·동의·승인 세 가지다", () => {
-    expect(LIVE_STATUSES).toEqual(["REQUESTED", "CONSENTED", "APPROVED"]);
-  });
 
   it("정문 판정은 LIVE_STATUSES와 같은 상태를 쓴다", async () => {
     const findMany = vi.fn().mockResolvedValue([]);
@@ -68,6 +65,59 @@ describe("출입증 상태 집합", () => {
 
     expect(findMany.mock.calls[0]![0].where.status.in).toEqual([...DECIDABLE_STATUSES]);
     expect(count.mock.calls[0]![0].where.status.in).toEqual([...DECIDABLE_STATUSES]);
+  });
+});
+
+describe("transitionUnexpired SQL", () => {
+  it("만료 판정과 대입은 세션 TimeZone의 해석을 거치지 않는다", async () => {
+    const executeRaw = vi.fn().mockResolvedValue(1);
+    queryRaw.mockResolvedValueOnce([
+      { id: "p-1", status: "REQUESTED", expired: false },
+    ]);
+
+    await expect(
+      repo.transitionUnexpired(
+        "p-1",
+        ["REQUESTED"],
+        { status: "APPROVED" },
+        { $queryRaw: queryRaw, $executeRaw: executeRaw } as never,
+      ),
+    ).resolves.toBe("UPDATED");
+
+    const selectSql = sqlAt(0);
+    expect(selectSql).toContain("FOR UPDATE");
+    // Prisma DateTime은 시간대 없는 TIMESTAMP(3)라 UTC 값을 담는다 — 컬럼을
+    // 명시적으로 UTC로 풀어 clock_timestamp와 절대시각끼리 비교해야
+    // DB 세션 TZ가 Asia/Seoul이어도 만료 판정이 9시간 어긋나지 않는다.
+    expect(selectSql).toContain(`("endAt" AT TIME ZONE 'UTC') <= clock_timestamp()`);
+    expect(selectSql).not.toMatch(/"endAt"\s*<=\s*clock_timestamp\(\)/);
+
+    const updateSql = executeRaw.mock.calls[0]![0].sql as string;
+    expect(updateSql).toContain(
+      `"updatedAt" = (clock_timestamp() AT TIME ZONE 'UTC')`,
+    );
+    expect(updateSql).toContain(
+      `("endAt" AT TIME ZONE 'UTC') > clock_timestamp()`,
+    );
+    expect(updateSql).not.toMatch(/"updatedAt"\s*=\s*clock_timestamp\(\)/);
+    expect(updateSql).not.toMatch(/"endAt"\s*>\s*clock_timestamp\(\)/);
+  });
+
+  it("잠긴 행이 전이 대상이 아니면 UPDATE를 실행하지 않는다", async () => {
+    const executeRaw = vi.fn();
+    queryRaw.mockResolvedValueOnce([
+      { id: "p-1", status: "APPROVED", expired: false },
+    ]);
+
+    await expect(
+      repo.transitionUnexpired(
+        "p-1",
+        ["REQUESTED"],
+        { status: "APPROVED" },
+        { $queryRaw: queryRaw, $executeRaw: executeRaw } as never,
+      ),
+    ).resolves.toBe("UNCHANGED");
+    expect(executeRaw).not.toHaveBeenCalled();
   });
 });
 
@@ -194,5 +244,44 @@ describe("출입증 학적 조회", () => {
       expect.objectContaining({ where: expectedWhere }),
     );
     expect(count).toHaveBeenCalledWith({ where: expectedWhere });
+  });
+});
+
+describe("displayYear — 표시 학년도", () => {
+  it("학년도가 없으면 매직 0 대신 null을 반환한다", async () => {
+    const findFirst = vi.fn().mockResolvedValue(null);
+
+    await expect(
+      repo.displayYear({ academicYear: { findFirst } } as never),
+    ).resolves.toBeNull();
+  });
+
+  it("표시 학년도가 없으면 학년·반·번호를 좁히지 않는다", async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+
+    await repo.listForVerify("sp-1", new Date(), null, {
+      pass: { findMany },
+    } as never);
+
+    expect(findMany.mock.calls[0]![0].include.studentProfile.select.enrollments.where).toEqual(
+      { year: { in: [] } },
+    );
+  });
+});
+
+describe("UNEXPIRED_TRANSITION_COLUMNS — 스키마 파생 검증", () => {
+  type TransitionColumns = typeof repo.UNEXPIRED_TRANSITION_COLUMNS;
+
+  it("키와 값은 모두 Prisma 스키마의 Pass 필드로 대입 호환이다", () => {
+    expectTypeOf<keyof TransitionColumns>().toExtend<keyof Prisma.PassUncheckedUpdateManyInput>();
+    expectTypeOf<TransitionColumns[keyof TransitionColumns]>().toExtend<Prisma.PassScalarFieldEnum>();
+  });
+
+  it("Pass 모델에 @map이 없으므로 필드명과 컬럼명이 어긋나지 않는다", () => {
+    const fieldEnum: Record<string, string> = Prisma.PassScalarFieldEnum;
+    for (const [field, column] of Object.entries(repo.UNEXPIRED_TRANSITION_COLUMNS)) {
+      expect(field).toBe(column);
+      expect(fieldEnum).toHaveProperty(field, column);
+    }
   });
 });

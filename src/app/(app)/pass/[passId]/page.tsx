@@ -6,12 +6,7 @@ import { SectionCard } from "@/components/ui/section-card";
 import { requireAuth } from "@/core/auth/session";
 import { can } from "@/core/authz/can";
 import { ForbiddenError } from "@/core/authz/errors";
-import {
-  isPassStatus,
-  isPassType,
-  isRevocable,
-  PASS_TYPE_LABELS,
-} from "@/core/authz/pass-type";
+import { isPassStatus, isPassType, PASS_TYPE_LABELS } from "@/core/authz/pass-type";
 import { honorificName } from "@/core/authz/roles";
 import { formatDateTimeShort } from "@/lib/datetime";
 import { formatSeat } from "@/lib/student-number";
@@ -22,6 +17,7 @@ import {
   passStatusLabel,
   requesterRole,
 } from "@/modules/pass/pass.labels";
+import { isRevocable } from "@/modules/pass/pass.policy";
 import { getPassDetail } from "@/modules/pass/request.service";
 import { CancelButton } from "../cancel-button";
 import { passPeriod } from "../pass-card";

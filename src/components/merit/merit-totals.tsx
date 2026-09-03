@@ -1,6 +1,6 @@
 import { StatStrip, StatTile } from "@/components/ui/stat-tile";
-import { signedNet } from "@/core/authz/merit-track";
 import type { MeritTotals } from "@/modules/merit/award.service";
+import { signedNet } from "@/modules/merit/merit.points";
 
 export function MeritTotalsCards({ totals }: { totals: MeritTotals }) {
   const showOffset = totals.offset !== 0;

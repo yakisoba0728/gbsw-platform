@@ -4,6 +4,9 @@ const actor = { id: "student-user", role: "STUDENT" };
 const redirect = vi.fn(() => {
   throw new Error("NEXT_REDIRECT");
 });
+const unstable_rethrow = vi.fn((error: unknown) => {
+  if (error instanceof Error && error.message === "NEXT_REDIRECT") throw error;
+});
 const requestPass = vi.fn();
 const revalidatePath = vi.fn();
 const setCookie = vi.fn();
@@ -13,7 +16,7 @@ vi.mock("next/headers", () => ({
   cookies: vi.fn(async () => ({ set: setCookie })),
   headers: vi.fn(async () => new Headers({ origin: "http://student.localhost:3000" })),
 }));
-vi.mock("next/navigation", () => ({ redirect }));
+vi.mock("next/navigation", () => ({ redirect, unstable_rethrow }));
 vi.mock("@/core/auth/session", () => ({ requireAuth: vi.fn(async () => actor) }));
 vi.mock("@/modules/pass/request.service", () => ({ requestPass }));
 vi.mock("@/modules/pass/decision.service", () => ({}));

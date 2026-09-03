@@ -17,6 +17,7 @@ const findAwardableStudent = vi.fn();
 const findAwardableStudents = vi.fn();
 const getCurrentYear = vi.fn();
 const createAwards = vi.fn();
+const recordAuditMany = vi.fn();
 const {
   recordAudit,
   txClient,
@@ -54,8 +55,11 @@ vi.mock("@/modules/merit/merit.repo", () => ({
   findRecentAwardsForExport,
   findStudentHeader,
 }));
-vi.mock("@/core/audit/audit", () => ({ recordAudit }));
-vi.mock("@/core/db/client", () => ({ withTransaction }));
+vi.mock("@/core/audit/audit", () => ({ recordAudit, recordAuditMany }));
+vi.mock("@/core/db/client", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  withTransaction,
+}));
 vi.mock("@/modules/academic-year/academic-year.service", () => ({
   getCurrentYear,
   AcademicYearError: class extends Error {},
@@ -112,6 +116,7 @@ beforeEach(() => {
       ids.map((id) => ({ id, studentCode: "CODE", user: { id: `u-${id}`, name: `학생${id}` } })),
     );
   recordAudit.mockReset().mockResolvedValue(undefined);
+  recordAuditMany.mockReset().mockResolvedValue(undefined);
   withTransaction.mockClear();
   createAwards.mockReset().mockResolvedValue([{ id: "a-1" }, { id: "a-2" }]);
   listClassRoster.mockReset().mockResolvedValue([]);
@@ -570,14 +575,14 @@ describe("bulkAwardMerit", () => {
     expect(items[1]).not.toHaveProperty("batchId");
   });
 
-  it("감사로그는 학생 수만큼 남는다", async () => {
+  it("감사로그는 학생 수만큼 한 번에 남는다", async () => {
     await service.bulkAwardMerit(admin, bulk, NOW);
 
-    const meritLogs = recordAudit.mock.calls.filter(
-      ([arg]) => arg.action === "merit:award",
-    );
-    expect(meritLogs).toHaveLength(2);
-    expect(meritLogs[0][0].metadata).not.toHaveProperty("batchId");
+    expect(recordAuditMany).toHaveBeenCalledTimes(1);
+    const inputs = recordAuditMany.mock.calls[0]![0];
+    expect(inputs).toHaveLength(2);
+    expect(inputs[0]).toMatchObject({ action: "merit:award", targetId: "a-1" });
+    expect(inputs[0].metadata).not.toHaveProperty("batchId");
   });
 
   it("일괄 부여와 모든 감사로그를 한 트랜잭션에 묶고 timeout을 보존한다", async () => {
@@ -591,8 +596,8 @@ describe("bulkAwardMerit", () => {
     expect(findCurrentYearForUpdate).toHaveBeenCalledWith(txClient);
     expect(findRuleForUpdate).toHaveBeenCalledWith("r-1", txClient);
     expect(createAwards.mock.calls[0]![1]).toBe(txClient);
-    for (const call of recordAudit.mock.calls) {
-      if (call[0].action === "merit:award") expect(call[1]).toBe(txClient);
+    for (const call of recordAuditMany.mock.calls) {
+      expect(call[1]).toBe(txClient);
     }
   });
 
@@ -605,7 +610,7 @@ describe("bulkAwardMerit", () => {
 
     expect(findRuleForUpdate).toHaveBeenCalledWith("r-1", txClient);
     expect(createAwards).not.toHaveBeenCalled();
-    expect(recordAudit).not.toHaveBeenCalled();
+    expect(recordAuditMany).not.toHaveBeenCalled();
   });
 
   it("한 명이라도 없는 학생이면 아무것도 넣지 않는다", async () => {
@@ -678,7 +683,7 @@ describe("bulkAwardMerit", () => {
 
       expect(findAwardableStudents).not.toHaveBeenCalled();
       expect(createAwards).not.toHaveBeenCalled();
-      expect(recordAudit).not.toHaveBeenCalled();
+      expect(recordAuditMany).not.toHaveBeenCalled();
     });
 
     it("중복은 상한에 세지 않는다", async () => {

@@ -2,10 +2,12 @@ import Link from "next/link";
 import type { SessionUser } from "@/core/auth/session";
 import {
   isYearScoped,
-  signedNet,
-  type DemeritThresholds,
   type MeritTrack,
 } from "@/core/authz/merit-track";
+import {
+  signedNet,
+  type DemeritThresholds,
+} from "@/modules/merit/merit.points";
 import { KindBadge, kindColorClass, signedPoints } from "@/components/merit/kind-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";

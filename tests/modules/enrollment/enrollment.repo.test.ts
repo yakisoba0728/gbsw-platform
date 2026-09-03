@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { coreMocks } from "../../helpers/core-mocks";
 
 const enrollmentUpsert = vi.fn();
+const enrollmentUpdateMany = vi.fn();
+const enrollmentDeleteMany = vi.fn();
 const userUpdate = vi.fn();
 const sessionDeleteMany = vi.fn();
 const studentProfileFindMany = vi.fn();
@@ -10,7 +12,7 @@ const { bareWithTransaction: withTransaction } = coreMocks(
 );
 
 const tx = {
-  enrollment: { upsert: enrollmentUpsert },
+  enrollment: { upsert: enrollmentUpsert, updateMany: enrollmentUpdateMany, deleteMany: enrollmentDeleteMany },
   user: { update: userUpdate },
   session: { deleteMany: sessionDeleteMany },
 };
@@ -18,13 +20,13 @@ const tx = {
 vi.mock("@/core/db/client", () => ({
   prisma: {
     studentProfile: { findMany: studentProfileFindMany },
+    enrollment: { deleteMany: enrollmentDeleteMany },
   },
   withTransaction,
 }));
 
-const { NumberTakenError, applyAll, listByYear } = await import(
-  "@/modules/enrollment/enrollment.repo"
-);
+const { NumberTakenError, applyAll, listByYear, deleteEnrollmentsOfRemovedStudents } =
+  await import("@/modules/enrollment/enrollment.repo");
 
 function realWorldNumberP2002() {
   return Object.assign(new Error("Unique constraint failed"), {
@@ -62,6 +64,8 @@ function planned(overrides: Partial<Parameters<typeof applyAll>[1][number]> = {}
 
 beforeEach(() => {
   enrollmentUpsert.mockReset().mockResolvedValue(undefined);
+  enrollmentUpdateMany.mockReset().mockResolvedValue(undefined);
+  enrollmentDeleteMany.mockReset().mockResolvedValue(undefined);
   userUpdate.mockReset().mockResolvedValue(undefined);
   sessionDeleteMany.mockReset().mockResolvedValue(undefined);
   studentProfileFindMany.mockReset().mockResolvedValue([]);
@@ -164,6 +168,57 @@ describe("applyAll()", () => {
         }),
       }),
     );
+  });
+
+  it("최종 값을 쓰기 전에 배치 학생들의 자리를 먼저 비워 유일 제약의 중간 충돌을 피한다 (자리 교환)", async () => {
+    await applyAll(2026, [
+      planned({ studentProfileId: "sp-1", userId: "u-1" }),
+      planned({ studentProfileId: "sp-2", userId: "u-2", number: 4 }),
+    ]);
+
+    expect(enrollmentUpdateMany).toHaveBeenCalledTimes(1);
+    expect(enrollmentUpdateMany).toHaveBeenCalledWith({
+      where: { year: 2026, studentProfileId: { in: ["sp-1", "sp-2"] } },
+      data: { grade: null, classNo: null, number: null },
+    });
+    // 비움 → 최종 값 순서가 보장되어야 교환(A↔B)도 단일 트랜잭션에서 통과한다.
+    expect(enrollmentUpdateMany.mock.invocationCallOrder[0]).toBeLessThan(
+      enrollmentUpsert.mock.invocationCallOrder[0]!,
+    );
+  });
+});
+
+describe("deleteEnrollmentsOfRemovedStudents()", () => {
+  it("지정한 자리 중 소프트삭제된 학생의 당해 학년도 학적 행만 지운다", async () => {
+    await deleteEnrollmentsOfRemovedStudents(
+      2026,
+      [
+        { grade: 1, classNo: 3, number: 9 },
+        { grade: 2, classNo: 1, number: 5 },
+      ],
+      tx as unknown as NonNullable<Parameters<typeof applyAll>[2]>,
+    );
+
+    expect(enrollmentDeleteMany).toHaveBeenCalledWith({
+      where: {
+        year: 2026,
+        studentProfile: { user: { deletedAt: { not: null } } },
+        OR: [
+          { grade: 1, classNo: 3, number: 9 },
+          { grade: 2, classNo: 1, number: 5 },
+        ],
+      },
+    });
+  });
+
+  it("배정할 자리가 없으면 아무 질의도 하지 않는다", async () => {
+    await deleteEnrollmentsOfRemovedStudents(
+      2026,
+      [],
+      tx as unknown as NonNullable<Parameters<typeof applyAll>[2]>,
+    );
+
+    expect(enrollmentDeleteMany).not.toHaveBeenCalled();
   });
 });
 

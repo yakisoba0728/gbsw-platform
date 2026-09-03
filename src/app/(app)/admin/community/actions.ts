@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAuth } from "@/core/auth/session";
-import { actionMessage, text } from "@/lib/action-message";
+import { defineFormAction } from "@/lib/action";
+import { text } from "@/lib/action-message";
 import * as service from "@/modules/community/board.service";
 import { CommunityError } from "@/modules/community/community.error";
 import {
@@ -21,12 +21,6 @@ const MESSAGES = {
   ANONYMOUS_IRREVERSIBLE:
     "익명 게시판은 되돌릴 수 없습니다. 끄면 그동안 쌓인 글의 작성자가 모두 드러납니다.",
 } satisfies Record<string, string>;
-
-function fail(error: string, values?: CommunityFormValues): CommunityFormState {
-  return { ok: false, error, values };
-}
-
-const messageFor = actionMessage(CommunityError, MESSAGES, "[community]");
 
 function values(formData: FormData): CommunityFormValues {
   return {
@@ -59,77 +53,68 @@ function revalidateBoards(): void {
   revalidatePath("/community");
 }
 
-export async function createCommunityAction(
-  _prev: CommunityFormState,
-  formData: FormData,
-): Promise<CommunityFormState> {
-  const actor = await requireAuth();
-  const submitted = values(formData);
+export const createCommunityAction = defineFormAction<CommunityFormState>()({
+  schema: createCommunitySchema,
+  input: raw,
+  failState: (error, formData) => ({
+    ok: false,
+    error,
+    values: values(formData),
+  }),
+  run: async (actor, data) => {
+    await service.createCommunity(actor, data);
+    revalidateBoards();
+    return { ok: true, error: null };
+  },
+  errorClass: CommunityError,
+  messages: MESSAGES,
+  logPrefix: "[community]",
+  invalidInputMessage: "입력을 확인해 주세요.",
+  failureMessage: "처리하지 못했습니다.",
+});
 
-  const parsed = createCommunitySchema.safeParse(raw(formData));
-  if (!parsed.success) {
-    return fail(parsed.error.issues[0]?.message ?? "입력을 확인해 주세요.", submitted);
-  }
-
-  try {
-    await service.createCommunity(actor, parsed.data);
-  } catch (error) {
-    return fail(messageFor(error, "처리하지 못했습니다."), submitted);
-  }
-
-  revalidateBoards();
-  return { ok: true, error: null };
-}
-
-export async function updateCommunityAction(
-  _prev: CommunityFormState,
-  formData: FormData,
-): Promise<CommunityFormState> {
-  const actor = await requireAuth();
-  const submitted = values(formData);
-
-  const parsed = updateCommunitySchema.safeParse({
+export const updateCommunityAction = defineFormAction<CommunityFormState>()({
+  schema: updateCommunitySchema,
+  input: (formData) => ({
     communityId: formData.get("communityId"),
     updatedAt: formData.get("updatedAt"),
     ...raw(formData),
-  });
-  if (!parsed.success) {
-    return fail(parsed.error.issues[0]?.message ?? "입력을 확인해 주세요.", submitted);
-  }
+  }),
+  failState: (error, formData) => ({
+    ok: false,
+    error,
+    values: values(formData),
+  }),
+  run: async (actor, data) => {
+    await service.updateCommunity(actor, data);
+    revalidateBoards();
+    revalidatePath(`/admin/community/${data.communityId}`);
+    return { ok: true, error: null };
+  },
+  errorClass: CommunityError,
+  messages: MESSAGES,
+  logPrefix: "[community]",
+  invalidInputMessage: "입력을 확인해 주세요.",
+  failureMessage: "처리하지 못했습니다.",
+});
 
-  try {
-    await service.updateCommunity(actor, parsed.data);
-  } catch (error) {
-    return fail(messageFor(error, "처리하지 못했습니다."), submitted);
-  }
-
-  revalidateBoards();
-  revalidatePath(`/admin/community/${parsed.data.communityId}`);
-  return { ok: true, error: null };
-}
-
-export async function deleteCommunityAction(
-  _prev: CommunityFormState,
-  formData: FormData,
-): Promise<CommunityFormState> {
-  const actor = await requireAuth();
-
-  const parsed = deleteCommunitySchema.safeParse({
+export const deleteCommunityAction = defineFormAction<CommunityFormState>()({
+  schema: deleteCommunitySchema,
+  input: (formData) => ({
     communityId: formData.get("communityId"),
     updatedAt: formData.get("updatedAt"),
     reason: formData.get("reason"),
-  });
-  if (!parsed.success) {
-    return fail(parsed.error.issues[0]?.message ?? "입력을 확인해 주세요.");
-  }
-
-  try {
-    await service.deleteCommunity(actor, parsed.data);
-  } catch (error) {
-    return fail(messageFor(error, "처리하지 못했습니다."));
-  }
-
-  revalidateBoards();
-  revalidatePath(`/admin/community/${parsed.data.communityId}`);
-  return { ok: true, error: null };
-}
+  }),
+  failState: (error) => ({ ok: false, error }),
+  run: async (actor, data) => {
+    await service.deleteCommunity(actor, data);
+    revalidateBoards();
+    revalidatePath(`/admin/community/${data.communityId}`);
+    return { ok: true, error: null };
+  },
+  errorClass: CommunityError,
+  messages: MESSAGES,
+  logPrefix: "[community]",
+  invalidInputMessage: "입력을 확인해 주세요.",
+  failureMessage: "처리하지 못했습니다.",
+});

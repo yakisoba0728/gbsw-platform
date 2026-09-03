@@ -7,7 +7,6 @@ const studentProfileFindMany = vi.fn();
 const userUpdateMany = vi.fn();
 const userDeleteMany = vi.fn();
 const sessionDeleteMany = vi.fn();
-const inviteCreate = vi.fn();
 const inviteUpdateMany = vi.fn();
 const inviteDeleteMany = vi.fn();
 const inviteFindMany = vi.fn();
@@ -21,7 +20,6 @@ const tx = {
   user: { updateMany: userUpdateMany, deleteMany: userDeleteMany },
   session: { deleteMany: sessionDeleteMany },
   invite: {
-    create: inviteCreate,
     updateMany: inviteUpdateMany,
     deleteMany: inviteDeleteMany,
     findMany: inviteFindMany,
@@ -33,28 +31,9 @@ vi.mock("@/core/db/client", () => ({
   withTransaction,
 }));
 
-const { InviteCodeCollisionError, NumberTakenError, applyRoster } = await import(
+const { NumberTakenError, applyRoster } = await import(
   "@/modules/enrollment/roster.repo"
 );
-
-function realWorldCodeP2002() {
-  return Object.assign(new Error("Unique constraint failed"), {
-    name: "PrismaClientKnownRequestError",
-    code: "P2002",
-    meta: {
-      modelName: "Invite",
-      driverAdapterError: {
-        name: "DriverAdapterError",
-        cause: {
-          originalCode: "23505",
-          originalMessage: 'duplicate key value violates unique constraint "Invite_code_key"',
-          kind: "UniqueConstraintViolation",
-          constraint: { fields: ["code"] },
-        },
-      },
-    },
-  });
-}
 
 function realWorldNumberP2002() {
   return Object.assign(new Error("Unique constraint failed"), {
@@ -100,12 +79,8 @@ function assignment(overrides: Partial<RosterAssignment> = {}): RosterAssignment
 function input(overrides: Partial<ApplyInput> = {}): ApplyInput {
   return {
     assignments: [assignment()],
-    newStudents: [],
-    inviteExpiresAt: null,
     managedStudentProfileIds: ["sp-1"],
     deleteStudentProfileIds: [],
-    createdById: "admin-1",
-    createdByName: "관리자",
     ...overrides,
   };
 }
@@ -117,7 +92,6 @@ beforeEach(() => {
   userUpdateMany.mockReset().mockResolvedValue({ count: 0 });
   userDeleteMany.mockReset().mockResolvedValue({ count: 0 });
   sessionDeleteMany.mockReset().mockResolvedValue({ count: 0 });
-  inviteCreate.mockReset().mockResolvedValue({ id: "inv-new" });
   inviteUpdateMany.mockReset().mockResolvedValue({ count: 0 });
   inviteDeleteMany.mockReset().mockResolvedValue({ count: 0 });
   inviteFindMany.mockReset().mockResolvedValue([]);
@@ -414,77 +388,6 @@ describe("applyRoster()", () => {
         },
       ],
     });
-  });
-
-  it("newStudents는 만료 시각과 함께 초대코드를 만든다", async () => {
-    const expiresAt = new Date("2099-01-01");
-
-    await applyRoster(
-      2026,
-      input({
-        assignments: [],
-        newStudents: [
-          {
-            row: {
-              line: 2,
-              studentCode: "",
-              name: "새학생",
-              birthDate: "2011-01-01",
-              grade: 1,
-              classNo: 3,
-              number: 9,
-              status: "ENROLLED",
-              errors: [],
-              studentProfileId: null,
-              beforeName: null,
-            },
-            code: "GBSWNEW1",
-          },
-        ],
-        inviteExpiresAt: expiresAt,
-      }),
-    );
-
-    expect(inviteCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        code: "GBSWNEW1",
-        role: "STUDENT",
-        status: "PENDING",
-        expiresAt,
-        metadata: { name: "새학생", birthDate: "2011-01-01", grade: 1, classNo: 3, number: 9 },
-      }),
-    });
-  });
-
-  it("초대코드가 겹치면 InviteCodeCollisionError로 옮긴다 (I2 backstop)", async () => {
-    inviteCreate.mockRejectedValue(realWorldCodeP2002());
-
-    await expect(
-      applyRoster(
-        2026,
-        input({
-          assignments: [],
-          newStudents: [
-            {
-              row: {
-                line: 2,
-                studentCode: "",
-                name: "새학생",
-                birthDate: "2011-01-01",
-                grade: 1,
-                classNo: 3,
-                number: 9,
-                status: "ENROLLED",
-                errors: [],
-                studentProfileId: null,
-                beforeName: null,
-              },
-              code: "GBSWDUP1",
-            },
-          ],
-        }),
-      ),
-    ).rejects.toBeInstanceOf(InviteCodeCollisionError);
   });
 
   it("명단 밖 계정이 붙들고 있는 (반, 번호)에 걸리면 NumberTakenError로 옮긴다", async () => {

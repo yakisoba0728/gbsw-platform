@@ -13,7 +13,7 @@ import {
   MIN_CLASS_NO,
   MIN_GRADE,
   MIN_NUMBER,
-} from "@/modules/enrollment/enrollment.schema";
+} from "@/modules/student/student-position";
 
 const base = {
   updatedAt: "2026-08-19T00:00:00.000Z",

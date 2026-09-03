@@ -5,7 +5,7 @@ import { assertCan } from "@/core/authz/errors";
 import { withTransaction } from "@/core/db/client";
 import { isSerializationConflict } from "@/core/db/transaction-conflict";
 import { formatDateInput, parseDateInputKst } from "@/lib/datetime";
-import { generateTempPassword } from "@/lib/temp-password";
+import { generateTempPassword } from "./temp-password";
 import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
 import * as repo from "./admin-user.repo";
 import type { UpdateUserInput } from "./admin-user.schema";
@@ -54,12 +54,21 @@ export async function updateUser(
   const enrollment = profile?.enrollments[0];
   const canEditAssignment = enrollment?.status === "ENROLLED";
 
+  // 검증 결과를 담아 두는 중간 객체 — 저장 단계에서 타입 단언을 대신한다.
+  let birthDateInput: string | null = null;
+  let assignmentInput: {
+    grade: number;
+    classNo: number;
+    number: number;
+  } | null = null;
+
   if (isStudent) {
     if (
       input.birthDate &&
       formatDateInput(profile.birthDate) !== input.birthDate
     ) {
       changed.push("birthDate");
+      birthDateInput = input.birthDate;
     }
     if (canEditAssignment) {
       if (
@@ -83,7 +92,6 @@ export async function updateUser(
   if (changed.length === 0) return { changed };
 
   const profileChanged = ["name", "email", "phone"].some((f) => changed.includes(f));
-  const birthDateChanged = changed.includes("birthDate");
   const assignmentChanged = ["grade", "classNo", "number"].some((f) =>
     changed.includes(f),
   );
@@ -97,6 +105,11 @@ export async function updateUser(
     ) {
       throw new AdminUserError("INCOMPLETE_STUDENT_INPUT");
     }
+    assignmentInput = {
+      grade: input.grade,
+      classNo: input.classNo,
+      number: input.number,
+    };
   }
 
   try {
@@ -112,20 +125,20 @@ export async function updateUser(
           ? { name: input.name, email: input.email, phone: input.phone }
           : null,
         studentProfile:
-          isStudent && birthDateChanged
+          isStudent && birthDateInput !== null
             ? {
                 studentProfileId: profile.id,
-                birthDate: parseDateInputKst(input.birthDate!),
+                birthDate: parseDateInputKst(birthDateInput),
               }
             : null,
         enrollment:
-          isStudent && assignmentChanged
+          isStudent && assignmentInput !== null
             ? {
                 studentProfileId: profile.id,
                 year,
-                grade: input.grade!,
-                classNo: input.classNo!,
-                number: input.number!,
+                grade: assignmentInput.grade,
+                classNo: assignmentInput.classNo,
+                number: assignmentInput.number,
               }
             : null,
       }, tx);

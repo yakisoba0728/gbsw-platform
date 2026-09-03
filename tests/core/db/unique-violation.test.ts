@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isUniqueViolation, NumberTakenError } from "@/core/db/unique-violation";
+import { isUniqueViolation } from "@/core/db/unique-violation";
 
 function adapterP2002(fields: string[]) {
   return Object.assign(new Error("Unique constraint failed"), {
@@ -100,7 +100,6 @@ describe("isUniqueViolation() — 드라이버 어댑터 모양", () => {
     expect(isUniqueViolation(error, "email")).toBe(false);
   });
 });
-
 describe("isUniqueViolation() — 구형(meta.target) 모양", () => {
   it("배열로 온 target에서 필드를 찾는다 — 어댑터 없이 돌 때를 위한 뒷문", () => {
     expect(isUniqueViolation(legacyP2002(["email"]), "email")).toBe(true);
@@ -185,26 +184,5 @@ describe("isUniqueViolation() — 모양이 깨진 입력에서 던지지 않는
       expect(() => isUniqueViolation(value, "email")).not.toThrow();
       expect(isUniqueViolation(value, "email")).toBe(false);
     }
-  });
-});
-
-describe("NumberTakenError", () => {
-  it("Error를 상속한다 — 서비스의 instanceof 분기가 여기 걸려 있다", () => {
-    const error = new NumberTakenError();
-    expect(error).toBeInstanceOf(Error);
-    expect(error).toBeInstanceOf(NumberTakenError);
-  });
-
-  it("repo들이 re-export하는 것이 같은 클래스다", async () => {
-    const enrollmentRepo = await import("@/modules/enrollment/enrollment.repo");
-    const registrationRepo = await import("@/modules/registration/registration.repo");
-    const adminUserRepo = await import("@/modules/admin-users/admin-user.repo");
-    const rosterRepo = await import("@/modules/enrollment/roster.repo");
-
-    expect(enrollmentRepo.NumberTakenError).toBe(NumberTakenError);
-    expect(registrationRepo.NumberTakenError).toBe(NumberTakenError);
-    expect(adminUserRepo.NumberTakenError).toBe(NumberTakenError);
-    expect(rosterRepo.NumberTakenError).toBe(NumberTakenError);
-    expect(new NumberTakenError()).toBeInstanceOf(enrollmentRepo.NumberTakenError);
   });
 });

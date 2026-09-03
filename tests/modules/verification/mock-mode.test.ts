@@ -24,6 +24,7 @@ vi.mock("@/modules/verification/verification.repo", () => ({
   lockVerificationTarget,
   expirePending,
   insertCode,
+  deleteStaleReservations: vi.fn(),
   activateCode,
   hasNewerActivatedCode,
   deleteById,

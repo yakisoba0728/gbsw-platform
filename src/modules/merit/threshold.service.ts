@@ -4,11 +4,13 @@ import type { SessionUser } from "@/core/auth/session";
 import { assertCan } from "@/core/authz/errors";
 import { withTransaction } from "@/core/db/client";
 import {
-  DEFAULT_DEMERIT_THRESHOLDS,
   MERIT_TRACKS,
-  type DemeritThresholds,
   type MeritTrack,
 } from "@/core/authz/merit-track";
+import {
+  DEFAULT_DEMERIT_THRESHOLDS,
+  type DemeritThresholds,
+} from "./merit.points";
 import { MeritError } from "./merit.error";
 import * as repo from "./merit.repo";
 import type { ThresholdInput } from "./merit.schema";
