@@ -76,10 +76,17 @@ async function insertRateLimitedCode(input: {
   const since = new Date(now.getTime() - 60 * 60_000);
 
   return withTransaction(async (tx) => {
-    await repo.lockSendRateLimitBuckets(input.channel, input.target, ip, tx);
+    await repo.lockSendRateLimitBuckets(
+      input.channel,
+      input.target,
+      input.inviteId,
+      ip,
+      tx,
+    );
 
     // 프로세스 종료 등으로 활성화되지 못한 예약 행은 한도를 계산하기 전에
     // 정리한다. 그렇지 않으면 고아 행이 꽉 찬 대상은 정리 코드에 도달하지 못한다.
+    // 유예 안의 예약 행은 남으므로, 발송 중인 요청도 한도를 차지한 것으로 센다.
     await repo.deleteStaleReservations(input.channel, input.target, now, tx);
 
     const recent = await repo.countRecentSends(input.channel, input.target, since, tx);

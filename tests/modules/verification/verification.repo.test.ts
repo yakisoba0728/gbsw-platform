@@ -33,6 +33,7 @@ const {
   insertCode,
   LEGACY_TEMPORARY_BYPASS_HASH,
   lockSendRateLimitBuckets,
+  RESERVATION_GRACE_MS,
 } = await import("@/modules/verification/verification.repo");
 
 beforeEach(() => {
@@ -68,23 +69,42 @@ describe("verification.repo rate-limit primitives", () => {
     });
   });
 
-  it("takes transaction-scoped advisory locks for target and IP buckets", async () => {
+  // 순서가 이 함수의 전부다. 요청마다 다른 순서로 잡으면 교착한다.
+  it("대상 → 초대 → IP 순으로 잠근다", async () => {
     const tx = { $executeRaw: executeRaw };
 
-    await lockSendRateLimitBuckets("EMAIL", "a@b.kr", "203.0.113.9", tx as never);
+    await lockSendRateLimitBuckets(
+      "EMAIL",
+      "a@b.kr",
+      "inv-1",
+      "203.0.113.9",
+      tx as never,
+    );
 
-    expect(executeRaw).toHaveBeenCalledTimes(2);
+    expect(executeRaw).toHaveBeenCalledTimes(3);
     expect(String(executeRaw.mock.calls[0]![0][0])).toContain(
       "pg_advisory_xact_lock",
     );
     expect(executeRaw.mock.calls[0]![1]).toBe("verification:target:EMAIL:a@b.kr");
-    expect(executeRaw.mock.calls[1]![1]).toBe("verification:ip:203.0.113.9");
+    expect(executeRaw.mock.calls[1]![1]).toBe("verification:invite:inv-1");
+    expect(executeRaw.mock.calls[2]![1]).toBe("verification:ip:203.0.113.9");
   });
 
   it("skips the IP bucket lock when the request IP is unavailable", async () => {
     const tx = { $executeRaw: executeRaw };
 
-    await lockSendRateLimitBuckets("EMAIL", "a@b.kr", null, tx as never);
+    await lockSendRateLimitBuckets("EMAIL", "a@b.kr", "inv-1", null, tx as never);
+
+    expect(executeRaw).toHaveBeenCalledTimes(2);
+    expect(executeRaw.mock.calls[0]![1]).toBe("verification:target:EMAIL:a@b.kr");
+    expect(executeRaw.mock.calls[1]![1]).toBe("verification:invite:inv-1");
+  });
+
+  // 초대 없는 발송 경로(가입 외)가 남아 있으므로 없을 때도 서야 한다.
+  it("초대가 없으면 초대 잠금을 건너뛴다", async () => {
+    const tx = { $executeRaw: executeRaw };
+
+    await lockSendRateLimitBuckets("EMAIL", "a@b.kr", null, null, tx as never);
 
     expect(executeRaw).toHaveBeenCalledTimes(1);
     expect(executeRaw.mock.calls[0]![1]).toBe("verification:target:EMAIL:a@b.kr");
@@ -178,7 +198,25 @@ describe("verification.repo.deleteStaleReservations()", () => {
     expect(sql).toContain('"expiresAt" <= "createdAt"');
     expect(args).toContain("EMAIL");
     expect(args).toContain("a@b.kr");
-    expect(args).toContain(now);
+  });
+
+  // now를 그대로 쓰면 발송 중인 예약 행이 지워지고, 지워진 행은 세 한도의
+  // 계산에서 모두 사라져 발송 예산이 무의미해진다.
+  it("지금이 아니라 유예만큼 앞선 시각을 기준으로 자른다", async () => {
+    const now = new Date("2026-08-19T00:10:00.000Z");
+    const tx = { $executeRaw: executeRaw };
+
+    await deleteStaleReservations("EMAIL", "a@b.kr", now, tx as never);
+
+    const args = executeRaw.mock.calls[0]!;
+    const sql = (args[0] as unknown[]).join("");
+    expect(sql).toContain('"createdAt" <');
+    expect(args).not.toContain(now);
+    expect(args).toContainEqual(
+      new Date(now.getTime() - RESERVATION_GRACE_MS),
+    );
+    // 외부 발송 상한(SMTP·알리고 10초)보다 넉넉해야 한다.
+    expect(RESERVATION_GRACE_MS).toBeGreaterThan(10_000);
   });
 });
 
