@@ -49,6 +49,8 @@ vi.mock("@/modules/verification/verification.sender", async (importOriginal) => 
 vi.mock("@/core/db/client", () => ({ withTransaction }));
 vi.mock("@/core/audit/request-context", () => ({ readRequestContext }));
 
+process.env.BETTER_AUTH_SECRET = "test-secret-for-verification-0123456789";
+
 const {
   confirmCode,
   consumeVerifications,
@@ -57,8 +59,16 @@ const {
   requireVerified,
 } = await import("@/modules/verification/verification.service");
 
+const { hashVerificationCode } = await import(
+  "@/modules/verification/verification.code-hash"
+);
+const { VerificationError } = await import(
+  "@/modules/verification/verification.error"
+);
+
 const { createHash } = await import("node:crypto");
-const hash = (code: string) => createHash("sha256").update(code).digest("hex");
+const hash = (code: string, target = "a@b.kr") =>
+  hashVerificationCode("EMAIL", target, code);
 
 beforeEach(() => {
   countRecentSends.mockReset().mockResolvedValue(0);
@@ -103,6 +113,35 @@ describe("requestCode()", () => {
     expect(sent.code).toMatch(/^\d{6}$/);
     expect(saved.codeHash).toBe(hash(sent.code));
     expect(saved.codeHash).not.toContain(sent.code);
+  });
+
+  it("키 없는 SHA-256으로 저장하지 않는다 — 해시만으로는 6자리를 되짚을 수 없다", async () => {
+    await requestCode("EMAIL", "a@b.kr");
+
+    const saved = insertCode.mock.calls[0]![0];
+    const sent = sendVerification.mock.calls[0]![0];
+    expect(saved.codeHash).not.toBe(
+      createHash("sha256").update(sent.code).digest("hex"),
+    );
+  });
+
+  it("서버 비밀이 없으면 코드를 발급하지 않는다", async () => {
+    vi.stubEnv("BETTER_AUTH_SECRET", "");
+
+    try {
+      const error = await requestCode("EMAIL", "a@b.kr").catch(
+        (thrown: unknown) => thrown,
+      );
+
+      expect(error).toBeInstanceOf(Error);
+      // 가입 화면에 그대로 나가는 VerificationError가 아니라 액션의 일반
+      // 분기로 떨어져야 서버 설정 상태가 방문자에게 새지 않는다.
+      expect(error).not.toBeInstanceOf(VerificationError);
+      expect(insertCode).not.toHaveBeenCalled();
+      expect(sendVerification).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("발송 성공 뒤에만 이전 코드를 만료하고 새 코드를 활성화한다", async () => {
@@ -340,6 +379,42 @@ describe("requestCode()", () => {
 });
 
 describe("confirmCode()", () => {
+  it("발급한 코드를 그대로 확인할 수 있다", async () => {
+    await requestCode("EMAIL", "a@b.kr");
+    const saved = insertCode.mock.calls[0]![0];
+    const sent = sendVerification.mock.calls[0]![0];
+    findLiveCode.mockResolvedValue({ id: "v1", codeHash: saved.codeHash });
+
+    await confirmCode("EMAIL", "a@b.kr", sent.code);
+
+    expect(markVerified).toHaveBeenCalledWith("v1", expect.any(Date), txClient);
+  });
+
+  it("평문 SHA-256 해시로는 통과하지 못한다", async () => {
+    findLiveCode.mockResolvedValue({
+      id: "v1",
+      codeHash: createHash("sha256").update("123456").digest("hex"),
+    });
+
+    await expect(confirmCode("EMAIL", "a@b.kr", "123456")).rejects.toThrow(
+      "인증번호가 맞지 않습니다.",
+    );
+    expect(markVerified).not.toHaveBeenCalled();
+    expect(bumpAttempts).toHaveBeenCalledWith("v1", txClient);
+  });
+
+  it("다른 대상에게 발급된 해시를 옮겨 심어도 통과하지 못한다", async () => {
+    findLiveCode.mockResolvedValue({
+      id: "v1",
+      codeHash: hash("123456", "other@b.kr"),
+    });
+
+    await expect(confirmCode("EMAIL", "a@b.kr", "123456")).rejects.toThrow(
+      "인증번호가 맞지 않습니다.",
+    );
+    expect(markVerified).not.toHaveBeenCalled();
+  });
+
   it("맞으면 확인 처리한다", async () => {
     findLiveCode.mockResolvedValue({ id: "v1", codeHash: hash("123456") });
 

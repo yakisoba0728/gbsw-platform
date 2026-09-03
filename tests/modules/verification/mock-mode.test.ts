@@ -42,6 +42,9 @@ vi.mock("@/modules/verification/verification.sender", () => ({
 vi.mock("@/core/audit/request-context", () => ({ readRequestContext }));
 vi.mock("@/core/db/client", () => ({ withTransaction }));
 
+// 코드 해시가 BETTER_AUTH_SECRET에서 파생한 키를 쓴다 — 없으면 발급 자체가 막힌다.
+process.env.BETTER_AUTH_SECRET = "test-secret-for-verification-0123456789";
+
 const { isMockVerification, requestCode } = await import(
   "@/modules/verification/verification.service"
 );

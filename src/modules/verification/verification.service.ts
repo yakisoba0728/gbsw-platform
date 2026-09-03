@@ -1,6 +1,10 @@
-import { createHash, randomInt, timingSafeEqual } from "node:crypto";
+import { randomInt } from "node:crypto";
 import { readRequestContext } from "@/core/audit/request-context";
 import { type DbClient, withTransaction } from "@/core/db/client";
+import {
+  hashVerificationCode,
+  verificationCodeMatches,
+} from "./verification.code-hash";
 import { VerificationError } from "./verification.error";
 import * as repo from "./verification.repo";
 import {
@@ -51,16 +55,6 @@ export function isMockVerification(): boolean {
     process.env.NODE_ENV !== "production" &&
     process.env.VERIFICATION_MOCK === "true"
   );
-}
-
-function hash(code: string): string {
-  return createHash("sha256").update(code).digest("hex");
-}
-
-function matches(expectedHash: string, code: string): boolean {
-  const a = Buffer.from(expectedHash);
-  const b = Buffer.from(hash(code));
-  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 function minutesFromNow(minutes: number, now: Date): Date {
@@ -149,10 +143,13 @@ export async function requestCode(
 
   const code = randomInt(1_000_000).toString().padStart(6, "0");
 
+  // 비밀이 없으면 여기서 던져 코드 행을 만들지 않는다.
+  const codeHash = hashVerificationCode(channel, target, code);
+
   const row = await insertRateLimitedCode({
     channel,
     target,
-    codeHash: hash(code),
+    codeHash,
   }, now);
 
   const mock = isMockVerification();
@@ -203,7 +200,7 @@ export async function confirmCode(
     const row = await repo.findLiveCode(channel, target, now, tx);
     if (!row) return "NO_LIVE_CODE" as const;
 
-    if (matches(row.codeHash, code)) {
+    if (verificationCodeMatches(row.codeHash, channel, target, code)) {
       await repo.markVerified(row.id, now, tx);
       return "VERIFIED" as const;
     }
