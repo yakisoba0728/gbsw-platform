@@ -15,6 +15,7 @@ import {
 } from "@/modules/pass/decision.service";
 import { requiresConsent } from "@/modules/pass/pass.policy";
 import {
+  PASS_ADMIN_CURSOR_DEPTH,
   PASS_ADMIN_PAGE_SIZE,
   PASS_CURSOR_SEPARATOR,
 } from "@/modules/pass/pass.schema";
@@ -214,9 +215,12 @@ function cursorLinks(
       trail.length === 0
         ? null
         : href(back.length > 0 ? back.join(PASS_CURSOR_SEPARATOR) : null),
-    next: nextCursor
-      ? href([...trail, nextCursor].join(PASS_CURSOR_SEPARATOR))
-      : null,
+    // 자취가 한도에 닿으면 「다음」을 내린다 — 한도를 넘긴 주소는 첫 페이지로
+    // 떨어지므로, 링크를 남겨 두면 누른 사람이 처음으로 튕긴다.
+    next:
+      nextCursor && trail.length < PASS_ADMIN_CURSOR_DEPTH
+        ? href([...trail, nextCursor].join(PASS_CURSOR_SEPARATOR))
+        : null,
     offset: trail.length * PASS_ADMIN_PAGE_SIZE,
   };
 }

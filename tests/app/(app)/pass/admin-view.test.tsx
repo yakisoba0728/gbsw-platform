@@ -2,6 +2,7 @@ import type { ReactElement } from "react";
 import { renderToReadableStream } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionUser } from "@/core/auth/session";
+import { PASS_ADMIN_CURSOR_DEPTH } from "@/modules/pass/pass.schema";
 
 const mocks = vi.hoisted(() => ({
   listPendingPasses: vi.fn(),
@@ -159,6 +160,20 @@ describe("교사 출입증 현황의 커서 페이지", () => {
     expect(html).toContain("이 페이지에 남은 항목이 없습니다.");
     expect(html).toContain("처음으로");
     expect(html).toContain('href="/pass?activeCursor=a10"');
+  });
+
+  it("자취가 한도에 닿으면 다음 링크를 내린다", async () => {
+    mocks.listPendingPasses.mockResolvedValue(page(["p1"], 9_999, "p-next"));
+    const full = Array.from(
+      { length: PASS_ADMIN_CURSOR_DEPTH },
+      (_, index) => `c${index}`,
+    );
+
+    const html = await view({ pendingCursors: full });
+
+    // 한도를 넘긴 주소는 parseCursorTrail이 첫 페이지로 떨어뜨리므로 링크를 남기지 않는다.
+    expect(html).not.toContain("p-next");
+    expect(html).toContain("결재 대기 페이지");
   });
 
   it("첫 페이지가 비면 지금까지의 빈 문구 그대로다", async () => {
