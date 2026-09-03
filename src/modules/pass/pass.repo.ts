@@ -288,33 +288,6 @@ export async function findOverlapping(
   });
 }
 
-/* User → StudentProfile 순으로 잠근 뒤 중복 조회와 생성을 수행한다. */
-export async function lockStudentForPassCreation(
-  studentProfileId: string,
-  db: DbClient,
-): Promise<boolean> {
-  const users = await db.$queryRaw<Array<{ id: string }>>`
-    SELECT u."id"
-    FROM "user" AS u
-    WHERE u."id" = (
-      SELECT sp."userId"
-      FROM "StudentProfile" AS sp
-      WHERE sp."id" = ${studentProfileId}
-    )
-    FOR UPDATE
-  `;
-  const user = users[0];
-  if (!user) return false;
-
-  const profiles = await db.$queryRaw<Array<{ id: string }>>`
-    SELECT "id"
-    FROM "StudentProfile"
-    WHERE "id" = ${studentProfileId} AND "userId" = ${user.id}
-    FOR UPDATE
-  `;
-  return profiles.length === 1;
-}
-
 export async function currentDatabaseTime(db: DbClient): Promise<Date> {
   const rows = await db.$queryRaw<Array<{ now: Date }>>`
     SELECT clock_timestamp() AS "now"
@@ -322,6 +295,16 @@ export async function currentDatabaseTime(db: DbClient): Promise<Date> {
   const current = rows[0]?.now;
   if (!current) throw new Error("데이터베이스 시각을 읽지 못했습니다.");
   return current;
+}
+
+/* 출입증을 쓸 자격의 기준은 이 두 조각뿐이다 — 잠그는 경로(학생 신청·교사 직접 부여)와
+   잠그지 않는 경로(학생증)가 같은 문장을 나눠 써서 판정이 갈라지지 않는다. */
+const ELIGIBLE_USER = Prisma.sql`
+  u."role" = 'STUDENT' AND u."status" = 'ACTIVE' AND u."deletedAt" IS NULL
+`;
+
+function enrolledIn(year: number) {
+  return Prisma.sql`e."year" = ${year} AND e."status" = 'ENROLLED'`;
 }
 
 /* 잠금 순서는 AcademicYear → User → StudentProfile → Enrollment다. */
@@ -335,9 +318,7 @@ export async function lockEligibleStudentForPassCreation(
     FROM "user" AS u
     INNER JOIN "StudentProfile" AS sp ON sp."userId" = u."id"
     WHERE sp."id" = ${studentProfileId}
-      AND u."role" = 'STUDENT'
-      AND u."status" = 'ACTIVE'
-      AND u."deletedAt" IS NULL
+      AND ${ELIGIBLE_USER}
     FOR UPDATE OF u
   `;
   const user = users[0];
@@ -352,14 +333,32 @@ export async function lockEligibleStudentForPassCreation(
   if (profiles.length !== 1) return false;
 
   const enrollments = await db.$queryRaw<Array<{ id: string }>>`
-    SELECT "id"
-    FROM "Enrollment"
-    WHERE "studentProfileId" = ${studentProfileId}
-      AND "year" = ${year}
-      AND "status" = 'ENROLLED'
+    SELECT e."id"
+    FROM "Enrollment" AS e
+    WHERE e."studentProfileId" = ${studentProfileId}
+      AND ${enrolledIn(year)}
     FOR UPDATE
   `;
   return enrollments.length === 1;
+}
+
+/* 학생증처럼 쓰기가 없는 경로용 — 잠금만 빼고 자격은 위와 같은 조각으로 판정한다. */
+export async function isEligibleStudent(
+  studentProfileId: string,
+  year: number,
+  db: DbClient = prisma,
+): Promise<boolean> {
+  const rows = await db.$queryRaw<Array<{ id: string }>>`
+    SELECT e."id"
+    FROM "Enrollment" AS e
+    INNER JOIN "StudentProfile" AS sp ON sp."id" = e."studentProfileId"
+    INNER JOIN "user" AS u ON u."id" = sp."userId"
+    WHERE e."studentProfileId" = ${studentProfileId}
+      AND ${enrolledIn(year)}
+      AND ${ELIGIBLE_USER}
+    LIMIT 1
+  `;
+  return rows.length === 1;
 }
 
 export async function transition(
