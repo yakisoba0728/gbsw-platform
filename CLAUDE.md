@@ -106,8 +106,8 @@ src/
                           bodySizeLimit이 액션 전체에 걸려서다.
     verification/        가입 인증코드. 감사로그 예외다(아래 참조). 순수 조각이 하나
                           있다 — verification.code-hash.ts(BETTER_AUTH_SECRET에서
-                          HKDF로 키를 파생해 코드를 HMAC으로 묶는다. DB도 시계도
-                          모른다).
+                          HKDF로 키를 파생해 challenge·채널·대상·코드를 HMAC으로
+                          묶는다. DB도 시계도 모른다).
   app/
     (auth)/             비로그인 — login
     (app)/              로그인 필수 — layout.tsx가 세션 가드 + mustChangePassword 가로채기
@@ -162,6 +162,14 @@ account에서 시작해 모듈이 커지면 merit의 모양으로 간다.
 6자리 코드를 보낸다. 화면에서 코드를 확인해야 `verifiedAt`이 기록되고, 가입 완료는
 이메일·휴대폰 proof 두 개를 같은 트랜잭션에서 한 번만 소진한다. 따라서
 `registration.repo`의 `emailVerified: true`는 실제 소유 확인을 전제로 한다.
+
+**확인은 대상값이 아니라 발급된 challenge에 결속된다.** `requestCode`가 불투명한
+`challengeId`를 돌려주고 `confirmCode(challengeId, code)`가 그 값으로만 행을 찾는다 —
+이메일·전화번호는 비밀이 아니므로, 대상으로 찾으면 그것만 아는 제3자가 아무 6자리나
+넣어 정상 가입자의 코드를 5회 만에 태울 수 있다. **확인 API에 대상값을 되돌리지 마라.**
+challenge에는 발송을 허가한 `inviteId`도 새긴다. 초대별 발송 예산을 세고, 가입 완료가
+두 proof의 초대·채널·대상이 지금 가입하는 값과 맞는지 대조한다 — 다른 초대로 확인한
+proof나 다른 주소로 확인한 proof는 쓸 수 없다.
 
 운영 이메일은 SMTP(`SMTP_*`), 문자는 알리고(`SMS_*`)를 쓴다. 해당 채널의 설정이
 없거나 발송이 실패하면 확인 요청도 실패하고, 생성했던 코드 행은 지워져 발송 실패가

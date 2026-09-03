@@ -11,6 +11,10 @@ const deleteStaleReservations = vi.fn();
 const activateCode = vi.fn();
 const hasNewerActivatedCode = vi.fn();
 const findLiveCode = vi.fn();
+const findLiveByChallenge = vi.fn();
+const lockChallenge = vi.fn();
+const countRecentSendsByInvite = vi.fn();
+const findVerifiedByChallenge = vi.fn();
 const bumpAttempts = vi.fn();
 const expireById = vi.fn();
 const markVerified = vi.fn();
@@ -35,6 +39,10 @@ vi.mock("@/modules/verification/verification.repo", () => ({
   activateCode,
   hasNewerActivatedCode,
   findLiveCode,
+  findLiveByChallenge,
+  lockChallenge,
+  countRecentSendsByInvite,
+  findVerifiedByChallenge,
   bumpAttempts,
   expireById,
   markVerified,
@@ -67,8 +75,17 @@ const { VerificationError } = await import(
 );
 
 const { createHash } = await import("node:crypto");
-const hash = (code: string, target = "a@b.kr") =>
-  hashVerificationCode("EMAIL", target, code);
+const hash = (code: string, target = "a@b.kr", challengeId = "chal-1") =>
+  hashVerificationCode(challengeId, "EMAIL", target, code);
+
+/* 확인 대상이 되는 살아 있는 challenge 한 줄. */
+const live = () => ({
+  id: "v1",
+  challengeId: "chal-1",
+  channel: "EMAIL",
+  target: "a@b.kr",
+  codeHash: hash("123456"),
+});
 
 beforeEach(() => {
   countRecentSends.mockReset().mockResolvedValue(0);
@@ -77,6 +94,10 @@ beforeEach(() => {
   lockVerificationTarget.mockReset();
   expirePending.mockReset();
   insertCode.mockReset().mockResolvedValue({ id: "v1" });
+  findLiveByChallenge.mockReset().mockResolvedValue(null);
+  lockChallenge.mockReset().mockResolvedValue(undefined);
+  countRecentSendsByInvite.mockReset().mockResolvedValue(0);
+  findVerifiedByChallenge.mockReset().mockResolvedValue(null);
   deleteStaleReservations.mockReset().mockResolvedValue(undefined);
   activateCode.mockReset();
   hasNewerActivatedCode.mockReset().mockResolvedValue(false);
@@ -111,7 +132,7 @@ describe("requestCode()", () => {
     const saved = insertCode.mock.calls[0]![0];
     const sent = sendVerification.mock.calls[0]![0];
     expect(sent.code).toMatch(/^\d{6}$/);
-    expect(saved.codeHash).toBe(hash(sent.code));
+    expect(saved.codeHash).toBe(hash(sent.code, "a@b.kr", saved.challengeId));
     expect(saved.codeHash).not.toContain(sent.code);
   });
 
@@ -187,7 +208,7 @@ describe("requestCode()", () => {
     await vi.waitFor(() => expect(sendVerification).toHaveBeenCalledTimes(2));
 
     finishSecond();
-    await expect(second).resolves.toEqual({});
+    await expect(second).resolves.toEqual({ challengeId: expect.any(String) });
     finishFirst();
     await expect(first).rejects.toThrow("더 최근에 요청한 인증번호");
 
@@ -204,7 +225,7 @@ describe("requestCode()", () => {
     insertCode.mockResolvedValue({ id: "v-first" });
     hasNewerActivatedCode.mockResolvedValue(false);
 
-    await expect(requestCode("EMAIL", "a@b.kr")).resolves.toEqual({});
+    await expect(requestCode("EMAIL", "a@b.kr")).resolves.toEqual({ challengeId: expect.any(String) });
 
     expect(activateCode).toHaveBeenCalledWith(
       "v-first",
@@ -245,7 +266,7 @@ describe("requestCode()", () => {
     await vi.waitFor(() => expect(sendVerification).toHaveBeenCalledTimes(3));
 
     finishSecond();
-    await expect(second).resolves.toEqual({});
+    await expect(second).resolves.toEqual({ challengeId: expect.any(String) });
     finishFirst();
     await expect(first).rejects.toThrow("더 최근에 요청한 인증번호");
     failThird();
@@ -380,23 +401,41 @@ describe("requestCode()", () => {
 
 describe("confirmCode()", () => {
   it("발급한 코드를 그대로 확인할 수 있다", async () => {
-    await requestCode("EMAIL", "a@b.kr");
+    const { challengeId } = await requestCode("EMAIL", "a@b.kr");
     const saved = insertCode.mock.calls[0]![0];
     const sent = sendVerification.mock.calls[0]![0];
-    findLiveCode.mockResolvedValue({ id: "v1", codeHash: saved.codeHash });
+    findLiveByChallenge.mockResolvedValue({
+      id: "v1",
+      challengeId,
+      channel: "EMAIL",
+      target: "a@b.kr",
+      codeHash: saved.codeHash,
+    });
 
-    await confirmCode("EMAIL", "a@b.kr", sent.code);
+    await confirmCode(challengeId, sent.code);
 
     expect(markVerified).toHaveBeenCalledWith("v1", expect.any(Date), txClient);
   });
 
+  // 이것이 이 변경의 핵심이다 — 대상 주소만 아는 제3자는 challenge를 모른다.
+  it("대상이 아니라 challenge로 찾고 challenge를 잠근다", async () => {
+    findLiveByChallenge.mockResolvedValue(live());
+
+    await confirmCode("chal-1", "123456");
+
+    expect(lockChallenge).toHaveBeenCalledWith("chal-1", txClient);
+    expect(findLiveByChallenge.mock.calls[0]![0]).toBe("chal-1");
+    expect(lockVerificationTarget).not.toHaveBeenCalled();
+    expect(findLiveCode).not.toHaveBeenCalled();
+  });
+
   it("평문 SHA-256 해시로는 통과하지 못한다", async () => {
-    findLiveCode.mockResolvedValue({
-      id: "v1",
+    findLiveByChallenge.mockResolvedValue({
+      ...live(),
       codeHash: createHash("sha256").update("123456").digest("hex"),
     });
 
-    await expect(confirmCode("EMAIL", "a@b.kr", "123456")).rejects.toThrow(
+    await expect(confirmCode("chal-1", "123456")).rejects.toThrow(
       "인증번호가 맞지 않습니다.",
     );
     expect(markVerified).not.toHaveBeenCalled();
@@ -404,34 +443,41 @@ describe("confirmCode()", () => {
   });
 
   it("다른 대상에게 발급된 해시를 옮겨 심어도 통과하지 못한다", async () => {
-    findLiveCode.mockResolvedValue({
-      id: "v1",
+    findLiveByChallenge.mockResolvedValue({
+      ...live(),
       codeHash: hash("123456", "other@b.kr"),
     });
 
-    await expect(confirmCode("EMAIL", "a@b.kr", "123456")).rejects.toThrow(
+    await expect(confirmCode("chal-1", "123456")).rejects.toThrow(
+      "인증번호가 맞지 않습니다.",
+    );
+    expect(markVerified).not.toHaveBeenCalled();
+  });
+
+  it("다른 challenge에 발급된 해시를 옮겨 심어도 통과하지 못한다", async () => {
+    findLiveByChallenge.mockResolvedValue({
+      ...live(),
+      codeHash: hash("123456", "a@b.kr", "chal-other"),
+    });
+
+    await expect(confirmCode("chal-1", "123456")).rejects.toThrow(
       "인증번호가 맞지 않습니다.",
     );
     expect(markVerified).not.toHaveBeenCalled();
   });
 
   it("맞으면 확인 처리한다", async () => {
-    findLiveCode.mockResolvedValue({ id: "v1", codeHash: hash("123456") });
+    findLiveByChallenge.mockResolvedValue(live());
 
-    await confirmCode("EMAIL", "a@b.kr", "123456");
+    await confirmCode("chal-1", "123456");
 
-    expect(lockVerificationTarget).toHaveBeenCalledWith(
-      "EMAIL",
-      "a@b.kr",
-      txClient,
-    );
     expect(markVerified).toHaveBeenCalledWith("v1", expect.any(Date), txClient);
   });
 
   it("틀리면 실패 횟수를 올린다", async () => {
-    findLiveCode.mockResolvedValue({ id: "v1", codeHash: hash("123456") });
+    findLiveByChallenge.mockResolvedValue(live());
 
-    await expect(confirmCode("EMAIL", "a@b.kr", "000000")).rejects.toThrow(
+    await expect(confirmCode("chal-1", "000000")).rejects.toThrow(
       "인증번호가 맞지 않습니다.",
     );
     expect(bumpAttempts).toHaveBeenCalledWith("v1", txClient);
@@ -439,21 +485,17 @@ describe("confirmCode()", () => {
   });
 
   it("여러 번 틀리면 코드를 만료시킨다", async () => {
-    findLiveCode.mockResolvedValue({ id: "v1", codeHash: hash("123456") });
+    findLiveByChallenge.mockResolvedValue(live());
     bumpAttempts.mockResolvedValue(5);
 
-    await expect(confirmCode("EMAIL", "a@b.kr", "000000")).rejects.toThrow(
-      "여러 번",
-    );
+    await expect(confirmCode("chal-1", "000000")).rejects.toThrow("여러 번");
     expect(expireById).toHaveBeenCalledWith("v1", expect.any(Date), txClient);
   });
 
   it("살아 있는 코드가 없으면 거부한다", async () => {
-    findLiveCode.mockResolvedValue(null);
+    findLiveByChallenge.mockResolvedValue(null);
 
-    await expect(confirmCode("EMAIL", "a@b.kr", "123456")).rejects.toThrow(
-      "만료",
-    );
+    await expect(confirmCode("chal-1", "123456")).rejects.toThrow("만료");
   });
 
   it("잠금을 기다린 뒤의 시각으로 만료 여부를 다시 판정한다", async () => {
@@ -461,16 +503,14 @@ describe("confirmCode()", () => {
     const afterLock = new Date("2026-09-02T10:00:05.000Z");
     vi.useFakeTimers();
     vi.setSystemTime(beforeLock);
-    lockVerificationTarget.mockImplementationOnce(async () => {
+    lockChallenge.mockImplementationOnce(async () => {
       vi.setSystemTime(afterLock);
     });
-    findLiveCode.mockResolvedValue(null);
+    findLiveByChallenge.mockResolvedValue(null);
 
     try {
-      await expect(confirmCode("EMAIL", "a@b.kr", "123456")).rejects.toThrow(
-        "만료",
-      );
-      expect(findLiveCode.mock.calls[0]![2]).toEqual(afterLock);
+      await expect(confirmCode("chal-1", "123456")).rejects.toThrow("만료");
+      expect(findLiveByChallenge.mock.calls[0]![1]).toEqual(afterLock);
     } finally {
       vi.useRealTimers();
     }
@@ -478,27 +518,50 @@ describe("confirmCode()", () => {
 });
 
 describe("requireVerified()", () => {
+  const ask = {
+    challengeId: "chal-1",
+    channel: "EMAIL" as const,
+    rawTarget: "a@b.kr",
+    inviteId: "inv-1",
+  };
+  const proof = {
+    id: "v1",
+    channel: "EMAIL",
+    target: "a@b.kr",
+    inviteId: "inv-1",
+  };
+
   it("확인이 끝난 기록이 없으면 가입을 막는다", async () => {
-    findVerified.mockResolvedValue(null);
+    findVerifiedByChallenge.mockResolvedValue(null);
 
-    await expect(requireVerified("PHONE", "010-1234-5678")).rejects.toThrow(
-      "휴대폰 인증",
-    );
-  });
-
-  it("다른 값으로 인증해 두고 다른 값으로 가입할 수 없다", async () => {
-    findVerified.mockResolvedValue(null);
-
-    await expect(requireVerified("EMAIL", "other@b.kr")).rejects.toThrow();
-    expect(findVerified.mock.calls[0]![1]).toBe("other@b.kr");
+    await expect(
+      requireVerified({ ...ask, channel: "PHONE", rawTarget: "010-1234-5678" }),
+    ).rejects.toThrow("휴대폰 인증");
   });
 
   it("확인된 기록이 있으면 통과시킨다", async () => {
-    findVerified.mockResolvedValue({ id: "v1" });
+    findVerifiedByChallenge.mockResolvedValue(proof);
 
-    await expect(requireVerified("EMAIL", "a@b.kr")).resolves.toEqual({
-      id: "v1",
-    });
+    await expect(requireVerified(ask)).resolves.toEqual({ id: "v1" });
+  });
+
+  // 대상값으로 찾으면 다른 값으로 인증해 두고 다른 값으로 가입할 수 있다.
+  it("확인한 대상과 가입하려는 값이 다르면 막는다", async () => {
+    findVerifiedByChallenge.mockResolvedValue({ ...proof, target: "other@b.kr" });
+
+    await expect(requireVerified(ask)).rejects.toThrow("이메일 인증");
+  });
+
+  it("다른 초대로 확인한 proof는 쓸 수 없다", async () => {
+    findVerifiedByChallenge.mockResolvedValue({ ...proof, inviteId: "inv-2" });
+
+    await expect(requireVerified(ask)).rejects.toThrow("이메일 인증");
+  });
+
+  it("채널이 어긋난 proof는 쓸 수 없다", async () => {
+    findVerifiedByChallenge.mockResolvedValue({ ...proof, channel: "PHONE" });
+
+    await expect(requireVerified(ask)).rejects.toThrow("이메일 인증");
   });
 });
 

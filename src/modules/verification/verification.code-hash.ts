@@ -9,12 +9,14 @@ import type { VerificationChannel } from "./verification.schema";
  * HKDF info 버전을 바꾸면 저장돼 있던 코드 해시가 전부 무효가 된다.
  * BETTER_AUTH_SECRET을 회전해도 마찬가지다 — 그 순간 살아 있던 인증번호는
  * 확인에 실패하고 사용자는 다시 요청하면 된다(수명이 5분이라 실질 영향은 작다).
- * v1: 비밀키 없는 SHA-256 저장을 끝낸다. 이 배포 시점의 미확인 코드는 모두 무효다.
+ * v1: 비밀키 없는 SHA-256 저장을 끝낸다.
+ * v2: 서명 입력에 challengeId를 넣는다 — 확인이 대상값이 아니라 발급된 challenge에
+ *     결속되면서 해시도 그 challenge에서만 유효해야 한다.
  *
  * info는 학생증 QR(gbsw-student-qr-v3)과 반드시 달라야 한다 — 같은 문자열을
  * 쓰면 두 용도가 한 키를 나눠 쓰게 된다.
  */
-const HKDF_INFO = "gbsw-verification-code-v1";
+const HKDF_INFO = "gbsw-verification-code-v2";
 
 function hashingKey(): Buffer {
   const base = process.env.BETTER_AUTH_SECRET;
@@ -30,26 +32,28 @@ function hashingKey(): Buffer {
 }
 
 /*
- * 코드만이 아니라 채널·대상까지 묶어 서명한다 — 해시가 그 행에서만 유효해져
- * 다른 행의 해시를 옮겨 심는 방법이 통하지 않는다. target은 정규화된 값이다.
+ * 코드만이 아니라 challenge·채널·대상까지 묶어 서명한다 — 해시가 그 행에서만
+ * 유효해져 다른 행의 해시를 옮겨 심는 방법이 통하지 않는다. target은 정규화된 값이다.
  */
 export function hashVerificationCode(
+  challengeId: string,
   channel: VerificationChannel,
   target: string,
   code: string,
 ): string {
   return createHmac("sha256", hashingKey())
-    .update(`${channel}:${target}:${code}`)
+    .update(`${challengeId}:${channel}:${target}:${code}`)
     .digest("hex");
 }
 
 export function verificationCodeMatches(
   expectedHash: string,
+  challengeId: string,
   channel: VerificationChannel,
   target: string,
   code: string,
 ): boolean {
   const a = Buffer.from(expectedHash);
-  const b = Buffer.from(hashVerificationCode(channel, target, code));
+  const b = Buffer.from(hashVerificationCode(challengeId, channel, target, code));
   return a.length === b.length && timingSafeEqual(a, b);
 }

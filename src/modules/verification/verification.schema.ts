@@ -32,8 +32,12 @@ export const requestCodeSchema = z.object({
   target: z.string().min(1),
 });
 
+/* 발급 응답으로만 나가는 불투명한 손잡이. 대상값과 달리 남이 알 수 없다. */
+export const challengeIdSchema = z
+  .string()
+  .regex(/^[A-Za-z0-9_-]{22,64}$/, "인증 요청을 다시 시작해 주세요.");
+
 export const confirmCodeSchema = z.object({
-  channel: channelSchema,
-  target: z.string().min(1),
+  challengeId: challengeIdSchema,
   code: z.string().regex(/^\d{6}$/, "인증번호 6자리를 입력해 주세요."),
 });

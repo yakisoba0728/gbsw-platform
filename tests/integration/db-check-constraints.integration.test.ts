@@ -193,6 +193,7 @@ beforeEach(async () => {
   verificationCodeId = (
     await prisma.verificationCode.create({
       data: {
+        challengeId: `chal-${Math.random().toString(36).slice(2)}`,
         channel: "EMAIL",
         target: verificationTarget,
         codeHash: `hash-${randomUUID()}`,

@@ -62,6 +62,8 @@ export async function expirePending(
 }
 
 export async function insertCode(input: {
+  challengeId: string;
+  inviteId: string | null;
   channel: string;
   target: string;
   codeHash: string;
@@ -152,6 +154,61 @@ export async function findLiveCode(
       expiresAt: { gt: now },
     },
     orderBy: { createdAt: "desc" },
+  });
+}
+
+/*
+ * 확인은 이 함수로만 행을 찾는다. (channel, target)으로 찾으면 대상 주소만 아는
+ * 제3자가 남의 활성 코드에 시도 횟수를 쌓을 수 있다.
+ */
+export async function findLiveByChallenge(
+  challengeId: string,
+  now: Date,
+  db: DbClient = prisma,
+) {
+  return db.verificationCode.findFirst({
+    where: {
+      challengeId,
+      consumedAt: null,
+      verifiedAt: null,
+      expiresAt: { gt: now },
+    },
+  });
+}
+
+/* 같은 challenge에 대한 병렬 대입을 한 줄로 세운다. */
+export async function lockChallenge(
+  challengeId: string,
+  db: DbClient,
+): Promise<void> {
+  await db.$queryRaw`
+    SELECT "id" FROM "VerificationCode" WHERE "challengeId" = ${challengeId} FOR UPDATE
+  `;
+}
+
+/* 초대 하나가 임의의 수신처로 발송을 반복하지 못하게 예산을 센다. */
+export async function countRecentSendsByInvite(
+  inviteId: string,
+  since: Date,
+  db: DbClient = prisma,
+): Promise<number> {
+  return db.verificationCode.count({
+    where: { inviteId, createdAt: { gte: since } },
+  });
+}
+
+export async function findVerifiedByChallenge(
+  challengeId: string,
+  verifiedAfter: Date,
+  db: DbClient = prisma,
+) {
+  return db.verificationCode.findFirst({
+    where: {
+      challengeId,
+      consumedAt: null,
+      codeHash: { not: LEGACY_TEMPORARY_BYPASS_HASH },
+      verifiedAt: { gte: verifiedAfter },
+    },
   });
 }
 

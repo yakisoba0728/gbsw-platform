@@ -1,4 +1,4 @@
-import { randomInt } from "node:crypto";
+import { randomBytes, randomInt } from "node:crypto";
 import { readRequestContext } from "@/core/audit/request-context";
 import { type DbClient, withTransaction } from "@/core/db/client";
 import {
@@ -21,6 +21,9 @@ export { VerificationError };
 const TTL_MINUTES = 5;
 const MAX_ATTEMPTS = 5;
 const MAX_SENDS_PER_HOUR = 5;
+// 초대 하나로 임의의 수신처에 반복 발송하는 것을 막는다. 정상 가입자는 이메일·휴대폰
+// 각각 몇 번의 재전송이면 끝나므로 두 채널을 합쳐 이 예산 안에 넉넉히 들어온다.
+const MAX_SENDS_PER_HOUR_PER_INVITE = 10;
 // 학교 공용 IP에서는 가입 한 명이 이메일·전화 두 번을 소모한다.
 export const MAX_SENDS_PER_HOUR_PER_IP = 60;
 const VERIFIED_TTL_MINUTES = 30;
@@ -63,6 +66,8 @@ function minutesFromNow(minutes: number, now: Date): Date {
 
 // 가입 전 인증에는 감사로그가 없으므로 대상·IP별 제한으로 남용을 막는다.
 async function insertRateLimitedCode(input: {
+  challengeId: string;
+  inviteId: string | null;
   channel: VerificationChannel;
   target: string;
   codeHash: string;
@@ -80,6 +85,18 @@ async function insertRateLimitedCode(input: {
     const recent = await repo.countRecentSends(input.channel, input.target, since, tx);
     if (recent >= MAX_SENDS_PER_HOUR) {
       throw new VerificationError(RATE_LIMIT_MESSAGE);
+    }
+
+    // 초대는 발송을 허가하는 유일한 열쇠다. 수신처를 바꿔 가며 부르는 것을 막는다.
+    if (input.inviteId) {
+      const recentByInvite = await repo.countRecentSendsByInvite(
+        input.inviteId,
+        since,
+        tx,
+      );
+      if (recentByInvite >= MAX_SENDS_PER_HOUR_PER_INVITE) {
+        throw new VerificationError(RATE_LIMIT_MESSAGE);
+      }
     }
 
     // 식별하지 못한 IP들을 하나의 공용 한도로 묶지 않는다.
@@ -137,16 +154,21 @@ async function activateSentCode(
 export async function requestCode(
   channel: VerificationChannel,
   rawTarget: string,
-): Promise<{ mockCode?: string }> {
+  inviteId: string | null = null,
+): Promise<{ challengeId: string; mockCode?: string }> {
   const target = normalizeTarget(channel, rawTarget);
   const now = new Date();
 
   const code = randomInt(1_000_000).toString().padStart(6, "0");
+  // 발급 응답으로만 나가는 손잡이다. 대상 주소와 달리 요청한 본인만 안다.
+  const challengeId = randomBytes(24).toString("base64url");
 
   // 비밀이 없으면 여기서 던져 코드 행을 만들지 않는다.
-  const codeHash = hashVerificationCode(channel, target, code);
+  const codeHash = hashVerificationCode(challengeId, channel, target, code);
 
   const row = await insertRateLimitedCode({
+    challengeId,
+    inviteId,
     channel,
     target,
     codeHash,
@@ -179,28 +201,34 @@ export async function requestCode(
   }
 
   if (mock) {
-    return { mockCode: code };
+    return { challengeId, mockCode: code };
   }
 
-  return {};
+  return { challengeId };
 }
 
 export async function confirmCode(
-  channel: VerificationChannel,
-  rawTarget: string,
+  challengeId: string,
   code: string,
 ): Promise<void> {
-  const target = normalizeTarget(channel, rawTarget);
-
   const result = await withTransaction(async (tx) => {
-    // 발송·재발송과 확인을 같은 대상 잠금으로 직렬화해 병렬 대입을 막는다.
-    await repo.lockVerificationTarget(channel, target, tx);
+    // 같은 challenge에 대한 병렬 대입을 한 줄로 세운다. 대상이 아니라 challenge를
+    // 잠그므로, 대상 주소만 아는 제3자는 이 행에 닿지 못한다.
+    await repo.lockChallenge(challengeId, tx);
     // 잠금 대기 전 시각을 쓰면 그 사이 만료된 코드가 다시 살아난 것처럼 보일 수 있다.
     const now = new Date();
-    const row = await repo.findLiveCode(channel, target, now, tx);
+    const row = await repo.findLiveByChallenge(challengeId, now, tx);
     if (!row) return "NO_LIVE_CODE" as const;
 
-    if (verificationCodeMatches(row.codeHash, channel, target, code)) {
+    if (
+      verificationCodeMatches(
+        row.codeHash,
+        challengeId,
+        row.channel as VerificationChannel,
+        row.target,
+        code,
+      )
+    ) {
       await repo.markVerified(row.id, now, tx);
       return "VERIFIED" as const;
     }
@@ -226,17 +254,30 @@ export async function confirmCode(
   }
 }
 
-export async function requireVerified(
-  channel: VerificationChannel,
-  rawTarget: string,
-): Promise<{ id: string }> {
-  const target = normalizeTarget(channel, rawTarget);
+/*
+ * 확인된 proof를 challenge로 찾고, 그 proof가 지금 가입하려는 값·초대와 맞는지
+ * 대조한다. 대상값만으로 찾으면 다른 초대로 확인한 proof를 가져다 쓸 수 있다.
+ */
+export async function requireVerified(input: {
+  challengeId: string;
+  channel: VerificationChannel;
+  rawTarget: string;
+  inviteId: string;
+}): Promise<{ id: string }> {
+  const target = normalizeTarget(input.channel, input.rawTarget);
   const cutoff = new Date(Date.now() - VERIFIED_TTL_MINUTES * 60_000);
 
-  const row = await repo.findVerified(channel, target, cutoff);
-  if (!row) {
+  const row = await repo.findVerifiedByChallenge(input.challengeId, cutoff);
+
+  const usable =
+    row !== null &&
+    row.channel === input.channel &&
+    row.target === target &&
+    row.inviteId === input.inviteId;
+
+  if (!usable) {
     throw new VerificationError(
-      channel === "EMAIL"
+      input.channel === "EMAIL"
         ? "이메일 인증을 먼저 해 주세요."
         : "휴대폰 인증을 먼저 해 주세요.",
     );

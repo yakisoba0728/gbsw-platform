@@ -161,6 +161,7 @@ function ProfileStep({ code, role }: { code: string; role: Role }) {
         inviteCode={code}
         id="email"
         name="email"
+        challengeName="emailChallengeId"
         label="이메일"
         type="email"
         autoComplete="username"
@@ -172,6 +173,7 @@ function ProfileStep({ code, role }: { code: string; role: Role }) {
         inviteCode={code}
         id="phone"
         name="phone"
+        challengeName="phoneChallengeId"
         label="전화번호"
         type="tel"
         autoComplete="tel"

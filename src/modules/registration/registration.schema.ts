@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { challengeIdSchema } from "@/modules/verification/verification.schema";
 import { canonicalDateInputSchema } from "@/lib/date-input";
 import { emailField, phoneField } from "@/lib/user-fields";
 
@@ -26,6 +27,8 @@ const credentials = {
 export const completeRegistrationSchema = z
   .object({
     code: inviteCodeSchema,
+    emailChallengeId: challengeIdSchema,
+    phoneChallengeId: challengeIdSchema,
     ...credentials,
     birthDate: canonicalDateInputSchema(
       "생년월일은 YYYY-MM-DD 형식으로 입력해 주세요.",

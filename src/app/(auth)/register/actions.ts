@@ -132,6 +132,8 @@ export async function completeRegistrationAction(
 
   const parsed = completeRegistrationSchema.safeParse({
     code: formData.get("code"),
+    emailChallengeId: formData.get("emailChallengeId"),
+    phoneChallengeId: formData.get("phoneChallengeId"),
     name: formData.get("name"),
     email: formData.get("email"),
     phone: formData.get("phone"),
@@ -170,6 +172,8 @@ export type VerifyResult = {
   ok: boolean;
   error: string | null;
   verified?: boolean;
+  /* 확인 단계가 대상값 대신 들고 가는 손잡이. 발급 응답으로만 나간다. */
+  challengeId?: string;
   mockCode?: string;
 };
 
@@ -201,11 +205,10 @@ export async function requestVerificationAction(
 }
 
 export async function confirmVerificationAction(
-  channel: string,
-  target: string,
+  challengeId: string,
   code: string,
 ): Promise<VerifyResult> {
-  const parsed = confirmCodeSchema.safeParse({ channel, target, code });
+  const parsed = confirmCodeSchema.safeParse({ challengeId, code });
   if (!parsed.success) {
     return {
       ok: false,
@@ -214,7 +217,7 @@ export async function confirmVerificationAction(
   }
 
   try {
-    await confirmCode(parsed.data.channel, parsed.data.target, parsed.data.code);
+    await confirmCode(parsed.data.challengeId, parsed.data.code);
     return { ok: true, error: null };
   } catch (error) {
     if (error instanceof VerificationError) {

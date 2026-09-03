@@ -103,6 +103,8 @@ describe("verification.repo rate-limit primitives", () => {
 
     await expirePending("EMAIL", "a@b.kr", now, tx as never);
     await insertCode({
+      challengeId: "chal-1",
+      inviteId: null,
       channel: "EMAIL",
       target: "a@b.kr",
       codeHash: "hash",
@@ -122,6 +124,8 @@ describe("verification.repo rate-limit primitives", () => {
     });
     expect(create).toHaveBeenCalledWith({
       data: {
+        challengeId: "chal-1",
+        inviteId: null,
         channel: "EMAIL",
         target: "a@b.kr",
         codeHash: "hash",

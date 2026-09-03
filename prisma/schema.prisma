@@ -248,7 +248,16 @@ model VerificationCode {
 
   target String
 
-  /// 코드 원본 대신 SHA-256 해시를 저장한다.
+  /// 클라이언트가 들고 다니는 불투명한 손잡이. 확인은 대상값이 아니라 이 값으로 찾는다 —
+  /// 대상 주소만 아는 제3자가 남의 활성 코드의 시도 횟수를 소진시키지 못하게 한다.
+  challengeId String @unique
+
+  /// 발송을 허가한 초대. 초대별 발송 예산과 가입 완료 시 대조에 쓴다.
+  /// Invite와 관계를 맺지 않는다 — 이 행은 도메인 데이터가 아니라 5분짜리 임시
+  /// 데이터라(CLAUDE.md의 verification 예외), 초대가 사라져도 따라 지울 것이 없다.
+  inviteId String?
+
+  /// 코드 원본 대신 서버 비밀로 서명한 HMAC을 저장한다(verification.code-hash.ts).
   codeHash String
 
   expiresAt DateTime
@@ -266,6 +275,7 @@ model VerificationCode {
 
   @@index([channel, target])
   @@index([requestIp, createdAt])
+  @@index([inviteId, createdAt])
 }
 
 /// 변경 기록은 추가만 하며 계정 삭제 후에도 행위자 이름 스냅샷을 보존한다.

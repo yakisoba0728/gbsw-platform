@@ -62,6 +62,8 @@ describe("completeRegistration() — 가입 원자성", () => {
     const inviteId = randomUUID();
     const emailVerificationId = randomUUID();
     const phoneVerificationId = randomUUID();
+    const emailChallengeId = `chal-e-${randomUUID()}`;
+    const phoneChallengeId = `chal-p-${randomUUID()}`;
     const code = inviteCode();
     const email = `atomic-${randomUUID()}@example.invalid`;
     const phone = "010-7777-1001";
@@ -97,6 +99,8 @@ describe("completeRegistration() — 가입 원자성", () => {
       data: [
         {
           id: emailVerificationId,
+          challengeId: emailChallengeId,
+          inviteId,
           channel: "EMAIL",
           target: email,
           codeHash: "already-verified",
@@ -105,6 +109,8 @@ describe("completeRegistration() — 가입 원자성", () => {
         },
         {
           id: phoneVerificationId,
+          challengeId: phoneChallengeId,
+          inviteId,
           channel: "PHONE",
           target: phone,
           codeHash: "already-verified",
@@ -119,6 +125,8 @@ describe("completeRegistration() — 가입 원자성", () => {
     await expect(
       completeRegistration({
         code,
+        emailChallengeId,
+        phoneChallengeId,
         name: "원자성 가입자",
         email,
         phone,
@@ -151,6 +159,8 @@ describe("completeRegistration() — 가입 원자성", () => {
     const inviteId = randomUUID();
     const emailVerificationId = randomUUID();
     const phoneVerificationId = randomUUID();
+    const emailChallengeId = `chal-e-${randomUUID()}`;
+    const phoneChallengeId = `chal-p-${randomUUID()}`;
     const code = inviteCode();
     const email = `year-race-${randomUUID()}@example.invalid`;
     const phone = "010-7777-2001";
@@ -205,6 +215,8 @@ describe("completeRegistration() — 가입 원자성", () => {
       data: [
         {
           id: emailVerificationId,
+          challengeId: emailChallengeId,
+          inviteId,
           channel: "EMAIL",
           target: email,
           codeHash: "already-verified",
@@ -213,6 +225,8 @@ describe("completeRegistration() — 가입 원자성", () => {
         },
         {
           id: phoneVerificationId,
+          challengeId: phoneChallengeId,
+          inviteId,
           channel: "PHONE",
           target: phone,
           codeHash: "already-verified",
@@ -236,6 +250,8 @@ describe("completeRegistration() — 가입 원자성", () => {
 
       const registration = completeRegistration({
         code,
+        emailChallengeId,
+        phoneChallengeId,
         name: "학년도학생",
         birthDate: "2010-03-04",
         email,

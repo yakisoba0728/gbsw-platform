@@ -17,6 +17,7 @@ type Props = {
   inviteCode: string;
   id: string;
   name: string;
+  challengeName: string;
   label: string;
   placeholder: string;
   type: "email" | "tel";
@@ -29,6 +30,7 @@ export function VerifiedField({
   inviteCode,
   id,
   name,
+  challengeName,
   label,
   placeholder,
   type,
@@ -37,6 +39,8 @@ export function VerifiedField({
 }: Props) {
   const [value, setValue] = useState("");
   const [sent, setSent] = useState(false);
+  // 확인은 대상값이 아니라 이 손잡이로 한다. 재발송하면 새 값으로 갈린다.
+  const [challengeId, setChallengeId] = useState("");
   const [verifiedValue, setVerifiedValue] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [mocked, setMocked] = useState(false);
@@ -50,6 +54,7 @@ export function VerifiedField({
     if (next !== verifiedValue) {
       setSent(false);
       setCode("");
+      setChallengeId("");
       setMocked(false);
       setError(null);
     }
@@ -71,6 +76,7 @@ export function VerifiedField({
         return;
       }
       setSent(true);
+      setChallengeId(result.challengeId ?? "");
 
       setCode(result.mockCode ?? "");
       setMocked(result.mockCode !== undefined);
@@ -80,7 +86,7 @@ export function VerifiedField({
   function confirm() {
     setError(null);
     startTransition(async () => {
-      const result = await confirmVerificationAction(channel, value, code);
+      const result = await confirmVerificationAction(challengeId, code);
       if (!result.ok) {
         setError(result.error);
         return;
@@ -91,6 +97,9 @@ export function VerifiedField({
 
   return (
     <div className="mb-3">
+      {/* 가입 완료가 이 손잡이로 proof를 찾는다 — 확인된 challenge만 제출된다. */}
+      <input type="hidden" name={challengeName} value={verified ? challengeId : ""} />
+
       <Label htmlFor={id}>{label}</Label>
 
       <div className="flex gap-2">

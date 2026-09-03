@@ -45,6 +45,7 @@ describe("requestCode() — rate limits", () => {
     readRequestContext.mockResolvedValue({ ip: null, userAgent: null });
 
     await expect(requestCode("EMAIL", target)).resolves.toEqual({
+      challengeId: expect.any(String),
       mockCode: expect.stringMatching(/^\d{6}$/),
     });
 
@@ -59,6 +60,8 @@ describe("requestCode() — rate limits", () => {
     targets.push(target);
     await prisma.verificationCode.create({
       data: {
+        challengeId: `chal-legacy-${randomUUID()}`,
+        inviteId: "inv-legacy",
         channel: "EMAIL",
         target,
         codeHash: "temporary-verification-bypass",
@@ -67,20 +70,59 @@ describe("requestCode() — rate limits", () => {
       },
     });
 
-    await expect(requireVerified("EMAIL", target)).rejects.toThrow(
-      "이메일 인증",
+    const row = await prisma.verificationCode.findFirstOrThrow({
+      where: { target },
+      select: { challengeId: true },
+    });
+    await expect(
+      requireVerified({
+        challengeId: row.challengeId,
+        channel: "EMAIL",
+        rawTarget: target,
+        inviteId: "inv-legacy",
+      }),
+    ).rejects.toThrow("이메일 인증");
+  });
+
+  /*
+   * SEC-OTP-01의 회귀 테스트다. 예전에는 확인이 (channel, target)으로 최신 활성
+   * 코드를 찾았으므로, 대상 주소만 아는 제3자가 아무 6자리나 다섯 번 넣어 정상
+   * 가입자의 코드를 태워 버릴 수 있었다. 이제 확인은 challenge로만 닿는다.
+   */
+  it("대상만 아는 제3자의 오답이 남의 challenge를 태우지 못한다", async () => {
+    const target = `itest-isolation-${randomUUID()}@example.invalid`;
+    targets.push(target);
+    readRequestContext.mockResolvedValue({ ip: null, userAgent: null });
+
+    const { challengeId, mockCode } = await requestCode("EMAIL", target);
+    const wrongCode = mockCode === "000000" ? "000001" : "000000";
+
+    // 대상은 알지만 challenge를 모르는 쪽이 할 수 있는 최선.
+    await Promise.allSettled(
+      Array.from({ length: 20 }, () =>
+        confirmCode(`chal-guess-${randomUUID()}`, wrongCode),
+      ),
     );
+
+    const row = await prisma.verificationCode.findFirstOrThrow({
+      where: { challengeId },
+    });
+    expect(row.attempts).toBe(0);
+    expect(row.expiresAt.getTime()).toBeGreaterThan(Date.now());
+
+    // 정상 가입자는 그대로 확인할 수 있다.
+    await expect(confirmCode(challengeId, mockCode!)).resolves.toBeUndefined();
   });
 
   it("병렬 오답도 다섯 번까지만 처리하고 코드를 만료시킨다", async () => {
     const target = `itest-confirm-${randomUUID()}@example.invalid`;
     targets.push(target);
     readRequestContext.mockResolvedValue({ ip: null, userAgent: null });
-    const { mockCode } = await requestCode("EMAIL", target);
+    const { challengeId, mockCode } = await requestCode("EMAIL", target);
     const wrongCode = mockCode === "000000" ? "000001" : "000000";
 
     await Promise.allSettled(
-      Array.from({ length: 40 }, () => confirmCode("EMAIL", target, wrongCode)),
+      Array.from({ length: 40 }, () => confirmCode(challengeId, wrongCode)),
     );
 
     const row = await prisma.verificationCode.findFirst({ where: { target } });

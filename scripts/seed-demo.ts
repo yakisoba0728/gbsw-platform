@@ -186,9 +186,16 @@ async function build(prisma: Awaited<typeof import("../src/core/db/client")>["pr
     const email = `${slug(spec.name, i)}@${DEMO_DOMAIN}`;
     const phone = `010-0000-${String(1000 + i).slice(-4)}`;
 
-    await verify(verification, invite.code, email, phone);
+    const proofs = await verify(
+      verification,
+      registration,
+      invite.code,
+      email,
+      phone,
+    );
     await registration.completeRegistration({
       code: invite.code,
+      ...proofs,
       name: spec.name,
       email,
       phone,
@@ -213,9 +220,16 @@ async function build(prisma: Awaited<typeof import("../src/core/db/client")>["pr
       expiresInDays: 30,
     });
     const phone = "010-0000-3000";
-    await verify(verification, invite.code, DEMO_ADMIN.email, phone);
+    const proofs = await verify(
+      verification,
+      registration,
+      invite.code,
+      DEMO_ADMIN.email,
+      phone,
+    );
     await registration.completeRegistration({
       code: invite.code,
+      ...proofs,
       name: DEMO_ADMIN.name,
       email: DEMO_ADMIN.email,
       phone,
@@ -236,9 +250,16 @@ async function build(prisma: Awaited<typeof import("../src/core/db/client")>["pr
     const email = `parent${i + 1}@${DEMO_DOMAIN}`;
     const phone = `010-0000-${String(2000 + i).slice(-4)}`;
 
-    await verify(verification, invite.code, email, phone);
+    const proofs = await verify(
+      verification,
+      registration,
+      invite.code,
+      email,
+      phone,
+    );
     await registration.completeRegistration({
       code: invite.code,
+      ...proofs,
       name: link.parentName,
       email,
       phone,
@@ -358,20 +379,29 @@ async function build(prisma: Awaited<typeof import("../src/core/db/client")>["pr
   console.log(`지우기: npm run seed:demo -- --clean ${REQUIRED_OPT_IN}`);
 }
 
+/* 초대에 결속된 challenge를 발급받아 확인하고, 가입 완료가 쓸 손잡이를 돌려준다. */
 async function verify(
   verification: typeof import("../src/modules/verification/verification.service"),
+  registration: typeof import("../src/modules/registration/registration.service"),
   code: string,
   email: string,
   phone: string,
-) {
+): Promise<{ emailChallengeId: string; phoneChallengeId: string }> {
+  const ids: string[] = [];
   for (const [channel, target] of [
     ["EMAIL", email],
     ["PHONE", phone],
   ] as const) {
-    const { mockCode } = await verification.requestCode(channel, target);
+    const { challengeId, mockCode } = await registration.requestVerification(
+      code,
+      channel,
+      target,
+    );
     if (!mockCode) throw new Error("목업 인증코드를 못 받았습니다.");
-    await verification.confirmCode(channel, target, mockCode);
+    await verification.confirmCode(challengeId, mockCode);
+    ids.push(challengeId);
   }
+  return { emailChallengeId: ids[0]!, phoneChallengeId: ids[1]! };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

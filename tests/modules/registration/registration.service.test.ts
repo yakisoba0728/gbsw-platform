@@ -71,6 +71,8 @@ function invite(overrides: Record<string, unknown> = {}) {
 
 const base = {
   code: "GBSWA3K92M7P",
+  emailChallengeId: "chal-email-aaaaaaaaaaaaaaaaaa",
+  phoneChallengeId: "chal-phone-aaaaaaaaaaaaaaaaaa",
   email: "new@gbsw.hs.kr",
   phone: "010-1234-5678",
   password: "long-enough-password",
@@ -86,11 +88,13 @@ beforeEach(() => {
   completeAdminRegistration.mockReset().mockResolvedValue(undefined);
   completeParentRegistration.mockReset().mockResolvedValue(undefined);
   recordAudit.mockReset();
-  requireVerified.mockReset().mockImplementation(async (channel: string) => ({
-    id: channel === "EMAIL" ? "v-email" : "v-phone",
-  }));
+  requireVerified
+    .mockReset()
+    .mockImplementation(async ({ channel }: { channel: string }) => ({
+      id: channel === "EMAIL" ? "v-email" : "v-phone",
+    }));
   consumeVerifications.mockReset();
-  requestCode.mockReset().mockResolvedValue({});
+  requestCode.mockReset().mockResolvedValue({ challengeId: "chal-new" });
   withTransaction
     .mockReset()
     .mockImplementation(async (fn: (tx: typeof txClient) => Promise<unknown>) =>
@@ -134,8 +138,9 @@ describe("requestVerification() (I4)", () => {
 
     const result = await requestVerification("GBSWA3K92M7P", "EMAIL", "a@b.kr");
 
-    expect(result).toEqual({});
-    expect(requestCode).toHaveBeenCalledWith("EMAIL", "a@b.kr");
+    expect(result).toEqual({ challengeId: "chal-new" });
+    // 발송을 허가한 초대를 challenge에 새겨 둔다 — 초대별 예산과 최종 대조에 쓴다.
+    expect(requestCode).toHaveBeenCalledWith("EMAIL", "a@b.kr", "inv1");
   });
 
   it("가입코드가 없거나 이미 쓰였거나 폐기됐으면 발송하지 않는다 — 대상만 " +
@@ -457,8 +462,22 @@ describe("completeRegistration() — 공통 방어", () => {
       txClient,
     );
     expect(requireVerified.mock.calls).toEqual([
-      ["EMAIL", base.email],
-      ["PHONE", base.phone],
+      [
+        {
+          challengeId: base.emailChallengeId,
+          channel: "EMAIL",
+          rawTarget: base.email,
+          inviteId: "inv1",
+        },
+      ],
+      [
+        {
+          challengeId: base.phoneChallengeId,
+          channel: "PHONE",
+          rawTarget: base.phone,
+          inviteId: "inv1",
+        },
+      ],
     ]);
     expect(consumeVerifications).toHaveBeenCalledWith(
       ["v-email", "v-phone"],

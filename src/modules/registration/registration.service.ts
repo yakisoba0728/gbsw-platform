@@ -39,23 +39,36 @@ function isTransactionExpired(error: unknown): boolean {
   );
 }
 
-export async function checkInvite(rawCode: string): Promise<{ role: Role }> {
+/* 내부 전용. 반환값이 화면으로 나가지 않으므로 초대 id를 그대로 담는다. */
+async function findUsableInvite(
+  rawCode: string,
+): Promise<{ id: string; role: Role }> {
   const invite = await repo.findInviteByCode(normalizeInviteCode(rawCode));
 
   if (!invite || !isInviteUsable(invite) || !isRole(invite.role)) {
     throw new RegistrationError(GENERIC_FAILURE);
   }
 
-  return { role: invite.role };
+  return { id: invite.id, role: invite.role };
 }
 
+/* 화면이 받는 값이다. 사전등록 개인정보도, 내부 식별자도 넘기지 않는다. */
+export async function checkInvite(rawCode: string): Promise<{ role: Role }> {
+  const { role } = await findUsableInvite(rawCode);
+  return { role };
+}
+
+/*
+ * 발송은 초대가 허가하지만, 그 허가를 challenge에 새겨 둔다 — 초대별 발송 예산을
+ * 세고, 가입 완료 때 두 proof가 같은 초대의 것인지 대조하기 위해서다.
+ */
 export async function requestVerification(
   code: string,
   channel: VerificationChannel,
   target: string,
-): Promise<{ mockCode?: string }> {
-  await checkInvite(code);
-  return requestCode(channel, target);
+): Promise<{ challengeId: string; mockCode?: string }> {
+  const invite = await findUsableInvite(code);
+  return requestCode(channel, target, invite.id);
 }
 
 /** 로그인 이전 경로로, 초대의 신원 대조가 권한 검사를 대신하고 역할은 초대에서만 읽는다. */
@@ -106,8 +119,19 @@ export async function completeRegistration(
     throw new RegistrationError("이미 쓰이고 있는 이메일입니다.");
   }
 
-  const emailVerification = await requireVerified("EMAIL", input.email);
-  const phoneVerification = await requireVerified("PHONE", input.phone);
+  // proof는 지금 이 초대의 것이어야 하고, 확인한 대상이 곧 가입하는 값이어야 한다.
+  const emailVerification = await requireVerified({
+    challengeId: input.emailChallengeId,
+    channel: "EMAIL",
+    rawTarget: input.email,
+    inviteId: invite.id,
+  });
+  const phoneVerification = await requireVerified({
+    challengeId: input.phoneChallengeId,
+    channel: "PHONE",
+    rawTarget: input.phone,
+    inviteId: invite.id,
+  });
 
   const account = {
     userId: randomUUID(),

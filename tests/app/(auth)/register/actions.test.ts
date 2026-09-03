@@ -200,6 +200,8 @@ function registerForm(over: Record<string, string> = {}): FormData {
   const fd = new FormData();
   const fields: Record<string, string> = {
     code: CODE,
+    emailChallengeId: "chal-email-aaaaaaaaaaaaaaaa",
+    phoneChallengeId: "chal-phone-aaaaaaaaaaaaaaaa",
     name: "홍길동",
     birthDate: "2010-03-02",
     email: "hong@gbsw.hs.kr",
@@ -211,6 +213,22 @@ function registerForm(over: Record<string, string> = {}): FormData {
   for (const [key, value] of Object.entries(fields)) fd.set(key, value);
   return fd;
 }
+
+describe("completeRegistrationAction — 인증 손잡이", () => {
+  // VerifiedField는 확인이 끝난 채널만 손잡이를 싣는다. 빈 값은 곧 미인증이다.
+  it.each([["emailChallengeId"], ["phoneChallengeId"]])(
+    "%s가 비어 있으면 가입 서비스에 닿지 않는다",
+    async (field) => {
+      const state = await completeRegistrationAction(
+        REGISTER_INITIAL,
+        registerForm({ [field]: "" }),
+      );
+
+      expect(completeRegistration).not.toHaveBeenCalled();
+      expect(state.error).toBeTruthy();
+    },
+  );
+});
 
 describe("checkInviteAction — 경계 검증", () => {
   it("폼이 보내는 code 하나면 서비스까지 도달한다", async () => {
@@ -291,13 +309,15 @@ describe("completeRegistrationAction — 경계 검증", () => {
     expect(completeRegistration).toHaveBeenCalledOnce();
   });
 
-  it("폼의 일곱 필드를 모두 읽는다", async () => {
+  it("폼의 아홉 필드를 모두 읽는다", async () => {
     await expect(
       completeRegistrationAction(REGISTER_INITIAL, registerForm()),
     ).rejects.toThrow("NEXT_REDIRECT");
 
     expect(completeRegistration).toHaveBeenCalledWith({
       code: CODE,
+      emailChallengeId: "chal-email-aaaaaaaaaaaaaaaa",
+      phoneChallengeId: "chal-phone-aaaaaaaaaaaaaaaa",
       name: "홍길동",
       birthDate: "2010-03-02",
       email: "hong@gbsw.hs.kr",
@@ -504,21 +524,28 @@ describe("requestVerificationAction — 경계 검증", () => {
 
 describe("confirmVerificationAction — 경계 검증", () => {
   it("빈 인증번호는 확인 서비스에 도달하지 않는다", async () => {
-    const result = await confirmVerificationAction("PHONE", "010-1234-5678", "");
+    const result = await confirmVerificationAction("chal-aaaaaaaaaaaaaaaaaaaaaaaa", "");
 
     expect(confirmCode).not.toHaveBeenCalled();
     expect(result.ok).toBe(false);
   });
 
   it("여섯 자리면 서비스까지 도달한다", async () => {
-    const result = await confirmVerificationAction("PHONE", "010-1234-5678", "123456");
+    const result = await confirmVerificationAction("chal-aaaaaaaaaaaaaaaaaaaaaaaa", "123456");
 
-    expect(confirmCode).toHaveBeenCalledWith("PHONE", "010-1234-5678", "123456");
+    expect(confirmCode).toHaveBeenCalledWith("chal-aaaaaaaaaaaaaaaaaaaaaaaa", "123456");
     expect(result.ok).toBe(true);
   });
 
+  it("손잡이 형식이 어긋나면 서비스에 닿지 않는다", async () => {
+    const result = await confirmVerificationAction("짧음", "123456");
+
+    expect(confirmCode).not.toHaveBeenCalled();
+    expect(result.ok).toBe(false);
+  });
+
   it("자릿수가 다르면 서비스를 부르지 않는다", async () => {
-    const result = await confirmVerificationAction("PHONE", "010-1234-5678", "12345");
+    const result = await confirmVerificationAction("chal-aaaaaaaaaaaaaaaaaaaaaaaa", "12345");
 
     expect(confirmCode).not.toHaveBeenCalled();
     expect(result.error).toBe("인증번호 6자리를 입력해 주세요.");
@@ -529,12 +556,12 @@ describe("confirmVerificationAction — 경계 검증", () => {
       new VerificationError("인증번호가 올바르지 않습니다."),
     );
     expect(
-      (await confirmVerificationAction("PHONE", "010-1234-5678", "123456")).error,
+      (await confirmVerificationAction("chal-aaaaaaaaaaaaaaaaaaaaaaaa", "123456")).error,
     ).toBe("인증번호가 올바르지 않습니다.");
 
     confirmCode.mockRejectedValueOnce(new Error("connect ECONNREFUSED"));
     expect(
-      (await confirmVerificationAction("PHONE", "010-1234-5678", "123456")).error,
+      (await confirmVerificationAction("chal-aaaaaaaaaaaaaaaaaaaaaaaa", "123456")).error,
     ).toBe("인증하지 못했습니다.");
   });
 });
