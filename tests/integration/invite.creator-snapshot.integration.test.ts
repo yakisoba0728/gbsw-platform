@@ -23,6 +23,8 @@ describe("Invite 발급자 이름 스냅샷", () => {
         phone: `010-${suffix.slice(0, 4)}-${suffix.slice(4, 8)}`,
         role: "ADMIN",
         status: "ACTIVE",
+        // 완전 삭제는 삭제 표시된 계정만 대상으로 한다.
+        deletedAt: new Date(),
       },
     });
     await prisma.invite.create({
