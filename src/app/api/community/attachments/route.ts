@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionUser, type SessionUser } from "@/core/auth/session";
 import { ForbiddenError } from "@/core/authz/errors";
+import { readCappedBody } from "@/lib/capped-body";
 import { uploadAttachment } from "@/modules/community/attachment.service";
 import { CommunityError } from "@/modules/community/community.error";
 import { getWritableBySlug } from "@/modules/community/board.service";
@@ -30,32 +31,6 @@ const STATUS: Record<string, number> = {
   ATTACHMENT_METADATA: 422,
   ATTACHMENT_PENDING_LIMIT: 429,
 };
-
-async function readCappedBody(request: Request, max: number): Promise<Buffer | null> {
-  const body = request.body;
-  if (!body) return Buffer.alloc(0);
-
-  const reader = body.getReader();
-  const chunks: Uint8Array[] = [];
-  let seen = 0;
-  let over = false;
-
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    seen += value.byteLength;
-    // 취소하면 Node 본문 파서가 예외를 내므로 초과분은 버리며 끝까지 읽는다.
-    if (over) continue;
-    if (seen > max) {
-      over = true;
-      chunks.length = 0;
-      continue;
-    }
-    chunks.push(value);
-  }
-
-  return over ? null : Buffer.concat(chunks);
-}
 
 function gate(actor: SessionUser | null): actor is SessionUser {
   return (
