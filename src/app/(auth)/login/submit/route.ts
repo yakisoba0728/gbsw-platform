@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { readCappedBody } from "@/lib/capped-body";
 import { safeNext } from "@/lib/safe-next";
 import { authenticateWithEmail } from "@/modules/auth/auth.service";
 import {
@@ -8,6 +9,14 @@ import {
 
 const EMAIL_MAX_LENGTH = 320;
 const PASSWORD_MAX_LENGTH = 128;
+
+// next.config.ts의 serverActions.bodySizeLimit은 서버 액션에만 걸리고 라우트
+// 핸들러에는 걸리지 않는다 — 이 라우트가 스스로 세어 끊어야 한다.
+// 받는 것은 이메일 320자·비밀번호 128자·next 경로 512자(safeNext)뿐이다. 최악은
+// 한글을 퍼센트 인코딩한 urlencoded 본문으로 한 글자가 9바이트가 되어
+// (320+128+512)x9 = 약 8.6KB, 여기에 필드 이름과 구분자 수백 바이트가 붙는다.
+// 16KiB는 그 두 배에 조금 못 미치는 여유이고 정상 로그인은 1KB를 넘지 않는다.
+const MAX_REQUEST_BYTES = 16 * 1024;
 
 // 공개 주소의 유일한 출처는 BETTER_AUTH_URL이다. 앱은 127.0.0.1에만 묶여 있어
 // 요청 헤더로는 공개 주소를 알 수 없고(학생증 QR도 같은 이유로 이 값을 쓴다),
@@ -109,9 +118,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
+  // 파싱보다 먼저 센다 — formData()는 본문 크기를 스스로 제한하지 않아, 상한을
+  // 뒤에 두면 거절하기 전에 요청 전체가 이미 메모리에 올라온다.
+  const raw = await readCappedBody(request, MAX_REQUEST_BYTES);
+  if (raw === null) {
+    // 이 라우트가 받는 것보다 큰 본문은 결국 입력이 틀린 것이라 코드를 늘리지 않고
+    // 기존 invalid를 쓰되, 상태만 413으로 구분한다.
+    return failureResponse(request, "invalid", "", null, origin, 413);
+  }
+
   let formData: FormData;
   try {
-    formData = await request.formData();
+    formData = await new Response(new Uint8Array(raw), {
+      headers: { "content-type": request.headers.get("content-type") ?? "" },
+    }).formData();
   } catch {
     return NextResponse.json({ error: "invalid" }, { status: 400 });
   }

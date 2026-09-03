@@ -191,6 +191,73 @@ describe("login submit route", () => {
   });
 });
 
+const MAX_REQUEST_BYTES = 16 * 1024;
+
+// 크기만 보는 경로라 파싱되지 않는 바이트를 보낸다 — 상한이 파싱보다 먼저 걸리면
+// 413이고, 파싱이 먼저면 형식 오류인 400이 된다.
+function rawLoginRequest(size: number): NextRequest {
+  return new NextRequest("http://teacher.localhost:3000/login/submit", {
+    method: "POST",
+    headers: new Headers({
+      accept: "application/json",
+      origin: "http://teacher.localhost:3000",
+      "content-type": "multipart/form-data; boundary=x",
+    }),
+    body: new Uint8Array(size),
+  });
+}
+
+describe("login submit route 본문 상한", () => {
+  it("상한을 넘긴 본문은 파싱하기 전에 413으로 끊는다", async () => {
+    const response = await POST(rawLoginRequest(MAX_REQUEST_BYTES + 1));
+
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toEqual({ error: "invalid" });
+    expect(authenticateWithEmail).not.toHaveBeenCalled();
+  });
+
+  it("상한 안이면 파싱까지 가서 형식 오류로 갈린다", async () => {
+    const response = await POST(rawLoginRequest(MAX_REQUEST_BYTES));
+
+    expect(response.status).toBe(400);
+    expect(authenticateWithEmail).not.toHaveBeenCalled();
+  });
+
+  it("가장 긴 입력을 담은 정상 로그인은 그대로 통과한다", async () => {
+    const response = await POST(
+      loginRequest({
+        email: `${"a".repeat(300)}@gbsw.hs.kr`,
+        password: "가".repeat(128),
+        next: `/community/${"나".repeat(400)}`,
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(authenticateWithEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ password: "가".repeat(128) }),
+    );
+  });
+
+  it("JS 없는 브라우저는 상한을 넘겨도 로그인 화면으로 돌아간다", async () => {
+    const request = new NextRequest("http://teacher.localhost:3000/login/submit", {
+      method: "POST",
+      headers: new Headers({
+        accept: "text/html",
+        origin: "http://teacher.localhost:3000",
+        "content-type": "multipart/form-data; boundary=x",
+      }),
+      body: new Uint8Array(MAX_REQUEST_BYTES + 1),
+    });
+
+    const response = await POST(request);
+    const location = new URL(response.headers.get("location") ?? "");
+
+    expect(response.status).toBe(303);
+    expect(location.pathname).toBe("/login");
+    expect(location.searchParams.get("loginError")).toBe("invalid");
+  });
+});
+
 describe("login submit route 허용 오리진", () => {
   it("운영에서는 BETTER_AUTH_URL의 오리진만 통과한다", async () => {
     runAsProduction();
