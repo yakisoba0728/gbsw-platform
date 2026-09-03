@@ -2,7 +2,7 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { requireAuth } from "@/core/auth/session";
+import { defineFormAction } from "@/lib/action";
 import {
   changeOwnPassword,
   InvalidCurrentPasswordError,
@@ -11,37 +11,26 @@ import { changePasswordSchema } from "@/modules/account/account.schema";
 
 export type ChangePasswordState = { error: string | null; ok: boolean };
 
-export async function changePasswordAction(
-  _prev: ChangePasswordState,
-  formData: FormData,
-): Promise<ChangePasswordState> {
-  const actor = await requireAuth({ allowMustChangePassword: true });
-
-  const parsed = changePasswordSchema.safeParse({
+export const changePasswordAction = defineFormAction<ChangePasswordState>()({
+  schema: changePasswordSchema,
+  input: (formData) => ({
     currentPassword: formData.get("currentPassword"),
     newPassword: formData.get("newPassword"),
     confirmPassword: formData.get("confirmPassword"),
-  });
-
-  if (!parsed.success) {
-    return {
-      ok: false,
-      error: parsed.error.issues[0]?.message ?? "입력을 확인해 주세요.",
-    };
-  }
-
-  try {
-    await changeOwnPassword(actor, parsed.data, await headers());
-  } catch (error) {
-    if (!(error instanceof InvalidCurrentPasswordError)) {
-      console.error("[account] password change failed", error);
-      return {
-        ok: false,
-        error: "비밀번호를 변경하지 못했습니다.",
-      };
-    }
-    return { ok: false, error: "현재 비밀번호가 맞지 않습니다." };
-  }
-
-  redirect("/login?passwordChanged=1");
-}
+  }),
+  failState: (error) => ({ ok: false, error }),
+  run: async (actor, data) => {
+    await changeOwnPassword(actor, data, await headers());
+    redirect("/login?passwordChanged=1");
+  },
+  requireAuthOptions: { allowMustChangePassword: true },
+  onError: (error) =>
+    error instanceof InvalidCurrentPasswordError
+      ? "현재 비밀번호가 맞지 않습니다."
+      : null,
+  errorClass: InvalidCurrentPasswordError,
+  messages: { FORBIDDEN: "이 작업을 할 권한이 없습니다." },
+  logPrefix: "[account]",
+  invalidInputMessage: "입력을 확인해 주세요.",
+  failureMessage: "비밀번호를 변경하지 못했습니다.",
+});

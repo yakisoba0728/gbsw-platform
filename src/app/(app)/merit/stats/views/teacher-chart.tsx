@@ -1,7 +1,7 @@
 import { Legend, Tooltip } from "@/components/merit/chart-parts";
 import { SectionCard } from "@/components/ui/section-card";
-import { signedNet } from "@/core/authz/merit-track";
 import { scaleToPercent } from "@/modules/merit/merit.chart";
+import { signedNet } from "@/modules/merit/merit.points";
 import { honorificName } from "@/core/authz/roles";
 
 export type TeacherChartRow = {

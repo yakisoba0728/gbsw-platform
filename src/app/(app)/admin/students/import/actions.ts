@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAuth } from "@/core/auth/session";
+import { firstIssue, text } from "@/lib/action-message";
 import { ForbiddenError } from "@/core/authz/errors";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import { yearFormSchema } from "@/modules/academic-year/academic-year.schema";
@@ -11,6 +12,7 @@ import {
   previewRoster,
   RosterError,
 } from "@/modules/enrollment/roster.service";
+import { RosterParseError } from "@/modules/enrollment/roster.parse";
 import {
   confirmedDeletionIdsSchema,
   deletionCountConfirmationSchema,
@@ -71,6 +73,16 @@ function sortedDeletionIds(ids: string[]): string[] {
   return [...ids].sort();
 }
 
+// 명단 서비스와 파서는 각자 자기 오류 클래스를 던진다. message 문자열로
+// 일반 Error를 도메인 오류로 옮기면 우연한 일치가 오판을 만들므로
+// instanceof 검사만 사용한다.
+function rosterMessage(error: unknown, fallback: string): string | null {
+  if (error instanceof RosterError || error instanceof RosterParseError) {
+    return MESSAGES[error.message] ?? fallback;
+  }
+  return null;
+}
+
 export async function previewRosterAction(
   _prev: PreviewState,
   formData: FormData,
@@ -95,12 +107,8 @@ export async function previewRosterAction(
     if (error instanceof AcademicYearError) {
       return emptyPreview(NO_CURRENT_YEAR_MESSAGE);
     }
-    if (error instanceof RosterError) {
-      return emptyPreview(MESSAGES[error.message] ?? "파일을 읽지 못했습니다.");
-    }
-    if (error instanceof Error && MESSAGES[error.message]) {
-      return emptyPreview(MESSAGES[error.message]);
-    }
+    const message = rosterMessage(error, "파일을 읽지 못했습니다.");
+    if (message) return emptyPreview(message);
     console.error("명단 미리보기 실패:", error);
     return emptyPreview("파일을 읽지 못했습니다.");
   }
@@ -143,14 +151,9 @@ export async function applyRosterAction(
 
   const rowsParsed = rosterRowsSchema.safeParse(parsedJson);
   if (!rowsParsed.success) {
-    return {
-      error: rowsParsed.error.issues[0]?.message ?? "반영할 내용을 확인해 주세요.",
-      saved: null,
-      invitesIssued: null,
-      deleted: null,
-      excludedNew: [],
-      invites: [],
-    };
+    return applyError(
+      firstIssue(rowsParsed.error, "반영할 내용을 확인해 주세요."),
+    );
   }
 
   const yearParsed = yearFormSchema.safeParse({ year: formData.get("year") });
@@ -163,7 +166,7 @@ export async function applyRosterAction(
   );
   if (!rosterFingerprintParsed.success) {
     return applyError(
-      rosterFingerprintParsed.error.issues[0]?.message ?? MESSAGES.ROSTER_CHANGED,
+      firstIssue(rosterFingerprintParsed.error, MESSAGES.ROSTER_CHANGED),
     );
   }
 
@@ -203,7 +206,7 @@ export async function applyRosterAction(
       rosterFingerprintParsed.data,
       confirmedDeletionIds,
       deletionCountParsed.data,
-      String(formData.get("previewToken") ?? ""),
+      text(formData, "previewToken"),
     );
     revalidatePath("/admin/students");
     return {
@@ -219,9 +222,8 @@ export async function applyRosterAction(
     if (error instanceof AcademicYearError) {
       return applyError(NO_CURRENT_YEAR_MESSAGE);
     }
-    if (error instanceof RosterError) {
-      return applyError(MESSAGES[error.message] ?? "반영하지 못했습니다.");
-    }
+    const message = rosterMessage(error, "반영하지 못했습니다.");
+    if (message) return applyError(message);
     console.error("명단 반영 실패:", error);
     return applyError("반영하지 못했습니다.");
   }

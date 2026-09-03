@@ -2,9 +2,9 @@ import Link from "next/link";
 import type { SessionUser } from "@/core/auth/session";
 import {
   isYearScoped,
-  signedNet,
   type MeritTrack,
 } from "@/core/authz/merit-track";
+import { signedNet } from "@/modules/merit/merit.points";
 import { DemeritCell } from "@/components/merit/demerit-level";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NoAcademicYearNotice } from "@/components/ui/no-academic-year-notice";

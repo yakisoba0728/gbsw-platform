@@ -1,9 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAuth } from "@/core/auth/session";
-import { actionMessage, text } from "@/lib/action-message";
-import { formatInviteCode } from "@/lib/invite-code";
+import { defineFormAction } from "@/lib/action";
+import { text } from "@/lib/action-message";
+import { formatInviteCode } from "@/modules/invites/invite-code";
 import {
   createAdminInviteSchema,
   createParentInviteForSchema,
@@ -35,21 +35,14 @@ const MESSAGES = {
   NOT_PENDING: "이미 쓰였거나 폐기된 코드입니다.",
 } satisfies Record<string, string>;
 
-const messageFor = actionMessage(InviteError, MESSAGES, "[invite]");
-
 function optionalDays(value: FormDataEntryValue | null): number | undefined {
   const raw = String(value ?? "").trim();
   if (!raw) return undefined;
   return Number(raw);
 }
 
-export async function createStudentInviteAction(
-  _prev: InviteFormState,
-  formData: FormData,
-): Promise<InviteFormState> {
-  const actor = await requireAuth();
-
-  const values: InviteFormValues = {
+function submittedValues(formData: FormData): InviteFormValues {
+  return {
     name: text(formData, "name"),
     birthDate: text(formData, "birthDate"),
     grade: text(formData, "grade"),
@@ -57,133 +50,105 @@ export async function createStudentInviteAction(
     number: text(formData, "number"),
     expiresInDays: text(formData, "expiresInDays"),
   };
+}
 
-  const parsed = createStudentInviteSchema.safeParse({
+export const createStudentInviteAction = defineFormAction<InviteFormState>()({
+  schema: createStudentInviteSchema,
+  input: (formData) => ({
     name: formData.get("name"),
     birthDate: formData.get("birthDate"),
     grade: Number(formData.get("grade")),
     classNo: Number(formData.get("classNo")),
     number: Number(formData.get("number")),
     expiresInDays: optionalDays(formData.get("expiresInDays")),
-  });
-
-  if (!parsed.success) {
-    return {
-      error: parsed.error.issues[0]?.message ?? "입력을 확인해 주세요.",
-      code: null,
-      values,
-    };
-  }
-
-  try {
-    const invite = await createStudentInvite(actor, parsed.data);
+  }),
+  failState: (error, formData) => ({
+    error,
+    code: null,
+    values: submittedValues(formData),
+  }),
+  run: async (actor, data) => {
+    const invite = await createStudentInvite(actor, data);
     revalidatePath("/admin/users");
     return { error: null, code: formatInviteCode(invite.code) };
-  } catch (error) {
-    return {
-      error: messageFor(error, "코드를 발급하지 못했습니다."),
-      code: null,
-      values,
-    };
-  }
-}
+  },
+  errorClass: InviteError,
+  messages: MESSAGES,
+  logPrefix: "[invite]",
+  invalidInputMessage: "입력을 확인해 주세요.",
+  failureMessage: "코드를 발급하지 못했습니다.",
+});
 
-export async function createAdminInviteAction(
-  _prev: InviteFormState,
-  formData: FormData,
-): Promise<InviteFormState> {
-  const actor = await requireAuth();
-
-  const values: InviteFormValues = {
-    name: text(formData, "name"),
-    expiresInDays: text(formData, "expiresInDays"),
-  };
-
-  const parsed = createAdminInviteSchema.safeParse({
+export const createAdminInviteAction = defineFormAction<InviteFormState>()({
+  schema: createAdminInviteSchema,
+  input: (formData) => ({
     name: formData.get("name"),
     expiresInDays: optionalDays(formData.get("expiresInDays")),
-  });
-
-  if (!parsed.success) {
-    return {
-      error: parsed.error.issues[0]?.message ?? "입력을 확인해 주세요.",
-      code: null,
-      values,
-    };
-  }
-
-  try {
-    const invite = await createAdminInvite(actor, parsed.data);
+  }),
+  failState: (error, formData) => ({
+    error,
+    code: null,
+    values: {
+      name: text(formData, "name"),
+      expiresInDays: text(formData, "expiresInDays"),
+    },
+  }),
+  run: async (actor, data) => {
+    const invite = await createAdminInvite(actor, data);
     revalidatePath("/admin/users");
     return { error: null, code: formatInviteCode(invite.code) };
-  } catch (error) {
-    return {
-      error: messageFor(error, "코드를 발급하지 못했습니다."),
-      code: null,
-      values,
-    };
-  }
-}
+  },
+  errorClass: InviteError,
+  messages: MESSAGES,
+  logPrefix: "[invite]",
+  invalidInputMessage: "입력을 확인해 주세요.",
+  failureMessage: "코드를 발급하지 못했습니다.",
+});
 
-export async function createParentInviteForAction(
-  _prev: InviteFormState,
-  formData: FormData,
-): Promise<InviteFormState> {
-  const actor = await requireAuth();
-
-  const values: InviteFormValues = {
-    studentId: text(formData, "studentId"),
-    name: text(formData, "name"),
-    expiresInDays: text(formData, "expiresInDays"),
-  };
-
-  const parsed = createParentInviteForSchema.safeParse({
+export const createParentInviteForAction = defineFormAction<InviteFormState>()({
+  schema: createParentInviteForSchema,
+  input: (formData) => ({
     studentId: formData.get("studentId"),
     name: formData.get("name"),
     expiresInDays: optionalDays(formData.get("expiresInDays")),
-  });
-
-  if (!parsed.success) {
-    return {
-      error: parsed.error.issues[0]?.message ?? "입력을 확인해 주세요.",
-      code: null,
-      values,
-    };
-  }
-
-  try {
-    const invite = await createParentInviteFor(actor, parsed.data);
+  }),
+  failState: (error, formData) => ({
+    error,
+    code: null,
+    values: {
+      studentId: text(formData, "studentId"),
+      name: text(formData, "name"),
+      expiresInDays: text(formData, "expiresInDays"),
+    },
+  }),
+  run: async (actor, data) => {
+    const invite = await createParentInviteFor(actor, data);
     revalidatePath("/admin/users");
     return { error: null, code: formatInviteCode(invite.code) };
-  } catch (error) {
-    return {
-      error: messageFor(error, "코드를 발급하지 못했습니다."),
-      code: null,
-      values,
-    };
-  }
-}
+  },
+  errorClass: InviteError,
+  messages: MESSAGES,
+  logPrefix: "[invite]",
+  invalidInputMessage: "입력을 확인해 주세요.",
+  failureMessage: "코드를 발급하지 못했습니다.",
+});
 
-export async function revokeInviteAction(
-  _prev: RevokeState,
-  formData: FormData,
-): Promise<RevokeState> {
-  const actor = await requireAuth();
-
-  const parsed = revokeInviteSchema.safeParse({
+export const revokeInviteAction = defineFormAction<RevokeState>()({
+  schema: revokeInviteSchema,
+  input: (formData) => ({
     inviteId: formData.get("inviteId"),
     reason: formData.get("reason"),
-  });
-  if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0].message };
-  }
-
-  try {
-    await revokeInvite(actor, parsed.data);
+  }),
+  failState: (error) => ({ ok: false, error }),
+  run: async (actor, data) => {
+    await revokeInvite(actor, data);
     revalidatePath("/admin/users");
     revalidatePath("/parent-invite");
     return { ok: true, error: null };
-  } catch (error) {
-    return { ok: false, error: messageFor(error, "폐기하지 못했습니다.") };
-  }
-}
+  },
+  errorClass: InviteError,
+  messages: MESSAGES,
+  logPrefix: "[invite]",
+  invalidInputMessage: "입력을 확인해 주세요.",
+  failureMessage: "폐기하지 못했습니다.",
+});

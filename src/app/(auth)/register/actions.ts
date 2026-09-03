@@ -2,6 +2,7 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { firstIssue, text } from "@/lib/action-message";
 import type { Role } from "@/core/authz/roles";
 import {
   type BootstrapInput,
@@ -38,12 +39,12 @@ export async function createInitialAdminAction(
   _prev: BootstrapState,
   formData: FormData,
 ): Promise<BootstrapState> {
-  const token = String(formData.get("token") ?? "");
+  const token = text(formData, "token");
 
   const values = {
-    name: String(formData.get("name") ?? ""),
-    email: String(formData.get("email") ?? ""),
-    phone: String(formData.get("phone") ?? ""),
+    name: text(formData, "name"),
+    email: text(formData, "email"),
+    phone: text(formData, "phone"),
   };
 
   const parsed = bootstrapSchema.safeParse({
@@ -56,7 +57,7 @@ export async function createInitialAdminAction(
 
   if (!parsed.success) {
     return {
-      error: parsed.error.issues[0]?.message ?? "입력을 확인해 주세요.",
+      error: firstIssue(parsed.error, "입력을 확인해 주세요."),
       values,
     };
   }
@@ -67,8 +68,13 @@ export async function createInitialAdminAction(
     return { error: "교사 계정을 만들 수 없습니다.", values };
   }
 
-  await signInSilently(parsed.data.email, parsed.data.password, headers());
-  redirect("/");
+  const signedIn = await signInSilently(
+    parsed.data.email,
+    parsed.data.password,
+    headers(),
+  );
+  // 자동 로그인이 실패하면 홈이 아니라 안내 문구가 있는 로그인 화면으로 보낸다.
+  redirect(signedIn ? "/" : "/login?loginError=server");
 }
 
 export type CheckInviteState = {
@@ -82,7 +88,7 @@ export async function checkInviteAction(
   _prev: CheckInviteState,
   formData: FormData,
 ): Promise<CheckInviteState> {
-  const values = { code: String(formData.get("code") ?? "") };
+  const values = { code: text(formData, "code") };
   const parsed = inviteCodeSchema.safeParse(formData.get("code"));
   if (!parsed.success) {
     return {
@@ -120,8 +126,8 @@ export async function completeRegistrationAction(
   formData: FormData,
 ): Promise<RegisterState> {
   const values = {
-    name: String(formData.get("name") ?? ""),
-    birthDate: String(formData.get("birthDate") ?? ""),
+    name: text(formData, "name"),
+    birthDate: text(formData, "birthDate"),
   };
 
   const parsed = completeRegistrationSchema.safeParse({
@@ -136,7 +142,7 @@ export async function completeRegistrationAction(
 
   if (!parsed.success) {
     return {
-      error: parsed.error.issues[0]?.message ?? "입력을 확인해 주세요.",
+      error: firstIssue(parsed.error, "입력을 확인해 주세요."),
       values,
     };
   }
@@ -151,8 +157,13 @@ export async function completeRegistrationAction(
     return { error: "가입하지 못했습니다.", values };
   }
 
-  await signInSilently(parsed.data.email, parsed.data.password, headers());
-  redirect("/");
+  const signedIn = await signInSilently(
+    parsed.data.email,
+    parsed.data.password,
+    headers(),
+  );
+  // 자동 로그인이 실패하면 홈이 아니라 안내 문구가 있는 로그인 화면으로 보낸다.
+  redirect(signedIn ? "/" : "/login?loginError=server");
 }
 
 export type VerifyResult = {
@@ -198,7 +209,7 @@ export async function confirmVerificationAction(
   if (!parsed.success) {
     return {
       ok: false,
-      error: parsed.error.issues[0]?.message ?? "입력을 확인해 주세요.",
+      error: firstIssue(parsed.error, "입력을 확인해 주세요."),
     };
   }
 

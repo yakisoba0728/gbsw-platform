@@ -1,13 +1,14 @@
-import { prisma, type DbClient, withTransaction } from "@/core/db/client";
+import { prisma, type DbClient, withTransaction, TX_BUDGETS } from "@/core/db/client";
+import { isUniqueViolation } from "@/core/db/unique-violation";
 import type { Prisma } from "@/generated/prisma/client";
 import {
   addKindPoints,
   emptyKindTotals,
   withNetScore,
   type KindTotals,
-  type MeritKind,
-  type MeritTrack,
-} from "@/core/authz/merit-track";
+} from "./merit.points";
+import type { MeritKind, MeritTrack } from "@/core/authz/merit-track";
+import { STUDENT_SEARCH_LIMIT } from "./merit.schema";
 import type {
   CreateRuleInput,
   RecentAwardFilter,
@@ -191,13 +192,8 @@ export async function createThreshold(
     await db.meritThreshold.create({ data });
     return true;
   } catch (error) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      (error as { code?: unknown }).code === "P2002"
-    ) {
-      return false;
-    }
+    // 트랙이 기본 키라 create에서 나는 유일 제약 위반은 트랙 경합 하나뿐이다.
+    if (isUniqueViolation(error, "track")) return false;
     throw error;
   }
 }
@@ -356,10 +352,7 @@ export async function createAwards(
 
   if (db) return run(db);
 
-  return withTransaction(
-    run,
-    { timeout: 30_000, maxWait: 5_000 },
-  );
+  return withTransaction(run, TX_BUDGETS.meritAward);
 }
 
 export async function findAwardableStudents(
@@ -490,7 +483,7 @@ export async function searchStudents(
           : []),
       ],
     },
-    take: 30,
+    take: STUDENT_SEARCH_LIMIT,
     orderBy: [{ user: { name: "asc" } }, { id: "asc" }],
     select: {
       id: true,

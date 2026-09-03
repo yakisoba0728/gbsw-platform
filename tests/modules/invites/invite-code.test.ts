@@ -4,7 +4,7 @@ import {
   isInviteUsable,
   maskInviteCode,
   normalizeInviteCode,
-} from "@/lib/invite-code";
+} from "@/modules/invites/invite-code";
 
 describe("formatInviteCode()", () => {
   it("시안의 GBSW-0000-0000 형태로 끊는다", () => {

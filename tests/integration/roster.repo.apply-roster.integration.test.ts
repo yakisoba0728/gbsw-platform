@@ -140,12 +140,8 @@ describe("applyRoster() — 명단에서 빠진 학생은 기록을 보존한 �
 
     const result = await applyRoster(YEAR, {
       assignments: [],
-      newStudents: [],
-      inviteExpiresAt: null,
       managedStudentProfileIds: [studentProfileId],
       deleteStudentProfileIds: [studentProfileId],
-      createdById: adminId,
-      createdByName: "통합테스트 관리자",
     });
 
     expect(result.revokedInvites.map((i) => i.id).sort()).toEqual(pendingIds);

@@ -8,8 +8,13 @@ import type { SessionUser } from "@/core/auth/session";
 import { assertCan } from "@/core/authz/errors";
 import { withTransaction } from "@/core/db/client";
 import { isSerializationConflict } from "@/core/db/transaction-conflict";
-import { generateUniqueCode, toExpiresAt } from "@/modules/invites/invite.service";
 import { getCurrentYear } from "@/modules/academic-year/academic-year.service";
+import {
+  issueInvitesBulk,
+  INVITE_CODE_RETRIES,
+  InviteCodeCollisionError,
+  type IssuedBulkInvite,
+} from "@/modules/invites/invite.service";
 import { buildExportRows } from "./roster.export";
 import { parseRoster, type RosterRow } from "./roster.parse";
 import { planRoster, type ExistingStudent, type RosterPlan } from "./roster.plan";
@@ -21,7 +26,20 @@ import * as repo from "./roster.repo";
 
 export class RosterError extends Error {}
 
-const INVITE_EXPIRES_DAYS = 90;
+async function retryInviteCodeCollisions<T>(run: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await run();
+    } catch (error) {
+      if (
+        !(error instanceof InviteCodeCollisionError) ||
+        attempt >= INVITE_CODE_RETRIES
+      ) {
+        throw error;
+      }
+    }
+  }
+}
 
 export function createRosterFingerprint(existing: ExistingStudent[]): string {
   const rows = existing
@@ -125,7 +143,7 @@ export async function applyRosterPlan(
   saved: number;
   invitesIssued: number;
   deleted: number;
-  invites: Awaited<ReturnType<typeof repo.applyRoster>>["invites"];
+  invites: IssuedBulkInvite[];
   excludedNewStudents: { line: number; name: string; status: string | null }[];
 }> {
   await assertMayImport(actor);
@@ -233,121 +251,132 @@ export async function applyRosterPlan(
     .filter((r) => r.status !== "ENROLLED")
     .map((r) => ({ line: r.line, name: r.name, status: r.status }));
 
-  const codes = new Set<string>();
-  while (codes.size < eligibleNewStudents.length) {
-    codes.add(await generateUniqueCode());
-  }
-  const codeList = [...codes];
-  const newStudents = eligibleNewStudents.map((row, i) => ({ row, code: codeList[i]! }));
+  type AppliedRoster = Awaited<ReturnType<typeof repo.applyRoster>> & {
+    invites: Awaited<ReturnType<typeof issueInvitesBulk>>;
+  };
 
-  let applied: Awaited<ReturnType<typeof repo.applyRoster>>;
+  let applied: AppliedRoster;
   try {
-    applied = await withTransaction(
-      async (tx) => {
-        const currentYear = await repo.findCurrentYearForUpdate(tx);
-        if (currentYear !== expectedYear) {
-          throw new RosterError("YEAR_CHANGED");
-        }
+    applied = await retryInviteCodeCollisions(() =>
+      withTransaction(
+        async (tx) => {
+          const currentYear = await repo.findCurrentYearForUpdate(tx);
+          if (currentYear !== expectedYear) {
+            throw new RosterError("YEAR_CHANGED");
+          }
 
-        // 미리보기 뒤 변경뿐 아니라 잠금을 기다리는 동안의 변경도 거부한다.
-        const currentInTransaction = await repo.listExisting(year, tx);
-        if (createRosterFingerprint(currentInTransaction) !== expectedRosterFingerprint) {
-          throw new RosterError("ROSTER_CHANGED");
-        }
+          // 미리보기 뒤 변경뿐 아니라 잠금을 기다리는 동안의 변경도 거부한다.
+          const currentInTransaction = await repo.listExisting(year, tx);
+          if (createRosterFingerprint(currentInTransaction) !== expectedRosterFingerprint) {
+            throw new RosterError("ROSTER_CHANGED");
+          }
 
-        const result = await repo.applyRoster(
-          year,
-          {
-            assignments,
-            newStudents,
-            inviteExpiresAt: toExpiresAt(INVITE_EXPIRES_DAYS),
-            managedStudentProfileIds: existing.map((s) => s.studentProfileId),
-            deleteStudentProfileIds: currentDeletionIdList,
-            createdById: actor.id,
-            createdByName: actor.name,
-          },
-          tx,
-        );
-        const { invites, revokedInvites } = result;
-
-        await recordAudit(
-          {
-            actorUserId: actor.id,
-            action: "enrollment:import",
-            targetType: "AcademicYear",
-            targetId: String(year),
-            metadata: {
-              year,
-              reassign: plan.reassign.length,
-              statusChange: plan.statusChange.length,
-              newAssignment: plan.newAssignment.length,
-              newStudents: plan.newStudents.length,
-              invitesIssued: invites.length,
-              excludedNew: excludedNewStudents.length,
-              softDeleted: plan.missingFromFile.length,
-              ...(restoredCount > 0 ? { restored: restoredCount } : {}),
+          const result = await repo.applyRoster(
+            year,
+            {
+              assignments,
+              managedStudentProfileIds: existing.map((s) => s.studentProfileId),
+              deleteStudentProfileIds: currentDeletionIdList,
             },
-          },
-          tx,
-        );
+            tx,
+          );
+          const { revokedInvites } = result;
 
-        const entries: RecordAuditInput[] = [];
+          // 발급 규칙(코드 생성·만료)은 초대 도메인의 bulk 진입점에 맡긴다.
+          const invites = await issueInvitesBulk(
+            {
+              actorId: actor.id,
+              actorName: actor.name,
+              students: eligibleNewStudents.map((row) => ({
+                name: row.name,
+                birthDate: row.birthDate,
+                grade: row.grade,
+                classNo: row.classNo,
+                number: row.number,
+              })),
+            },
+            tx,
+          );
 
-        for (const m of plan.missingFromFile) {
-          entries.push({
-            actorUserId: actor.id,
-            actorName: actor.name,
-            action: "user:soft-delete",
-            targetType: "User",
-            targetId: m.userId,
-          });
-        }
+          await recordAudit(
+            {
+              actorUserId: actor.id,
+              action: "enrollment:import",
+              targetType: "AcademicYear",
+              targetId: String(year),
+              metadata: {
+                year,
+                reassign: plan.reassign.length,
+                statusChange: plan.statusChange.length,
+                newAssignment: plan.newAssignment.length,
+                newStudents: plan.newStudents.length,
+                invitesIssued: invites.length,
+                excludedNew: excludedNewStudents.length,
+                softDeleted: plan.missingFromFile.length,
+                ...(restoredCount > 0 ? { restored: restoredCount } : {}),
+              },
+            },
+            tx,
+          );
 
-        for (const invite of revokedInvites) {
-          entries.push({
-            actorUserId: actor.id,
-            actorName: actor.name,
-            action: "invite:revoke:roster",
-            targetType: "Invite",
-            targetId: invite.id,
-            metadata: { role: invite.role, status: invite.status },
-          });
-        }
+          const entries: RecordAuditInput[] = [];
 
-        for (const invite of invites) {
-          entries.push({
-            actorUserId: actor.id,
-            actorName: actor.name,
-            action: "invite:create",
-            targetType: "Invite",
-            targetId: invite.id,
-            metadata: { role: "STUDENT" },
-          });
-        }
+          for (const m of plan.missingFromFile) {
+            entries.push({
+              actorUserId: actor.id,
+              actorName: actor.name,
+              action: "user:soft-delete",
+              targetType: "User",
+              targetId: m.userId,
+            });
+          }
 
-        for (const a of assignments) {
-          if (!a.statusChanged) continue;
-          const before = accountActiveByProfile.get(a.studentProfileId!);
-          const active = a.status === "ENROLLED";
-          if (before === undefined || before === active) continue;
+          for (const invite of revokedInvites) {
+            entries.push({
+              actorUserId: actor.id,
+              actorName: actor.name,
+              action: "invite:revoke:roster",
+              targetType: "Invite",
+              targetId: invite.id,
+              metadata: { role: invite.role, status: invite.status },
+            });
+          }
 
-          entries.push({
-            actorUserId: actor.id,
-            actorName: actor.name,
-            action: active ? "user:activate" : "user:deactivate",
-            targetType: "User",
-            targetId: userIdByProfile.get(a.studentProfileId!)!,
-          });
-        }
+          for (const invite of invites) {
+            entries.push({
+              actorUserId: actor.id,
+              actorName: actor.name,
+              action: "invite:create",
+              targetType: "Invite",
+              targetId: invite.id,
+              metadata: { role: "STUDENT" },
+            });
+          }
 
-        await recordAuditMany(entries, tx);
+          for (const a of assignments) {
+            if (!a.statusChanged) continue;
+            const before = accountActiveByProfile.get(a.studentProfileId!);
+            const active = a.status === "ENROLLED";
+            if (before === undefined || before === active) continue;
 
-        return result;
-      },
-      { timeout: 120_000, maxWait: 10_000, isolationLevel: "Serializable" },
+            entries.push({
+              actorUserId: actor.id,
+              actorName: actor.name,
+              action: active ? "user:activate" : "user:deactivate",
+              targetType: "User",
+              targetId: userIdByProfile.get(a.studentProfileId!)!,
+            });
+          }
+
+          await recordAuditMany(entries, tx);
+
+          return { revokedInvites, invites };
+        },
+        { timeout: 120_000, maxWait: 10_000, isolationLevel: "Serializable" },
+      ),
     );
   } catch (error) {
-    if (error instanceof repo.InviteCodeCollisionError) {
+    if (error instanceof InviteCodeCollisionError) {
       throw new RosterError("CODE_COLLISION");
     }
     if (error instanceof repo.NumberTakenError) {

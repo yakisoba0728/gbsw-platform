@@ -73,6 +73,29 @@ export async function insertCode(input: {
   return db.verificationCode.create({ data: input });
 }
 
+/**
+ * 활성화되지 못한 예약 행을 정리한다. 예약 행은 expiresAt이 예약 시각과 같고
+ * 활성화에 성공한 행은 만료 시각이 생성 시각보다 뒤이므로(TTL 5분),
+ * expiresAt <= createdAt인 죽은 행은 전부 활성화 실패분뿐이다. 정상 코드는
+ * 만료돼도 발송 한도 산정 기록으로 남는다.
+ */
+export async function deleteStaleReservations(
+  channel: string,
+  target: string,
+  now: Date,
+  db: DbClient = prisma,
+): Promise<void> {
+  await db.$executeRaw`
+    DELETE FROM "VerificationCode"
+    WHERE "channel" = ${channel}
+      AND "target" = ${target}
+      AND "consumedAt" IS NULL
+      AND "verifiedAt" IS NULL
+      AND "expiresAt" <= ${now}
+      AND "expiresAt" <= "createdAt"
+  `;
+}
+
 export async function activateCode(
   id: string,
   expiresAt: Date,

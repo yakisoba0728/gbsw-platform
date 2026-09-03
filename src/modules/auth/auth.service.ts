@@ -100,11 +100,15 @@ export async function authenticateWithEmail(input: {
   return { ok: true, response };
 }
 
+/**
+ * 가입 직후 세션을 발급한다. 가입 자체는 이미 끝났으므로 실패가 전파되지는 않고,
+ * 성공 여부만 돌려준다. 호출자는 실패 시 사용자에게 로그인을 안내해야 한다.
+ */
 export async function signInSilently(
   email: string,
   password: string,
   requestHeaders: Promise<Headers>,
-): Promise<void> {
+): Promise<boolean> {
   let userId: string;
   try {
     const result = await auth.api.signInEmail({
@@ -112,8 +116,9 @@ export async function signInSilently(
       headers: await requestHeaders,
     });
     userId = result.user.id;
-  } catch {
-    return;
+  } catch (error) {
+    console.error("[auth] 자동 로그인에 실패했습니다.", error);
+    return false;
   }
 
   try {
@@ -127,6 +132,8 @@ export async function signInSilently(
   } catch (error) {
     console.error("[auth] 자동 로그인 기록을 남기지 못했습니다.", error);
   }
+
+  return true;
 }
 
 export async function signOut(request: Request): Promise<Response> {

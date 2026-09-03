@@ -7,6 +7,8 @@ const findComment = vi.fn();
 const createComment = vi.fn();
 const markCommentDeleted = vi.fn();
 const findPost = vi.fn();
+const countRecentCommentsByAuthor = vi.fn();
+const lockFloodBucket = vi.fn();
 const getReadableBySlug = vi.fn();
 const getWritableBySlug = vi.fn();
 const {
@@ -21,6 +23,8 @@ vi.mock("@/modules/community/community.repo", () => ({
   createComment,
   markCommentDeleted,
   findPost,
+  countRecentCommentsByAuthor,
+  lockFloodBucket,
 }));
 vi.mock("@/modules/community/board.service", () => ({
   getReadableBySlug,
@@ -84,6 +88,8 @@ beforeEach(() => {
   createComment.mockResolvedValue({ id: "cm1" });
   markCommentDeleted.mockResolvedValue(1);
   listComments.mockResolvedValue([]);
+  countRecentCommentsByAuthor.mockResolvedValue(0);
+  lockFloodBucket.mockResolvedValue(undefined);
 });
 
 describe("createComment", () => {
@@ -129,6 +135,31 @@ describe("createComment", () => {
     await expect(service.createComment(student, input)).rejects.toThrow(
       new CommunityError("POST_NOT_FOUND"),
     );
+  });
+
+  it("도배 방지 — 10분 창 안에 상한만큼 달았으면 TOO_MANY_COMMENTS", async () => {
+    countRecentCommentsByAuthor.mockResolvedValue(10);
+
+    await expect(service.createComment(student, input)).rejects.toThrow(
+      new CommunityError("TOO_MANY_COMMENTS"),
+    );
+    expect(lockFloodBucket).toHaveBeenCalledWith("s-1", "comment", txClient);
+    expect(countRecentCommentsByAuthor).toHaveBeenCalledWith(
+      "s-1",
+      expect.any(Date),
+      txClient,
+    );
+    expect(lockFloodBucket.mock.invocationCallOrder[0]).toBeLessThan(
+      countRecentCommentsByAuthor.mock.invocationCallOrder[0]!,
+    );
+    expect(createComment).not.toHaveBeenCalled();
+    expect(recordAudit).not.toHaveBeenCalled();
+  });
+
+  it("상한 바로 아래면 통과한다 — 작성자 기준으로 센다", async () => {
+    countRecentCommentsByAuthor.mockResolvedValue(9);
+
+    await expect(service.createComment(student, input)).resolves.toBeDefined();
   });
 });
 

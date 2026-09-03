@@ -10,7 +10,7 @@ import { SectionCard } from "@/components/ui/section-card";
 import { DataTable, type Column } from "@/components/ui/table";
 import { RevokeButton } from "./revoke-button";
 import { honorificName, isRole } from "@/core/authz/roles";
-import { maskInviteCode } from "@/lib/invite-code";
+import { maskInviteCode } from "@/modules/invites/invite-code";
 
 export type InviteRow = {
   id: string;

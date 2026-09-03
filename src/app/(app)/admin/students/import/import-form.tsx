@@ -13,7 +13,7 @@ import {
   ENROLLMENT_STATUS_LABELS,
   type EnrollmentStatus,
 } from "@/core/authz/enrollment-status";
-import { formatInviteCode } from "@/lib/invite-code";
+import { formatInviteCode } from "@/modules/invites/invite-code";
 import { toStyledSheetData } from "@/lib/xlsx-sheet";
 import {
   ROSTER_COLUMN_WIDTHS,

@@ -45,6 +45,8 @@ const {
   createParentInvite,
   createParentInviteFor,
   createStudentInvite,
+  issueInvitesBulk,
+  InviteCodeCollisionError,
   listInvites,
   listMyParentInvites,
   listStudentsForInvite,
@@ -286,6 +288,113 @@ describe("관리자가 학생을 지정해 발급하는 학부모 코드", () =>
 
     expect(countActiveByStudent).not.toHaveBeenCalled();
     expect(insertInvite).not.toHaveBeenCalled();
+  });
+});
+
+describe("명단 대량 발급(issueInvitesBulk)", () => {
+  const bulkTx = { bulk: "tx" } as never;
+
+  function bulkInput(studentCount = 1) {
+    return {
+      actorId: "admin-1",
+      actorName: "관리자",
+      students: Array.from({ length: studentCount }, (_, i) => ({
+        name: studentCount > 1 ? `새학생${i + 1}` : "새학생",
+        birthDate: "2011-01-01",
+        grade: 1,
+        classNo: 3,
+        number: 9 + i,
+      })),
+    };
+  }
+
+  function codeCollision() {
+    return Object.assign(new Error("Unique constraint failed"), {
+      name: "PrismaClientKnownRequestError",
+      code: "P2002",
+      meta: {
+        modelName: "Invite",
+        driverAdapterError: {
+          name: "DriverAdapterError",
+          cause: {
+            originalCode: "23505",
+            originalMessage:
+              'duplicate key value violates unique constraint "Invite_code_key"',
+            kind: "UniqueConstraintViolation",
+            constraint: { fields: ["code"] },
+          },
+        },
+      },
+    });
+  }
+
+  it("학생 수만큼 STUDENT 코드를 만들고 만료·발급자 스냅샷을 넣는다", async () => {
+    insertInvite
+      .mockResolvedValueOnce({ id: "inv-1", code: "GBSWAAAA2345" })
+      .mockResolvedValueOnce({ id: "inv-2", code: "GBSWBBBB2345" });
+    const before = Date.now();
+
+    const issued = await issueInvitesBulk(bulkInput(2), bulkTx);
+
+    expect(issued).toEqual([
+      { id: "inv-1", name: "새학생1", code: "GBSWAAAA2345", grade: 1, classNo: 3, number: 9 },
+      { id: "inv-2", name: "새학생2", code: "GBSWBBBB2345", grade: 1, classNo: 3, number: 10 },
+    ]);
+
+    const first = insertInvite.mock.calls[0]![0];
+    expect(first.role).toBe("STUDENT");
+    expect(first.createdById).toBe("admin-1");
+    expect(first.createdByName).toBe("관리자");
+    expect(first.expiresAt).toBeInstanceOf(Date);
+    const days = (first.expiresAt!.getTime() - before) / (24 * 60 * 60 * 1000);
+    expect(days).toBeGreaterThan(89.9);
+    expect(days).toBeLessThanOrEqual(90);
+    expect(first.metadata).toEqual({
+      name: "새학생1",
+      birthDate: "2011-01-01",
+      grade: 1,
+      classNo: 3,
+      number: 9,
+    });
+    // 명단 반영 트랜잭션 안에서 실행된다.
+    expect(insertInvite.mock.calls[0]![1]).toBe(bulkTx);
+    expect(insertInvite.mock.calls[1]![1]).toBe(bulkTx);
+  });
+
+  it("사전 DB 검사 없이 코드를 만든다 — 코드가 안 겹치면 쿼리 한 번으로 끝난다", async () => {
+    insertInvite.mockResolvedValue({ id: "inv-1", code: "GBSWAAAA2345" });
+
+    await issueInvitesBulk(bulkInput(), bulkTx);
+
+    expect(codeExists).not.toHaveBeenCalled();
+    expect(insertInvite).toHaveBeenCalledTimes(1);
+  });
+
+  it("코드 유일 제약에 걸리면 중단된 tx를 재사용하지 않고 호출자에게 알린다", async () => {
+    insertInvite.mockRejectedValueOnce(codeCollision());
+
+    await expect(issueInvitesBulk(bulkInput(), bulkTx)).rejects.toBeInstanceOf(
+      InviteCodeCollisionError,
+    );
+
+    expect(insertInvite).toHaveBeenCalledTimes(1);
+    expect(codeExists).not.toHaveBeenCalled();
+  });
+
+  it("같은 트랜잭션에서는 충돌 재시도를 하지 않는다", async () => {
+    insertInvite.mockRejectedValue(codeCollision());
+
+    await expect(issueInvitesBulk(bulkInput(), bulkTx)).rejects.toBeInstanceOf(
+      InviteCodeCollisionError,
+    );
+    expect(insertInvite).toHaveBeenCalledTimes(1);
+  });
+
+  it("코드와 무관한 오류는 그대로 전파한다", async () => {
+    const boom = new Error("연결이 끊겼습니다");
+    insertInvite.mockRejectedValue(boom);
+
+    await expect(issueInvitesBulk(bulkInput(), bulkTx)).rejects.toBe(boom);
   });
 });
 

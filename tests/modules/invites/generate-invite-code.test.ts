@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const { generateInviteCode } = await import("@/lib/generate-invite-code");
-const { formatInviteCode, normalizeInviteCode } = await import("@/lib/invite-code");
+const { generateInviteCode } = await import("@/modules/invites/generate-invite-code");
+const { formatInviteCode, normalizeInviteCode } = await import("@/modules/invites/invite-code");
 const { formatInviteCodeInput } = await import("@/lib/masks");
 
 describe("generateInviteCode()", () => {

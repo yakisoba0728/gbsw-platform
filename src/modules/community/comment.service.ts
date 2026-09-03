@@ -4,9 +4,14 @@ import { can } from "@/core/authz/can";
 import { denyAccess } from "@/core/authz/errors";
 import { withTransaction } from "@/core/db/client";
 import * as board from "./board.service";
+import {
+  FLOOD_WINDOW_MS,
+  MAX_COMMENTS_PER_WINDOW,
+  type CreateCommentInput,
+  type DeleteCommentInput,
+} from "./community.schema";
 import { CommunityError } from "./community.error";
 import * as repo from "./community.repo";
-import type { CreateCommentInput, DeleteCommentInput } from "./community.schema";
 import { toCommentView, type CommentView } from "./community.view";
 
 async function loadLivePost(postId: string) {
@@ -26,6 +31,19 @@ export async function listComments(
   return rows.map((row) => toCommentView(row, post, community, actor));
 }
 
+/* 도배 방지 — 최근 윈도 안에 이미 상한만큼 달았으면 더 달지 못한다. */
+async function assertNotFloodingComments(
+  actor: SessionUser,
+  tx: Parameters<typeof repo.lockFloodBucket>[2],
+): Promise<void> {
+  await repo.lockFloodBucket(actor.id, "comment", tx);
+  const since = new Date(Date.now() - FLOOD_WINDOW_MS);
+  const recent = await repo.countRecentCommentsByAuthor(actor.id, since, tx);
+  if (recent >= MAX_COMMENTS_PER_WINDOW) {
+    throw new CommunityError("TOO_MANY_COMMENTS");
+  }
+}
+
 export async function createComment(
   actor: SessionUser,
   input: CreateCommentInput,
@@ -34,6 +52,8 @@ export async function createComment(
   const community = await board.getWritableBySlug(actor, post.community.slug);
 
   await withTransaction(async (tx) => {
+    await assertNotFloodingComments(actor, tx);
+
     const { id } = await repo.createComment(
       {
         postId: input.postId,

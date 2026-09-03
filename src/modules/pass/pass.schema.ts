@@ -7,6 +7,7 @@ import {
   kstNextDayStart,
   parseDateInputKst,
 } from "@/lib/datetime";
+import { optionalText, searchText } from "@/lib/zod-fields";
 
 const dateInput = z
   .string()
@@ -29,14 +30,6 @@ const reason = z
   .trim()
   .min(1, "사유를 입력해 주세요.")
   .max(200, "사유는 200자를 넘을 수 없습니다.");
-
-const optionalText = (max: number) =>
-  z
-    .preprocess(
-      (v) => (v == null ? "" : v),
-      z.string().trim().max(max, `${max}자를 넘을 수 없습니다.`),
-    )
-    .transform((v) => (v.length === 0 ? null : v));
 
 const id = z.string().trim().min(1).max(64);
 
@@ -133,11 +126,7 @@ export const PASS_HISTORY_PAGE_SIZE = 20;
 
 export const PASS_HISTORY_DEFAULT_DAYS = 30;
 
-const passHistorySearch = z.preprocess(
-  (value) =>
-    typeof value === "string" && value.trim().length === 0 ? undefined : value,
-  z.string().trim().max(60, "검색어는 60자를 넘을 수 없습니다.").optional(),
-);
+const passHistorySearch = searchText();
 
 const historyDate = z.preprocess(
   (value) =>

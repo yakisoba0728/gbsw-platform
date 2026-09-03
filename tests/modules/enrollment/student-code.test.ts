@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { generateStudentCode, isStudentCode, STUDENT_CODE_ALPHABET, STUDENT_CODE_LENGTH } from "@/lib/student-code";
+import { generateStudentCode, isStudentCode, STUDENT_CODE_ALPHABET, STUDENT_CODE_LENGTH } from "@/modules/enrollment/student-code";
 
 describe("generateStudentCode()", () => {
   it("정해진 길이와 알파벳만 쓴다", () => {

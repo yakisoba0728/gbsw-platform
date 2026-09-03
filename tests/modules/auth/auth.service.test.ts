@@ -147,12 +147,14 @@ describe("authenticateWithEmail()", () => {
 });
 
 describe("signInSilently()", () => {
-  it("발급된 사용자로 로그인 감사를 남긴다", async () => {
-    await signInSilently(
-      "ab12cd@gbsw.hs.kr",
-      "password",
-      Promise.resolve(requestHeaders),
-    );
+  it("발급된 사용자로 로그인 감사를 남기고 성공을 알린다", async () => {
+    await expect(
+      signInSilently(
+        "ab12cd@gbsw.hs.kr",
+        "password",
+        Promise.resolve(requestHeaders),
+      ),
+    ).resolves.toBe(true);
 
     expect(signInEmail).toHaveBeenCalledWith({
       body: { email: "ab12cd@gbsw.hs.kr", password: "password" },
@@ -167,36 +169,36 @@ describe("signInSilently()", () => {
     });
   });
 
-  it("세션 발급 실패는 가입 성공을 뒤집지 않는다", async () => {
+  it("세션 발급 실패는 거짓으로 알리고 가입 성공을 뒤집지 않는다", async () => {
     signInEmail.mockRejectedValueOnce(new Error("session failed"));
 
     await expect(
       signInSilently("user@gbsw.hs.kr", "password", Promise.resolve(requestHeaders)),
-    ).resolves.toBeUndefined();
+    ).resolves.toBe(false);
     expect(recordAudit).not.toHaveBeenCalled();
   });
 
-  it("감사 실패도 가입 성공을 뒤집지 않고 서버에 남긴다", async () => {
+  it("감사 실패도 성공을 그대로 알리고 서버에 남긴다", async () => {
     const error = new Error("audit unavailable");
     recordAudit.mockRejectedValueOnce(error);
 
     await expect(
       signInSilently("user@gbsw.hs.kr", "password", Promise.resolve(requestHeaders)),
-    ).resolves.toBeUndefined();
+    ).resolves.toBe(true);
     expect(consoleError).toHaveBeenCalledWith(
       "[auth] 자동 로그인 기록을 남기지 못했습니다.",
       error,
     );
   });
 
-  it("요청 헤더를 읽지 못해도 가입 성공을 뒤집지 않는다", async () => {
+  it("요청 헤더를 읽지 못하면 실패를 알리고 가입 성공을 뒤집지 않는다", async () => {
     await expect(
       signInSilently(
         "user@gbsw.hs.kr",
         "password",
         Promise.reject(new Error("request context unavailable")),
       ),
-    ).resolves.toBeUndefined();
+    ).resolves.toBe(false);
     expect(signInEmail).not.toHaveBeenCalled();
   });
 });

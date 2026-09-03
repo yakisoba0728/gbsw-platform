@@ -18,5 +18,3 @@ export function isUniqueViolation(error: unknown, field: string): boolean {
   if (Array.isArray(target)) return target.includes(field);
   return target === field;
 }
-
-export class NumberTakenError extends Error {}

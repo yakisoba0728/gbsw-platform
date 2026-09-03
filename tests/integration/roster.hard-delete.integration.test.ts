@@ -118,12 +118,8 @@ describe("applyRoster() — 학생 명단 제외와 졸업 보존", () => {
   it("제외 학생의 계정·연결은 보존하고 GRADUATED 학생도 그대로 둔다", async () => {
     await applyRoster(YEAR, {
       assignments: [],
-      newStudents: [],
-      inviteExpiresAt: null,
       managedStudentProfileIds: [deletedProfileId, graduatedProfileId],
       deleteStudentProfileIds: [deletedProfileId, graduatedProfileId],
-      createdById: adminId,
-      createdByName: "관리자",
     });
 
     const removedUser = await prisma.user.findUnique({ where: { id: deletedUserId } });
@@ -178,12 +174,8 @@ describe("applyRoster() — 학생 명단 제외와 졸업 보존", () => {
         ...row,
         statusChanged: true,
       })),
-      newStudents: [],
-      inviteExpiresAt: null,
       managedStudentProfileIds: existing.map((student) => student.studentProfileId),
       deleteStudentProfileIds: [],
-      createdById: adminId,
-      createdByName: "관리자",
     });
 
     const restored = await prisma.user.findUnique({

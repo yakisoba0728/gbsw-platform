@@ -128,7 +128,7 @@ describe("verifyStudentQr", () => {
     expect(listForVerify).not.toHaveBeenCalled();
   });
 
-  it("스텝이 없는 배포 직전 코드는 만료 뒤 조회 없이 STALE만 알린다", async () => {
+  it("스텝이 없는 레거시 코드는 만료 뒤 조회 없이 UNKNOWN이다", async () => {
     const [profileId, , signature] = code().split(".");
     const later = new Date(NOW.getTime() + 60_000);
 
@@ -139,12 +139,31 @@ describe("verifyStudentQr", () => {
     );
 
     expect(result).toEqual({
-      verdict: "STALE",
+      verdict: "UNKNOWN",
       student: null,
       pass: null,
       detailed: false,
     });
     expect(displayYear).not.toHaveBeenCalled();
+    expect(findStudentForCard).not.toHaveBeenCalled();
+    expect(listForVerify).not.toHaveBeenCalled();
+  });
+
+  it("스텝이 없는 레거시 코드는 현재 스텝 안이어도 조회하지 않고 UNKNOWN이다", async () => {
+    const [profileId, , signature] = code().split(".");
+
+    const result = await service.verifyStudentQr(
+      admin,
+      `${profileId}.${signature}`,
+      NOW,
+    );
+
+    expect(result).toEqual({
+      verdict: "UNKNOWN",
+      student: null,
+      pass: null,
+      detailed: true,
+    });
     expect(findStudentForCard).not.toHaveBeenCalled();
     expect(listForVerify).not.toHaveBeenCalled();
   });
@@ -205,6 +224,27 @@ describe("여러 건을 고르는 순서", () => {
     ]);
     const result = await service.verifyStudentQr(admin, code(), NOW);
     expect(result.verdict).toBe("EXPIRED");
+  });
+
+  it("끝난 건 중에서는 종료가 가장 늦은 것을 고른다 — 시작 순서와 다를 수 있다", async () => {
+    listForVerify.mockResolvedValue([
+      pass({
+        id: "먼저 시작해 늦게 끝난",
+        startAt: new Date("2026-08-27T01:00:00.000Z"),
+        endAt: new Date("2026-08-27T05:30:00.000Z"),
+      }),
+      pass({
+        id: "나중에 시작해 먼저 끝난",
+        startAt: new Date("2026-08-27T03:00:00.000Z"),
+        endAt: new Date("2026-08-27T04:00:00.000Z"),
+      }),
+    ]);
+
+    const result = await service.verifyStudentQr(admin, code(), NOW);
+
+    expect(result.verdict).toBe("EXPIRED");
+    expect(result.pass?.startAt).toEqual(new Date("2026-08-27T01:00:00.000Z"));
+    expect(result.pass?.endAt).toEqual(new Date("2026-08-27T05:30:00.000Z"));
   });
 
   it("종료 시각과 정확히 같으면 더는 유효하지 않고 EXPIRED다", async () => {

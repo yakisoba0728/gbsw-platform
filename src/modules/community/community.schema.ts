@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ROLES } from "@/core/authz/roles";
+import { optionalText } from "@/lib/zod-fields";
 
 export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 export const MAX_ATTACHMENTS_PER_POST = 5;
@@ -7,13 +8,10 @@ export const MAX_PENDING_ATTACHMENTS = 10;
 
 export const POSTS_PER_PAGE = 20;
 
-const optionalText = (max: number) =>
-  z
-    .preprocess(
-      (v) => (v == null ? "" : v),
-      z.string().trim().max(max, `${max}자를 넘을 수 없습니다.`),
-    )
-    .transform((v) => (v.length === 0 ? null : v));
+// 도배 방지: 같은 사용자가 한 윈도 안에 올릴 수 있는 글·댓글 수.
+export const FLOOD_WINDOW_MS = 10 * 60 * 1000;
+export const MAX_POSTS_PER_WINDOW = 3;
+export const MAX_COMMENTS_PER_WINDOW = 10;
 
 const checkbox = z.preprocess((v) => v === "on" || v === "true" || v === true, z.boolean());
 

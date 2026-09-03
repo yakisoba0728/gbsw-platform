@@ -3,7 +3,7 @@ import {
   generateTempPassword,
   TEMP_PASSWORD_ALPHABET,
   TEMP_PASSWORD_LENGTH,
-} from "@/lib/temp-password";
+} from "@/modules/admin-users/temp-password";
 
 describe("generateTempPassword()", () => {
   it("기본 길이는 14자다", () => {

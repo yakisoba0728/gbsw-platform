@@ -2,7 +2,7 @@ import {
   demeritLevel,
   type DemeritLevel,
   type DemeritThresholds,
-} from "@/core/authz/merit-track";
+} from "@/modules/merit/merit.points";
 
 const LEVEL_CLASS: Record<DemeritLevel, string> = {
   none: "text-rose",

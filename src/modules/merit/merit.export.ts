@@ -2,11 +2,11 @@ import {
   isYearScoped,
   MERIT_KIND_LABELS,
   MERIT_TRACK_LABELS,
-  meritKindDelta,
   type MeritKind,
   type MeritTrack,
 } from "@/core/authz/merit-track";
 import { formatDateInput, formatDateTimeSheet } from "@/lib/datetime";
+import { meritKindDelta } from "./merit.points";
 import type {
   RecentAwardFilter,
   RecentAwardStatus,

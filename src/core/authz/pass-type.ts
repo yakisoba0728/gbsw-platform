@@ -33,18 +33,5 @@ export function isPassStatus(value: unknown): value is PassStatus {
   return typeof value === "string" && (PASS_STATUSES as readonly string[]).includes(value);
 }
 
-export function requiresConsent(type: string): boolean {
-  return type === "OVERNIGHT";
-}
-
-export const DECIDABLE_STATUSES: readonly PassStatus[] = ["REQUESTED", "CONSENTED"];
-
-export const LIVE_STATUSES: readonly PassStatus[] = [
-  "REQUESTED",
-  "CONSENTED",
-  "APPROVED",
-];
-
-export function isRevocable(status: string, endAt: Date, now: Date): boolean {
-  return status === "APPROVED" && endAt.getTime() > now.getTime();
-}
+/* 출입증 도메인 정책(requiresConsent·DECIDABLE_STATUSES·LIVE_STATUSES·isRevocable)은
+   모듈이 소유한다 — src/modules/pass/pass.policy.ts */

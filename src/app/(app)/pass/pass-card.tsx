@@ -12,7 +12,7 @@ import {
   PASS_STATUS_TONES,
   passStatusLabel,
 } from "@/modules/pass/pass.labels";
-import type { PassWithStudent } from "@/modules/pass/pass.repo";
+import type { PassCardView } from "@/modules/pass/pass.view";
 import { honorificName } from "@/core/authz/roles";
 
 export { passEndLabel, passPeriod };
@@ -21,7 +21,7 @@ export function PassCard({
   pass,
   children,
 }: {
-  pass: PassWithStudent;
+  pass: PassCardView;
   children?: React.ReactNode;
 }) {
   const type = isPassType(pass.type) ? PASS_TYPE_LABELS[pass.type] : pass.type;

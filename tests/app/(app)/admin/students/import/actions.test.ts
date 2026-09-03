@@ -216,7 +216,8 @@ describe("previewRosterAction — 경계 검증", () => {
   });
 
   it("행 수 초과 안내는 실제 명단 상한을 따른다", async () => {
-    previewRoster.mockRejectedValueOnce(new Error("TOO_MANY_ROWS"));
+    const { RosterParseError } = await import("@/modules/enrollment/roster.parse");
+    previewRoster.mockRejectedValueOnce(new RosterParseError("TOO_MANY_ROWS"));
     const file = new File(["a"], "명단.csv");
 
     const state = await previewRosterAction(PREVIEW_INITIAL, form({ file }));
@@ -234,12 +235,22 @@ describe("previewRosterAction — 경계 검증", () => {
   });
 
   it("xlsx 사전 검사 오류는 원인을 한국어로 알린다", async () => {
-    previewRoster.mockRejectedValueOnce(new Error("XLSX_ZIP_BOMB"));
+    const { RosterParseError } = await import("@/modules/enrollment/roster.parse");
+    previewRoster.mockRejectedValueOnce(new RosterParseError("XLSX_ZIP_BOMB"));
     const file = new File(["a"], "명단.xlsx");
 
     const state = await previewRosterAction(PREVIEW_INITIAL, form({ file }));
 
     expect(state.error).toBe("압축을 풀었을 때 너무 큰 엑셀 파일입니다.");
+  });
+
+  it("메시지가 우연히 오류 코드와 같은 일반 오류는 도메인 오류로 오판하지 않는다", async () => {
+    previewRoster.mockRejectedValueOnce(new Error("EMPTY"));
+    const file = new File(["a"], "명단.csv");
+
+    const state = await previewRosterAction(PREVIEW_INITIAL, form({ file }));
+
+    expect(state.error).toBe("파일을 읽지 못했습니다.");
   });
 });
 

@@ -6,12 +6,14 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SectionCard } from "@/components/ui/section-card";
 import {
   MERIT_KIND_LABELS,
-  signedNet,
-  type DemeritThresholds,
   type MeritKind,
 } from "@/core/authz/merit-track";
 import type { CategorySlice, MonthlyPoint } from "@/modules/merit/merit.chart";
 import { scaleToPercent } from "@/modules/merit/merit.chart";
+import {
+  signedNet,
+  type DemeritThresholds,
+} from "@/modules/merit/merit.points";
 import { honorificName } from "@/core/authz/roles";
 
 function ChartCard({

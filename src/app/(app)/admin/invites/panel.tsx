@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { requirePermission } from "@/core/auth/session";
 import { formatDate } from "@/lib/datetime";
 import { isRole, ROLE_LABELS } from "@/core/authz/roles";
-import { formatInviteCode, isInviteUsable } from "@/lib/invite-code";
+import { formatInviteCode, isInviteUsable } from "@/modules/invites/invite-code";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import { studentInviteMetaSchema } from "@/modules/invites/invite.schema";
 import {

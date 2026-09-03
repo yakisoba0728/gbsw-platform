@@ -1,6 +1,7 @@
 import { prisma, type DbClient, withTransaction } from "@/core/db/client";
 import { lockCredentialAccountForMutation } from "@/core/auth/credential-session-boundary";
-import { isUniqueViolation, NumberTakenError } from "@/core/db/unique-violation";
+import { isUniqueViolation } from "@/core/db/unique-violation";
+import { NumberTakenError } from "@/modules/student/student-position";
 
 export { findCurrentYearForUpdate, findCurrentYear } from "@/modules/academic-year/academic-year.repo";
 

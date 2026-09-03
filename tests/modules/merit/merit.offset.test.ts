@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { meritKindDelta, meritKindSign } from "@/core/authz/merit-track";
+import { meritKindDelta, meritKindSign } from "@/modules/merit/merit.points";
 import { user } from "../../helpers/session";
 
 describe("meritKindDelta — 부호 규칙", () => {

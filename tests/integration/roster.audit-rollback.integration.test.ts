@@ -96,12 +96,8 @@ describe("applyRoster() + 감사로그 원자성", () => {
           YEAR,
           {
             assignments: [],
-            newStudents: [],
-            inviteExpiresAt: null,
             managedStudentProfileIds: [profileId],
             deleteStudentProfileIds: [profileId],
-            createdById: adminId,
-            createdByName: "원자성 관리자",
           },
           tx,
         );

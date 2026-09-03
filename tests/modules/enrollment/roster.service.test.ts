@@ -26,8 +26,7 @@ function auditEntries(): { action: string; [key: string]: unknown }[] {
 function noAudit(): boolean {
   return auditEntries().length === 0;
 }
-const generateUniqueCode = vi.fn();
-const toExpiresAt = vi.fn();
+const issueInvitesBulk = vi.fn();
 
 class InviteCodeCollisionError extends Error {}
 class NumberTakenError extends Error {}
@@ -38,7 +37,6 @@ vi.mock("@/modules/enrollment/roster.repo", () => ({
   applyRoster,
   findCurrentYearForUpdate,
   findCurrentYear,
-  InviteCodeCollisionError,
   NumberTakenError,
 }));
 vi.mock("server-only", () => ({}));
@@ -52,7 +50,11 @@ vi.mock("@/core/db/client", () => ({ withTransaction }));
 vi.mock("@/modules/academic-year/academic-year.service", () => ({
   getCurrentYear: vi.fn().mockResolvedValue(2026),
 }));
-vi.mock("@/modules/invites/invite.service", () => ({ generateUniqueCode, toExpiresAt }));
+vi.mock("@/modules/invites/invite.service", () => ({
+  issueInvitesBulk,
+  INVITE_CODE_RETRIES: 5,
+  InviteCodeCollisionError,
+}));
 
 const {
   applyRosterPlan: applyWithToken,
@@ -144,7 +146,7 @@ beforeEach(() => {
   listForExport.mockReset().mockResolvedValue([
     { ...재학생, entryClassNo: 3, entryNumber: 3 },
   ]);
-  applyRoster.mockReset().mockResolvedValue({ invites: [], revokedInvites: [] });
+  applyRoster.mockReset().mockResolvedValue({ revokedInvites: [] });
   findCurrentYearForUpdate.mockReset().mockResolvedValue(2026);
   findCurrentYear.mockReset().mockResolvedValue(2026);
   recordAudit.mockReset();
@@ -153,8 +155,23 @@ beforeEach(() => {
     fn(txClient),
   );
   codeCounter = 0;
-  generateUniqueCode.mockReset().mockImplementation(async () => `GBSWCODE${++codeCounter}`);
-  toExpiresAt.mockReset().mockReturnValue(new Date("2099-01-01"));
+  issueInvitesBulk.mockReset().mockImplementation(
+    async (input: {
+      actorId: string;
+      actorName: string;
+      students: { name: string; grade: number | null; classNo: number | null; number: number | null }[];
+    }, tx: unknown) => {
+      void tx;
+      return input.students.map((student) => ({
+        id: `inv-new-${++codeCounter}`,
+        name: student.name,
+        code: `GBSWCODE${codeCounter}`,
+        grade: student.grade,
+        classNo: student.classNo,
+        number: student.number,
+      }));
+    },
+  );
 });
 
 describe("createRosterFingerprint()", () => {
@@ -252,19 +269,16 @@ describe("applyRosterPlan()", () => {
 
   it("신규 학생 수만큼 초대코드를 만들어 돌려준다", async () => {
     listExisting.mockResolvedValue([]);
-    applyRoster.mockResolvedValue({
-      invites: [
-        {
-          id: "inv-new-1",
-          name: "김동혁",
-          code: "GBSWCODE1",
-          grade: 1,
-          classNo: 5,
-          number: 7,
-        },
-      ],
-      revokedInvites: [],
-    });
+    issueInvitesBulk.mockResolvedValue([
+      {
+        id: "inv-new-1",
+        name: "김동혁",
+        code: "GBSWCODE1",
+        grade: 1,
+        classNo: 5,
+        number: 7,
+      },
+    ]);
 
     const newRow = { ...row, studentCode: "" };
     const result = await applyRosterPlan(admin, 2026, [newRow], fingerprint([]), [], null);
@@ -272,7 +286,7 @@ describe("applyRosterPlan()", () => {
     expect(result.invites).toHaveLength(1);
     expect(result.saved).toBe(0);
     expect(result.invitesIssued).toBe(1);
-    expect(applyRoster.mock.calls[0]![1].newStudents).toHaveLength(1);
+    expect(result.invites[0].code).toBe("GBSWCODE1");
 
     const inviteLogs = auditEntries().filter((entry) => entry.action === "invite:create");
     expect(inviteLogs).toHaveLength(1);
@@ -284,19 +298,32 @@ describe("applyRosterPlan()", () => {
     expect(JSON.stringify(inviteLogs[0])).not.toContain("GBSWCODE1");
   });
 
-  it("발급 코드에 기본 만료를 둔다 — 종이로 나눠주는 코드를 무기한으로 두지 않는다", async () => {
+  it("신규 발급은 invites 모듈 bulk 진입점에 위임하고 트랜잭션 안에서 실행한다", async () => {
     listExisting.mockResolvedValue([]);
-    const expires = new Date("2099-05-01");
-    toExpiresAt.mockReturnValue(expires);
 
     const newRow = { ...row, studentCode: "" };
     await applyRosterPlan(admin, 2026, [newRow], fingerprint([]), [], null);
 
-    expect(applyRoster.mock.calls[0]![1].inviteExpiresAt).toBe(expires);
-    expect(toExpiresAt).toHaveBeenCalledWith(expect.any(Number));
+    expect(issueInvitesBulk).toHaveBeenCalledTimes(1);
+    expect(issueInvitesBulk).toHaveBeenCalledWith(
+      {
+        actorId: admin.id,
+        actorName: admin.name,
+        students: [
+          {
+            name: newRow.name,
+            birthDate: newRow.birthDate,
+            grade: newRow.grade,
+            classNo: newRow.classNo,
+            number: newRow.number,
+          },
+        ],
+      },
+      txClient,
+    );
   });
 
-  it("재학인 신규 학생만 초대코드 대상이다", async () => {
+  it("재학인 신규 학생만 초대코드 발급 대상이다", async () => {
     listExisting.mockResolvedValue([]);
 
     const 재학신규 = { ...row, studentCode: "", name: "재학이", birthDate: "2011-01-01" };
@@ -313,9 +340,9 @@ describe("applyRosterPlan()", () => {
 
     await applyRosterPlan(admin, 2026, [재학신규, 비재학신규], fingerprint([]), [], null);
 
-    const newStudents = applyRoster.mock.calls[0]![1].newStudents;
-    expect(newStudents).toHaveLength(1);
-    expect(newStudents[0].row.name).toBe("재학이");
+    const bulkInput = issueInvitesBulk.mock.calls[0]![0];
+    expect(bulkInput.students).toHaveLength(1);
+    expect(bulkInput.students[0].name).toBe("재학이");
   });
 
   describe("비재학 신규 줄은 흔적 없이 버려지지 않는다", () => {
@@ -455,8 +482,9 @@ describe("applyRosterPlan()", () => {
       "sp-statuschange",
       "sp-newassign",
     ]);
-    expect(applyRoster.mock.calls[0]![1].createdById).toBe(admin.id);
-    expect(applyRoster.mock.calls[0]![1].createdByName).toBe(admin.name);
+    // 발급자 스냅샷은 초대 발급 bulk 진입점으로 넘어간다.
+    expect(issueInvitesBulk.mock.calls[0]![0].actorId).toBe(admin.id);
+    expect(issueInvitesBulk.mock.calls[0]![0].actorName).toBe(admin.name);
   });
 
   it("자기 자신을 비재학으로 돌리는 반영은 거부한다 (자기 잠금 방어)", async () => {
@@ -496,12 +524,31 @@ describe("applyRosterPlan()", () => {
     );
   });
 
-  it("초대코드 생성이 배치 밖과 겹치면 CODE_COLLISION으로 옮긴다 (I2 backstop)", async () => {
+  it("초대코드가 한 번 겹치면 새 트랜잭션으로 전체 반영을 다시 시도한다", async () => {
     listExisting.mockResolvedValue([]);
-    applyRoster.mockRejectedValue(new InviteCodeCollisionError());
+    issueInvitesBulk
+      .mockRejectedValueOnce(new InviteCodeCollisionError())
+      .mockResolvedValueOnce([]);
 
     const newRow = { ...row, studentCode: "" };
-    await expect(applyRosterPlan(admin, 2026, [newRow], fingerprint([]), [], null)).rejects.toThrow("CODE_COLLISION");
+    await expect(
+      applyRosterPlan(admin, 2026, [newRow], fingerprint([]), [], null),
+    ).resolves.toBeDefined();
+
+    expect(withTransaction).toHaveBeenCalledTimes(2);
+    expect(issueInvitesBulk).toHaveBeenCalledTimes(2);
+  });
+
+  it("초대코드 충돌이 재시도 예산 내내 계속되면 CODE_COLLISION으로 옮긴다", async () => {
+    listExisting.mockResolvedValue([]);
+    issueInvitesBulk.mockRejectedValue(new InviteCodeCollisionError());
+
+    const newRow = { ...row, studentCode: "" };
+    await expect(
+      applyRosterPlan(admin, 2026, [newRow], fingerprint([]), [], null),
+    ).rejects.toThrow("CODE_COLLISION");
+
+    expect(withTransaction).toHaveBeenCalledTimes(5);
   });
 
   it("명단 밖 계정이 붙든 (반, 번호)에 걸리면 NUMBER_TAKEN으로 옮긴다", async () => {
@@ -510,15 +557,6 @@ describe("applyRosterPlan()", () => {
     await expect(applyRosterPlan(admin, 2026, [row], fingerprint(), [], null)).rejects.toThrow(
       "NUMBER_TAKEN",
     );
-  });
-
-  it("발급 코드는 generateUniqueCode()로 만든다", async () => {
-    listExisting.mockResolvedValue([]);
-
-    const newRow = { ...row, studentCode: "" };
-    await applyRosterPlan(admin, 2026, [newRow], fingerprint([]), [], null);
-
-    expect(generateUniqueCode).toHaveBeenCalled();
   });
 
   it("트랜잭션 안에서 다시 읽은 명단이 달라졌으면 반영하지 않는다", async () => {
@@ -793,10 +831,9 @@ describe("applyRosterPlan() — 명단에서 빠진 학생 계정 제외", () =>
   describe("폐기된 초대코드 감사로그", () => {
     it("명단 반영이 폐기한 코드마다 감사로그를 한 줄씩 남긴다", async () => {
       applyRoster.mockResolvedValue({
-        invites: [],
         revokedInvites: [
-          { id: "inv-1", role: "PARENT" },
-          { id: "inv-2", role: "PARENT" },
+          { id: "inv-1", role: "PARENT", status: "PENDING" },
+          { id: "inv-2", role: "PARENT", status: "PENDING" },
         ],
       });
 

@@ -1,11 +1,14 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const compose = readFileSync("docker-compose.yml", "utf8");
-const deployGuide = readFileSync("docs/deploy.md", "utf8");
-const readme = readFileSync("README.md", "utf8");
-const schema = readFileSync("prisma/schema.prisma", "utf8");
-const ciWorkflow = readFileSync(".github/workflows/ci.yml", "utf8");
+const readText = (file: string) =>
+  readFileSync(file, "utf8").replace(/\r\n?/g, "\n");
+
+const compose = readText("docker-compose.yml");
+const deployGuide = readText("docs/deploy.md");
+const readme = readText("README.md");
+const schema = readText("prisma/schema.prisma");
+const ciWorkflow = readText(".github/workflows/ci.yml");
 
 describe("배포 안내와 실제 설정의 일치", () => {
   it("메모리 부족을 일으킨 일괄 이미지 빌드를 명령으로 안내하지 않는다", () => {

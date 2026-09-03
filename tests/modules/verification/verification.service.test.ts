@@ -7,6 +7,7 @@ const lockSendRateLimitBuckets = vi.fn();
 const lockVerificationTarget = vi.fn();
 const expirePending = vi.fn();
 const insertCode = vi.fn();
+const deleteStaleReservations = vi.fn();
 const activateCode = vi.fn();
 const hasNewerActivatedCode = vi.fn();
 const findLiveCode = vi.fn();
@@ -30,6 +31,7 @@ vi.mock("@/modules/verification/verification.repo", () => ({
   lockVerificationTarget,
   expirePending,
   insertCode,
+  deleteStaleReservations,
   activateCode,
   hasNewerActivatedCode,
   findLiveCode,
@@ -65,6 +67,7 @@ beforeEach(() => {
   lockVerificationTarget.mockReset();
   expirePending.mockReset();
   insertCode.mockReset().mockResolvedValue({ id: "v1" });
+  deleteStaleReservations.mockReset().mockResolvedValue(undefined);
   activateCode.mockReset();
   hasNewerActivatedCode.mockReset().mockResolvedValue(false);
   findLiveCode.mockReset();
@@ -212,6 +215,25 @@ describe("requestCode()", () => {
     expect(activateCode.mock.calls.map((call) => call[0])).toEqual([
       "v-second",
     ]);
+  });
+
+  it("새 발송을 예약하기 전에 활성화 못 한 고아 예약 행을 대상 기준으로 지운다", async () => {
+    await requestCode("EMAIL", "a@b.kr");
+
+    expect(deleteStaleReservations).toHaveBeenCalledTimes(1);
+    expect(deleteStaleReservations).toHaveBeenCalledWith(
+      "EMAIL",
+      "a@b.kr",
+      expect.any(Date),
+      txClient,
+    );
+    // 고아 행이 한도를 채워도 정리 코드에 도달할 수 있게 먼저 지운다.
+    expect(deleteStaleReservations.mock.invocationCallOrder[0]).toBeLessThan(
+      countRecentSends.mock.invocationCallOrder[0]!,
+    );
+    expect(deleteStaleReservations.mock.invocationCallOrder[0]).toBeLessThan(
+      insertCode.mock.invocationCallOrder[0]!,
+    );
   });
 
   it("형식이 틀리면 보내지 않는다", async () => {

@@ -4,7 +4,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Note } from "@/components/ui/note";
 import { SectionCard } from "@/components/ui/section-card";
 import type { SessionUser } from "@/core/auth/session";
-import { requiresConsent } from "@/core/authz/pass-type";
 import { honorificName } from "@/core/authz/roles";
 import { formatDateInput } from "@/lib/datetime";
 import { formatSeat } from "@/lib/student-number";
@@ -13,6 +12,7 @@ import {
   listPendingPasses,
   listStudentsForIssue,
 } from "@/modules/pass/decision.service";
+import { requiresConsent } from "@/modules/pass/pass.policy";
 import { CancelButton } from "./cancel-button";
 import { DecisionPanel } from "./decision-panel";
 import { IssueForm } from "./issue-form";

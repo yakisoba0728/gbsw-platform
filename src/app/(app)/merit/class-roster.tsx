@@ -12,10 +12,12 @@ import { SectionCard } from "@/components/ui/section-card";
 import { DataTable, type Column } from "@/components/ui/table";
 import { TruncatedText } from "@/components/ui/truncated-text";
 import {
-  signedNet,
-  type DemeritThresholds,
   type MeritTrack,
 } from "@/core/authz/merit-track";
+import {
+  signedNet,
+  type DemeritThresholds,
+} from "@/modules/merit/merit.points";
 import { RulePicker, type RuleOption } from "@/components/merit/rule-picker";
 import {
   AwardSuccessDialog,

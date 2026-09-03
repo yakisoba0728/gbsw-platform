@@ -147,19 +147,40 @@ describe("threshold writes", () => {
     await expect(createThreshold(threshold)).resolves.toBe(false);
   });
 
-  it("미설정 행 생성 경합이 primary key 이름으로 와도 false다", async () => {
+  it("미설정 행 생성 경합이 primary key 모양(필드·인덱스)으로 와도 false다", async () => {
     thresholdCreate.mockRejectedValue(
       Object.assign(new Error("Unique constraint failed"), {
         code: "P2002",
         meta: {
           driverAdapterError: {
-            cause: { constraint: { index: "MeritThreshold_pkey" } },
+            cause: {
+              constraint: { fields: ["track"], index: "MeritThreshold_pkey" },
+            },
           },
         },
       }),
     );
 
     await expect(createThreshold(threshold)).resolves.toBe(false);
+  });
+
+  it("트랙이 아닌 유일 제약 위반이면 삼키지 않고 올린다", async () => {
+    thresholdCreate.mockRejectedValue(
+      Object.assign(new Error("Unique constraint failed"), {
+        code: "P2002",
+        meta: {
+          driverAdapterError: {
+            cause: {
+              constraint: { fields: ["other"], index: "MeritThreshold_other_key" },
+            },
+          },
+        },
+      }),
+    );
+
+    await expect(createThreshold(threshold)).rejects.toThrow(
+      "Unique constraint failed",
+    );
   });
 
   it("설정된 행은 화면이 읽은 updatedAt과 같은 경우만 갱신한다", async () => {

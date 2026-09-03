@@ -6,9 +6,12 @@ class InvalidCurrentPasswordError extends Error {}
 const redirect = vi.fn(() => {
   throw new Error("NEXT_REDIRECT");
 });
+const unstable_rethrow = vi.fn((error: unknown) => {
+  if (error instanceof Error && error.message === "NEXT_REDIRECT") throw error;
+});
 
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
-vi.mock("next/navigation", () => ({ redirect }));
+vi.mock("next/navigation", () => ({ redirect, unstable_rethrow }));
 vi.mock("@/core/auth/session", () => ({ requireAuth }));
 vi.mock("@/modules/account/account.service", () => ({
   changeOwnPassword,
@@ -109,11 +112,11 @@ describe("changePasswordAction — 경계 검증", () => {
     expect(state.error).toBe("현재 비밀번호를 입력해 주세요.");
   });
 
-  it("필드를 안 읽으면 영문 지문이 화면에 나간다", async () => {
+  it("필드를 안 읽으면 영문 지문 대신 한국어로 안내한다", async () => {
     const state = await changePasswordAction(INITIAL, new FormData());
 
     expect(changeOwnPassword).not.toHaveBeenCalled();
-    expect(state.error).toBe("Invalid input: expected string, received null");
+    expect(state.error).toBe("입력을 확인해 주세요.");
   });
 
   it("현재 비밀번호 불일치만 해당 문구로 안내한다", async () => {
@@ -135,7 +138,7 @@ describe("changePasswordAction — 경계 검증", () => {
       error: "비밀번호를 변경하지 못했습니다.",
     });
     expect(errorSpy).toHaveBeenCalledWith(
-      "[account] password change failed",
+      "[account] 예상 못 한 오류",
       expect.any(Error),
     );
     errorSpy.mockRestore();

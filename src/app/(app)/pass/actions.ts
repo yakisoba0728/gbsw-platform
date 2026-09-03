@@ -4,8 +4,13 @@ import { revalidatePath } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireAuth } from "@/core/auth/session";
-import { ForbiddenError } from "@/core/authz/errors";
-import { firstIssue } from "@/lib/action-message";
+import { defineFormAction } from "@/lib/action";
+import {
+  type ExportState,
+  EXPORT_FAILED,
+  exportErrorState,
+  exportFailure,
+} from "@/lib/export-state";
 import * as decision from "@/modules/pass/decision.service";
 import { PassError } from "@/modules/pass/pass.error";
 import {
@@ -29,7 +34,8 @@ import { MAX_OVERNIGHT_DAYS } from "@/modules/pass/pass.window";
 import * as request from "@/modules/pass/request.service";
 import type { PassActionState } from "./action-state";
 
-const MESSAGES: Record<string, string> = {
+const MESSAGES: Record<string, string> & { FORBIDDEN: string } = {
+  FORBIDDEN: "권한이 없습니다.",
   PASS_NOT_FOUND: "출입증을 찾을 수 없습니다.",
   NO_STUDENT_PROFILE: "학생 계정이 아닙니다.",
   ALREADY_DECIDED: "이미 처리된 신청입니다. 화면을 새로 고쳐 주세요.",
@@ -45,20 +51,7 @@ const MESSAGES: Record<string, string> = {
   PASS_BUSY: "명단 반영 중일 수 있습니다. 잠시 후 다시 시도해 주세요.",
 };
 
-const FORBIDDEN_MESSAGE = "권한이 없습니다.";
 const UNKNOWN_MESSAGE = "처리하지 못했습니다.";
-
-function fail(error: string): PassActionState {
-  return { error, ok: false };
-}
-
-function toState(error: unknown): PassActionState {
-  if (error instanceof ForbiddenError) return fail(FORBIDDEN_MESSAGE);
-  if (error instanceof PassError) {
-    return fail(MESSAGES[error.message] ?? UNKNOWN_MESSAGE);
-  }
-  throw error;
-}
 
 function revalidatePass(passId?: string): void {
   revalidatePath("/pass");
@@ -82,13 +75,9 @@ async function redirectWithPassFlash(
   redirect("/pass");
 }
 
-export async function requestAction(
-  _prev: PassActionState,
-  formData: FormData,
-): Promise<PassActionState> {
-  const actor = await requireAuth();
-
-  const parsed = requestPassSchema.safeParse({
+export const requestAction = defineFormAction<PassActionState>()({
+  schema: requestPassSchema,
+  input: (formData) => ({
     type: formData.get("type"),
     date: formData.get("date"),
     startTime: formData.get("startTime"),
@@ -97,124 +86,105 @@ export async function requestAction(
     endDate: formData.get("endDate"),
     destination: formData.get("destination"),
     reason: formData.get("reason"),
-  });
-  if (!parsed.success) {
-    return fail(firstIssue(parsed.error, "입력을 확인해 주세요."));
-  }
+  }),
+  failState: (error) => ({ error, ok: false }),
+  run: async (actor, data) => {
+    await request.requestPass(actor, data);
+    revalidatePass();
+    await redirectWithPassFlash("requested", actor.id);
+    // redirect는 항상 던지므로 여기에는 도달하지 않는다.
+    return { error: null, ok: true };
+  },
+  errorClass: PassError,
+  messages: MESSAGES,
+  logPrefix: "[pass]",
+  invalidInputMessage: "입력을 확인해 주세요.",
+  failureMessage: UNKNOWN_MESSAGE,
+});
 
-  try {
-    await request.requestPass(actor, parsed.data);
-  } catch (error) {
-    return toState(error);
-  }
-
-  revalidatePass();
-  return redirectWithPassFlash("requested", actor.id);
-}
-
-export async function withdrawAction(
-  _prev: PassActionState,
-  formData: FormData,
-): Promise<PassActionState> {
-  const actor = await requireAuth();
-
-  const parsed = withdrawPassSchema.safeParse({
+export const withdrawAction = defineFormAction<PassActionState>()({
+  schema: withdrawPassSchema,
+  input: (formData) => ({
     passId: formData.get("passId"),
     reason: formData.get("reason"),
-  });
-  if (!parsed.success) return fail("출입증을 찾을 수 없습니다.");
+  }),
+  failState: (error) => ({ error, ok: false }),
+  run: async (actor, data) => {
+    await request.withdrawPass(actor, data);
+    revalidatePass(data.passId);
+    return { error: null, ok: true };
+  },
+  errorClass: PassError,
+  messages: MESSAGES,
+  logPrefix: "[pass]",
+  invalidInputMessage: "입력을 확인해 주세요.",
+  failureMessage: UNKNOWN_MESSAGE,
+});
 
-  try {
-    await request.withdrawPass(actor, parsed.data);
-  } catch (error) {
-    return toState(error);
-  }
-
-  revalidatePass(parsed.data.passId);
-  return { error: null, ok: true };
-}
-
-export async function consentAction(
-  _prev: PassActionState,
-  formData: FormData,
-): Promise<PassActionState> {
-  const actor = await requireAuth();
-
-  const parsed = consentPassSchema.safeParse({
+export const consentAction = defineFormAction<PassActionState>()({
+  schema: consentPassSchema,
+  input: (formData) => ({
     passId: formData.get("passId"),
     consentNote: formData.get("consentNote"),
-  });
-  if (!parsed.success) {
-    return fail(firstIssue(parsed.error, "입력을 확인해 주세요."));
-  }
+  }),
+  failState: (error) => ({ error, ok: false }),
+  run: async (actor, data) => {
+    await request.consentPass(actor, data);
+    revalidatePass(data.passId);
+    await redirectWithPassFlash("consented", actor.id);
+    return { error: null, ok: true };
+  },
+  errorClass: PassError,
+  messages: MESSAGES,
+  logPrefix: "[pass]",
+  invalidInputMessage: "입력을 확인해 주세요.",
+  failureMessage: UNKNOWN_MESSAGE,
+});
 
-  try {
-    await request.consentPass(actor, parsed.data);
-  } catch (error) {
-    return toState(error);
-  }
-
-  revalidatePass(parsed.data.passId);
-  return redirectWithPassFlash("consented", actor.id);
-}
-
-export async function approveAction(
-  _prev: PassActionState,
-  formData: FormData,
-): Promise<PassActionState> {
-  const actor = await requireAuth();
-
-  const parsed = approvePassSchema.safeParse({
+export const approveAction = defineFormAction<PassActionState>()({
+  schema: approvePassSchema,
+  input: (formData) => ({
     passId: formData.get("passId"),
     byProxy: formData.get("byProxy") ?? undefined,
     decisionNote: formData.get("decisionNote"),
     consentNote: formData.get("consentNote"),
-  });
-  if (!parsed.success) {
-    return fail(firstIssue(parsed.error, "입력을 확인해 주세요."));
-  }
+  }),
+  failState: (error) => ({ error, ok: false }),
+  run: async (actor, data) => {
+    await decision.approvePass(actor, data);
+    revalidatePass(data.passId);
+    await redirectWithPassFlash("approved", actor.id);
+    return { error: null, ok: true };
+  },
+  errorClass: PassError,
+  messages: MESSAGES,
+  logPrefix: "[pass]",
+  invalidInputMessage: "입력을 확인해 주세요.",
+  failureMessage: UNKNOWN_MESSAGE,
+});
 
-  try {
-    await decision.approvePass(actor, parsed.data);
-  } catch (error) {
-    return toState(error);
-  }
-
-  revalidatePass(parsed.data.passId);
-  return redirectWithPassFlash("approved", actor.id);
-}
-
-export async function rejectAction(
-  _prev: PassActionState,
-  formData: FormData,
-): Promise<PassActionState> {
-  const actor = await requireAuth();
-
-  const parsed = rejectPassSchema.safeParse({
+export const rejectAction = defineFormAction<PassActionState>()({
+  schema: rejectPassSchema,
+  input: (formData) => ({
     passId: formData.get("passId"),
     decisionNote: formData.get("decisionNote"),
-  });
-  if (!parsed.success) {
-    return fail(firstIssue(parsed.error, "반려 사유를 입력해 주세요."));
-  }
+  }),
+  failState: (error) => ({ error, ok: false }),
+  run: async (actor, data) => {
+    await decision.rejectPass(actor, data);
+    revalidatePass(data.passId);
+    return { error: null, ok: true };
+  },
+  errorClass: PassError,
+  messages: MESSAGES,
+  logPrefix: "[pass]",
+  invalidInputMessage: "반려 사유를 입력해 주세요.",
+  failureMessage: UNKNOWN_MESSAGE,
+});
 
-  try {
-    await decision.rejectPass(actor, parsed.data);
-  } catch (error) {
-    return toState(error);
-  }
-
-  revalidatePass(parsed.data.passId);
-  return { error: null, ok: true };
-}
-
-export async function issueAction(
-  _prev: PassActionState,
-  formData: FormData,
-): Promise<PassActionState> {
-  const actor = await requireAuth();
-
-  const parsed = issuePassSchema.safeParse({
+export const issueAction = defineFormAction<PassActionState>()({
+  schema: issuePassSchema,
+  input: (formData) => ({
     type: formData.get("type"),
     studentId: formData.get("studentId"),
     endTime: formData.get("endTime"),
@@ -223,52 +193,38 @@ export async function issueAction(
     reason: formData.get("reason"),
     guardianConfirmed: formData.get("guardianConfirmed") ?? undefined,
     consentNote: formData.get("consentNote"),
-  });
-  if (!parsed.success) {
-    return fail(firstIssue(parsed.error, "입력을 확인해 주세요."));
-  }
+  }),
+  failState: (error) => ({ error, ok: false }),
+  run: async (actor, data) => {
+    await decision.issuePass(actor, data);
+    revalidatePass();
+    return { error: null, ok: true };
+  },
+  errorClass: PassError,
+  messages: MESSAGES,
+  logPrefix: "[pass]",
+  invalidInputMessage: "입력을 확인해 주세요.",
+  failureMessage: UNKNOWN_MESSAGE,
+});
 
-  try {
-    await decision.issuePass(actor, parsed.data);
-  } catch (error) {
-    return toState(error);
-  }
-
-  revalidatePass();
-  return { error: null, ok: true };
-}
-
-export async function cancelAction(
-  _prev: PassActionState,
-  formData: FormData,
-): Promise<PassActionState> {
-  const actor = await requireAuth();
-
-  const parsed = cancelPassSchema.safeParse({
+export const cancelAction = defineFormAction<PassActionState>()({
+  schema: cancelPassSchema,
+  input: (formData) => ({
     passId: formData.get("passId"),
     reason: formData.get("reason"),
-  });
-  if (!parsed.success) {
-    return fail(firstIssue(parsed.error, "입력을 확인해 주세요."));
-  }
-
-  try {
-    await decision.cancelPass(actor, parsed.data);
-  } catch (error) {
-    return toState(error);
-  }
-
-  revalidatePass(parsed.data.passId);
-  return { error: null, ok: true };
-}
-
-type ExportState = {
-  error: string | null;
-  rows: (string | number)[][];
-  filename: string;
-};
-
-const EXPORT_FAILED = "내보내지 못했습니다.";
+  }),
+  failState: (error) => ({ error, ok: false }),
+  run: async (actor, data) => {
+    await decision.cancelPass(actor, data);
+    revalidatePass(data.passId);
+    return { error: null, ok: true };
+  },
+  errorClass: PassError,
+  messages: MESSAGES,
+  logPrefix: "[pass]",
+  invalidInputMessage: "입력을 확인해 주세요.",
+  failureMessage: UNKNOWN_MESSAGE,
+});
 
 export async function exportPassHistoryAction(
   input: PassHistoryExportInput,
@@ -277,19 +233,17 @@ export async function exportPassHistoryAction(
 
   const parsed = passHistoryExportSchema.safeParse(input);
   if (!parsed.success) {
-    return { error: "조회 조건을 확인해 주세요.", rows: [], filename: "" };
+    return exportFailure("조회 조건을 확인해 주세요.");
   }
 
   try {
     return { error: null, ...(await decision.exportPassHistory(actor, parsed.data)) };
   } catch (error) {
-    if (error instanceof ForbiddenError) {
-      return { error: FORBIDDEN_MESSAGE, rows: [], filename: "" };
-    }
-    if (error instanceof PassError) {
-      return { error: MESSAGES[error.message] ?? EXPORT_FAILED, rows: [], filename: "" };
-    }
-    console.error("출입증 내역 내보내기 실패:", error);
-    return { error: EXPORT_FAILED, rows: [], filename: "" };
+    return exportErrorState(error, {
+      logLabel: "출입증 내역 내보내기 실패:",
+      forbiddenMessage: MESSAGES.FORBIDDEN,
+      translate: (e) =>
+        e instanceof PassError ? (MESSAGES[e.message] ?? EXPORT_FAILED) : null,
+    });
   }
 }

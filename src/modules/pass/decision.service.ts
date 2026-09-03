@@ -2,10 +2,8 @@ import { recordAudit } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
 import { assertCan } from "@/core/authz/errors";
 import {
-  DECIDABLE_STATUSES,
   isPassStatus,
   PASS_STATUSES,
-  requiresConsent,
   type PassStatus,
 } from "@/core/authz/pass-type";
 import { withTransaction } from "@/core/db/client";
@@ -13,6 +11,7 @@ import { formatDateInput } from "@/lib/datetime";
 import { parseStudentNumber } from "@/lib/student-number";
 import { PassError } from "./pass.error";
 import { toPassHistorySheet, type PassHistoryExportRow } from "./pass.export";
+import { DECIDABLE_STATUSES, requiresConsent } from "./pass.policy";
 import * as repo from "./pass.repo";
 import type { PassHistoryFilter, PassWithStudent } from "./pass.repo";
 import {
@@ -36,19 +35,25 @@ export async function approvePass(
 ): Promise<void> {
   await assertCan(actor, "pass:approve");
 
+  // 트랜잭션 밖 조회는 빠른 실패(존재·만료) 확인용이다 — 동의 분기는 아래에서
+  // 잠금 후 다시 판정하므로, 여기 값으로 CONSENT_REQUIRED를 던지지 않는다.
   const pass = await repo.findPass(input.passId);
   if (!pass) throw new PassError("PASS_NOT_FOUND");
   if (pass.endAt.getTime() <= now.getTime()) throw new PassError("PASS_EXPIRED");
 
-  const consented = pass.consentedAt !== null || pass.consentByProxy;
-  const needsConsent = requiresConsent(pass.type) && !consented;
-  const requestedProxy = needsConsent && input.byProxy === "on";
-
-  if (needsConsent && !requestedProxy) {
-    throw new PassError("CONSENT_REQUIRED");
-  }
-
   await withTransaction(async (tx) => {
+    // 승인 분기의 기준은 잠금 후 상태다. 선체크 뒤에 학부모가 동의했더라도
+    // 여기서 CONSENTED로 보이므로 잘못된 CONSENT_REQUIRED가 나오지 않는다.
+    const locked = await repo.lockPassForDecision(input.passId, tx);
+    const requested = locked?.status === "REQUESTED";
+    const needsConsent = requiresConsent(pass.type) && requested;
+    const byProxyRequested = needsConsent && input.byProxy === "on";
+
+    // 동의가 필요한데 대행도 없다면 잠금 후 판정으로 거부한다 — 경합 오류가 없다.
+    if (needsConsent && !byProxyRequested) {
+      throw new PassError("CONSENT_REQUIRED");
+    }
+
     const decisionFields = {
       status: "APPROVED" as const,
       decidedByUserId: actor.id,
@@ -60,7 +65,7 @@ export async function approvePass(
     let consentNote: string | null = null;
     let outcome: repo.UnexpiredTransitionOutcome;
 
-    if (requestedProxy) {
+    if (byProxyRequested) {
       decisionNote = null;
       consentNote = input.consentNote ?? null;
       outcome = await repo.transitionUnexpired(
@@ -78,16 +83,6 @@ export async function approvePass(
         tx,
       );
       byProxy = outcome === "UPDATED";
-
-      if (outcome === "UNCHANGED") {
-        consentNote = null;
-        outcome = await repo.transitionUnexpired(
-          input.passId,
-          ["CONSENTED"],
-          { ...decisionFields, decisionNote },
-          tx,
-        );
-      }
     } else {
       outcome = await repo.transitionUnexpired(
         input.passId,

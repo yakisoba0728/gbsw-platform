@@ -1,21 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
-  addKindPoints,
-  addKindTotals,
-  DEFAULT_DEMERIT_THRESHOLDS,
-  demeritLevel,
-  emptyKindTotals,
   isMeritKind,
   isMeritTrack,
   isYearScoped,
-  meritKindDelta,
   MERIT_KIND_LABELS,
   MERIT_KINDS,
   MERIT_TRACK_LABELS,
   MERIT_TRACKS,
-  netScore,
-  signedNet,
-  withNetScore,
 } from "@/core/authz/merit-track";
 
 describe("MeritTrack", () => {
@@ -45,7 +36,6 @@ describe("MeritTrack", () => {
     expect(isMeritTrack(1)).toBe(false);
   });
 });
-
 describe("MeritKind", () => {
   it("종류는 상점·벌점·상쇄점 셋이다 — 순서는 학교 규정표와 같다", () => {
     expect(MERIT_KINDS).toEqual(["MERIT", "DEMERIT", "OFFSET"]);
@@ -66,148 +56,5 @@ describe("MeritKind", () => {
     expect(isMeritKind("MERIT")).toBe(true);
     expect(isMeritKind("BONUS")).toBe(false);
     expect(isMeritKind(undefined)).toBe(false);
-  });
-});
-
-describe("종류별 합계", () => {
-  it("빈 합계는 세 칸이 모두 0이다", () => {
-    expect(emptyKindTotals()).toEqual({ merit: 0, demerit: 0, offset: 0 });
-  });
-
-  it("같은 종류를 여러 번 더하면 쌓인다", () => {
-    const totals = emptyKindTotals();
-    addKindPoints(totals, "DEMERIT", 3);
-    addKindPoints(totals, "DEMERIT", 4);
-    expect(totals.demerit).toBe(7);
-  });
-
-  it("모든 종류가 자기 칸 하나만 움직인다 — 종류가 늘면 여기서 깨진다", () => {
-    for (const kind of MERIT_KINDS) {
-      const totals = emptyKindTotals();
-      addKindPoints(totals, kind, 5);
-
-      const moved = Object.entries(totals).filter(([, value]) => value !== 0);
-      expect(moved, `${kind}가 어느 칸에도 안 들어간다`).toHaveLength(1);
-      expect(moved[0][1]).toBe(5);
-    }
-  });
-
-  it("상쇄점은 상점 칸에도 벌점 칸에도 접히지 않는다", () => {
-    const totals = emptyKindTotals();
-    addKindPoints(totals, "OFFSET", 60);
-
-    expect(totals).toEqual({ merit: 0, demerit: 0, offset: 60 });
-  });
-
-  it("모르는 종류는 어느 칸도 움직이지 않는다 — 합계를 조용히 틀리게 두지 않는다", () => {
-    const totals = emptyKindTotals();
-    addKindPoints(totals, "BONUS", 100);
-
-    expect(totals).toEqual({ merit: 0, demerit: 0, offset: 0 });
-  });
-
-  it("합계끼리 더하면 칸이 하나도 빠지지 않는다", () => {
-    const target = { merit: 1, demerit: 2, offset: 3 };
-    addKindTotals(target, { merit: 10, demerit: 20, offset: 30 });
-
-    expect(target).toEqual({ merit: 11, demerit: 22, offset: 33 });
-  });
-});
-
-describe("순점수", () => {
-  it("순점수 = 상점 + 상쇄 − 벌점", () => {
-    expect(netScore({ merit: 10, demerit: 4, offset: 1 })).toBe(7);
-  });
-
-  it("상쇄점이 순점수를 올린다 — 벌점을 덜어내기 때문이다", () => {
-    const withoutOffset = netScore({ merit: 0, demerit: 30, offset: 0 });
-    const withOffset = netScore({ merit: 0, demerit: 30, offset: 20 });
-
-    expect(withoutOffset).toBe(-30);
-    expect(withOffset).toBe(-10);
-  });
-
-  it("음수가 될 수 있다", () => {
-    expect(netScore({ merit: 2, demerit: 9, offset: 0 })).toBe(-7);
-  });
-
-  it("meritKindDelta와 어긋나지 않는다", () => {
-    const points = 7;
-    for (const kind of MERIT_KINDS) {
-      const totals = emptyKindTotals();
-      addKindPoints(totals, kind, points);
-
-      expect(netScore(totals), kind).toBe(meritKindDelta(kind) * points);
-    }
-  });
-
-  it("withNetScore는 세 칸에 순점수를 붙여 준다", () => {
-    expect(withNetScore({ merit: 10, demerit: 4, offset: 1 })).toEqual({
-      merit: 10,
-      demerit: 4,
-      offset: 1,
-      net: 7,
-    });
-  });
-});
-
-describe("signedNet", () => {
-  it("양수에는 +를 붙인다", () => {
-    expect(signedNet(7)).toBe("+7");
-  });
-
-  it("0도 +0이다 — 부호 없는 0만 따로 보이면 표가 어긋나 보인다", () => {
-    expect(signedNet(0)).toBe("+0");
-  });
-
-  it("음수는 숫자가 가진 부호를 그대로 쓴다", () => {
-    expect(signedNet(-3)).toBe("-3");
-  });
-});
-
-describe("demeritLevel", () => {
-  const thresholds = { warn: 20, danger: 30 };
-
-  it("경고 기준 정확히면 warn이다 — 경계는 포함이다", () => {
-    expect(demeritLevel(thresholds, 20)).toBe("warn");
-  });
-
-  it("경고 기준보다 1점 낮으면 none이다", () => {
-    expect(demeritLevel(thresholds, 19)).toBe("none");
-  });
-
-  it("위험 기준 정확히면 danger다 — 여기도 포함이다", () => {
-    expect(demeritLevel(thresholds, 30)).toBe("danger");
-  });
-
-  it("위험 기준을 넘으면 계속 danger다", () => {
-    expect(demeritLevel(thresholds, 999)).toBe("danger");
-  });
-
-  it("벌점이 없으면 none이다", () => {
-    expect(demeritLevel(thresholds, 0)).toBe("none");
-  });
-
-  it("기준이 달라지면 같은 점수의 단계도 달라진다 — 이 기능의 존재 이유다", () => {
-    expect(demeritLevel({ warn: 5, danger: 10 }, 7)).toBe("warn");
-    expect(demeritLevel({ warn: 50, danger: 100 }, 7)).toBe("none");
-  });
-});
-
-describe("DEFAULT_DEMERIT_THRESHOLDS", () => {
-  it("모든 트랙에 기본값이 있다", () => {
-    for (const track of MERIT_TRACKS) {
-      expect(DEFAULT_DEMERIT_THRESHOLDS[track]).toBeTruthy();
-    }
-  });
-
-  it("위험이 경고보다 크고 둘 다 1 이상의 정수다 — 저장 시 검증과 같은 규칙이다", () => {
-    for (const track of MERIT_TRACKS) {
-      const { warn, danger } = DEFAULT_DEMERIT_THRESHOLDS[track];
-      expect(Number.isInteger(warn), track).toBe(true);
-      expect(Number.isInteger(danger), track).toBe(true);
-      expect(warn, track).toBeGreaterThanOrEqual(1);
-      expect(danger, track).toBeGreaterThan(warn);
-    }
   });
 });

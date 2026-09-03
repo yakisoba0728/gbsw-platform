@@ -2,10 +2,10 @@ import { recordAudit } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
 import { can } from "@/core/authz/can";
 import { assertCan, denyAccess } from "@/core/authz/errors";
-import { DECIDABLE_STATUSES, requiresConsent } from "@/core/authz/pass-type";
 import { withTransaction } from "@/core/db/client";
 import { PassError } from "./pass.error";
 import { toQrPath } from "./pass.qr";
+import { DECIDABLE_STATUSES, requiresConsent } from "./pass.policy";
 import * as repo from "./pass.repo";
 import { PASS_HISTORY_PAGE_SIZE } from "./pass.schema";
 import type {

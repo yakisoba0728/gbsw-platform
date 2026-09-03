@@ -5,7 +5,7 @@ import { SectionCard } from "@/components/ui/section-card";
 import { DataTable, type Column } from "@/components/ui/table";
 import { requirePermission } from "@/core/auth/session";
 import { formatDate } from "@/lib/datetime";
-import { formatInviteCode } from "@/lib/invite-code";
+import { formatInviteCode } from "@/modules/invites/invite-code";
 import { listMyParentInvites } from "@/modules/invites/invite.service";
 import { RevokeButton } from "@/app/(app)/admin/invites/revoke-button";
 import { ParentInviteForm } from "./parent-invite-form";

@@ -1,4 +1,5 @@
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -6,6 +7,28 @@ import { afterEach, describe, expect, it } from "vitest";
 
 const checkerPath = path.resolve("scripts/check-standalone.mjs");
 const temporaryRoots: string[] = [];
+
+function supportsFileSymlinks(): boolean {
+  const root = mkdtempSync(path.join(os.tmpdir(), "gbsw-symlink-check-"));
+  try {
+    writeFileSync(path.join(root, "target"), "fixture\n");
+    symlinkSync("target", path.join(root, "link"), "file");
+    return true;
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      "code" in error &&
+      (error.code === "EPERM" || error.code === "EACCES")
+    ) {
+      return false;
+    }
+    throw error;
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+const symlinkIt = supportsFileSymlinks() ? it : it.skip;
 
 async function createStandaloneFixture() {
   const root = await mkdtemp(path.join(os.tmpdir(), "gbsw-standalone-"));
@@ -34,7 +57,7 @@ afterEach(async () => {
 });
 
 describe("standalone artifact checker CLI", () => {
-  it("accepts the allowlisted standalone layout", async () => {
+  symlinkIt("accepts the allowlisted standalone layout", async () => {
     const root = await createStandaloneFixture();
     await mkdir(path.join(root, ".next", "server", "chunks"), { recursive: true });
     await writeFile(path.join(root, ".next", "server", "runtime.js"), "// runtime\n");
@@ -126,7 +149,7 @@ describe("standalone artifact checker CLI", () => {
     expect(result.stderr).toContain(filename);
   });
 
-  it("rejects a symlink that escapes the standalone root", async () => {
+  symlinkIt("rejects a symlink that escapes the standalone root", async () => {
     const root = await createStandaloneFixture();
     const outsideRoot = await mkdtemp(path.join(os.tmpdir(), "gbsw-outside-"));
     temporaryRoots.push(outsideRoot);

@@ -1,21 +1,18 @@
 import { prisma, type DbClient, withTransaction } from "@/core/db/client";
-import {
-  DECIDABLE_STATUSES,
-  LIVE_STATUSES,
-  type PassStatus,
-  type PassType,
-} from "@/core/authz/pass-type";
+import { type PassStatus, type PassType } from "@/core/authz/pass-type";
 import { Prisma } from "@/generated/prisma/client";
+import { DECIDABLE_STATUSES, LIVE_STATUSES } from "./pass.policy";
 
 export { findCurrentYearForUpdate } from "@/modules/academic-year/academic-year.repo";
 
-function studentInclude(year: number) {
+function studentInclude(year: number | null) {
   return {
     select: {
       id: true,
       user: { select: { id: true, name: true, role: true } },
       enrollments: {
-        where: { year },
+        // 표시 학년도가 정해지지 않았으면 학년·반·번호를 좁히지 않는다(빈 결과).
+        where: year === null ? { year: { in: [] } } : { year },
         select: {
           grade: true,
           classNo: true,
@@ -34,7 +31,7 @@ export type PassWithStudent = Prisma.PassGetPayload<{
 type PassPage = { entries: PassWithStudent[]; total: number };
 
 async function findPage(
-  year: number,
+  year: number | null,
   query: Pick<Prisma.PassFindManyArgs, "where" | "orderBy" | "skip" | "take">,
   db: DbClient,
 ): Promise<PassPage> {
@@ -76,9 +73,23 @@ export async function findPass(passId: string, db: DbClient = prisma) {
   return db.pass.findUnique({ where: { id: passId } });
 }
 
+/* 승인 분기를 트랜잭션 안에서 행 잠금 후 다시 판정할 때 쓴다. */
+export async function lockPassForDecision(
+  passId: string,
+  db: DbClient,
+): Promise<{ id: string; status: string } | null> {
+  const rows = await db.$queryRaw<Array<{ id: string; status: string }>>`
+    SELECT "id", "status"
+    FROM "Pass"
+    WHERE "id" = ${passId}
+    FOR UPDATE
+  `;
+  return rows[0] ?? null;
+}
+
 export async function findPassForVerify(
   passId: string,
-  year: number,
+  year: number | null,
   db: DbClient = prisma,
 ): Promise<PassWithStudent | null> {
   return db.pass.findUnique({
@@ -90,7 +101,7 @@ export async function findPassForVerify(
 export async function listForVerify(
   studentProfileId: string,
   now: Date,
-  year: number,
+  year: number | null,
   db: DbClient = prisma,
 ): Promise<PassWithStudent[]> {
   const DAY_MS = 24 * 60 * 60 * 1000;
@@ -108,7 +119,7 @@ export async function listForVerify(
 
 export async function findStudentForCard(
   studentProfileId: string,
-  year: number,
+  year: number | null,
   db: DbClient = prisma,
 ) {
   return db.studentProfile.findUnique({
@@ -119,7 +130,7 @@ export async function findStudentForCard(
 
 export async function listForStudent(
   studentProfileId: string,
-  year: number,
+  year: number | null,
   window: { skip: number; take: number },
   db: DbClient = prisma,
 ): Promise<PassPage> {
@@ -138,7 +149,7 @@ export async function listForStudent(
 export async function listLiveForStudent(
   studentProfileId: string,
   now: Date,
-  year: number,
+  year: number | null,
   take: number,
   db: DbClient = prisma,
 ): Promise<PassWithStudent[]> {
@@ -156,7 +167,7 @@ export async function listLiveForStudent(
 
 export async function listPendingForAdmin(
   now: Date,
-  year: number,
+  year: number | null,
   db: DbClient = prisma,
 ): Promise<PassPage> {
   return findPage(
@@ -172,7 +183,7 @@ export async function listPendingForAdmin(
 
 export async function listActiveNow(
   now: Date,
-  year: number,
+  year: number | null,
   db: DbClient = prisma,
 ): Promise<PassPage> {
   return findPage(
@@ -188,7 +199,7 @@ export async function listActiveNow(
 
 export async function listForParent(
   parentUserId: string,
-  year: number,
+  year: number | null,
   now: Date,
   window: { skip: number; take: number },
   db: DbClient = prisma,
@@ -211,7 +222,7 @@ export async function listForParent(
 export async function listAwaitingParentConsent(
   parentUserId: string,
   now: Date,
-  year: number,
+  year: number | null,
   take: number,
   db: DbClient = prisma,
 ): Promise<PassWithStudent[]> {
@@ -228,7 +239,12 @@ export async function listAwaitingParentConsent(
   });
 }
 
-export async function listEnrolledStudents(year: number, db: DbClient = prisma) {
+export async function listEnrolledStudents(
+  year: number | null,
+  db: DbClient = prisma,
+) {
+  // 표시 학년도가 없으면 어떤 학생도 그 학년도에 재학 중이 아니다.
+  if (year === null) return [];
   const enrollments = await db.enrollment.findMany({
     where: {
       year,
@@ -359,7 +375,11 @@ export async function transition(
   return count;
 }
 
-const UNEXPIRED_TRANSITION_COLUMNS = {
+/* 손으로 쓴 SQL 컬럼 지도는 Prisma 스키마에서 유래한 Pass 필드 키 집합과
+   컴파일 타임에 대조한다 — 스키마의 필드명이 바뀌면 대입이 어긋나 에러로 잡힌다. */
+type PassColumnMap = { [K in keyof Prisma.PassUncheckedUpdateManyInput]?: K };
+
+export const UNEXPIRED_TRANSITION_COLUMNS = {
   status: "status",
   consentByProxy: "consentByProxy",
   consentedByUserId: "consentedByUserId",
@@ -370,7 +390,7 @@ const UNEXPIRED_TRANSITION_COLUMNS = {
   decidedByName: "decidedByName",
   decidedAt: "decidedAt",
   decisionNote: "decisionNote",
-} as const;
+} as const satisfies PassColumnMap;
 
 type UnexpiredTransitionData = Partial<
   Record<keyof typeof UNEXPIRED_TRANSITION_COLUMNS, string | boolean | Date | null>
@@ -399,13 +419,16 @@ export async function transitionUnexpired(
 
   const run = async (tx: DbClient) => {
     // 행 잠금을 별도 문장으로 얻은 뒤 clock_timestamp로 만료를 판정한다.
+    // Prisma DateTime은 시간대 없는 TIMESTAMP(3)라 UTC 값을 담는다 — naive 컬럼을
+    // clock_timestamp와 곧바로 비교하면 세션 TimeZone으로 해석되어 9시간 어긋나므로,
+    // 컬럼을 명시적으로 UTC로 풀어 절대시각끼리 비교·대입한다.
     const locked = await tx.$queryRaw<
       Array<{ id: string; status: string; expired: boolean }>
     >`
       SELECT
         "id",
         "status",
-        "endAt" <= (clock_timestamp() AT TIME ZONE 'UTC') AS "expired"
+        ("endAt" AT TIME ZONE 'UTC') <= clock_timestamp() AS "expired"
       FROM "Pass"
       WHERE "id" = ${passId}
       FOR UPDATE
@@ -421,7 +444,7 @@ export async function transitionUnexpired(
             "updatedAt" = (clock_timestamp() AT TIME ZONE 'UTC')
         WHERE "id" = ${passId}
           AND "status" IN (${Prisma.join([...from])})
-          AND "endAt" > (clock_timestamp() AT TIME ZONE 'UTC')
+          AND ("endAt" AT TIME ZONE 'UTC') > clock_timestamp()
       `,
     );
     return changed === 1 ? "UPDATED" : "EXPIRED";
@@ -440,12 +463,14 @@ export async function findStudentProfileByUserId(
   });
 }
 
-export async function displayYear(db: DbClient = prisma): Promise<number> {
+/* 현재 학년도. 학년도가 정해지지 않았으면 null — 호출부는 매직 0 대신
+   "학년도 없음"을 명시적으로 다룬다. */
+export async function displayYear(db: DbClient = prisma): Promise<number | null> {
   const current = await db.academicYear.findFirst({
     where: { isCurrent: true },
     select: { year: true },
   });
-  return current?.year ?? 0;
+  return current?.year ?? null;
 }
 
 export async function isParentOf(
@@ -470,7 +495,10 @@ export type PassHistoryFilter = {
   until: Date | null;
 };
 
-function historyWhere(filter: PassHistoryFilter, year: number): Prisma.PassWhereInput {
+function historyWhere(
+  filter: PassHistoryFilter,
+  year: number | null,
+): Prisma.PassWhereInput {
   const startAt: Prisma.DateTimeFilter = {
     ...(filter.since ? { gte: filter.since } : {}),
     ...(filter.until ? { lt: filter.until } : {}),
@@ -491,7 +519,7 @@ function historyWhere(filter: PassHistoryFilter, year: number): Prisma.PassWhere
                 user: { name: { contains: filter.q, mode: "insensitive" } },
               },
             },
-            ...(filter.studentNumber
+            ...(filter.studentNumber && year !== null
               ? [
                   {
                     studentProfile: {
@@ -515,7 +543,7 @@ function historyWhere(filter: PassHistoryFilter, year: number): Prisma.PassWhere
 
 export async function listHistory(
   filter: PassHistoryFilter & { skip: number; take: number | null },
-  year: number,
+  year: number | null,
   db: DbClient = prisma,
 ): Promise<PassPage> {
   return findPage(

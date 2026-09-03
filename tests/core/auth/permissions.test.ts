@@ -1,4 +1,4 @@
-import { adminAc, defaultStatements } from "better-auth/plugins/admin/access";
+import { defaultStatements } from "better-auth/plugins/admin/access";
 import { describe, expect, it } from "vitest";
 import { ac, adminRoles } from "@/core/auth/permissions";
 
@@ -74,30 +74,39 @@ describe("STUDENT · PARENT는 계정 관리 API 권한이 하나도 없다", ()
   });
 });
 
-describe("ADMIN은 계정 관리 전권을 갖는다", () => {
-  it("ADMIN은 모든 동작을 통과한다", () => {
+describe("ADMIN도 계정 관리 API 권한을 하나도 갖지 않는다", () => {
+  // admin 플러그인 엔드포인트(impersonate·set-role·ban·list-users 등)는 앱이 쓰지
+  // 않는다. route.ts의 allowlist가 막지만, allowlist가 누락되는 순간에도 권한
+  // 자체가 없어야 감사로그 없는 대리로그인·계정 조작이 불가능하다.
+  it("ADMIN의 허용 목록이 비어 있다", () => {
+    expect(adminRoles.ADMIN.statements).toEqual({ user: [], session: [] });
+  });
+
+  it("ADMIN은 defaultStatements의 어떤 동작도 통과하지 못한다 — better-auth가 동작을 추가해도 이 잠금이 따라간다", () => {
     for (const [resource, action] of ALL_GRANTS) {
-      expect(grants(adminRoles.ADMIN, resource, action)).toBe(true);
+      expect(grants(adminRoles.ADMIN, resource, action)).toBe(false);
     }
   });
 
-  it("허용 목록이 defaultStatements와 정확히 같다", () => {
-    expect(adminRoles.ADMIN.statements).toEqual({
-      user: [...defaultStatements.user],
-      session: [...defaultStatements.session],
-    });
+  it("ADMIN은 남의 계정으로 들어가지도, 계정을 정지시키지도 못한다", () => {
+    expect(grants(adminRoles.ADMIN, "user", "impersonate")).toBe(false);
+    expect(grants(adminRoles.ADMIN, "user", "ban")).toBe(false);
+    expect(grants(adminRoles.ADMIN, "user", "set-role")).toBe(false);
+    expect(grants(adminRoles.ADMIN, "user", "set-password")).toBe(false);
+    expect(grants(adminRoles.ADMIN, "user", "delete")).toBe(false);
+    expect(grants(adminRoles.ADMIN, "session", "revoke")).toBe(false);
+    expect(grants(adminRoles.ADMIN, "session", "list")).toBe(false);
+  });
+
+  it("ADMIN은 여러 동작을 한꺼번에 물어도 통과하지 못한다", () => {
+    expect(adminRoles.ADMIN.authorize({ user: ["list", "get"] }).success).toBe(false);
+    expect(adminRoles.ADMIN.authorize({ user: ["list"], session: ["list"] }, "OR").success).toBe(
+      false,
+    );
   });
 
   it("정의된 적 없는 자원은 ADMIN도 통과하지 못한다", () => {
     expect(grants(adminRoles.ADMIN, "organization", "delete")).toBe(false);
     expect(grants(adminRoles.ADMIN, "user", "self-destruct")).toBe(false);
-  });
-
-  it("기본 admin 역할보다 넓다 — impersonate-admins까지 갖는다", () => {
-    const ours = new Set<string>(adminRoles.ADMIN.statements.user);
-    const theirs = new Set<string>(adminAc.statements.user);
-    const extra = [...ours].filter((action) => !theirs.has(action));
-
-    expect(extra).toEqual(["impersonate-admins"]);
   });
 });

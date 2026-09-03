@@ -9,7 +9,7 @@ import {
   isInviteUsable,
   MAX_INVITE_ATTEMPTS,
   normalizeInviteCode,
-} from "@/lib/invite-code";
+} from "@/modules/invites/invite-code";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import {
   namedInviteMetaSchema,

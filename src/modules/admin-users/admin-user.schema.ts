@@ -11,7 +11,7 @@ import {
   MIN_GRADE,
   MIN_NUMBER,
   NUMBER_RANGE_MESSAGE,
-} from "@/modules/enrollment/enrollment.schema";
+} from "@/modules/student/student-position";
 
 const USER_CHANGED_MESSAGE =
   "계정 정보가 다른 곳에서 바뀌었습니다. 새로고침 후 다시 저장해 주세요.";

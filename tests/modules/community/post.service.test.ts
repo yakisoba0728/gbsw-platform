@@ -12,6 +12,9 @@ const attachToPost = vi.fn();
 const detachFromPost = vi.fn();
 const listAttachments = vi.fn();
 const listRecentPostsAcross = vi.fn();
+const countRecentPostsByAuthor = vi.fn();
+const lockFloodBucket = vi.fn();
+const recordAuditMany = vi.fn();
 const getReadableBySlug = vi.fn();
 const getWritableBySlug = vi.fn();
 const listReadable = vi.fn();
@@ -34,6 +37,8 @@ vi.mock("@/modules/community/community.repo", () => ({
   detachFromPost,
   listAttachments,
   listRecentPostsAcross,
+  countRecentPostsByAuthor,
+  lockFloodBucket,
 }));
 vi.mock("@/modules/community/board.service", () => ({
   getReadableBySlug,
@@ -41,7 +46,7 @@ vi.mock("@/modules/community/board.service", () => ({
   listReadable,
 }));
 vi.mock("@/modules/community/community.storage", () => ({ deleteAttachment }));
-vi.mock("@/core/audit/audit", () => ({ recordAudit }));
+vi.mock("@/core/audit/audit", () => ({ recordAudit, recordAuditMany }));
 vi.mock("@/core/db/client", () => ({ withTransaction }));
 
 const { CommunityError } = await import("@/modules/community/community.error");
@@ -99,6 +104,8 @@ beforeEach(() => {
   listPosts.mockResolvedValue([]);
   listReadable.mockResolvedValue([]);
   listRecentPostsAcross.mockResolvedValue([]);
+  countRecentPostsByAuthor.mockResolvedValue(0);
+  lockFloodBucket.mockResolvedValue(undefined);
 });
 
 describe("createPost", () => {
@@ -164,6 +171,31 @@ describe("createPost", () => {
     await expect(
       service.createPost(student, { ...input, attachmentIds: ["stolen"] }),
     ).rejects.toThrow(new CommunityError("ATTACHMENT_NOT_FOUND"));
+  });
+
+  it("도배 방지 — 10분 창 안에 상한만큼 썼으면 TOO_MANY_POSTS", async () => {
+    countRecentPostsByAuthor.mockResolvedValue(3);
+
+    await expect(service.createPost(student, input)).rejects.toThrow(
+      new CommunityError("TOO_MANY_POSTS"),
+    );
+    expect(lockFloodBucket).toHaveBeenCalledWith("s-1", "post", txClient);
+    expect(countRecentPostsByAuthor).toHaveBeenCalledWith(
+      "s-1",
+      expect.any(Date),
+      txClient,
+    );
+    expect(lockFloodBucket.mock.invocationCallOrder[0]).toBeLessThan(
+      countRecentPostsByAuthor.mock.invocationCallOrder[0]!,
+    );
+    expect(createPost).not.toHaveBeenCalled();
+    expect(recordAudit).not.toHaveBeenCalled();
+  });
+
+  it("상한 바로 아래면 통과한다 — 작성자 기준으로 센다", async () => {
+    countRecentPostsByAuthor.mockResolvedValue(2);
+
+    await expect(service.createPost(student, input)).resolves.toBeDefined();
   });
 });
 
@@ -356,6 +388,7 @@ describe("updatePost", () => {
     ).rejects.toThrow(new CommunityError("ATTACHMENT_NOT_FOUND"));
     expect(detachFromPost).not.toHaveBeenCalled();
     expect(recordAudit).not.toHaveBeenCalled();
+    expect(recordAuditMany).not.toHaveBeenCalled();
     expect(deleteAttachment).not.toHaveBeenCalled();
   });
 
@@ -366,6 +399,7 @@ describe("updatePost", () => {
     expect(attachToPost).toHaveBeenCalledWith(["stolen"], "p1", "s-1", txClient);
     expect(detachFromPost).not.toHaveBeenCalled();
     expect(recordAudit).not.toHaveBeenCalled();
+    expect(recordAuditMany).not.toHaveBeenCalled();
     expect(deleteAttachment).not.toHaveBeenCalled();
   });
 
@@ -393,7 +427,7 @@ describe("updatePost", () => {
     });
   });
 
-  it("뺀 첨부는 파일 이름과 함께 감사로그에 한 건씩 남는다 — 되돌릴 수 없는 삭제다", async () => {
+  it("뺀 첨부는 파일 이름과 함께 감사로그에 한 번에 남는다 — 되돌릴 수 없는 삭제다", async () => {
     detachFromPost.mockResolvedValue([
       {
         id: "a9",
@@ -405,12 +439,14 @@ describe("updatePost", () => {
 
     await service.updatePost(student, input);
 
-    expect(recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: "community:attachment:delete",
-        targetId: "a9",
-        metadata: expect.objectContaining({ filename: "옛파일.pdf" }),
-      }),
+    expect(recordAuditMany).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          action: "community:attachment:delete",
+          targetId: "a9",
+          metadata: expect.objectContaining({ filename: "옛파일.pdf" }),
+        }),
+      ],
       txClient,
     );
   });

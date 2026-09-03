@@ -1,5 +1,8 @@
 const FATAL_SQL_STATES = new Set(["40001", "40P01", "25P02"]);
 
+// 다시 열면 되는(동시성) 충돌 SQLSTATE — 교착(40P01)도 40001과 같은 부류다.
+const CONFLICT_SQL_STATES = new Set(["40001", "40P01"]);
+
 export function isSerializationConflict(error: unknown): boolean {
   if (typeof error !== "object" || error === null || !("code" in error)) {
     return false;
@@ -13,7 +16,17 @@ export function isSerializationConflict(error: unknown): boolean {
     };
   };
   const cause = meta.driverAdapterError?.cause;
-  return cause?.originalCode === "40001" || cause?.kind === "TransactionWriteConflict";
+  if (cause?.kind === "TransactionWriteConflict") return true;
+  const originalCode = cause?.originalCode;
+  return typeof originalCode === "string" && CONFLICT_SQL_STATES.has(originalCode);
+}
+
+// P2028 — 트랜잭션이 예산(timeout) 안에 끝나지 않아 Prisma가 닫아 버린 경우.
+export function isTransactionTimeout(error: unknown): boolean {
+  if (typeof error !== "object" || error === null || !("code" in error)) {
+    return false;
+  }
+  return error.code === "P2028";
 }
 
 // 재시도 가능한 충돌보다 넓게, 이미 중단되어 계속 쓸 수 없는 트랜잭션도 판별한다.

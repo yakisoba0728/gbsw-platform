@@ -10,7 +10,7 @@ import {
   MIN_GRADE,
   MIN_NUMBER,
   NUMBER_RANGE_MESSAGE,
-} from "@/modules/enrollment/enrollment.schema";
+} from "@/modules/student/student-position";
 
 const name = z
   .string()

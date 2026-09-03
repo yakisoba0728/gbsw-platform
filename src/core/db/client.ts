@@ -30,6 +30,12 @@ type TransactionOptions = {
   isolationLevel?: Prisma.TransactionIsolationLevel;
 };
 
+// 트랜잭션 예산. 도메인마다 기다려야 하는 잠금이 다르므로 매직넘버 대신 이름으로 쓴다.
+export const TX_BUDGETS = {
+  // 상벌점 부여(단건·일괄) — 현재 학년도·규정 행 잠금 경합을 기다리는 여유.
+  meritAward: { timeout: 30_000, maxWait: 5_000 },
+} as const satisfies Record<string, TransactionOptions>;
+
 export function withTransaction<T>(
   fn: (db: DbClient) => Promise<T>,
   options?: TransactionOptions,

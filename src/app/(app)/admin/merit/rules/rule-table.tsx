@@ -13,7 +13,8 @@ import { DeleteRuleButton } from "@/components/merit/delete-rule-button";
 import { KindBadge, kindColorClass } from "@/components/merit/kind-badge";
 import { groupRules } from "@/components/merit/rule-filter";
 import { ChevronDownIcon } from "@/components/icons";
-import { MERIT_KIND_LABELS, meritKindSign, type MeritKind } from "@/core/authz/merit-track";
+import { MERIT_KIND_LABELS, type MeritKind } from "@/core/authz/merit-track";
+import { meritKindSign } from "@/modules/merit/merit.points";
 import { EMPTY_RULE_FORM_STATE } from "./action-state";
 import { deleteRuleAction, updateRuleAction } from "./actions";
 

@@ -14,7 +14,6 @@ import { can } from "@/core/authz/can";
 import {
   MERIT_TRACK_LABELS,
   MERIT_TRACK_TITLES,
-  signedNet,
   type MeritTrack,
 } from "@/core/authz/merit-track";
 import {
@@ -26,6 +25,7 @@ import { honorificName } from "@/core/authz/roles";
 import { formatMonthDay, formatMonthDayTime, formatTimeShort } from "@/lib/datetime";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import { listRecentPosts, type RecentPostView } from "@/modules/community/post.service";
+import { signedNet } from "@/modules/merit/merit.points";
 import {
   getChildMerit,
   getMyMerit,
@@ -33,7 +33,8 @@ import {
   listRecentAwards,
   type StudentMeritView,
 } from "@/modules/merit/award.service";
-import { getMeritSummary, SUMMARY_DAYS } from "@/modules/merit/stats.service";
+import { SUMMARY_DAYS } from "@/modules/merit/merit.schema";
+import { getMeritSummary } from "@/modules/merit/stats.service";
 import {
   listActivePasses,
   listPendingPasses,

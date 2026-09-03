@@ -64,7 +64,7 @@ function bootstrapForm(over: Record<string, string> = {}): FormData {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  signInSilently.mockResolvedValue(undefined);
+  signInSilently.mockResolvedValue(true);
   checkInvite.mockResolvedValue({ role: "STUDENT" });
   requestVerification.mockResolvedValue({});
 });
@@ -176,6 +176,16 @@ describe("createInitialAdminAction — 경계 검증", () => {
       expect.any(Promise),
     );
     expect(redirect).toHaveBeenCalledWith("/");
+  });
+
+  it("자동 로그인이 실패하면 안내와 함께 로그인 화면으로 보낸다", async () => {
+    signInSilently.mockResolvedValueOnce(false);
+
+    await expect(
+      createInitialAdminAction(BOOTSTRAP_INITIAL, bootstrapForm()),
+    ).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(redirect).toHaveBeenCalledWith("/login?loginError=server");
   });
 });
 
@@ -429,6 +439,17 @@ describe("completeRegistrationAction — 경계 검증", () => {
       "correct-horse-battery",
       expect.any(Promise),
     );
+    expect(redirect).toHaveBeenCalledWith("/");
+  });
+
+  it("자동 로그인이 실패하면 안내와 함께 로그인 화면으로 보낸다", async () => {
+    signInSilently.mockResolvedValueOnce(false);
+
+    await expect(
+      completeRegistrationAction(REGISTER_INITIAL, registerForm()),
+    ).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(redirect).toHaveBeenCalledWith("/login?loginError=server");
   });
 });
 

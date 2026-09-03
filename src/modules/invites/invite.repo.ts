@@ -112,6 +112,36 @@ export async function revokePending(
   return count;
 }
 
+export type RevokedInviteInfo = { id: string; role: string; status: string };
+
+/** 명단 반영에서 빠진 계정·학생에 묶인 대기 코드를 찾아 폐기한다. */
+export async function revokePendingByTargets(
+  targets: { usedByIds: string[]; studentIds: string[] },
+  db: DbClient = prisma,
+): Promise<RevokedInviteInfo[]> {
+  const { usedByIds, studentIds } = targets;
+  if (usedByIds.length === 0 && studentIds.length === 0) return [];
+
+  const revoked = await db.invite.findMany({
+    where: {
+      status: "PENDING",
+      OR: [
+        ...(usedByIds.length > 0 ? [{ usedById: { in: usedByIds } }] : []),
+        ...(studentIds.length > 0 ? [{ studentId: { in: studentIds } }] : []),
+      ],
+    },
+    select: { id: true, role: true, status: true },
+  });
+
+  if (revoked.length > 0) {
+    await db.invite.updateMany({
+      where: { id: { in: revoked.map((invite) => invite.id) }, status: "PENDING" },
+      data: { status: "REVOKED" },
+    });
+  }
+  return revoked;
+}
+
 export async function getStudentProfileByUserId(userId: string) {
   return prisma.studentProfile.findUnique({ where: { userId } });
 }

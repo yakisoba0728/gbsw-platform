@@ -1,12 +1,15 @@
 import { prisma, type DbClient, withTransaction } from "@/core/db/client";
-import { isUniqueViolation, NumberTakenError } from "@/core/db/unique-violation";
+import { isUniqueViolation } from "@/core/db/unique-violation";
+import {
+  revokePendingByTargets,
+  type RevokedInviteInfo,
+} from "@/modules/invites/invite.repo";
+import { NumberTakenError } from "@/modules/student/student-position";
 import type { PlannedRow } from "./roster.plan";
 
 export { findCurrentYearForUpdate, findCurrentYear } from "@/modules/academic-year/academic-year.repo";
 
 export { NumberTakenError };
-
-export class InviteCodeCollisionError extends Error {}
 
 export async function listExisting(year: number, db: DbClient = prisma) {
   const profiles = await db.studentProfile.findMany({
@@ -99,18 +102,18 @@ export type RosterAssignment = PlannedRow & {
 
 export type ApplyInput = {
   assignments: RosterAssignment[];
-  newStudents: { row: PlannedRow; code: string }[];
-  inviteExpiresAt: Date | null;
   managedStudentProfileIds: string[];
   /** 명단에서 빠져 계정만 비활성·제외 표시할 학생. 업무 기록은 보존한다. */
   deleteStudentProfileIds: string[];
-  createdById: string;
-  createdByName: string;
+};
+
+export type ApplyRosterResult = {
+  revokedInvites: RevokedInviteInfo[];
 };
 
 export async function applyRoster(year: number, input: ApplyInput, db?: DbClient) {
-  const run = async (tx: DbClient) => {
-    let revokedInvites: { id: string; role: string; status: string }[] = [];
+  const run = async (tx: DbClient): Promise<ApplyRosterResult> => {
+    let revokedInvites: RevokedInviteInfo[] = [];
     const revisionStamp = new Date();
 
     if (input.deleteStudentProfileIds.length > 0) {
@@ -125,28 +128,13 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
       const deleteUserIds = targets.map((t) => t.userId);
       const deleteProfileIds = targets.map((t) => t.id);
 
-      revokedInvites = await tx.invite.findMany({
-        where: {
-          status: "PENDING",
-          OR: [
-            { usedById: { in: deleteUserIds } },
-            { studentId: { in: deleteProfileIds } },
-          ],
-        },
-        select: { id: true, role: true, status: true },
-      });
+      // Invite 테이블의 폐기는 초대 도메인(invites)에 맡긴다.
+      revokedInvites = await revokePendingByTargets(
+        { usedByIds: deleteUserIds, studentIds: deleteProfileIds },
+        tx,
+      );
 
       if (deleteUserIds.length > 0) {
-        if (revokedInvites.length > 0) {
-          await tx.invite.updateMany({
-            where: {
-              id: { in: revokedInvites.map((invite) => invite.id) },
-              status: "PENDING",
-            },
-            data: { status: "REVOKED" },
-          });
-        }
-
         // 스프레드시트 한 줄로 상벌점·출입증·학부모 연결이 사라지지 않게 한다.
         await tx.user.updateMany({
           where: { id: { in: deleteUserIds } },
@@ -222,44 +210,8 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
       });
     }
 
-    const invites: {
-      id: string;
-      name: string;
-      code: string;
-      grade: number | null;
-      classNo: number | null;
-      number: number | null;
-    }[] = [];
-
-    for (const { row, code } of input.newStudents) {
-      const created = await tx.invite.create({
-        data: {
-          code,
-          role: "STUDENT",
-          status: "PENDING",
-          createdById: input.createdById,
-          createdByName: input.createdByName,
-          expiresAt: input.inviteExpiresAt,
-          metadata: {
-            name: row.name,
-            birthDate: row.birthDate,
-            grade: row.grade,
-            classNo: row.classNo,
-            number: row.number,
-          },
-        },
-      });
-      invites.push({
-        id: created.id,
-        name: row.name,
-        code,
-        grade: row.grade,
-        classNo: row.classNo,
-        number: row.number,
-      });
-    }
-
-    return { invites, revokedInvites };
+    // 새 학생 초대 발급은 invites 모듈의 bulk 진입점이 트랜잭션 안에서 담당한다.
+    return { revokedInvites };
   };
 
   try {
@@ -270,7 +222,6 @@ export async function applyRoster(year: number, input: ApplyInput, db?: DbClient
       { timeout: 120_000, maxWait: 10_000 },
     );
   } catch (error) {
-    if (isUniqueViolation(error, "code")) throw new InviteCodeCollisionError();
     if (isUniqueViolation(error, "number")) throw new NumberTakenError();
     throw error;
   }

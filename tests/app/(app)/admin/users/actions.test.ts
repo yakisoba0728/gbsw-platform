@@ -6,6 +6,9 @@ const revalidatePath = vi.fn();
 const redirect = vi.fn(() => {
   throw new Error("NEXT_REDIRECT");
 });
+const unstable_rethrow = vi.fn((error: unknown) => {
+  if (error instanceof Error && error.message === "NEXT_REDIRECT") throw error;
+});
 
 const updateUser = vi.fn();
 const setUserActive = vi.fn();
@@ -13,7 +16,7 @@ const resetPassword = vi.fn();
 const deleteUserPermanently = vi.fn();
 
 vi.mock("next/cache", () => ({ revalidatePath }));
-vi.mock("next/navigation", () => ({ redirect }));
+vi.mock("next/navigation", () => ({ redirect, unstable_rethrow }));
 vi.mock("@/core/auth/session", () => ({ requireAuth }));
 vi.mock("@/modules/admin-users/admin-user.service", () => ({
   AdminUserError: class AdminUserError extends Error {},

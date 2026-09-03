@@ -2,9 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAuth } from "@/core/auth/session";
-import { ForbiddenError } from "@/core/authz/errors";
 import type { MeritTrack } from "@/core/authz/merit-track";
-import { actionMessage } from "@/lib/action-message";
+import { defineFormAction } from "@/lib/action";
+import { text } from "@/lib/action-message";
+import {
+  type ExportState,
+  EXPORT_FAILED,
+  exportErrorState,
+  exportFailure,
+} from "@/lib/export-state";
 import { AcademicYearError } from "@/modules/academic-year/academic-year.service";
 import * as service from "@/modules/merit/award.service";
 import { MeritError } from "@/modules/merit/merit.error";
@@ -36,15 +42,6 @@ const MESSAGES: Record<string, string> & { FORBIDDEN: string } = {
 const NO_CURRENT_YEAR_MESSAGE =
   "현재 학년도가 없습니다. 학생 관리에서 학년도를 먼저 만드세요.";
 
-function fail(error: string, note?: string): MeritActionState {
-  return { error, ok: false, count: null, note };
-}
-
-function submittedNote(formData: FormData): string {
-  const raw = formData.get("note");
-  return typeof raw === "string" ? raw : "";
-}
-
 function isTransactionTimeout(error: unknown): boolean {
   return (
     typeof error === "object" &&
@@ -54,120 +51,111 @@ function isTransactionTimeout(error: unknown): boolean {
   );
 }
 
-const messageFor = actionMessage(MeritError, MESSAGES, "[merit]");
-
-function toState(error: unknown, note?: string): MeritActionState {
-  if (error instanceof AcademicYearError) {
-    return fail(NO_CURRENT_YEAR_MESSAGE, note);
-  }
+// AcademicYearError와 트랜잭션 경합은 일반 도메인 사전보다 먼저 옮긴다.
+function translateError(error: unknown): string | null {
+  if (error instanceof AcademicYearError) return NO_CURRENT_YEAR_MESSAGE;
   if (isTransactionTimeout(error)) {
     console.error("[merit] 트랜잭션이 예산 안에 끝나지 않았습니다.", error);
-    return fail("다른 작업이 학년도를 쓰고 있습니다. 잠시 뒤 다시 부여하세요.", note);
+    return "다른 작업이 학년도를 쓰고 있습니다. 잠시 뒤 다시 부여하세요.";
   }
-  return fail(messageFor(error, "처리하지 못했습니다."), note);
+  return null;
 }
 
-export async function awardAction(
-  _prev: MeritActionState,
-  formData: FormData,
-): Promise<MeritActionState> {
-  const actor = await requireAuth();
-  const note = submittedNote(formData);
-
-  const parsed = awardSchema.safeParse({
+export const awardAction = defineFormAction<MeritActionState>()({
+  schema: awardSchema,
+  input: (formData) => ({
     studentProfileId: formData.get("studentProfileId"),
     ruleId: formData.get("ruleId"),
     note: formData.get("note"),
-  });
-  if (!parsed.success) {
-    return fail(parsed.error.issues[0]?.message ?? "부여할 항목을 골라 주세요.", note);
-  }
+  }),
+  failState: (error, formData) => ({
+    error,
+    ok: false,
+    count: null,
+    note: text(formData, "note"),
+  }),
+  run: async (actor, data) => {
+    await service.awardMerit(actor, data);
+    revalidatePath(`/students/${data.studentProfileId}`);
+    revalidatePath(`/merit/students/${data.studentProfileId}`);
+    revalidatePath("/merit");
+    revalidatePath("/merit/recent");
+    return { error: null, ok: true, count: 1 };
+  },
+  errorClass: MeritError,
+  messages: MESSAGES,
+  logPrefix: "[merit]",
+  invalidInputMessage: "부여할 항목을 골라 주세요.",
+  failureMessage: "처리하지 못했습니다.",
+  onError: translateError,
+});
 
-  try {
-    await service.awardMerit(actor, parsed.data);
-  } catch (error) {
-    return toState(error, note);
-  }
-
-  revalidatePath(`/students/${parsed.data.studentProfileId}`);
-  revalidatePath(`/merit/students/${parsed.data.studentProfileId}`);
-  return { error: null, ok: true, count: 1 };
-}
-
-export async function bulkAwardAction(
-  _prev: MeritActionState,
-  formData: FormData,
-): Promise<MeritActionState> {
-  const actor = await requireAuth();
-  const note = submittedNote(formData);
-
-  const parsed = bulkAwardSchema.safeParse({
+export const bulkAwardAction = defineFormAction<MeritActionState>()({
+  schema: bulkAwardSchema,
+  input: (formData) => ({
     studentProfileIds: formData.getAll("studentProfileIds").map(String),
     ruleId: formData.get("ruleId"),
     note: formData.get("note"),
-  });
-  if (!parsed.success) {
-    return fail(parsed.error.issues[0]?.message ?? "학생을 선택해 주세요.", note);
-  }
-
-  try {
-    const { count } = await service.bulkAwardMerit(actor, parsed.data);
+  }),
+  failState: (error, formData) => ({
+    error,
+    ok: false,
+    count: null,
+    note: text(formData, "note"),
+  }),
+  run: async (actor, data) => {
+    const { count } = await service.bulkAwardMerit(actor, data);
     revalidatePath("/merit");
     return { error: null, ok: true, count };
-  } catch (error) {
-    return toState(error, note);
-  }
-}
+  },
+  errorClass: MeritError,
+  messages: MESSAGES,
+  logPrefix: "[merit]",
+  invalidInputMessage: "학생을 선택해 주세요.",
+  failureMessage: "처리하지 못했습니다.",
+  onError: translateError,
+});
 
-export async function cancelAction(
-  _prev: MeritActionState,
-  formData: FormData,
-): Promise<MeritActionState> {
-  const actor = await requireAuth();
-
-  const parsed = cancelSchema.safeParse({
+export const cancelAction = defineFormAction<MeritActionState>()({
+  schema: cancelSchema,
+  input: (formData) => ({
     awardId: formData.get("awardId"),
     reason: formData.get("reason"),
-  });
-  if (!parsed.success) {
-    return fail(parsed.error.issues[0]?.message ?? "취소 사유를 입력해 주세요.");
-  }
+  }),
+  failState: (error) => ({ error, ok: false, count: null }),
+  run: async (actor, data, formData) => {
+    await service.cancelAward(actor, data);
+    const studentProfileId = text(formData, "studentProfileId");
+    if (studentProfileId) {
+      revalidatePath(`/students/${studentProfileId}`);
+      revalidatePath(`/merit/students/${studentProfileId}`);
+    }
+    revalidatePath("/merit");
+    revalidatePath("/merit/recent");
+    return { error: null, ok: true, count: null };
+  },
+  errorClass: MeritError,
+  messages: MESSAGES,
+  logPrefix: "[merit]",
+  invalidInputMessage: "취소 사유를 입력해 주세요.",
+  failureMessage: "처리하지 못했습니다.",
+  onError: translateError,
+});
 
-  try {
-    await service.cancelAward(actor, parsed.data);
-  } catch (error) {
-    return toState(error);
+const exportTranslate = (error: unknown): string | null => {
+  if (error instanceof AcademicYearError) return NO_CURRENT_YEAR_MESSAGE;
+  if (error instanceof MeritError) {
+    return MESSAGES[error.message] ?? EXPORT_FAILED;
   }
-
-  const studentProfileId = String(formData.get("studentProfileId") ?? "");
-  if (studentProfileId) {
-    revalidatePath(`/students/${studentProfileId}`);
-    revalidatePath(`/merit/students/${studentProfileId}`);
-  }
-  revalidatePath("/merit/recent");
-  return { error: null, ok: true, count: null };
-}
-
-type ExportState = {
-  error: string | null;
-  rows: (string | number)[][];
-  filename: string;
+  return null;
 };
 
-const EXPORT_FAILED = "내보내지 못했습니다.";
-
-function toExportState(error: unknown, logLabel: string): ExportState {
-  if (error instanceof AcademicYearError) {
-    return { error: NO_CURRENT_YEAR_MESSAGE, rows: [], filename: "" };
-  }
-  if (error instanceof ForbiddenError) {
-    return { error: "이 작업을 할 권한이 없습니다.", rows: [], filename: "" };
-  }
-  if (error instanceof MeritError) {
-    return { error: MESSAGES[error.message] ?? EXPORT_FAILED, rows: [], filename: "" };
-  }
-  console.error(logLabel, error);
-  return { error: EXPORT_FAILED, rows: [], filename: "" };
+function exportFailed(error: unknown, logLabel: string): ExportState {
+  return exportErrorState(error, {
+    logLabel,
+    forbiddenMessage: MESSAGES.FORBIDDEN,
+    translate: exportTranslate,
+  });
 }
 
 export async function exportClassRosterAction(input: {
@@ -180,13 +168,13 @@ export async function exportClassRosterAction(input: {
 
   const parsed = classRosterExportSchema.safeParse(input);
   if (!parsed.success) {
-    return { error: "조회 조건을 확인해 주세요.", rows: [], filename: "" };
+    return exportFailure("조회 조건을 확인해 주세요.");
   }
 
   try {
     return { error: null, ...(await service.exportClassRoster(actor, parsed.data)) };
   } catch (error) {
-    return toExportState(error, "상벌점 내보내기 실패:");
+    return exportFailed(error, "상벌점 내보내기 실패:");
   }
 }
 
@@ -199,13 +187,13 @@ export async function exportStudentHistoryAction(input: {
 
   const parsed = studentHistoryExportSchema.safeParse(input);
   if (!parsed.success) {
-    return { error: "조회 조건을 확인해 주세요.", rows: [], filename: "" };
+    return exportFailure("조회 조건을 확인해 주세요.");
   }
 
   try {
     return { error: null, ...(await service.exportStudentHistory(actor, parsed.data)) };
   } catch (error) {
-    return toExportState(error, "상벌점 내역 내보내기 실패:");
+    return exportFailed(error, "상벌점 내역 내보내기 실패:");
   }
 }
 
@@ -216,12 +204,12 @@ export async function exportRecentAwardsAction(
 
   const parsed = recentAwardsExportSchema.safeParse(input);
   if (!parsed.success) {
-    return { error: "조회 조건을 확인해 주세요.", rows: [], filename: "" };
+    return exportFailure("조회 조건을 확인해 주세요.");
   }
 
   try {
     return { error: null, ...(await service.exportRecentAwards(actor, parsed.data)) };
   } catch (error) {
-    return toExportState(error, "최근 부여 내보내기 실패:");
+    return exportFailed(error, "최근 부여 내보내기 실패:");
   }
 }

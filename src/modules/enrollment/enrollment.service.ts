@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { recordAudit } from "@/core/audit/audit";
+import { recordAuditMany } from "@/core/audit/audit";
 import type { SessionUser } from "@/core/auth/session";
 import { keepsAccountActive } from "@/core/authz/enrollment-status";
 import { can, type Action } from "@/core/authz/can";
@@ -149,38 +149,58 @@ export async function saveEnrollments(
 
         if (planned.length === 0) return 0;
 
-        const targetOwner = new Map<string, string>();
+        // 저장 "후"의 최종 자리 배치를 기준으로 충돌을 판정한다. 적용 "전"의 현재
+        // 상태만 보면, 같은 배치에서 비켜나는 학생이 있는 자리로의 이동과 자리
+        // 교환(A↔B)까지 겹침으로 잘못 반려된다(명단 반영 경로와 달리 수동 저장만
+        // 막히던 문제). repo.applyAll이 배치 학생들의 자리를 먼저 비웠다가 최종
+        // 값을 쓰므로, 여기서 최종 상태가 겹치지 않으면 유일 제약도 통과한다.
+        const plannedIds = new Set(planned.map(({ change }) => change.studentProfileId));
+        const finalOwner = new Map<string, string>();
+        for (const row of currentRows) {
+          // 배치에 든 학생의 옛 자리는 비켜나는 것으로 보고 비워 둔다.
+          if (plannedIds.has(row.studentProfileId)) continue;
+          if (
+            row.status !== "ENROLLED" ||
+            row.grade === null ||
+            row.classNo === null ||
+            row.number === null
+          ) {
+            continue;
+          }
+          finalOwner.set(`${row.grade}-${row.classNo}-${row.number}`, row.studentProfileId);
+        }
         for (const { change } of planned) {
           const slot = enrolledSlot(change);
           if (!slot) continue;
           const key = `${slot.grade}-${slot.classNo}-${slot.number}`;
           const label = formatSlot(slot.grade, slot.classNo, slot.number);
-          const duplicate = targetOwner.get(key);
-          if (duplicate && duplicate !== change.studentProfileId) {
-            const a = byId.get(duplicate)?.name ?? duplicate;
+          const owner = finalOwner.get(key);
+          if (owner && owner !== change.studentProfileId) {
+            const a = byId.get(owner)?.name ?? owner;
             const b = byId.get(change.studentProfileId)?.name ?? change.studentProfileId;
             throw new EnrollmentError(
               "ENROLLMENT_CONFLICT",
               `${label} 자리가 겹칩니다: ${a}, ${b}`,
             );
           }
-          targetOwner.set(key, change.studentProfileId);
+          finalOwner.set(key, change.studentProfileId);
+        }
 
-          const occupant = currentRows.find(
-            (row) =>
-              row.studentProfileId !== change.studentProfileId &&
-              row.status === "ENROLLED" &&
-              row.grade === slot.grade &&
-              row.classNo === slot.classNo &&
-              row.number === slot.number,
+        // 소프트삭제(deletedAt)된 학생의 잔존 학적 행은 listByYear 어느 화면에도
+        // 노출되지 않지만 (year, grade, classNo, number) 유니크 인덱스는 그 자리를
+        // 계속 점유한다. 이 자리에 배정할 때는 트랜잭션 안에서 잔존 행을 지워
+        // NUMBER_TAKEN 대신 저장이 성공하도록 한다. 정책 근거는 repo 쪽 주석 참고.
+        const targetSeats = new Map<string, { grade: number; classNo: number; number: number }>();
+        for (const { change } of planned) {
+          const slot = enrolledSlot(change);
+          if (slot) targetSeats.set(`${slot.grade}-${slot.classNo}-${slot.number}`, slot);
+        }
+        if (targetSeats.size > 0) {
+          await repo.deleteEnrollmentsOfRemovedStudents(
+            year,
+            [...targetSeats.values()],
+            tx,
           );
-          if (occupant) {
-            const mover = byId.get(change.studentProfileId)?.name ?? change.studentProfileId;
-            throw new EnrollmentError(
-              "ENROLLMENT_CONFLICT",
-              `${label} 자리가 겹칩니다: ${occupant.name}, ${mover}`,
-            );
-          }
         }
 
         const items: repo.PlannedEnrollment[] = planned.map(
@@ -192,33 +212,32 @@ export async function saveEnrollments(
         );
         await repo.applyAll(year, items, tx);
 
+        // 학생마다 감사 쿼리를 치지 않고 한 번에 기록한다. 저장과 같은 tx라
+        // 감사 실패도 함께 롤백된다.
+        const auditEntries: Parameters<typeof recordAuditMany>[0] = [];
         for (const { change, active, changed } of planned) {
-          await recordAudit(
-            {
-              actorUserId: actor.id,
-              actorName: actor.name,
-              action: "enrollment:update",
-              targetType: "StudentProfile",
-              targetId: change.studentProfileId,
-              metadata: { changed, batch, year },
-            },
-            tx,
-          );
+          auditEntries.push({
+            actorUserId: actor.id,
+            actorName: actor.name,
+            action: "enrollment:update",
+            targetType: "StudentProfile",
+            targetId: change.studentProfileId,
+            metadata: { changed, batch, year },
+          });
 
           const before = byId.get(change.studentProfileId);
           if (changed.includes("status") && before && before.accountActive !== active) {
-            await recordAudit(
-              {
-                actorUserId: actor.id,
-                actorName: actor.name,
-                action: active ? "user:activate" : "user:deactivate",
-                targetType: "User",
-                targetId: change.userId,
-              },
-              tx,
-            );
+            auditEntries.push({
+              actorUserId: actor.id,
+              actorName: actor.name,
+              action: active ? "user:activate" : "user:deactivate",
+              targetType: "User",
+              targetId: change.userId,
+            });
           }
         }
+
+        await recordAuditMany(auditEntries, tx);
 
         return planned.length;
       },
