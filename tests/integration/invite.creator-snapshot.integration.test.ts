@@ -58,4 +58,51 @@ describe("Invite 발급자 이름 스냅샷", () => {
       createdByName: creatorName,
     });
   });
+
+  // repo가 자체 트랜잭션을 열면 사용자 삭제가 0건이어도 초대 삭제만 커밋된다.
+  // 호출자의 트랜잭션 하나를 쓰므로 실패는 초대까지 함께 되돌린다.
+  it("사용자 삭제가 조건에 걸리면 초대 삭제도 함께 되돌아간다", async () => {
+    const failId = `${creatorId}-fail`;
+    const failCode = `${inviteCode}-FAIL`;
+    await prisma.user.create({
+      data: {
+        id: failId,
+        name: "롤백 검증 발급자",
+        email: `${failId}@example.invalid`,
+        phone: `019-${suffix.slice(0, 4)}-${suffix.slice(4, 8)}`,
+        role: "ADMIN",
+        status: "ACTIVE",
+        deletedAt: new Date(),
+      },
+    });
+    await prisma.invite.create({
+      data: {
+        code: failCode,
+        role: "ADMIN",
+        status: "PENDING",
+        createdById: failId,
+        createdByName: "롤백 검증 발급자",
+        usedById: failId,
+      },
+    });
+
+    await expect(
+      prisma.$transaction(async (tx) => {
+        // 이름이 어긋나 삭제는 0건이 된다.
+        const deleted = await deletePermanently(failId, "틀린 이름", tx);
+        if (!deleted) throw new Error("ROLLBACK");
+        return deleted;
+      }),
+    ).rejects.toThrow("ROLLBACK");
+
+    await expect(
+      prisma.invite.findUnique({ where: { code: failCode }, select: { usedById: true } }),
+    ).resolves.toEqual({ usedById: failId });
+    await expect(
+      prisma.user.findUnique({ where: { id: failId }, select: { id: true } }),
+    ).resolves.toEqual({ id: failId });
+
+    await prisma.invite.deleteMany({ where: { code: failCode } });
+    await prisma.user.deleteMany({ where: { id: failId } });
+  });
 });
