@@ -335,6 +335,7 @@ describe("명단 대량 발급(issueInvitesBulk)", () => {
     const before = Date.now();
 
     const issued = await issueInvitesBulk(bulkInput(2), bulkTx);
+    const after = Date.now();
 
     expect(issued).toEqual([
       { id: "inv-1", name: "새학생1", code: "GBSWAAAA2345", grade: 1, classNo: 3, number: 9 },
@@ -346,9 +347,12 @@ describe("명단 대량 발급(issueInvitesBulk)", () => {
     expect(first.createdById).toBe("admin-1");
     expect(first.createdByName).toBe("관리자");
     expect(first.expiresAt).toBeInstanceOf(Date);
-    const days = (first.expiresAt!.getTime() - before) / (24 * 60 * 60 * 1000);
-    expect(days).toBeGreaterThan(89.9);
-    expect(days).toBeLessThanOrEqual(90);
+    // before는 호출 전에 찍으므로 서비스가 자기 Date.now()로 만든 만료는 항상
+    // before+90일 이상이다. 상한을 90일로 두면 1밀리초만 지나도 깨진다 —
+    // 같은 파일의 부모 초대 검사처럼 after로 감싸 정확히 90일임을 본다.
+    const ninetyDays = 90 * 24 * 60 * 60 * 1000;
+    expect(first.expiresAt!.getTime()).toBeGreaterThanOrEqual(before + ninetyDays);
+    expect(first.expiresAt!.getTime()).toBeLessThanOrEqual(after + ninetyDays);
     expect(first.metadata).toEqual({
       name: "새학생1",
       birthDate: "2011-01-01",
