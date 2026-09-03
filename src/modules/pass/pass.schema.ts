@@ -126,6 +126,38 @@ export const PASS_HISTORY_PAGE_SIZE = 20;
 
 export const PASS_HISTORY_DEFAULT_DAYS = 30;
 
+/* 교사 현황의 두 목록(결재 대기·지금 나가 있는 학생) 페이지 크기. 100·200에서
+   줄였다 — 항목마다 결재 패널이나 취소 버튼이 붙어 한 페이지가 길수록 화면과
+   클라이언트 코드가 함께 무거워지고, 전교 300명 규모에서는 50건이면 평시 목록이
+   한 페이지에 들어간다. 넘치는 건 이제 다음 쪽으로 갈 수 있다. */
+export const PASS_ADMIN_PAGE_SIZE = 50;
+
+/* 커서 자취의 최대 길이. 「이전」이 앞 페이지로 정확히 돌아가려면 지나온 커서를
+   주소에 들고 다녀야 하므로 주소가 끝없이 길어지지 않게 자른다(50건 × 40쪽 = 2,000건). */
+export const PASS_ADMIN_CURSOR_DEPTH = 40;
+
+/* 자취는 점으로 잇는다 — URLSearchParams가 그대로 두는 글자라 주소에 %2C가 남지 않는다. */
+export const PASS_CURSOR_SEPARATOR = ".";
+
+const cursorId = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
+
+const cursorTrailSchema = z.preprocess(
+  (value) =>
+    typeof value === "string" && value.length > 0
+      ? value.split(PASS_CURSOR_SEPARATOR)
+      : [],
+  z.array(cursorId).max(PASS_ADMIN_CURSOR_DEPTH),
+);
+
+/* 주소의 커서 자취를 읽는다. 형식이 어긋나면 첫 페이지로 떨어뜨린다 — 손으로 고친
+   주소가 화면을 깨뜨리지 않는다. */
+export function parseCursorTrail(
+  value: string | string[] | undefined,
+): string[] {
+  const parsed = cursorTrailSchema.safeParse(value);
+  return parsed.success ? parsed.data : [];
+}
+
 const passHistorySearch = searchText();
 
 const historyDate = z.preprocess(

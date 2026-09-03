@@ -7,7 +7,10 @@ import {
   PASS_FLASH_HEADER,
   verifyPassFlash,
 } from "@/modules/pass/pass-flash";
-import { passHistoryQuerySchema } from "@/modules/pass/pass.schema";
+import {
+  parseCursorTrail,
+  passHistoryQuerySchema,
+} from "@/modules/pass/pass.schema";
 import { AdminView } from "./admin-view";
 import { ParentView } from "./parent-view";
 import { StudentView } from "./student-view";
@@ -28,7 +31,14 @@ export default async function PassPage({
   const notice = flash?.userId === actor.id ? flash.kind : null;
 
   if (actor.role === "ADMIN") {
-    return <AdminView actor={actor} approved={notice === "approved"} />;
+    return (
+      <AdminView
+        actor={actor}
+        approved={notice === "approved"}
+        pendingCursors={parseCursorTrail(raw.pendingCursor)}
+        activeCursors={parseCursorTrail(raw.activeCursor)}
+      />
+    );
   }
   if (actor.role === "STUDENT") {
     return (

@@ -61,9 +61,12 @@ describe("출입증 상태 집합", () => {
     const findMany = vi.fn().mockResolvedValue([]);
     const count = vi.fn().mockResolvedValue(0);
 
-    await repo.listPendingForAdmin(now, 2026, {
-      pass: { findMany, count },
-    } as never);
+    await repo.listPendingForAdmin(
+      now,
+      2026,
+      { cursor: null, take: 50 },
+      { pass: { findMany, count } } as never,
+    );
 
     expect(findMany.mock.calls[0]![0].where.status.in).toEqual([...DECIDABLE_STATUSES]);
     expect(count.mock.calls[0]![0].where.status.in).toEqual([...DECIDABLE_STATUSES]);
@@ -328,5 +331,115 @@ describe("UNEXPIRED_TRANSITION_COLUMNS — 스키마 파생 검증", () => {
       expect(field).toBe(column);
       expect(fieldEnum).toHaveProperty(field, column);
     }
+  });
+});
+
+describe("교사 현황 목록의 커서", () => {
+  const now = new Date("2026-09-02T12:00:00+09:00");
+
+  function passRows(ids: string[]) {
+    return ids.map((id) => ({ id }));
+  }
+
+  function db(rows: { id: string }[], total = rows.length) {
+    const findMany = vi.fn().mockResolvedValue(rows);
+    const count = vi.fn().mockResolvedValue(total);
+    return { findMany, count, client: { pass: { findMany, count } } as never };
+  }
+
+  it("첫 페이지는 커서 없이 다음 쪽 확인용 한 건만 더 읽는다", async () => {
+    const { findMany, client } = db(passRows(["a", "b", "c"]));
+
+    const page = await repo.listPendingForAdmin(
+      now,
+      2026,
+      { cursor: null, take: 2 },
+      client,
+    );
+
+    const args = findMany.mock.calls[0]![0];
+    expect(args.take).toBe(3);
+    expect(args.cursor).toBeUndefined();
+    expect(args.skip).toBeUndefined();
+    expect(page.entries.map((entry) => entry.id)).toEqual(["a", "b"]);
+    expect(page.nextCursor).toBe("b");
+  });
+
+  it("마지막 페이지의 nextCursor는 null이다", async () => {
+    const { client } = db(passRows(["a", "b"]));
+
+    const page = await repo.listPendingForAdmin(
+      now,
+      2026,
+      { cursor: null, take: 2 },
+      client,
+    );
+
+    expect(page.entries).toHaveLength(2);
+    expect(page.nextCursor).toBeNull();
+  });
+
+  it("커서를 받으면 그 행부터 읽고 맨 앞의 커서 행만 버린다", async () => {
+    const { findMany, client } = db(passRows(["b", "c", "d", "e"]));
+
+    const page = await repo.listPendingForAdmin(
+      now,
+      2026,
+      { cursor: "b", take: 2 },
+      client,
+    );
+
+    const args = findMany.mock.calls[0]![0];
+    expect(args.cursor).toEqual({ id: "b" });
+    // 커서 행 한 건 + 다음 쪽 확인용 한 건을 더 읽는다.
+    expect(args.take).toBe(4);
+    // skip: 1은 쓰지 않는다 — 커서 행이 목록에서 빠졌을 때 다음 한 건을 대신 삼킨다.
+    expect(args.skip).toBeUndefined();
+    expect(page.entries.map((entry) => entry.id)).toEqual(["c", "d"]);
+    expect(page.nextCursor).toBe("d");
+  });
+
+  it("커서 행이 목록에서 빠졌으면 한 건도 건너뛰지 않는다", async () => {
+    // 커서였던 b가 승인되어 결재 대기에서 사라진 경우 — 첫 행은 c다.
+    const { client } = db(passRows(["c", "d", "e"]));
+
+    const page = await repo.listPendingForAdmin(
+      now,
+      2026,
+      { cursor: "b", take: 2 },
+      client,
+    );
+
+    expect(page.entries.map((entry) => entry.id)).toEqual(["c", "d"]);
+    expect(page.nextCursor).toBe("d");
+  });
+
+  it("전체 건수는 커서와 무관하게 where로만 센다", async () => {
+    const { count, client } = db(passRows(["c", "d", "e"]), 327);
+
+    const page = await repo.listPendingForAdmin(
+      now,
+      2026,
+      { cursor: "b", take: 2 },
+      client,
+    );
+
+    expect(count.mock.calls[0]![0].where).toBeDefined();
+    expect(count.mock.calls[0]![0]).not.toHaveProperty("cursor");
+    expect(page.total).toBe(327);
+  });
+
+  it("두 목록의 커서는 서로 섞이지 않는다", async () => {
+    const { findMany, client } = db(passRows(["x"]));
+
+    await repo.listPendingForAdmin(now, 2026, { cursor: "p-9", take: 50 }, client);
+    await repo.listActiveNow(now, 2026, { cursor: "a-9", take: 50 }, client);
+
+    const pendingArgs = findMany.mock.calls[0]![0];
+    const activeArgs = findMany.mock.calls[1]![0];
+    expect(pendingArgs.cursor).toEqual({ id: "p-9" });
+    expect(pendingArgs.orderBy).toEqual([{ startAt: "asc" }, { id: "asc" }]);
+    expect(activeArgs.cursor).toEqual({ id: "a-9" });
+    expect(activeArgs.orderBy).toEqual([{ endAt: "asc" }, { id: "asc" }]);
   });
 });

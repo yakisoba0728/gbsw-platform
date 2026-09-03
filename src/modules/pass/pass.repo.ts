@@ -30,16 +30,51 @@ export type PassWithStudent = Prisma.PassGetPayload<{
 
 type PassPage = { entries: PassWithStudent[]; total: number };
 
+/* nextCursor가 null이면 다음 페이지가 없다. total은 커서와 무관한 전체 건수다. */
+export type PassCursorPage = PassPage & { nextCursor: string | null };
+
+/* 커서로 넘기는 목록의 창. cursor가 null이면 첫 페이지다. */
+export type PassCursorWindow = { cursor: string | null; take: number };
+
+type PassPageQuery = Pick<
+  Prisma.PassFindManyArgs,
+  "where" | "orderBy" | "skip" | "take"
+> & {
+  /* 이 id 다음부터 읽는다. 정렬 끝에 id가 있어 커서 하나로 자리가 정해진다. */
+  cursorId?: string | null;
+};
+
 async function findPage(
   year: number | null,
-  query: Pick<Prisma.PassFindManyArgs, "where" | "orderBy" | "skip" | "take">,
+  query: PassPageQuery,
   db: DbClient,
-): Promise<PassPage> {
-  const [entries, total] = await Promise.all([
-    db.pass.findMany({ ...query, include: { studentProfile: studentInclude(year) } }),
-    db.pass.count({ where: query.where }),
+): Promise<PassCursorPage> {
+  const { cursorId, ...args } = query;
+  const take = typeof args.take === "number" ? args.take : null;
+
+  const [rows, total] = await Promise.all([
+    db.pass.findMany({
+      ...args,
+      // skip: 1로 커서 행을 지우지 않는다 — 커서 행이 그새 목록에서 빠졌으면
+      // (교사가 방금 승인한 신청 등) skip이 그 다음 한 건을 대신 건너뛴다.
+      // 실제로 맨 앞에 있을 때만 버려야 한 건도 사라지지 않는다.
+      ...(cursorId ? { cursor: { id: cursorId } } : {}),
+      // 다음 페이지가 있는지 보려고 한 건을 더 읽는다(커서 행이 있으면 두 건).
+      ...(take === null ? {} : { take: take + (cursorId ? 2 : 1) }),
+      include: { studentProfile: studentInclude(year) },
+    }),
+    db.pass.count({ where: args.where }),
   ]);
-  return { entries, total };
+
+  const after = cursorId && rows[0]?.id === cursorId ? rows.slice(1) : rows;
+  if (take === null) return { entries: after, total, nextCursor: null };
+
+  const entries = after.slice(0, take);
+  return {
+    entries,
+    total,
+    nextCursor: after.length > take ? (entries.at(-1)?.id ?? null) : null,
+  };
 }
 
 type CreatePassData = {
@@ -168,14 +203,16 @@ export async function listLiveForStudent(
 export async function listPendingForAdmin(
   now: Date,
   year: number | null,
+  window: PassCursorWindow,
   db: DbClient = prisma,
-): Promise<PassPage> {
+): Promise<PassCursorPage> {
   return findPage(
     year,
     {
       where: { status: { in: [...DECIDABLE_STATUSES] }, endAt: { gt: now } },
       orderBy: [{ startAt: "asc" }, { id: "asc" }],
-      take: 100,
+      cursorId: window.cursor,
+      take: window.take,
     },
     db,
   );
@@ -184,14 +221,16 @@ export async function listPendingForAdmin(
 export async function listActiveNow(
   now: Date,
   year: number | null,
+  window: PassCursorWindow,
   db: DbClient = prisma,
-): Promise<PassPage> {
+): Promise<PassCursorPage> {
   return findPage(
     year,
     {
       where: { status: "APPROVED", startAt: { lte: now }, endAt: { gt: now } },
       orderBy: [{ endAt: "asc" }, { id: "asc" }],
-      take: 200,
+      cursorId: window.cursor,
+      take: window.take,
     },
     db,
   );
