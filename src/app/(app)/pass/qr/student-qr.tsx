@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { cardClass } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { classify, endedMessage, keepWhileOffline } from "./qr-refresh";
 
 export type QrPayload = {
   qr: { size: number; d: string };
@@ -15,12 +16,23 @@ const RETRY_MS = 3000;
 
 const MIN_DELAY_MS = 500;
 
-/* live: 정상 갱신 · stale: 연결이 끊겨 재시도 중 · ended: 더 물어도 답이 같아 멈춤 */
-type Mode = "live" | "stale" | "ended";
+const DISCONNECTED = "연결이 끊겨 코드를 받지 못했습니다.";
+
+async function endedReason(response: Response): Promise<string | null> {
+  try {
+    const body: unknown = await response.json();
+    const code = (body as { error?: unknown })?.error;
+    if (typeof code === "string") return code;
+  } catch {
+    // 본문이 없거나 JSON이 아니면 일반 문구로 떨어진다.
+  }
+  return null;
+}
 
 export function StudentQr({ initial }: { initial: QrPayload }) {
   const [payload, setPayload] = useState<QrPayload | null>(initial);
-  const [mode, setMode] = useState<Mode>("live");
+  const [stale, setStale] = useState(false);
+  const [ended, setEnded] = useState<string | null>(null);
   const [round, setRound] = useState(0);
 
   const deadlineRef = useRef(new Date(initial.validUntil).getTime());
@@ -34,27 +46,34 @@ export function StudentQr({ initial }: { initial: QrPayload }) {
       try {
         const response = await fetch("/api/pass/qr", { cache: "no-store" });
 
-        // 4xx는 다시 물어도 답이 달라지지 않는다(재학 종료·세션 만료). 코드를 지우고
-        // 멈춘다 — 굳은 QR을 띄운 채 3.3초마다 되묻는 것은 학생에게 거짓말이고
-        // 서버에는 시간당 천 건 넘는 요청이다.
-        if (response.status >= 400 && response.status < 500) {
+        // 재학 종료·세션 만료는 되물어도 답이 달라지지 않는다. 코드를 지우고 멈춘다 —
+        // 굳은 QR을 띄운 채 3.3초마다 되묻는 것은 학생에게 거짓말이고 서버에는
+        // 시간당 천 건 넘는 요청이다.
+        const outcome = classify(response.status);
+        if (outcome === "ended") {
+          const reason = await endedReason(response);
           if (cancelled) return;
           setPayload(null);
           setBarMs(null);
-          setMode("ended");
+          setEnded(endedMessage(reason));
           return;
         }
-        if (!response.ok) throw new Error(String(response.status));
+        if (outcome === "retry") throw new Error(String(response.status));
 
         const next: QrPayload = await response.json();
         if (cancelled) return;
         deadlineRef.current = new Date(next.validUntil).getTime();
-        setMode("live");
+        setStale(false);
         setPayload(next);
       } catch {
         if (cancelled) return;
         deadlineRef.current = Date.now() + RETRY_MS;
-        setMode("stale");
+        setStale(true);
+        // 유효 시간이 지난 코드는 스캔되지 않는다. 연결이 돌아오길 기다리는 동안
+        // 화면에 남겨 두면 학생이 정문에서 그것을 내민다.
+        setPayload((current) =>
+          keepWhileOffline(current?.validUntil, Date.now()) ? current : null,
+        );
       }
       // ended에서는 round를 올리지 않아 이 효과가 다시 돌지 않는다.
       if (!cancelled) setRound((n) => n + 1);
@@ -70,12 +89,12 @@ export function StudentQr({ initial }: { initial: QrPayload }) {
     };
   }, [round]);
 
-  if (mode === "ended" || !payload) {
-    return (
-      <EmptyState variant="inside">
-        학생증을 더 쓸 수 없습니다. 화면을 새로 고치세요.
-      </EmptyState>
-    );
+  if (ended !== null) {
+    return <EmptyState variant="inside">{ended}</EmptyState>;
+  }
+
+  if (!payload) {
+    return <EmptyState variant="inside">{DISCONNECTED}</EmptyState>;
   }
 
   return (
@@ -106,9 +125,7 @@ export function StudentQr({ initial }: { initial: QrPayload }) {
       </div>
 
       <p className="mt-2 text-xs text-mut">
-        {mode === "stale"
-          ? "연결이 끊겨 코드가 굳었습니다."
-          : "20초마다 새 코드로 바뀝니다."}
+        {stale ? "연결이 끊겨 코드가 굳었습니다." : "20초마다 새 코드로 바뀝니다."}
       </p>
     </div>
   );
