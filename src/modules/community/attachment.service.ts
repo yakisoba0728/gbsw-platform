@@ -125,18 +125,24 @@ export async function uploadAttachment(
 
 async function sweepMyOrphans(actor: SessionUser): Promise<void> {
   try {
-    const stale = await repo.listStalePending(
-      actor.id,
-      new Date(Date.now() - PENDING_TTL_MS),
-    );
-    if (stale.length === 0) return;
+    const cutoff = new Date(Date.now() - PENDING_TTL_MS);
 
-    await withTransaction(async (tx) => {
-      await repo.deleteAttachments(
-        stale.map((attachment) => attachment.id),
-        tx,
+    // 조회와 삭제가 같은 트랜잭션 안에서 같은 조건을 본다 — 밖에서 목록을 만들면
+    // 그사이 글에 붙은 첨부의 파일까지 지운다.
+    const swept = await withTransaction(async (tx) => {
+      const stale = await repo.lockStalePending(actor.id, cutoff, tx);
+      if (stale.length === 0) return [];
+
+      const deleted = new Set(
+        await repo.deleteStalePending(
+          stale.map((attachment) => attachment.id),
+          cutoff,
+          tx,
+        ),
       );
-      for (const attachment of stale) {
+      const removed = stale.filter((attachment) => deleted.has(attachment.id));
+
+      for (const attachment of removed) {
         await recordAudit(
           {
             actorUserId: actor.id,
@@ -153,8 +159,12 @@ async function sweepMyOrphans(actor: SessionUser): Promise<void> {
           tx,
         );
       }
+
+      return removed;
     });
-    for (const attachment of stale) {
+
+    // 롤백돼도 파일은 돌아오지 않으므로 커밋 뒤에, 실제로 지워진 행만 지운다.
+    for (const attachment of swept) {
       await deleteAttachment(attachment.storageKey, attachment.createdAt);
     }
   } catch {
