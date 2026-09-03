@@ -519,8 +519,16 @@ describe("updateUser()", () => {
   });
 });
 
-describe("deleteUserPermanently() — 학생 오등록 정리 전용, 되돌릴 수 없다", () => {
-  const target = { id: "u-9", name: "삭제대상", role: "STUDENT", deletedAt: null };
+describe("deleteUserPermanently() — 삭제 표시된 학생만, 되돌릴 수 없다", () => {
+  // 선행 조건이 소프트삭제이므로 정상 대상은 deletedAt이 채워져 있다.
+  // (예전 픽스처는 deletedAt: null이었고, 그것이 활성 학생을 지울 수 있던 결함이다.)
+  const target = {
+    id: "u-9",
+    name: "삭제대상",
+    role: "STUDENT",
+    deletedAt: new Date("2026-08-20T00:00:00.000Z"),
+  };
+  const activeTarget = { ...target, deletedAt: null };
 
   it("관리자가 아니면 삭제하지 못한다", async () => {
     await expect(
@@ -563,7 +571,25 @@ describe("deleteUserPermanently() — 학생 오등록 정리 전용, 되돌릴 
     expect(deletePermanently).not.toHaveBeenCalled();
   });
 
-  it("계정에 이름까지 맞으면 완전 삭제한다", async () => {
+  it("삭제 표시가 없는 재학생은 삭제하지 못한다 — 상벌점·출입증이 Cascade로 사라진다", async () => {
+    findById.mockResolvedValue(activeTarget);
+
+    await expect(
+      deleteUserPermanently(admin, "u-9", "삭제대상"),
+    ).rejects.toThrow("NOT_SOFT_DELETED");
+    expect(deletePermanently).not.toHaveBeenCalled();
+    expect(recordAudit).not.toHaveBeenCalled();
+  });
+
+  it("확인 이름이 맞아도 삭제 표시가 없으면 이름 대조까지 가지 않는다", async () => {
+    findById.mockResolvedValue({ ...activeTarget, name: "삭제대상" });
+
+    await expect(
+      deleteUserPermanently(admin, "u-9", "삭제대상"),
+    ).rejects.toThrow("NOT_SOFT_DELETED");
+  });
+
+  it("삭제 표시된 학생은 이름까지 맞으면 완전 삭제한다", async () => {
     findById.mockResolvedValue(target);
 
     await deleteUserPermanently(admin, "u-9", "삭제대상");
@@ -572,7 +598,9 @@ describe("deleteUserPermanently() — 학생 오등록 정리 전용, 되돌릴 
     expect(deletePermanently).toHaveBeenCalledWith("u-9", "삭제대상", tx);
   });
 
-  it("삭제 직전에 이름이 바뀌면 삭제하지 않고 NAME_MISMATCH로 반려한다", async () => {
+  // repo의 where에는 name과 함께 deletedAt: { not: null }도 걸려 있어, 조회와 삭제
+  // 사이에 이름이 바뀌거나 명단 반영으로 계정이 되살아나면 count가 0이 된다.
+  it("repo가 아무 행도 지우지 않으면 감사로그 없이 NAME_MISMATCH로 반려한다", async () => {
     findById.mockResolvedValue(target);
     deletePermanently.mockResolvedValue(false);
 

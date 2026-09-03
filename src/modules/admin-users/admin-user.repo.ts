@@ -230,13 +230,17 @@ export async function resetCredential(
   return withTransaction((tx) => resetCredentialWithDb(tx, userId, passwordHash));
 }
 
+// 삭제 표시(deletedAt)를 DB 조건으로도 건다 — 서비스가 이미 막지만, 같은 불변식을
+// 두 곳에서 세워 두면 서비스를 거치지 않는 호출이 살아 있는 계정을 지우지 못한다.
 async function deletePermanentlyWithDb(
   db: DbClient,
   userId: string,
   confirmName: string,
 ): Promise<boolean> {
   await db.invite.deleteMany({ where: { usedById: userId } });
-  const { count } = await db.user.deleteMany({ where: { id: userId, name: confirmName } });
+  const { count } = await db.user.deleteMany({
+    where: { id: userId, name: confirmName, deletedAt: { not: null } },
+  });
   return count === 1;
 }
 
